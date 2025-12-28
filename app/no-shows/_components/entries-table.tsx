@@ -10,10 +10,9 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { UserNameCard } from "@/components/ui/user-name-card";
+import { Pagination } from "@/components/ui/pagination";
 import { t } from "@/lib/i18n";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 type NoShowEntry = {
 	id: string;
@@ -34,6 +33,7 @@ type EntriesTableProps = {
 export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 	const [entries, setEntries] = useState<NoShowEntry[]>([]);
 	const [loading, setLoading] = useState(true);
+	const [initialLoad, setInitialLoad] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [page, setPage] = useState(1);
 	const [totalPages, setTotalPages] = useState(0);
@@ -53,6 +53,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 
 				if (!session) {
 					setError(t.ispale.error.notAuthenticated);
+					setLoading(false);
 					return;
 				}
 
@@ -71,6 +72,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 					} else {
 						setError(t.ispale.error.fetchFailed);
 					}
+					setLoading(false);
 					return;
 				}
 
@@ -78,6 +80,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 				setEntries(data.entries || []);
 				setTotalPages(data.totalPages || 0);
 				setTotal(data.total || 0);
+				setInitialLoad(false);
 			} catch (err) {
 				console.error("Error fetching entries:", err);
 				setError(t.ispale.error.fetchFailed);
@@ -118,7 +121,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 	// Format date for display
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
-		return date.toLocaleDateString("sr-RS", {
+		return date.toLocaleDateString("sr-Latn-RS", {
 			year: "numeric",
 			month: "long",
 			day: "numeric",
@@ -136,7 +139,15 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 	return (
 		<div className="space-y-4">
 			{/* Table */}
-			<div className="overflow-hidden rounded-lg border">
+			<div className="relative overflow-hidden rounded-lg border min-h-[400px]">
+				{/* Loading overlay */}
+				{loading && !initialLoad && (
+					<div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+						<div className="text-sm text-muted-foreground">
+							{t.ispale.loading}
+						</div>
+					</div>
+				)}
 				<Table>
 					<TableHeader className="bg-muted sticky top-0 z-10">
 						<TableRow>
@@ -146,11 +157,11 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{loading ? (
+						{initialLoad && loading ? (
 							<TableRow>
 								<TableCell
 									colSpan={3}
-									className="h-24 text-center text-muted-foreground"
+									className="h-[400px] text-center text-muted-foreground"
 								>
 									{t.ispale.loading}
 								</TableCell>
@@ -159,7 +170,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 							<TableRow>
 								<TableCell
 									colSpan={3}
-									className="h-24 text-center text-muted-foreground"
+									className="h-[400px] text-center text-muted-foreground"
 								>
 									{t.ispale.noNoShows}
 								</TableCell>
@@ -199,32 +210,13 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 
 			{/* Pagination */}
 			{totalPages > 0 && (
-				<div className="flex items-center justify-between px-4">
-					<div className="text-sm text-muted-foreground">
-						Strana {page} od {totalPages}
-					</div>
-					<div className="flex items-center gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setPage((p) => Math.max(1, p - 1))}
-							disabled={page === 1 || loading}
-						>
-							<ChevronLeft className="h-4 w-4" />
-							<span className="sr-only">Prethodna strana</span>
-						</Button>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() =>
-								setPage((p) => Math.min(totalPages, p + 1))
-							}
-							disabled={page === totalPages || loading}
-						>
-							<ChevronRight className="h-4 w-4" />
-							<span className="sr-only">Sledeća strana</span>
-						</Button>
-					</div>
+				<div className="flex items-center justify-center px-4">
+					<Pagination
+						currentPage={page}
+						totalPages={totalPages}
+						onPageChange={setPage}
+						disabled={loading}
+					/>
 				</div>
 			)}
 		</div>
