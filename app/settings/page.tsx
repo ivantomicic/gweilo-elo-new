@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -21,7 +22,7 @@ import {
 	uploadAvatar,
 } from "@/lib/supabase/user";
 
-export default function SettingsPage() {
+function SettingsPageContent() {
 	const [user, setUser] = useState<{
 		name: string;
 		email: string;
@@ -339,6 +340,18 @@ export default function SettingsPage() {
 													</Box>
 												</label>
 											</Box>
+
+											{/* Display name feedback */}
+											{profileError && (
+												<Box className="text-sm text-destructive">
+													{profileError}
+												</Box>
+											)}
+											{profileSuccess && (
+												<Box className="text-sm text-green-500">
+													{t.settings.saved}
+												</Box>
+											)}
 										</Stack>
 
 										{/* Divider - Gradient style */}
@@ -366,18 +379,6 @@ export default function SettingsPage() {
 													icon="solar:user-bold"
 													placeholder={user.name}
 												/>
-
-												{/* Display name feedback */}
-												{profileError && (
-													<Box className="text-sm text-destructive">
-														{profileError}
-													</Box>
-												)}
-												{profileSuccess && (
-													<Box className="text-sm text-green-500">
-														{t.settings.saved}
-													</Box>
-												)}
 
 												{/* Email */}
 												<Input
@@ -523,5 +524,13 @@ export default function SettingsPage() {
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
+	);
+}
+
+export default function SettingsPage() {
+	return (
+		<AuthGuard>
+			<SettingsPageContent />
+		</AuthGuard>
 	);
 }
