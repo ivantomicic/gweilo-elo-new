@@ -4,30 +4,57 @@
 
 @layer base {
   :root {
+    /* Font tokens are set via next/font in layout.tsx as CSS variables */
+
+    /* Color tokens - dark mode only */
+    /* App background: #0A0A0A - very dark, almost black */
     --background: 0 0% 3.9%;
+    
+    /* Card background: #1A1B23 - dark but lighter than app bg for visual separation */
+    /* rgb(26, 27, 35) converted to HSL */
+    --card: 233 15% 12%;
+    
+    /* Foreground text */
     --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
     --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
+    
+    /* Primary/Accent: #3B82F6 - blue accent for buttons, active states, highlights */
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    
+    /* Popover (same as card for consistency) */
+    --popover: 218 19% 12%;
     --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
+    
+    /* Secondary elements */
     --secondary: 0 0% 14.9%;
     --secondary-foreground: 0 0% 98%;
+    
+    /* Muted text/elements */
     --muted: 0 0% 14.9%;
     --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
+    
+    /* Accent (using primary blue) */
+    --accent: 217 91% 60%;
+    --accent-foreground: 0 0% 100%;
+    
+    /* Destructive actions */
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
+    
+    /* Borders and inputs */
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 217 91% 60%;
+    
+    /* Chart colors (for future use) */
+    --chart-1: 217 91% 60%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
+    
+    /* Border radius */
     --radius: 0.5rem;
   }
 }
@@ -36,8 +63,14 @@
   * {
     @apply border-border;
   }
+  
   body {
     @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
   }
 }
 

@@ -18,17 +18,53 @@ alwaysApply: true
 -   Do not introduce light mode tokens, themes, or conditional logic.
 -   Use high-contrast text for readability in indoor/low-light environments.
 -   Avoid pure black backgrounds; prefer near-black for eye comfort.
--   Accent colors should be used sparingly to highlight:
-    -   Active matches
-    -   Elo gains/losses
-    -   Rankings and podium positions
+
+### Color Tokens (Defined in globals.css)
+
+All colors must use CSS variables/tokens, never hardcoded hex values:
+
+-   **App Background**: `#0A0A0A` (token: `--background`, Tailwind: `bg-background`)
+    -   Very dark, almost black base color for the app
+-   **Card Background**: `#1A1B23` (token: `--card`, Tailwind: `bg-card`)
+    -   Must be noticeably lighter than app background for visual separation
+    -   Cards must use this token, not app background
+-   **Primary/Accent**: `#3B82F6` (token: `--primary` / `--accent`, Tailwind: `bg-primary` / `bg-accent`)
+    -   Blue accent color used for:
+        -   Primary buttons
+        -   Active states (selected tabs, active matches)
+        -   Highlights (Elo changes, rankings, podium positions)
+    -   Use sparingly to maintain impact
+-   All colors defined as HSL in CSS variables for easy theme modifications
+
+### Card Background Contrast Rule
+
+-   Cards MUST use `bg-card` token (not `bg-background`)
+-   Cards must visually separate from app background
+-   This ensures proper visual hierarchy and depth
 
 ## Typography
 
--   Prefer large, readable font sizes.
--   Numbers (scores, Elo) must be visually prominent.
--   Avoid decorative fonts.
--   Hierarchy must be obvious without relying on color alone.
+### Font Tokens (Loaded via next/font)
+
+Fonts are loaded in `app/layout.tsx` and defined as CSS variables:
+
+-   **Headings (h1–h6)**: Space Grotesk
+    -   CSS variable: `--font-heading`
+    -   Tailwind: `font-heading`
+    -   Applied automatically to all heading elements via `globals.css`
+-   **Body / UI Text**: Manrope
+    -   CSS variable: `--font-body`
+    -   Tailwind: `font-body`
+    -   Applied to body by default
+
+### Typography Rules
+
+-   Do NOT inline `font-family` values in components
+-   Use Tailwind font utilities (`font-heading`, `font-body`) when needed
+-   To change fonts later, update only the font loading in `layout.tsx` and CSS variables
+-   Prefer large, readable font sizes
+-   Numbers (scores, Elo) must be visually prominent
+-   Hierarchy must be obvious without relying on color alone
 
 ## Layout Principles
 

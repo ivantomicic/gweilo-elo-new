@@ -2,165 +2,212 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Mail, Chrome } from 'lucide-react'
+import { Icon } from '@/components/ui/icon'
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true)
+  const [showPassword, setShowPassword] = useState(false)
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 bg-background">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-md"
-      >
-        <Card className="border-border/50 shadow-lg">
-          <CardHeader className="space-y-2 text-center">
+    <div className="flex flex-col min-h-screen bg-background text-foreground selection:bg-primary/20">
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-xs mb-10 flex flex-col items-center">
+          <div className="relative group">
+            <div className="absolute -inset-4 bg-primary/20 blur-3xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity" />
+            <img
+              src="/logo.png"
+              alt="GWEILO NS Logo"
+              className="relative w-full h-auto drop-shadow-[0_0_15px_rgba(59,130,246,0.3)]"
+            />
+          </div>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {isLogin ? (
             <motion.div
-              initial={{ y: -10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1 }}
+              key="login"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full space-y-4 max-w-sm"
             >
-              <CardTitle className="text-3xl font-bold tracking-tight">
-                Gweilo Elo
-              </CardTitle>
-              <CardDescription className="text-base mt-2">
-                Table Tennis Rating System
-              </CardDescription>
-            </motion.div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Toggle Buttons */}
-            <div className="flex gap-2 p-1 bg-muted/50 rounded-lg">
-              <Button
-                variant={isLogin ? 'default' : 'ghost'}
-                className="flex-1 transition-all"
-                onClick={() => setIsLogin(true)}
-              >
-                Login
-              </Button>
-              <Button
-                variant={!isLogin ? 'default' : 'ghost'}
-                className="flex-1 transition-all"
-                onClick={() => setIsLogin(false)}
-              >
-                Register
-              </Button>
-            </div>
+              <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold font-heading tracking-tight mb-2">Welcome Back</h1>
+                <p className="text-muted-foreground">Sign in to track your matches and stats</p>
+              </div>
 
-            {/* Animated Form Content */}
-            <AnimatePresence mode="wait">
-              {isLogin ? (
-                <motion.div
-                  key="login"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="login-email">Email</Label>
-                    <Input
-                      id="login-email"
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Icon icon="solar:letter-bold" className="size-5 text-muted-foreground" />
+                    </div>
+                    <input
                       type="email"
-                      placeholder="you@example.com"
-                      className="h-11"
+                      placeholder="alex.chen@example.com"
+                      className="w-full h-14 bg-input border border-border/50 rounded-2xl pl-12 pr-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="login-password">Password</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className="h-11"
-                    />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center ml-1">
+                    <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                      Password
+                    </label>
+                    <button className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors">
+                      Forgot?
+                    </button>
                   </div>
-                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                    <Button className="w-full h-11 text-base font-semibold">
-                      Continue with Email
-                    </Button>
-                  </motion.div>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="register"
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 10 }}
-                  transition={{ duration: 0.2 }}
-                  className="space-y-4"
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="register-name">Full Name</Label>
-                    <Input
-                      id="register-name"
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Icon icon="solar:lock-password-bold" className="size-5 text-muted-foreground" />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      className="w-full h-14 bg-input border border-border/50 rounded-2xl pl-12 pr-12 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                    >
+                      <Icon
+                        icon={showPassword ? 'solar:eye-bold' : 'solar:eye-closed-bold'}
+                        className="size-5 text-muted-foreground hover:text-foreground transition-colors"
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                <button className="w-full h-14 bg-primary text-primary-foreground rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4">
+                  <span>Sign In</span>
+                  <Icon icon="solar:login-2-bold" className="size-5" />
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="register"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full space-y-4 max-w-sm"
+            >
+              <div className="text-center mb-8">
+                <h1 className="text-3xl font-bold font-heading tracking-tight mb-2">Create Account</h1>
+                <p className="text-muted-foreground">Join to start tracking your matches</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                    Full Name
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Icon icon="solar:user-bold" className="size-5 text-muted-foreground" />
+                    </div>
+                    <input
                       type="text"
-                      placeholder="John Doe"
-                      className="h-11"
+                      placeholder="Alex Chen"
+                      className="w-full h-14 bg-input border border-border/50 rounded-2xl pl-12 pr-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-email">Email</Label>
-                    <Input
-                      id="register-email"
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                    Email Address
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Icon icon="solar:letter-bold" className="size-5 text-muted-foreground" />
+                    </div>
+                    <input
                       type="email"
-                      placeholder="you@example.com"
-                      className="h-11"
+                      placeholder="alex.chen@example.com"
+                      className="w-full h-14 bg-input border border-border/50 rounded-2xl pl-12 pr-4 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="register-password">Password</Label>
-                    <Input
-                      id="register-password"
-                      type="password"
-                      placeholder="••••••••"
-                      className="h-11"
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                      <Icon icon="solar:lock-password-bold" className="size-5 text-muted-foreground" />
+                    </div>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••••••"
+                      className="w-full h-14 bg-input border border-border/50 rounded-2xl pl-12 pr-12 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 pr-4 flex items-center"
+                    >
+                      <Icon
+                        icon={showPassword ? 'solar:eye-bold' : 'solar:eye-closed-bold'}
+                        className="size-5 text-muted-foreground hover:text-foreground transition-colors"
+                      />
+                    </button>
                   </div>
-                  <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-                    <Button className="w-full h-11 text-base font-semibold">
-                      Continue with Email
-                    </Button>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </div>
 
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-border" />
+                <button className="w-full h-14 bg-primary text-primary-foreground rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4">
+                  <span>Create Account</span>
+                  <Icon icon="solar:user-plus-bold" className="size-5" />
+                </button>
               </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
-              </div>
-            </div>
-
-            {/* Google Button */}
-            <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
-              <Button
-                variant="outline"
-                className="w-full h-11 text-base font-semibold"
-                onClick={(e) => {
-                  e.preventDefault()
-                  // UI only - no OAuth yet
-                }}
-              >
-                <Chrome className="mr-2 h-5 w-5" />
-                Continue with Google
-              </Button>
             </motion.div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="w-full max-w-sm mt-6">
+          <div className="flex items-center gap-4 py-4">
+            <div className="flex-1 h-px bg-border/50" />
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              Or continue with
+            </span>
+            <div className="flex-1 h-px bg-border/50" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button className="flex items-center justify-center h-12 bg-secondary border border-border/50 rounded-xl active:scale-[0.98] transition-all">
+              <Icon icon="logos:apple" className="size-5 invert" />
+            </button>
+            <button className="flex items-center justify-center h-12 bg-secondary border border-border/50 rounded-xl active:scale-[0.98] transition-all">
+              <Icon icon="logos:google-icon" className="size-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-auto pt-8">
+          <p className="text-sm text-muted-foreground">
+            {isLogin ? "Don't have an account?" : 'Already have an account?'}
+            <button
+              onClick={() => setIsLogin(!isLogin)}
+              className="ml-1 font-bold text-primary hover:underline transition-all"
+            >
+              {isLogin ? 'Create Account' : 'Sign In'}
+            </button>
+          </p>
+        </div>
+      </div>
+
+      <div className="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 overflow-hidden">
+        <div className="absolute -top-24 -right-24 size-64 bg-primary/10 blur-[100px] rounded-full" />
+        <div className="absolute top-1/2 -left-32 size-96 bg-primary/5 blur-[120px] rounded-full" />
+      </div>
     </div>
   )
 }
-
