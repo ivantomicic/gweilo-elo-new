@@ -404,6 +404,16 @@ function SelectPlayersPageContent() {
 									</Button>
 									<Button
 										disabled={!isComplete}
+										onClick={() => {
+											if (isComplete) {
+												// Store selected players in sessionStorage
+												sessionStorage.setItem(
+													"selectedPlayers",
+													JSON.stringify(selectedPlayers)
+												);
+												router.push(`/start-session/schedule?count=${playerCount}`);
+											}
+										}}
 										className="flex-1 py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
 									>
 										<Stack

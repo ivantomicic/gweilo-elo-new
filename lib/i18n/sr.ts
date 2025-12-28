@@ -169,6 +169,18 @@ export const sr = {
 				"Izaberi 6 igrača za doubles režim. Igrači će biti raspoređeni u 3 tima po 2 igrača.",
 			newPlayer: "Novi",
 		},
+		schedule: {
+			title: "Raspored termina",
+			subtitle: "Pregled današnje rotacije",
+			stepIndicator: "Korak 3 od 3",
+			round: "Runda {number}",
+			resting: "Odmor",
+			randomize: "Randomizuj raspored",
+			singles: "Singles",
+			doubles: "Doubles",
+			mixed: "Mixed",
+			startSession: "Pokreni termin",
+		},
 	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
