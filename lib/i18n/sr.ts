@@ -26,10 +26,16 @@ export const sr = {
 			generic: "Došlo je do greške. Pokušaj ponovo.",
 			oauthError: "Greška pri prijavljivanju sa Google-om",
 		},
+		success: {
+			registrationSuccess: "Registracija je uspešna.",
+			emailConfirmationSent: "Poslali smo ti email za potvrdu naloga.",
+			checkInbox: "Molimo te da proveriš inbox.",
+		},
 	},
 	common: {
 		dashboard: "Kontrolna tabla",
 		logout: "Odjavi se",
+		welcome: "Dobrodošao",
 	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
