@@ -15,8 +15,11 @@ const manrope = Manrope({
 })
 
 export const metadata: Metadata = {
-  title: 'Gweilo Elo',
+  title: 'Gweilo :: Les talkie-talkie, more ping-pong.',
   description: 'Table Tennis Elo Rating System',
+  icons: {
+    icon: '/favicon.png',
+  },
 }
 
 export default function RootLayout({

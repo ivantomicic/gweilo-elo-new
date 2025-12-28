@@ -1,13 +1,19 @@
 ---
 description: UI component architecture rules - third-party components must be wrapped
-globs: ["**/components/**/*.tsx", "**/components/**/*.ts", "**/app/**/*.tsx", "**/pages/**/*.tsx"]
+globs:
+    [
+        "**/components/**/*.tsx",
+        "**/components/**/*.ts",
+        "**/app/**/*.tsx",
+        "**/pages/**/*.tsx",
+    ]
 alwaysApply: true
 ---
 
 UI / COMPONENT ARCHITECTURE (VERY IMPORTANT)
 
-- shadcn/ui, animate-ui, and magicui components must NEVER be imported directly in feature or page code.
-- ALL third-party UI components must be wrapped in our own components first.
+-   shadcn/ui, animate-ui, and magicui components must NEVER be imported directly in feature or page code.
+-   ALL third-party UI components must be wrapped in our own components first.
 
 Required structure:
 components/
@@ -16,9 +22,9 @@ vendor/ // third-party implementations (shadcn, magicui, animate-ui)
 
 Example rule:
 
-- Feature code may import ONLY from `components/ui`
-- `components/ui` may import from `components/vendor`
-- Direct imports from shadcn, magicui, animate-ui outside `components/ui` are forbidden.
+-   Feature code may import ONLY from `components/ui`
+-   `components/ui` may import from `components/vendor`
+-   Direct imports from shadcn, magicui, animate-ui outside `components/ui` are forbidden.
 
 If a new UI primitive is needed:
 
@@ -28,5 +34,56 @@ If a new UI primitive is needed:
 
 RATIONALE:
 
-- UI libraries must be replaceable in the future
-- shadcn is an implementation detail, not the app API
+-   UI libraries must be replaceable in the future
+-   shadcn is an implementation detail, not the app API
+
+## Layout Components (Stack & Box)
+
+-   Use `Stack` and `Box` components from `@/components/ui` for layout instead of raw Tailwind flex/div patterns
+-   `Stack` should be used for flex containers with spacing, alignment, and direction
+-   `Box` should be used for simple wrapper divs or semantic HTML elements
+-   Avoid writing `className="flex flex-col items-center justify-center gap-4"` - use `Stack` props instead
+
+Examples:
+
+❌ Bad:
+
+```tsx
+<div className="flex flex-col items-center justify-center gap-4">
+	<div className="space-y-2">...</div>
+</div>
+```
+
+✅ Good:
+
+```tsx
+<Stack
+	direction="column"
+	alignItems="center"
+	justifyContent="center"
+	spacing={4}
+>
+	<Stack direction="column" spacing={2}>
+		...
+	</Stack>
+</Stack>
+```
+
+❌ Bad:
+
+```tsx
+<div className="w-full max-w-sm">
+```
+
+✅ Good:
+
+```tsx
+<Box className="w-full max-w-sm">
+```
+
+RATIONALE:
+
+-   Cleaner, more semantic API similar to MUI
+-   Consistent layout patterns across the codebase
+-   Easier to maintain and refactor
+-   Props are more explicit than className strings
