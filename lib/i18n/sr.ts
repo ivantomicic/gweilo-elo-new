@@ -38,6 +38,12 @@ export const sr = {
 		welcome: "Dobrodošao",
 		cancel: "Otkaži",
 	},
+	activeSession: {
+		title: "Aktivan termin u toku",
+		playerCount: "{count} igrača",
+		continue: "Nastavi termin",
+		started: "Započeto",
+	},
 	user: {
 		account: "Nalog",
 		notifications: "Notifikacije",
