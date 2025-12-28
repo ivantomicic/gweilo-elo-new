@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { RoundCard } from "./_components/round-card";
 import { t } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase/client";
 
 type Player = {
 	id: string;
@@ -425,6 +426,55 @@ function SchedulePageContent() {
 		setShuffledPlayers(shuffled);
 	};
 
+	const [isStartingSession, setIsStartingSession] = useState(false);
+
+	const handleStartSession = async () => {
+		if (isStartingSession) return;
+
+		try {
+			setIsStartingSession(true);
+
+			// Get current session token
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				console.error("Not authenticated");
+				return;
+			}
+
+			// Call API to create session
+			const response = await fetch("/api/sessions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${session.access_token}`,
+				},
+				body: JSON.stringify({
+					playerCount,
+					players: shuffledPlayers,
+					rounds: rounds,
+				}),
+			});
+
+			if (!response.ok) {
+				const data = await response.json();
+				console.error("Failed to create session:", data.error);
+				return;
+			}
+
+			const data = await response.json();
+
+			// Redirect to session page
+			router.push(`/session/${data.sessionId}`);
+		} catch (error) {
+			console.error("Error starting session:", error);
+		} finally {
+			setIsStartingSession(false);
+		}
+	};
+
 	if (
 		!playerCount ||
 		playerCount < 3 ||
@@ -494,7 +544,11 @@ function SchedulePageContent() {
 							{/* Back and Start Session Buttons */}
 							<Box className="pt-4">
 								<Stack direction="column" spacing={3}>
-									<Button className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto">
+									<Button
+										onClick={handleStartSession}
+										disabled={isStartingSession}
+										className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
+									>
 										<Stack
 											direction="row"
 											alignItems="center"
@@ -502,15 +556,17 @@ function SchedulePageContent() {
 											spacing={2}
 										>
 											<span>
-												{
-													t.startSession.schedule
-														.startSession
-												}
+												{isStartingSession
+													? "Kreiranje..."
+													: t.startSession.schedule
+															.startSession}
 											</span>
-											<Icon
-												icon="solar:play-bold"
-												className="size-5"
-											/>
+											{!isStartingSession && (
+												<Icon
+													icon="solar:play-bold"
+													className="size-5"
+												/>
+											)}
 										</Stack>
 									</Button>
 									<Button
