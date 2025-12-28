@@ -64,7 +64,7 @@ const data = {
 		},
 		{
 			title: "Ispale",
-			url: "#",
+			url: "/ispale",
 			icon: XCircleIcon,
 		},
 	],

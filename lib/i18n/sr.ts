@@ -110,6 +110,35 @@ export const sr = {
 			},
 		},
 	},
+	ispale: {
+		title: "Ispale",
+		description: "Pregled igrača koji nisu došli na termin",
+		addNoShow: "Dodaj ispalu",
+		loading: "Učitavanje ispala...",
+		noNoShows: "Nema ispala",
+		table: {
+			player: "Igrač",
+			totalNoShows: "Ukupno ispala",
+			lastNoShow: "Poslednji ispal",
+		},
+		drawer: {
+			title: "Dodaj ispalu",
+			player: "Igrač",
+			playerPlaceholder: "Izaberi igrača",
+			date: "Datum",
+			reason: "Razlog",
+			reasonPlaceholder: "Opis razloga (opciono)",
+		},
+		success: {
+			created: "Ispal je uspešno dodat",
+		},
+		error: {
+			notAuthenticated: "Niste prijavljeni",
+			unauthorized: "Nemate dozvolu za pristup",
+			fetchFailed: "Greška pri učitavanju ispala",
+			createFailed: "Greška pri dodavanju ispala",
+		},
+	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
 		description: "Sistem Elo rejtinga za stoni tenis",
