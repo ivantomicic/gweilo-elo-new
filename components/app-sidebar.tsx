@@ -70,17 +70,17 @@ const data = {
 	navSecondary: [
 		{
 			title: "Podešavanja",
-			url: "#",
+			url: "/settings",
 			icon: SettingsIcon,
 		},
 		{
 			title: "Pravila igre",
-			url: "#",
+			url: "/rules",
 			icon: HelpCircleIcon,
 		},
 		{
 			title: "Anketarijum",
-			url: "#",
+			url: "/polls",
 			icon: FileTextIcon,
 		},
 	],

@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import {
   BellIcon,
   LogOutIcon,
@@ -89,13 +90,17 @@ export function NavUser({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <UserCircleIcon />
-                {t.user.account}
+              <DropdownMenuItem asChild>
+                <Link href="/settings">
+                  <UserCircleIcon />
+                  {t.user.account}
+                </Link>
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <BellIcon />
-                {t.user.notifications}
+              <DropdownMenuItem asChild>
+                <Link href="/notifications">
+                  <BellIcon />
+                  {t.user.notifications}
+                </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

@@ -42,6 +42,13 @@ export const sr = {
 		notifications: "Notifikacije",
 		logout: "Izloguj se",
 	},
+	pages: {
+		dashboard: "Pregled",
+		settings: "Podešavanja",
+		rules: "Pravila igre",
+		polls: "Anketarijum",
+		notifications: "Notifikacije",
+	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
 		description: "Sistem Elo rejtinga za stoni tenis",
