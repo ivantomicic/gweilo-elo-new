@@ -20,6 +20,7 @@ import {
 	PlayIcon,
 	SearchIcon,
 	SettingsIcon,
+	ShieldIcon,
 	UsersIcon,
 	XCircleIcon,
 } from "lucide-react";
@@ -91,24 +92,43 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		name: string;
 		email: string;
 		avatar: string | null;
+		role: "admin" | "user";
 	} | null>(null);
 
 	useEffect(() => {
 		const fetchUser = async () => {
 			const currentUser = await getCurrentUser();
 			if (currentUser) {
-				setUser(currentUser);
+				setUser({
+					name: currentUser.name,
+					email: currentUser.email,
+					avatar: currentUser.avatar,
+					role: currentUser.role as "admin" | "user",
+				});
 			} else {
 				// Fallback if no user found
 				setUser({
 					name: "User",
 					email: "",
 					avatar: null,
+					role: "user",
 				});
 			}
 		};
 		fetchUser();
 	}, []);
+
+	// Build navSecondary items - conditionally include Admin panel for admins
+	const navSecondaryItems = [...data.navSecondary];
+
+	// Add Admin panel after Anketarijum if user is admin
+	if (user?.role === "admin") {
+		navSecondaryItems.push({
+			title: "Admin panel",
+			url: "/admin",
+			icon: ShieldIcon,
+		});
+	}
 
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
@@ -138,7 +158,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			<SidebarContent>
 				<NavMain items={data.navMain} />
 				{/* <NavDocuments items={data.documents} /> */}
-				<NavSecondary items={data.navSecondary} className="mt-auto" />
+				<NavSecondary items={navSecondaryItems} className="mt-auto" />
 			</SidebarContent>
 			<SidebarFooter>{user && <NavUser user={user} />}</SidebarFooter>
 		</Sidebar>

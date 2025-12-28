@@ -36,6 +36,7 @@ export const sr = {
 		dashboard: "Kontrolna tabla",
 		logout: "Odjavi se",
 		welcome: "Dobrodošao",
+		cancel: "Otkaži",
 	},
 	user: {
 		account: "Nalog",
@@ -83,6 +84,30 @@ export const sr = {
 			permissionDenied:
 				"Nemate dozvolu za upload avatara. Proverite postavke bezbednosti.",
 			generic: "Došlo je do greške. Pokušaj ponovo.",
+		},
+	},
+	admin: {
+		users: {
+			loading: "Učitavanje korisnika...",
+			noUsers: "Nema korisnika",
+			table: {
+				avatar: "Avatar",
+				name: "Ime",
+				email: "Email",
+				actions: "Akcije",
+			},
+			drawer: {
+				title: "Uredi korisnika",
+			},
+			success: {
+				updated: "Korisnik je uspešno ažuriran",
+			},
+			error: {
+				notAuthenticated: "Niste prijavljeni",
+				unauthorized: "Nemate dozvolu za pristup",
+				fetchFailed: "Greška pri učitavanju korisnika",
+				updateFailed: "Greška pri ažuriranju korisnika",
+			},
 		},
 	},
 	meta: {

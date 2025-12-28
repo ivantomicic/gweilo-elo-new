@@ -7,6 +7,7 @@ import { supabase } from "@/lib/supabase/client";
  * - name: from user_metadata.name or email fallback
  * - email: from user.email
  * - avatar: from user_metadata.avatar_url or placeholder fallback
+ * - role: from user_metadata.role (defaults to "user")
  */
 export async function getCurrentUser() {
 	const {
@@ -29,11 +30,18 @@ export async function getCurrentUser() {
 		user.user_metadata?.avatar_url ||
 		user.user_metadata?.avatar_url_google ||
 		null;
+	
+	// Role from user_metadata.role, defaults to "user" if not set
+	// This is validated server-side via Supabase trigger
+	const role = user.user_metadata?.role || "user";
+	// Validate role (security: only allow known roles)
+	const validRole = role === "admin" ? "admin" : "user";
 
 	return {
 		name,
 		email,
 		avatar,
+		role: validRole,
 	};
 }
 
