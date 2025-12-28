@@ -17,7 +17,8 @@ export async function GET(request: Request) {
 		await supabase.auth.exchangeCodeForSession(code)
 	}
 
-	// Redirect to dashboard after successful OAuth
-	return NextResponse.redirect(new URL('/dashboard', requestUrl.origin))
+	// Redirect to root after successful OAuth
+	// Root route will automatically show dashboard for authenticated users
+	return NextResponse.redirect(new URL('/', requestUrl.origin))
 }
 
