@@ -2,7 +2,6 @@
 
 import {
   BellIcon,
-  CreditCardIcon,
   LogOutIcon,
   MoreVerticalIcon,
   UserCircleIcon,
@@ -28,6 +27,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/vendor/shadcn/sidebar"
+import { t } from "@/lib/i18n"
+import { supabase } from "@/lib/supabase/client"
 
 export function NavUser({
   user,
@@ -39,6 +40,10 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+  }
 
   return (
     <SidebarMenu>
@@ -86,21 +91,17 @@ export function NavUser({
             <DropdownMenuGroup>
               <DropdownMenuItem>
                 <UserCircleIcon />
-                Account
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <CreditCardIcon />
-                Billing
+                {t.user.account}
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <BellIcon />
-                Notifications
+                {t.user.notifications}
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout}>
               <LogOutIcon />
-              Log out
+              {t.user.logout}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

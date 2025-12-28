@@ -37,6 +37,11 @@ export const sr = {
 		logout: "Odjavi se",
 		welcome: "Dobrodošao",
 	},
+	user: {
+		account: "Nalog",
+		notifications: "Notifikacije",
+		logout: "Izloguj se",
+	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
 		description: "Sistem Elo rejtinga za stoni tenis",

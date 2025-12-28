@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import {
 	ArrowUpCircleIcon,
@@ -27,6 +28,7 @@ import { NavDocuments } from "@/components/nav-documents";
 import { NavMain } from "@/components/nav-main";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import {
 	Sidebar,
 	SidebarContent,
@@ -38,11 +40,6 @@ import {
 } from "@/components/vendor/shadcn/sidebar";
 
 const data = {
-	user: {
-		name: "shadcn",
-		email: "m@example.com",
-		avatar: "/avatars/shadcn.jpg",
-	},
 	navMain: [
 		{
 			title: "Pregled",
@@ -70,54 +67,6 @@ const data = {
 			icon: XCircleIcon,
 		},
 	],
-	navClouds: [
-		{
-			title: "Capture",
-			icon: CameraIcon,
-			isActive: true,
-			url: "#",
-			items: [
-				{
-					title: "Active Proposals",
-					url: "#",
-				},
-				{
-					title: "Archived",
-					url: "#",
-				},
-			],
-		},
-		{
-			title: "Proposal",
-			icon: FileTextIcon,
-			url: "#",
-			items: [
-				{
-					title: "Active Proposals",
-					url: "#",
-				},
-				{
-					title: "Archived",
-					url: "#",
-				},
-			],
-		},
-		{
-			title: "Prompts",
-			icon: FileCodeIcon,
-			url: "#",
-			items: [
-				{
-					title: "Active Proposals",
-					url: "#",
-				},
-				{
-					title: "Archived",
-					url: "#",
-				},
-			],
-		},
-	],
 	navSecondary: [
 		{
 			title: "Podešavanja",
@@ -138,6 +87,29 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+	const [user, setUser] = useState<{
+		name: string;
+		email: string;
+		avatar: string;
+	} | null>(null);
+
+	useEffect(() => {
+		const fetchUser = async () => {
+			const currentUser = await getCurrentUser();
+			if (currentUser) {
+				setUser(currentUser);
+			} else {
+				// Fallback if no user found
+				setUser({
+					name: "User",
+					email: "",
+					avatar: "/avatars/default.png",
+				});
+			}
+		};
+		fetchUser();
+	}, []);
+
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
 			<SidebarHeader>
@@ -168,9 +140,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				{/* <NavDocuments items={data.documents} /> */}
 				<NavSecondary items={data.navSecondary} className="mt-auto" />
 			</SidebarContent>
-			<SidebarFooter>
-				<NavUser user={data.user} />
-			</SidebarFooter>
+			<SidebarFooter>{user && <NavUser user={user} />}</SidebarFooter>
 		</Sidebar>
 	);
 }
