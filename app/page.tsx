@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/icon";
@@ -9,11 +10,128 @@ import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase/client";
 
 export default function AuthPage() {
+	const router = useRouter();
 	const [isLogin, setIsLogin] = useState(true);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showForgotPassword, setShowForgotPassword] = useState(false);
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
+	const [fullName, setFullName] = useState("");
+	const [isLoading, setIsLoading] = useState(false);
+	const [error, setError] = useState<string | null>(null);
+
+	// Check auth state on mount and redirect if logged in
+	useEffect(() => {
+		const checkAuth = async () => {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+			if (session) {
+				router.push("/dashboard");
+			}
+		};
+		checkAuth();
+
+		// Listen for auth state changes
+		const {
+			data: { subscription },
+		} = supabase.auth.onAuthStateChange((_event, session) => {
+			if (session) {
+				router.push("/dashboard");
+			}
+		});
+
+		return () => subscription.unsubscribe();
+	}, [router]);
+
+	const handleLogin = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setError(null);
+		setIsLoading(true);
+
+		try {
+			const { error: signInError } =
+				await supabase.auth.signInWithPassword({
+					email,
+					password,
+				});
+
+			if (signInError) {
+				if (
+					signInError.message.includes("Invalid login credentials") ||
+					signInError.message.includes("Email not confirmed")
+				) {
+					setError(t.auth.error.invalidCredentials);
+				} else {
+					setError(t.auth.error.generic);
+				}
+			}
+		} catch (err) {
+			setError(t.auth.error.generic);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleRegister = async (e: React.FormEvent) => {
+		e.preventDefault();
+		setError(null);
+		setIsLoading(true);
+
+		try {
+			const { error: signUpError } = await supabase.auth.signUp({
+				email,
+				password,
+				options: {
+					data: {
+						full_name: fullName,
+					},
+				},
+			});
+
+			if (signUpError) {
+				if (signUpError.message.includes("already registered")) {
+					setError(t.auth.error.emailAlreadyExists);
+				} else if (signUpError.message.includes("Password")) {
+					setError(t.auth.error.weakPassword);
+				} else {
+					setError(t.auth.error.generic);
+				}
+			} else {
+				// Registration successful, redirect to dashboard
+				router.push("/dashboard");
+			}
+		} catch (err) {
+			setError(t.auth.error.generic);
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
+	const handleGoogleAuth = async () => {
+		setError(null);
+		setIsLoading(true);
+
+		try {
+			const { error: oauthError } = await supabase.auth.signInWithOAuth({
+				provider: "google",
+				options: {
+					redirectTo: `${window.location.origin}/auth/callback`,
+				},
+			});
+
+			if (oauthError) {
+				setError(t.auth.error.oauthError);
+				setIsLoading(false);
+			}
+		} catch (err) {
+			setError(t.auth.error.oauthError);
+			setIsLoading(false);
+		}
+	};
 
 	return (
 		<Stack
@@ -113,79 +231,109 @@ export default function AuthPage() {
 							transition={{ duration: 0.2 }}
 							className="w-full max-w-sm"
 						>
-							<Stack direction="column" spacing={4}>
-								<Box className="text-center mb-8">
-									<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-										{t.auth.welcomeBack}
-									</h1>
-									<p className="text-muted-foreground">
-										{t.auth.signInSubtitle}
-									</p>
-								</Box>
-
+							<form onSubmit={handleLogin}>
 								<Stack direction="column" spacing={4}>
-									<Input
-										type="email"
-										label={t.auth.emailAddress}
-										icon="solar:letter-bold"
-										placeholder="randy.daytona@ping.pong"
-									/>
+									<Box className="text-center mb-8">
+										<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
+											{t.auth.welcomeBack}
+										</h1>
+										<p className="text-muted-foreground">
+											{t.auth.signInSubtitle}
+										</p>
+									</Box>
 
-									<Input
-										type={
-											showPassword ? "text" : "password"
-										}
-										label={t.auth.password}
-										icon="solar:lock-password-bold"
-										placeholder="••••••••••••"
-										labelAction={
-											<button
-												type="button"
-												onClick={() =>
-													setShowForgotPassword(true)
-												}
-												className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-											>
-												{t.auth.forgot}
-											</button>
-										}
-										rightAction={
-											<button
-												type="button"
-												onClick={() =>
-													setShowPassword(
-														!showPassword
-													)
-												}
-											>
-												<Icon
-													icon={
-														showPassword
-															? "solar:eye-bold"
-															: "solar:eye-closed-bold"
+									{error && (
+										<Box className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+											<p className="text-sm text-destructive text-center">
+												{error}
+											</p>
+										</Box>
+									)}
+
+									<Stack direction="column" spacing={4}>
+										<Input
+											type="email"
+											label={t.auth.emailAddress}
+											icon="solar:letter-bold"
+											placeholder="randy.daytona@ping.pong"
+											value={email}
+											onChange={(e) =>
+												setEmail(e.target.value)
+											}
+											required
+											disabled={isLoading}
+										/>
+
+										<Input
+											type={
+												showPassword
+													? "text"
+													: "password"
+											}
+											label={t.auth.password}
+											icon="solar:lock-password-bold"
+											placeholder="••••••••••••"
+											value={password}
+											onChange={(e) =>
+												setPassword(e.target.value)
+											}
+											required
+											disabled={isLoading}
+											labelAction={
+												<button
+													type="button"
+													onClick={() =>
+														setShowForgotPassword(
+															true
+														)
 													}
-													className="size-5 text-muted-foreground hover:text-foreground transition-colors"
-												/>
-											</button>
-										}
-									/>
+													className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+												>
+													{t.auth.forgot}
+												</button>
+											}
+											rightAction={
+												<button
+													type="button"
+													onClick={() =>
+														setShowPassword(
+															!showPassword
+														)
+													}
+												>
+													<Icon
+														icon={
+															showPassword
+																? "solar:eye-bold"
+																: "solar:eye-closed-bold"
+														}
+														className="size-5 text-muted-foreground hover:text-foreground transition-colors"
+													/>
+												</button>
+											}
+										/>
 
-									<Button className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
-										<Stack
-											direction="row"
-											alignItems="center"
-											justifyContent="center"
-											spacing={2}
+										<Button
+											type="submit"
+											disabled={isLoading}
+											className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
-											<span>{t.auth.signIn}</span>
-											<Icon
-												icon="solar:login-2-bold"
-												className="size-5"
-											/>
-										</Stack>
-									</Button>
+											<Stack
+												direction="row"
+												alignItems="center"
+												justifyContent="center"
+												spacing={2}
+											>
+												<span>{t.auth.signIn}</span>
+												<Icon
+													icon="solar:login-2-bold"
+													className="size-5"
+												/>
+											</Stack>
+										</Button>
+									</Stack>
 								</Stack>
-							</Stack>
+							</form>
 						</motion.div>
 					) : (
 						<motion.div
@@ -196,75 +344,111 @@ export default function AuthPage() {
 							transition={{ duration: 0.2 }}
 							className="w-full max-w-sm"
 						>
-							<Stack direction="column" spacing={4}>
-								<Box className="text-center mb-8">
-									<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-										{t.auth.createAccount}
-									</h1>
-									<p className="text-muted-foreground">
-										{t.auth.createAccountSubtitle}
-									</p>
-								</Box>
-
+							<form onSubmit={handleRegister}>
 								<Stack direction="column" spacing={4}>
-									<Input
-										type="text"
-										label={t.auth.fullName}
-										icon="solar:user-bold"
-										placeholder="Randy Daytona"
-									/>
+									<Box className="text-center mb-8">
+										<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
+											{t.auth.createAccount}
+										</h1>
+										<p className="text-muted-foreground">
+											{t.auth.createAccountSubtitle}
+										</p>
+									</Box>
 
-									<Input
-										type="email"
-										label={t.auth.emailAddress}
-										icon="solar:letter-bold"
-										placeholder="randy.daytona@ping.pong"
-									/>
+									{error && (
+										<Box className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+											<p className="text-sm text-destructive text-center">
+												{error}
+											</p>
+										</Box>
+									)}
 
-									<Input
-										type={
-											showPassword ? "text" : "password"
-										}
-										label={t.auth.password}
-										icon="solar:lock-password-bold"
-										placeholder="••••••••••••"
-										rightAction={
-											<button
-												type="button"
-												onClick={() =>
-													setShowPassword(
-														!showPassword
-													)
-												}
-											>
-												<Icon
-													icon={
-														showPassword
-															? "solar:eye-bold"
-															: "solar:eye-closed-bold"
+									<Stack direction="column" spacing={4}>
+										<Input
+											type="text"
+											label={t.auth.fullName}
+											icon="solar:user-bold"
+											placeholder="Randy Daytona"
+											value={fullName}
+											onChange={(e) =>
+												setFullName(e.target.value)
+											}
+											required
+											disabled={isLoading}
+										/>
+
+										<Input
+											type="email"
+											label={t.auth.emailAddress}
+											icon="solar:letter-bold"
+											placeholder="randy.daytona@ping.pong"
+											value={email}
+											onChange={(e) =>
+												setEmail(e.target.value)
+											}
+											required
+											disabled={isLoading}
+										/>
+
+										<Input
+											type={
+												showPassword
+													? "text"
+													: "password"
+											}
+											label={t.auth.password}
+											icon="solar:lock-password-bold"
+											placeholder="••••••••••••"
+											value={password}
+											onChange={(e) =>
+												setPassword(e.target.value)
+											}
+											required
+											disabled={isLoading}
+											rightAction={
+												<button
+													type="button"
+													onClick={() =>
+														setShowPassword(
+															!showPassword
+														)
 													}
-													className="size-5 text-muted-foreground hover:text-foreground transition-colors"
-												/>
-											</button>
-										}
-									/>
+												>
+													<Icon
+														icon={
+															showPassword
+																? "solar:eye-bold"
+																: "solar:eye-closed-bold"
+														}
+														className="size-5 text-muted-foreground hover:text-foreground transition-colors"
+													/>
+												</button>
+											}
+										/>
 
-									<Button className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
-										<Stack
-											direction="row"
-											alignItems="center"
-											justifyContent="center"
-											spacing={2}
+										<Button
+											type="submit"
+											disabled={isLoading}
+											className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
-											<span>{t.auth.createAccount}</span>
-											<Icon
-												icon="solar:user-plus-bold"
-												className="size-5"
-											/>
-										</Stack>
-									</Button>
+											<Stack
+												direction="row"
+												alignItems="center"
+												justifyContent="center"
+												spacing={2}
+											>
+												<span>
+													{t.auth.createAccount}
+												</span>
+												<Icon
+													icon="solar:user-plus-bold"
+													className="size-5"
+												/>
+											</Stack>
+										</Button>
+									</Stack>
 								</Stack>
-							</Stack>
+							</form>
 						</motion.div>
 					)}
 				</AnimatePresence>
@@ -282,38 +466,23 @@ export default function AuthPage() {
 						</span>
 						<Box className="flex-1 h-px bg-border/50" />
 					</Stack>
-					<div className="grid grid-cols-2 gap-3">
-						<Button
-							variant="secondary"
-							className="h-12 border border-border/50 rounded-xl active:scale-[0.98] transition-all"
+					<Button
+						variant="secondary"
+						type="button"
+						onClick={handleGoogleAuth}
+						disabled={isLoading}
+						className="w-full h-12 border border-border/50 rounded-xl active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<Stack
+							direction="row"
+							alignItems="center"
+							justifyContent="center"
+							spacing={2}
 						>
-							<Stack
-								direction="row"
-								alignItems="center"
-								justifyContent="center"
-							>
-								<Icon
-									icon="logos:apple"
-									className="size-5 invert"
-								/>
-							</Stack>
-						</Button>
-						<Button
-							variant="secondary"
-							className="h-12 border border-border/50 rounded-xl active:scale-[0.98] transition-all"
-						>
-							<Stack
-								direction="row"
-								alignItems="center"
-								justifyContent="center"
-							>
-								<Icon
-									icon="logos:google-icon"
-									className="size-5"
-								/>
-							</Stack>
-						</Button>
-					</div>
+							<Icon icon="logos:google-icon" className="size-5" />
+							<span>Google</span>
+						</Stack>
+					</Button>
 				</Box>
 
 				<Box className="mt-auto pt-8">
@@ -323,8 +492,16 @@ export default function AuthPage() {
 							: t.auth.alreadyHaveAccount}
 						<Button
 							variant="link"
-							onClick={() => setIsLogin(!isLogin)}
-							className="ml-1 font-bold text-primary hover:underline transition-all h-auto p-0"
+							type="button"
+							onClick={() => {
+								setIsLogin(!isLogin);
+								setError(null);
+								setEmail("");
+								setPassword("");
+								setFullName("");
+							}}
+							disabled={isLoading}
+							className="ml-1 font-bold text-primary hover:underline transition-all h-auto p-0 disabled:opacity-50"
 						>
 							{isLogin ? t.auth.createAccount : t.auth.signIn}
 						</Button>

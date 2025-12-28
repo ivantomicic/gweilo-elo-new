@@ -18,9 +18,18 @@ export const sr = {
 		dontHaveAccount: "Nemaš nalog?",
 		alreadyHaveAccount: "Već imaš nalog?",
 		fullName: "Ime i prezime",
+		error: {
+			invalidCredentials: "Neispravni email ili lozinka",
+			emailAlreadyExists: "Email već postoji",
+			weakPassword: "Lozinka mora imati najmanje 6 karaktera",
+			invalidEmail: "Neispravna email adresa",
+			generic: "Došlo je do greške. Pokušaj ponovo.",
+			oauthError: "Greška pri prijavljivanju sa Google-om",
+		},
 	},
 	common: {
 		dashboard: "Kontrolna tabla",
+		logout: "Odjavi se",
 	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
