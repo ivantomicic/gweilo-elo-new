@@ -14,12 +14,14 @@ import {
 
 export function NavMain({
 	items,
+	currentPathname,
 }: {
 	items: {
 		title: string;
 		url: string;
 		icon?: LucideIcon;
 	}[];
+	currentPathname: string;
 }) {
 	return (
 		<SidebarGroup>
@@ -36,16 +38,19 @@ export function NavMain({
 					</SidebarMenuItem>
 				</SidebarMenu>
 				<SidebarMenu>
-					{items.map((item) => (
-						<SidebarMenuItem key={item.title}>
-							<SidebarMenuButton asChild tooltip={item.title}>
-								<Link href={item.url}>
-									{item.icon && <item.icon />}
-									<span>{item.title}</span>
-								</Link>
-							</SidebarMenuButton>
-						</SidebarMenuItem>
-					))}
+					{items.map((item) => {
+						const isActive = currentPathname === item.url;
+						return (
+							<SidebarMenuItem key={item.title}>
+								<SidebarMenuButton asChild tooltip={item.title} isActive={isActive}>
+									<Link href={item.url}>
+										{item.icon && <item.icon />}
+										<span>{item.title}</span>
+									</Link>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+						);
+					})}
 				</SidebarMenu>
 			</SidebarGroupContent>
 		</SidebarGroup>

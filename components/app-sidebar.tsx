@@ -2,7 +2,9 @@
 
 import * as React from "react";
 import { useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import {
 	ArrowUpCircleIcon,
 	BarChartIcon,
@@ -44,7 +46,7 @@ const data = {
 	navMain: [
 		{
 			title: "Pregled",
-			url: "#",
+			url: "/",
 			icon: LayoutDashboardIcon,
 		},
 		{
@@ -88,6 +90,7 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+	const pathname = usePathname();
 	const [user, setUser] = useState<{
 		name: string;
 		email: string;
@@ -139,7 +142,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 							asChild
 							className="data-[slot=sidebar-menu-button]:!p-1.5"
 						>
-							<a href="#">
+							<Link href="/">
 								<Image
 									src="/favicon.png"
 									alt=""
@@ -150,15 +153,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 								<span className="text-base font-semibold">
 									Gweilo NS
 								</span>
-							</a>
+							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
 			</SidebarHeader>
 			<SidebarContent>
-				<NavMain items={data.navMain} />
+				<NavMain items={data.navMain} currentPathname={pathname} />
 				{/* <NavDocuments items={data.documents} /> */}
-				<NavSecondary items={navSecondaryItems} className="mt-auto" />
+				<NavSecondary
+					items={navSecondaryItems}
+					currentPathname={pathname}
+					className="mt-auto"
+				/>
 			</SidebarContent>
 			<SidebarFooter>{user && <NavUser user={user} />}</SidebarFooter>
 		</Sidebar>
