@@ -3,7 +3,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { AuthScreen } from "@/components/auth/auth-screen";
-import { DashboardView } from "@/components/dashboard/dashboard-view";
+import { AppSidebar } from "@/components/app-sidebar";
+import { SiteHeader } from "@/components/site-header";
+import { SidebarInset, SidebarProvider } from "@/components/vendor/shadcn/sidebar";
 
 /**
  * Root route handler
@@ -19,7 +21,7 @@ import { DashboardView } from "@/components/dashboard/dashboard-view";
  * Flow:
  * 1. Check auth state on mount
  * 2. Listen for auth changes (login/logout)
- * 3. Render AuthScreen if not authenticated, DashboardView if authenticated
+ * 3. Render AuthScreen if not authenticated, shadcn dashboard-01 if authenticated
  * 4. Automatic transition when auth state changes
  */
 export default function HomePage() {
@@ -57,5 +59,23 @@ export default function HomePage() {
 	}
 
 	// Render appropriate component based on auth state
-	return isAuthenticated ? <DashboardView /> : <AuthScreen />;
+	// Replaced old DashboardView with shadcn dashboard-01
+	if (isAuthenticated) {
+		return (
+			<SidebarProvider>
+				<AppSidebar variant="inset" />
+				<SidebarInset>
+					<SiteHeader />
+					<div className="flex flex-1 flex-col">
+						<div className="@container/main flex flex-1 flex-col gap-2">
+							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+							</div>
+						</div>
+					</div>
+				</SidebarInset>
+			</SidebarProvider>
+		);
+	}
+
+	return <AuthScreen />;
 }

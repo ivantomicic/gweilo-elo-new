@@ -1,26 +1,20 @@
-"use client";
+import { AppSidebar } from "@/components/app-sidebar"
+import { SiteHeader } from "@/components/site-header"
+import { SidebarInset, SidebarProvider } from "@/components/vendor/shadcn/sidebar"
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-
-/**
- * DEPRECATED: /dashboard route
- * 
- * This route is kept for backwards compatibility but redirects to root.
- * The root route (/) now handles both auth and dashboard rendering.
- * 
- * All dashboard functionality should be accessed via the root route.
- */
-export default function DashboardPage() {
-	const router = useRouter();
-
-	useEffect(() => {
-		router.replace("/");
-	}, [router]);
-
-	return (
-		<div className="flex min-h-screen items-center justify-center bg-background">
-			<p className="text-muted-foreground">Redirecting...</p>
-		</div>
-	);
+export default function Page() {
+  return (
+    <SidebarProvider>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="flex flex-1 flex-col">
+          <div className="@container/main flex flex-1 flex-col gap-2">
+            <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+            </div>
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }
