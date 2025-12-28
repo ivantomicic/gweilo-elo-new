@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchPlayersWithRatings } from "@/lib/elo/fetch-ratings";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -60,35 +61,31 @@ export async function GET(
 			return NextResponse.json({ players: [] });
 		}
 
-		// Fetch user details using admin client
-		const adminClient = createAdminClient();
+		// Extract player IDs
 		const playerIds = sessionPlayers.map((sp) => sp.player_id);
 
-		const { data: { users }, error: usersError } = await adminClient.auth.admin.listUsers();
+		// Fetch players with ratings using the reusable helper
+		// Use admin client to access auth.users and ratings tables
+		// For now, we only need singles Elo (doubles Elo can be added later if needed)
+		const adminClient = createAdminClient();
+		const playersWithRatings = await fetchPlayersWithRatings(adminClient, playerIds, false);
 
-		if (usersError) {
-			console.error("Error fetching users:", usersError);
-			return NextResponse.json(
-				{ error: "Failed to fetch user details" },
-				{ status: 500 }
-			);
-		}
+		// Create a map for quick lookup
+		const ratingsMap = new Map(
+			playersWithRatings.map((p) => [p.player_id, p])
+		);
 
-		// Combine session player data with user details
+		// Combine session player data with user details and ratings
 		const playersWithDetails = sessionPlayers.map((sp) => {
-			const user = users.find((u) => u.id === sp.player_id);
-			
+			const playerData = ratingsMap.get(sp.player_id);
+
 			return {
 				id: sp.player_id,
 				sessionPlayerId: sp.id,
 				team: sp.team,
-				name:
-					user?.user_metadata?.name ||
-					user?.user_metadata?.full_name ||
-					user?.email?.split("@")[0] ||
-					"User",
-				avatar: user?.user_metadata?.avatar_url || null,
-				elo: user?.user_metadata?.elo || 1200, // Default Elo if not set
+				name: playerData?.display_name || "User",
+				avatar: playerData?.avatar || null,
+				elo: playerData?.singles_elo ?? 1500, // Default to 1500 if no rating exists
 			};
 		});
 

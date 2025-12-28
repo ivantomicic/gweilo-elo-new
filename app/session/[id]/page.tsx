@@ -354,10 +354,10 @@ function SessionPageContent() {
 									const team2Players = team2PlayerIds.map((id) => getPlayer(id)).filter(Boolean) as Player[];
 
 									const team1Elo = isSingles
-										? team1Players[0]?.elo || 1200
+										? team1Players[0]?.elo || 1500
 										: averageElo(team1Players.map((p) => p.elo));
 									const team2Elo = isSingles
-										? team2Players[0]?.elo || 1200
+										? team2Players[0]?.elo || 1500
 										: averageElo(team2Players.map((p) => p.elo));
 
 									// Calculate Elo previews
