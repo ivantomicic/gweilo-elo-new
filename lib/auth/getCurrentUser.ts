@@ -24,8 +24,11 @@ export async function getCurrentUser() {
 		user.email?.split("@")[0] ||
 		"User";
 	const email = user.email || "";
+	// Use avatar from metadata, or Google avatar, or null (UI will handle placeholder)
 	const avatar =
-		user.user_metadata?.avatar_url || "/avatars/default.png";
+		user.user_metadata?.avatar_url ||
+		user.user_metadata?.avatar_url_google ||
+		null;
 
 	return {
 		name,

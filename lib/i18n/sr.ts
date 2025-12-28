@@ -49,6 +49,42 @@ export const sr = {
 		polls: "Anketarijum",
 		notifications: "Notifikacije",
 	},
+	settings: {
+		profile: "Profil",
+		displayName: "Ime / nick",
+		displayNameDescription: "Ime koje će se prikazivati na vašem profilu",
+		avatar: "Avatar",
+		avatarDescription: "Uploadujte sliku za vaš profil",
+		changeAvatar: "Promeni avatar",
+		email: "Email",
+		emailDescription: "Promenite vašu email adresu",
+		emailConfirmationNotice:
+			"Poslat će vam se email za potvrdu na novu adresu. Molimo proverite inbox.",
+		password: "Lozinka",
+		passwordDescription: "Promenite vašu lozinku",
+		newPassword: "Nova lozinka",
+		confirmPassword: "Potvrdi novu lozinku",
+		save: "Sačuvaj",
+		saveChanges: "Sačuvaj izmene",
+		saving: "Čuvanje...",
+		saved: "Sačuvano",
+		accountDescription: "Upravljajte vašim kredencijalima i bezbednošću",
+		error: {
+			reauthRequired:
+				"Morate se ponovo prijaviti da biste promenili email ili lozinku. Molimo odjavite se i prijavite ponovo.",
+			passwordMismatch: "Lozinke se ne poklapaju",
+			weakPassword: "Lozinka mora imati najmanje 6 karaktera",
+			invalidEmail: "Neispravna email adresa",
+			avatarUploadFailed: "Greška pri uploadovanju avatara",
+			avatarInvalidType: "Samo slike su dozvoljene (JPG, PNG, GIF)",
+			avatarTooLarge: "Slika je prevelika. Maksimalna veličina: 5MB",
+			bucketNotFound:
+				"Bucket za avatare ne postoji. Molimo kontaktirajte administratora.",
+			permissionDenied:
+				"Nemate dozvolu za upload avatara. Proverite postavke bezbednosti.",
+			generic: "Došlo je do greške. Pokušaj ponovo.",
+		},
+	},
 	meta: {
 		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
 		description: "Sistem Elo rejtinga za stoni tenis",

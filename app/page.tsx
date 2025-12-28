@@ -5,20 +5,23 @@ import { supabase } from "@/lib/supabase/client";
 import { AuthScreen } from "@/components/auth/auth-screen";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
-import { SidebarInset, SidebarProvider } from "@/components/vendor/shadcn/sidebar";
+import {
+	SidebarInset,
+	SidebarProvider,
+} from "@/components/vendor/shadcn/sidebar";
 import { t } from "@/lib/i18n";
 
 /**
  * Root route handler
- * 
+ *
  * Approach: Client-side auth state detection with automatic re-rendering.
- * 
+ *
  * Why this approach:
  * - Simple: No middleware needed, works with existing Supabase client
  * - Reactive: onAuthStateChange automatically updates UI on login/logout
  * - No flicker: Loading state prevents showing wrong screen briefly
  * - No redirects: Component swap is instant, feels like SPA
- * 
+ *
  * Flow:
  * 1. Check auth state on mount
  * 2. Listen for auth changes (login/logout)
@@ -69,8 +72,7 @@ export default function HomePage() {
 					<SiteHeader title={t.pages.dashboard} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-							</div>
+							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6"></div>
 						</div>
 					</div>
 				</SidebarInset>

@@ -90,7 +90,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const [user, setUser] = useState<{
 		name: string;
 		email: string;
-		avatar: string;
+		avatar: string | null;
 	} | null>(null);
 
 	useEffect(() => {
@@ -103,7 +103,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				setUser({
 					name: "User",
 					email: "",
-					avatar: "/avatars/default.png",
+					avatar: null,
 				});
 			}
 		};
