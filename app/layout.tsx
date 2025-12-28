@@ -1,36 +1,39 @@
-import type { Metadata } from 'next'
-import { Space_Grotesk, Manrope } from 'next/font/google'
-import './globals.css'
+import type { Metadata } from "next";
+import { Space_Grotesk, Manrope } from "next/font/google";
+import "./globals.css";
+import { sr } from "@/lib/i18n/sr";
 
 const spaceGrotesk = Space_Grotesk({
-  subsets: ['latin'],
-  variable: '--font-heading',
-  display: 'swap',
-})
+	subsets: ["latin"],
+	variable: "--font-heading",
+	display: "swap",
+});
 
 const manrope = Manrope({
-  subsets: ['latin'],
-  variable: '--font-body',
-  display: 'swap',
-})
+	subsets: ["latin"],
+	variable: "--font-body",
+	display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: 'Gweilo :: Les talkie-talkie, more ping-pong.',
-  description: 'Table Tennis Elo Rating System',
-  icons: {
-    icon: '/favicon.png',
-  },
-}
+	title: sr.meta.title,
+	description: sr.meta.description,
+	icons: {
+		icon: "/favicon.png",
+	},
+};
 
 export default function RootLayout({
-  children,
+	children,
 }: {
-  children: React.ReactNode
+	children: React.ReactNode;
 }) {
-  return (
-    <html lang="en" className={`dark ${spaceGrotesk.variable} ${manrope.variable}`}>
-      <body>{children}</body>
-    </html>
-  )
+	return (
+		<html
+			lang="sr"
+			className={`dark ${spaceGrotesk.variable} ${manrope.variable}`}
+		>
+			<body>{children}</body>
+		</html>
+	);
 }
-

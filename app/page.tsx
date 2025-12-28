@@ -7,6 +7,8 @@ import { Icon } from "@/components/ui/icon";
 import { Input } from "@/components/ui/input";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
+import { Button } from "@/components/ui/button";
+import { t } from "@/lib/i18n";
 
 export default function AuthPage() {
 	const [isLogin, setIsLogin] = useState(true);
@@ -34,7 +36,7 @@ export default function AuthPage() {
 						<Box className="relative w-[60vw] max-w-[320px] h-auto">
 							<Image
 								src="/logo.png"
-								alt="GWEILO NS Logo"
+								alt={t.logo.alt}
 								width={320}
 								height={320}
 								className="relative w-full h-auto drop-shadow-[0_0_15px_rgba(239,68,68,0.3)] pointer-events-none"
@@ -57,47 +59,47 @@ export default function AuthPage() {
 							<Stack direction="column" spacing={4}>
 								<Box className="text-center mb-8">
 									<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-										Reset Password
+										{t.auth.resetPassword}
 									</h1>
 									<p className="text-muted-foreground">
-										Enter your email to receive a password
-										reset link
+										{t.auth.resetPasswordSubtitle}
 									</p>
 								</Box>
 
 								<Stack direction="column" spacing={4}>
 									<Input
 										type="email"
-										label="Email Address"
+										label={t.auth.emailAddress}
 										icon="solar:letter-bold"
-										placeholder="alex.chen@example.com"
+										placeholder="randy.daytona@ping.pong"
 									/>
 
-									<button className="w-full h-14 bg-primary text-primary-foreground rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
+									<Button className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
 										<Stack
 											direction="row"
 											alignItems="center"
 											justifyContent="center"
 											spacing={2}
 										>
-											<span>Send Reset Link</span>
+											<span>{t.auth.sendResetLink}</span>
 											<Icon
 												icon="solar:letter-opened-bold"
 												className="size-5"
 											/>
 										</Stack>
-									</button>
+									</Button>
 
 									<Box className="text-center mt-4">
-										<button
+										<Button
 											type="button"
+											variant="ghost"
 											onClick={() =>
 												setShowForgotPassword(false)
 											}
 											className="text-sm text-muted-foreground hover:text-foreground transition-colors"
 										>
-											← Back to Sign In
-										</button>
+											{t.auth.backToSignIn}
+										</Button>
 									</Box>
 								</Stack>
 							</Stack>
@@ -114,26 +116,26 @@ export default function AuthPage() {
 							<Stack direction="column" spacing={4}>
 								<Box className="text-center mb-8">
 									<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-										Welcome Back
+										{t.auth.welcomeBack}
 									</h1>
 									<p className="text-muted-foreground">
-										Sign in to track your matches and stats
+										{t.auth.signInSubtitle}
 									</p>
 								</Box>
 
 								<Stack direction="column" spacing={4}>
 									<Input
 										type="email"
-										label="Email Address"
+										label={t.auth.emailAddress}
 										icon="solar:letter-bold"
-										placeholder="alex.chen@example.com"
+										placeholder="randy.daytona@ping.pong"
 									/>
 
 									<Input
 										type={
 											showPassword ? "text" : "password"
 										}
-										label="Password"
+										label={t.auth.password}
 										icon="solar:lock-password-bold"
 										placeholder="••••••••••••"
 										labelAction={
@@ -144,7 +146,7 @@ export default function AuthPage() {
 												}
 												className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
 											>
-												Forgot?
+												{t.auth.forgot}
 											</button>
 										}
 										rightAction={
@@ -168,20 +170,20 @@ export default function AuthPage() {
 										}
 									/>
 
-									<button className="w-full h-14 bg-primary text-primary-foreground rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
+									<Button className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
 										<Stack
 											direction="row"
 											alignItems="center"
 											justifyContent="center"
 											spacing={2}
 										>
-											<span>Sign In</span>
+											<span>{t.auth.signIn}</span>
 											<Icon
 												icon="solar:login-2-bold"
 												className="size-5"
 											/>
 										</Stack>
-									</button>
+									</Button>
 								</Stack>
 							</Stack>
 						</motion.div>
@@ -197,33 +199,33 @@ export default function AuthPage() {
 							<Stack direction="column" spacing={4}>
 								<Box className="text-center mb-8">
 									<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-										Create Account
+										{t.auth.createAccount}
 									</h1>
 									<p className="text-muted-foreground">
-										Join to start tracking your matches
+										{t.auth.createAccountSubtitle}
 									</p>
 								</Box>
 
 								<Stack direction="column" spacing={4}>
 									<Input
 										type="text"
-										label="Full Name"
+										label={t.auth.fullName}
 										icon="solar:user-bold"
-										placeholder="Alex Chen"
+										placeholder="Randy Daytona"
 									/>
 
 									<Input
 										type="email"
-										label="Email Address"
+										label={t.auth.emailAddress}
 										icon="solar:letter-bold"
-										placeholder="alex.chen@example.com"
+										placeholder="randy.daytona@ping.pong"
 									/>
 
 									<Input
 										type={
 											showPassword ? "text" : "password"
 										}
-										label="Password"
+										label={t.auth.password}
 										icon="solar:lock-password-bold"
 										placeholder="••••••••••••"
 										rightAction={
@@ -247,20 +249,20 @@ export default function AuthPage() {
 										}
 									/>
 
-									<button className="w-full h-14 bg-primary text-primary-foreground rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
+									<Button className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
 										<Stack
 											direction="row"
 											alignItems="center"
 											justifyContent="center"
 											spacing={2}
 										>
-											<span>Create Account</span>
+											<span>{t.auth.createAccount}</span>
 											<Icon
 												icon="solar:user-plus-bold"
 												className="size-5"
 											/>
 										</Stack>
-									</button>
+									</Button>
 								</Stack>
 							</Stack>
 						</motion.div>
@@ -276,12 +278,15 @@ export default function AuthPage() {
 					>
 						<Box className="flex-1 h-px bg-border/50" />
 						<span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-							Or continue with
+							{t.auth.orContinueWith}
 						</span>
 						<Box className="flex-1 h-px bg-border/50" />
 					</Stack>
 					<div className="grid grid-cols-2 gap-3">
-						<button className="h-12 bg-secondary border border-border/50 rounded-xl active:scale-[0.98] transition-all">
+						<Button
+							variant="secondary"
+							className="h-12 border border-border/50 rounded-xl active:scale-[0.98] transition-all"
+						>
 							<Stack
 								direction="row"
 								alignItems="center"
@@ -292,8 +297,11 @@ export default function AuthPage() {
 									className="size-5 invert"
 								/>
 							</Stack>
-						</button>
-						<button className="h-12 bg-secondary border border-border/50 rounded-xl active:scale-[0.98] transition-all">
+						</Button>
+						<Button
+							variant="secondary"
+							className="h-12 border border-border/50 rounded-xl active:scale-[0.98] transition-all"
+						>
 							<Stack
 								direction="row"
 								alignItems="center"
@@ -304,21 +312,22 @@ export default function AuthPage() {
 									className="size-5"
 								/>
 							</Stack>
-						</button>
+						</Button>
 					</div>
 				</Box>
 
 				<Box className="mt-auto pt-8">
 					<p className="text-sm text-muted-foreground">
 						{isLogin
-							? "Don't have an account?"
-							: "Already have an account?"}
-						<button
+							? t.auth.dontHaveAccount
+							: t.auth.alreadyHaveAccount}
+						<Button
+							variant="link"
 							onClick={() => setIsLogin(!isLogin)}
-							className="ml-1 font-bold text-primary hover:underline transition-all"
+							className="ml-1 font-bold text-primary hover:underline transition-all h-auto p-0"
 						>
-							{isLogin ? "Create Account" : "Sign In"}
-						</button>
+							{isLogin ? t.auth.createAccount : t.auth.signIn}
+						</Button>
 					</p>
 				</Box>
 			</Stack>

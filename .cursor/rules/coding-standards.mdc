@@ -14,6 +14,14 @@ GENERAL CODING RULES
 -   Avoid unnecessary indirection
 -   Document assumptions in comments instead of asking questions
 
+LOCALIZATION RULES
+
+-   UI text must never be hardcoded in components
+-   UI text must come from `lib/i18n` via the `t` object
+-   Keys must be language-agnostic (e.g., `auth.login`, not `rs.auth.login` or `sr.auth.login`)
+-   Default exported `t` object represents current language
+-   Import translations: `import { t } from "@/lib/i18n"`
+
 FILE NAMING CONVENTIONS
 
 -   React components: PascalCase (e.g., `Button.tsx`, `UserProfile.tsx`)
