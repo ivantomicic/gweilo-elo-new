@@ -1,0 +1,12 @@
+---
+description: Supabase database and authentication patterns
+globs: ["**/lib/**/*.ts", "**/utils/**/*.ts", "**/app/api/**/*.ts", "**/server/**/*.ts"]
+alwaysApply: true
+---
+
+SUPABASE RULES
+
+- Supabase is the source of truth for auth and data
+- Use Postgres-friendly patterns
+- Do not duplicate derived data unless explicitly intended as a cache
+- Prefer clear SQL and readable queries over clever ones

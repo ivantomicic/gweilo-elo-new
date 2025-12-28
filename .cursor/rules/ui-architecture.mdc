@@ -1,0 +1,32 @@
+---
+description: UI component architecture rules - third-party components must be wrapped
+globs: ["**/components/**/*.tsx", "**/components/**/*.ts", "**/app/**/*.tsx", "**/pages/**/*.tsx"]
+alwaysApply: true
+---
+
+UI / COMPONENT ARCHITECTURE (VERY IMPORTANT)
+
+- shadcn/ui, animate-ui, and magicui components must NEVER be imported directly in feature or page code.
+- ALL third-party UI components must be wrapped in our own components first.
+
+Required structure:
+components/
+ui/ // our public design-system API (wrappers only)
+vendor/ // third-party implementations (shadcn, magicui, animate-ui)
+
+Example rule:
+
+- Feature code may import ONLY from `components/ui`
+- `components/ui` may import from `components/vendor`
+- Direct imports from shadcn, magicui, animate-ui outside `components/ui` are forbidden.
+
+If a new UI primitive is needed:
+
+1. Create a wrapper in `components/ui`
+2. Implement it using shadcn / magicui / animate-ui in `components/vendor`
+3. Use ONLY the wrapper in the app
+
+RATIONALE:
+
+- UI libraries must be replaceable in the future
+- shadcn is an implementation detail, not the app API

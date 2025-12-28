@@ -1,0 +1,31 @@
+---
+description: General coding standards and best practices
+globs: ["**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"]
+alwaysApply: true
+---
+
+You are working on a production web app with strict architectural rules.
+Follow these rules at all times unless explicitly told otherwise.
+
+GENERAL CODING RULES
+
+-   Prefer simple, explicit code over abstractions
+-   Avoid premature optimization
+-   Avoid unnecessary indirection
+-   Document assumptions in comments instead of asking questions
+
+FILE NAMING CONVENTIONS
+
+-   React components: PascalCase (e.g., `Button.tsx`, `UserProfile.tsx`)
+-   Utility/helper files: camelCase (e.g., `formatDate.ts`, `apiClient.ts`)
+-   Type/interface files: camelCase with `.types.ts` suffix (e.g., `user.types.ts`)
+-   Constants files: UPPER_SNAKE_CASE or camelCase (e.g., `constants.ts` or `API_CONSTANTS.ts`)
+-   Next.js pages/routes: lowercase (App Router convention, e.g., `page.tsx`, `layout.tsx`, `loading.tsx`)
+-   API routes: lowercase (e.g., `route.ts`, `api/users/route.ts`)
+-   Test files: Same as source file with `.test.ts` or `.spec.ts` suffix (e.g., `Button.test.tsx`)
+
+FAILURE MODE
+If any rule conflicts with a suggestion:
+
+-   Follow these rules
+-   Explain the tradeoff briefly in comments

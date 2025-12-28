@@ -1,0 +1,107 @@
+---
+description: Design system and UX guidelines for the Table Tennis app
+globs:
+    [
+        "**/components/**/*.tsx",
+        "**/app/**/*.tsx",
+        "**/*.css",
+        "**/tailwind.config.*",
+    ]
+alwaysApply: true
+---
+
+# DESIGN & UX RULES (NON-NEGOTIABLE)
+
+## Color & Theme
+
+-   Dark mode ONLY.
+-   Do not introduce light mode tokens, themes, or conditional logic.
+-   Use high-contrast text for readability in indoor/low-light environments.
+-   Avoid pure black backgrounds; prefer near-black for eye comfort.
+-   Accent colors should be used sparingly to highlight:
+    -   Active matches
+    -   Elo gains/losses
+    -   Rankings and podium positions
+
+## Typography
+
+-   Prefer large, readable font sizes.
+-   Numbers (scores, Elo) must be visually prominent.
+-   Avoid decorative fonts.
+-   Hierarchy must be obvious without relying on color alone.
+
+## Layout Principles
+
+-   Mobile-first: design for one-handed use.
+-   Critical actions must be reachable by thumb.
+-   Avoid deep nesting and hidden interactions.
+-   Use cards and tables for structured data.
+-   Prefer vertical stacking over horizontal scrolling on mobile.
+
+## Navigation
+
+-   Mobile must use a floating bottom navigation bar.
+-   Navigation items should be limited (4–5 max).
+-   Current route must be visually obvious.
+-   Avoid hamburger menus for primary navigation.
+
+## Live Session UX (Highest Priority Screen)
+
+-   Support multiple matches visible at once.
+-   Match cards must be compact and scannable.
+-   Do NOT require per-match confirmation actions.
+-   Results are entered in bulk per session part.
+-   Provide clear visual separation between session parts.
+-   Always show:
+    -   Current session part
+    -   Progress indicator (dots or steps)
+
+## Data Density & Feedback
+
+-   This is a sports app, not a lifestyle app.
+-   Show rankings, tables, and comparisons by default.
+-   Animations must communicate state change (Elo change, match completion).
+-   Avoid decorative animations that slow interaction.
+
+## Buttons & Inputs
+
+-   Touch targets must be large enough for fast tapping.
+-   Avoid small icon-only buttons without labels.
+-   Inputs for scores should:
+    -   Be numeric
+    -   Avoid free-text where possible
+    -   Prevent invalid states visually
+
+## Animations & Motion
+
+-   Use subtle motion to indicate:
+    -   State changes
+    -   Navigation transitions
+    -   Score updates
+-   Prefer animation-ui or magicui primitives.
+-   Never block interaction with animations.
+
+## Component Usage Rules
+
+-   Do NOT import shadcn, magicui, or animate-ui directly in feature code.
+-   All UI primitives must go through `components/ui` wrappers.
+-   Components should be reusable and domain-agnostic.
+-   Domain logic must not leak into UI primitives.
+
+## Accessibility (Pragmatic)
+
+-   Text must meet contrast requirements in dark mode.
+-   Interactive elements must be clearly distinguishable.
+-   Do not rely on color alone to communicate win/loss.
+
+## Failure Mode
+
+If a design decision conflicts with:
+
+-   speed
+-   clarity
+-   rankings visibility
+
+Then choose the option that improves **competitive clarity**.
+
+Document tradeoffs briefly in comments.

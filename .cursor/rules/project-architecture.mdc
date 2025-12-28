@@ -1,0 +1,16 @@
+---
+description: DEPRECATED - Rules have been split into separate files
+alwaysApply: false
+---
+
+This file has been split into multiple focused rule files:
+
+-   communication.mdc
+-   stack.mdc
+-   ui-architecture.mdc
+-   coding-standards.mdc
+-   supabase.mdc
+-   nextjs.mdc
+-   design.mdc
+
+Please use the individual rule files instead.

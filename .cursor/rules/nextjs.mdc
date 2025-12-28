@@ -1,0 +1,12 @@
+---
+description: Next.js App Router conventions and patterns
+globs: ["**/app/**/*.tsx", "**/app/**/*.ts", "**/pages/**/*.tsx", "**/pages/**/*.ts"]
+alwaysApply: true
+---
+
+NEXT.JS RULES
+
+- Use App Router conventions
+- Server Components by default
+- Client Components only when needed
+- Keep data-fetching close to the page or feature

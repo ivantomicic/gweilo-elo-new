@@ -1,0 +1,14 @@
+---
+description: Locked technology stack for the project
+alwaysApply: true
+---
+
+STACK (LOCKED)
+
+- Framework: Next.js (App Router)
+- Language: TypeScript
+- Database & Auth: Supabase
+- Styling: Tailwind CSS
+- UI base: shadcn/ui
+- Animation / enhanced UI: animate-ui, magicui
+- Charts: Recharts (or equivalent)
