@@ -49,7 +49,7 @@ const data = {
 		},
 		{
 			title: "Statistika",
-			url: "#",
+			url: "/statistics",
 			icon: BarChartIcon,
 		},
 		{
@@ -64,7 +64,7 @@ const data = {
 		},
 		{
 			title: "Ispale",
-			url: "/ispale",
+			url: "/no-shows",
 			icon: XCircleIcon,
 		},
 	],

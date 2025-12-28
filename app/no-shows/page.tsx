@@ -8,13 +8,13 @@ import {
 	SidebarInset,
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
-import { IspaleView } from "@/components/ispale/ispale-view";
-import { AddNoShowDrawer } from "@/components/ispale/add-no-show-drawer";
+import { NoShowsView } from "./_components/no-shows-view";
+import { AddNoShowDrawer } from "./_components/add-no-show-drawer";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { getUserRole } from "@/lib/auth/getUserRole";
 
-function IspalePageContent() {
+function NoShowsPageContent() {
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [refetchNoShows, setRefetchNoShows] = useState<(() => void) | null>(
@@ -47,7 +47,7 @@ function IspalePageContent() {
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-							<IspaleView
+							<NoShowsView
 								onRefetchReady={(refetch) => {
 									setRefetchNoShows(() => refetch);
 								}}
@@ -72,10 +72,10 @@ function IspalePageContent() {
 	);
 }
 
-export default function IspalePage() {
+export default function NoShowsPage() {
 	return (
 		<AuthGuard>
-			<IspalePageContent />
+			<NoShowsPageContent />
 		</AuthGuard>
 	);
 }

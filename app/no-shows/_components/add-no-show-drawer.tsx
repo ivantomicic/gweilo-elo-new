@@ -125,7 +125,7 @@ export function AddNoShowDrawer({
 			}
 
 			// Create no-show via API
-			const response = await fetch("/api/ispale", {
+			const response = await fetch("/api/no-shows", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -185,7 +185,11 @@ export function AddNoShowDrawer({
 							disabled={saving || loadingUsers}
 						>
 							<SelectTrigger>
-								<SelectValue placeholder={t.ispale.drawer.playerPlaceholder} />
+								<SelectValue
+									placeholder={
+										t.ispale.drawer.playerPlaceholder
+									}
+								/>
 							</SelectTrigger>
 							<SelectContent>
 								{loadingUsers ? (
@@ -194,7 +198,10 @@ export function AddNoShowDrawer({
 									</SelectItem>
 								) : (
 									users.map((user) => (
-										<SelectItem key={user.id} value={user.id}>
+										<SelectItem
+											key={user.id}
+											value={user.id}
+										>
 											{user.name}
 										</SelectItem>
 									))
@@ -225,10 +232,17 @@ export function AddNoShowDrawer({
 				</div>
 
 				<SheetFooter className="mt-8">
-					<Button variant="outline" onClick={onClose} disabled={saving}>
+					<Button
+						variant="outline"
+						onClick={onClose}
+						disabled={saving}
+					>
 						{t.common.cancel}
 					</Button>
-					<Button onClick={handleSave} disabled={saving || !hasChanges}>
+					<Button
+						onClick={handleSave}
+						disabled={saving || !hasChanges}
+					>
 						{saving ? t.settings.saving : t.settings.save}
 					</Button>
 				</SheetFooter>
@@ -236,4 +250,3 @@ export function AddNoShowDrawer({
 		</Sheet>
 	);
 }
-

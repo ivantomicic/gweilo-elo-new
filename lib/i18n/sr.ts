@@ -116,10 +116,14 @@ export const sr = {
 		addNoShow: "Dodaj ispalu",
 		loading: "Učitavanje ispala...",
 		noNoShows: "Nema ispala",
+		cards: {
+			worstOffender: "Najviše ispalih termina",
+			topOffenders: "Top 5 najgoreg",
+		},
 		table: {
 			player: "Igrač",
-			totalNoShows: "Ukupno ispala",
-			lastNoShow: "Poslednji ispal",
+			date: "Datum",
+			reason: "Razlog",
 		},
 		drawer: {
 			title: "Dodaj ispalu",

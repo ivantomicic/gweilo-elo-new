@@ -10,7 +10,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 /**
- * GET /api/ispale
+ * GET /api/no-shows
  * 
  * Fetch all no-shows with user information, aggregated by user (worst offenders)
  * 
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest) {
 
 		return NextResponse.json({ users: formattedUsers });
 	} catch (error) {
-		console.error('Unexpected error in GET /api/ispale:', error);
+		console.error('Unexpected error in GET /api/no-shows:', error);
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 }
@@ -119,7 +119,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/ispale
+ * POST /api/no-shows
  * 
  * Create a new no-show entry (admin-only)
  * 
@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
 			{ status: 201 }
 		);
 	} catch (error) {
-		console.error('Unexpected error in POST /api/ispale:', error);
+		console.error('Unexpected error in POST /api/no-shows:', error);
 		return NextResponse.json(
 			{ error: 'Internal server error' },
 			{ status: 500 }
