@@ -13,6 +13,15 @@ const nextConfig = {
     '10.0.0.0/8',
     '172.16.0.0/12',
   ],
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'img.youtube.com',
+        pathname: '/vi/**',
+      },
+    ],
+  },
 }
 
 module.exports = nextConfig

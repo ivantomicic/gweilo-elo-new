@@ -26,6 +26,7 @@ import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { calculateEloChange, averageElo } from "@/lib/elo";
 import { getUserRole } from "@/lib/auth/getUserRole";
+import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -50,7 +51,7 @@ type Match = {
 	status?: "pending" | "completed";
 	team1_score?: number | null;
 	team2_score?: number | null;
-	youtube_url?: string | null;
+	video_url?: string | null;
 };
 
 type SessionData = {
@@ -82,10 +83,10 @@ function SessionPageContent() {
 	const [showForceCloseModal, setShowForceCloseModal] = useState(false);
 	const [forceClosing, setForceClosing] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
-	const [selectedMatchForYoutube, setSelectedMatchForYoutube] =
+	const [selectedMatchForVideo, setSelectedMatchForVideo] =
 		useState<Match | null>(null);
-	const [youtubeUrlInput, setYoutubeUrlInput] = useState("");
-	const [savingYoutubeUrl, setSavingYoutubeUrl] = useState(false);
+	const [videoUrlInput, setVideoUrlInput] = useState("");
+	const [savingVideoUrl, setSavingVideoUrl] = useState(false);
 
 	// Load session data
 	useEffect(() => {
@@ -543,44 +544,29 @@ function SessionPageContent() {
 		}
 	}, [sessionData, forceClosing, sessionId]);
 
-	// Handle opening YouTube URL drawer
-	const handleOpenYoutubeDrawer = useCallback(
+	// Handle opening video URL drawer
+	const handleOpenVideoDrawer = useCallback(
 		(match: Match) => {
 			if (!isAdmin) return;
-			setSelectedMatchForYoutube(match);
-			setYoutubeUrlInput(match.youtube_url || "");
+			setSelectedMatchForVideo(match);
+			setVideoUrlInput(match.video_url || "");
 		},
 		[isAdmin]
 	);
 
-	// Handle closing YouTube URL drawer
-	const handleCloseYoutubeDrawer = useCallback(() => {
-		setSelectedMatchForYoutube(null);
-		setYoutubeUrlInput("");
+	// Handle closing video URL drawer
+	const handleCloseVideoDrawer = useCallback(() => {
+		setSelectedMatchForVideo(null);
+		setVideoUrlInput("");
 		setError(null);
 	}, []);
 
-	// Validate YouTube URL (empty is valid, non-empty must contain youtube.com or youtu.be)
-	const isValidYoutubeUrl = useCallback((url: string): boolean => {
-		const trimmed = url.trim();
-		if (trimmed === "") return true; // Empty is valid (clears link)
-		return trimmed.includes("youtube.com") || trimmed.includes("youtu.be");
-	}, []);
-
-	// Handle saving YouTube URL
-	const handleSaveYoutubeUrl = useCallback(async () => {
-		if (!selectedMatchForYoutube || !sessionId || savingYoutubeUrl) return;
-
-		// Validate URL if provided
-		if (!isValidYoutubeUrl(youtubeUrlInput)) {
-			setError(
-				"Invalid YouTube URL. Must contain youtube.com or youtu.be"
-			);
-			return;
-		}
+	// Handle saving video URL
+	const handleSaveVideoUrl = useCallback(async () => {
+		if (!selectedMatchForVideo || !sessionId || savingVideoUrl) return;
 
 		try {
-			setSavingYoutubeUrl(true);
+			setSavingVideoUrl(true);
 			setError(null);
 
 			const {
@@ -593,7 +579,7 @@ function SessionPageContent() {
 			}
 
 			const response = await fetch(
-				`/api/sessions/${sessionId}/matches/${selectedMatchForYoutube.id}/youtube-url`,
+				`/api/sessions/${sessionId}/matches/${selectedMatchForVideo.id}/video-url`,
 				{
 					method: "POST",
 					headers: {
@@ -601,14 +587,14 @@ function SessionPageContent() {
 						Authorization: `Bearer ${session.access_token}`,
 					},
 					body: JSON.stringify({
-						youtube_url: youtubeUrlInput.trim() || null,
+						video_url: videoUrlInput.trim() || null,
 					}),
 				}
 			);
 
 			if (!response.ok) {
 				const errorData = await response.json();
-				setError(errorData.error || "Failed to save YouTube URL");
+				setError(errorData.error || "Failed to save video URL");
 				return;
 			}
 
@@ -617,12 +603,12 @@ function SessionPageContent() {
 				if (!prev) return prev;
 
 				const updatedMatchesByRound = { ...prev.matchesByRound };
-				const roundNumber = selectedMatchForYoutube.round_number;
+				const roundNumber = selectedMatchForVideo.round_number;
 				const roundMatches = updatedMatchesByRound[roundNumber] || [];
 
 				updatedMatchesByRound[roundNumber] = roundMatches.map((m) =>
-					m.id === selectedMatchForYoutube.id
-						? { ...m, youtube_url: youtubeUrlInput.trim() || null }
+					m.id === selectedMatchForVideo.id
+						? { ...m, video_url: videoUrlInput.trim() || null }
 						: m
 				);
 
@@ -632,20 +618,19 @@ function SessionPageContent() {
 				};
 			});
 
-			handleCloseYoutubeDrawer();
+			handleCloseVideoDrawer();
 		} catch (err) {
-			console.error("Error saving YouTube URL:", err);
-			setError("Failed to save YouTube URL");
+			console.error("Error saving video URL:", err);
+			setError("Failed to save video URL");
 		} finally {
-			setSavingYoutubeUrl(false);
+			setSavingVideoUrl(false);
 		}
 	}, [
-		selectedMatchForYoutube,
+		selectedMatchForVideo,
 		sessionId,
-		youtubeUrlInput,
-		savingYoutubeUrl,
-		isValidYoutubeUrl,
-		handleCloseYoutubeDrawer,
+		videoUrlInput,
+		savingVideoUrl,
+		handleCloseVideoDrawer,
 	]);
 
 	if (loading) {
@@ -829,8 +814,8 @@ function SessionPageContent() {
 																				""
 																		  }`.trim();
 
-																const hasYoutubeUrl =
-																	!!match.youtube_url;
+																const hasVideoUrl =
+																	!!match.video_url;
 
 																return (
 																	<Box
@@ -839,7 +824,7 @@ function SessionPageContent() {
 																		}
 																		onClick={() =>
 																			isAdmin &&
-																			handleOpenYoutubeDrawer(
+																			handleOpenVideoDrawer(
 																				match
 																			)
 																		}
@@ -849,8 +834,8 @@ function SessionPageContent() {
 																				"cursor-pointer hover:border-border active:scale-[0.99] transition-all"
 																		)}
 																	>
-																		{/* YouTube URL Indicator */}
-																		{hasYoutubeUrl && (
+																		{/* Video URL Indicator */}
+																		{hasVideoUrl && (
 																			<Box className="absolute top-3 right-3">
 																				<Icon
 																					icon="solar:play-circle-bold"
@@ -1067,19 +1052,19 @@ function SessionPageContent() {
 					</SidebarInset>
 				</SidebarProvider>
 
-				{/* YouTube URL Drawer */}
+				{/* Video URL Drawer */}
 				<Drawer
-					open={selectedMatchForYoutube !== null}
-					onOpenChange={(open) => !open && handleCloseYoutubeDrawer()}
+					open={selectedMatchForVideo !== null}
+					onOpenChange={(open) => !open && handleCloseVideoDrawer()}
 				>
 					<DrawerContent>
 						<DrawerHeader>
 							<DrawerTitle>
-								{selectedMatchForYoutube ? (
+								{selectedMatchForVideo ? (
 									<>
 										Round{" "}
-										{selectedMatchForYoutube.round_number} –{" "}
-										{selectedMatchForYoutube.match_type ===
+										{selectedMatchForVideo.round_number} –{" "}
+										{selectedMatchForVideo.match_type ===
 										"singles"
 											? "Singles"
 											: "Doubles"}
@@ -1088,14 +1073,13 @@ function SessionPageContent() {
 							</DrawerTitle>
 						</DrawerHeader>
 
-						{selectedMatchForYoutube ? (
+						{selectedMatchForVideo ? (
 							<div className="px-4 pb-4 space-y-6">
 								{/* Players / Teams (Read-only) */}
 								<Box>
 									<Stack direction="column" spacing={3}>
 										{(() => {
-											const match =
-												selectedMatchForYoutube;
+											const match = selectedMatchForVideo;
 											const isSingles =
 												match.match_type === "singles";
 											const team1PlayerIds = isSingles
@@ -1165,19 +1149,19 @@ function SessionPageContent() {
 									</Stack>
 								</Box>
 
-								{/* YouTube URL Input */}
+								{/* Video URL Input */}
 								<Box>
 									<label className="text-sm font-semibold text-foreground mb-2 block">
-										YouTube link
+										Video link
 									</label>
 									<Input
 										type="url"
-										value={youtubeUrlInput}
+										value={videoUrlInput}
 										onChange={(e) =>
-											setYoutubeUrlInput(e.target.value)
+											setVideoUrlInput(e.target.value)
 										}
 										placeholder="https://www.youtube.com/watch?v=..."
-										disabled={savingYoutubeUrl}
+										disabled={savingVideoUrl}
 										className="w-full"
 									/>
 								</Box>
@@ -1192,21 +1176,22 @@ function SessionPageContent() {
 							>
 								<Button
 									variant="outline"
-									onClick={handleCloseYoutubeDrawer}
-									disabled={savingYoutubeUrl}
+									onClick={handleCloseVideoDrawer}
+									disabled={savingVideoUrl}
 									className="flex-1"
 								>
 									Cancel
 								</Button>
 								<Button
-									onClick={handleSaveYoutubeUrl}
+									onClick={handleSaveVideoUrl}
 									disabled={
-										savingYoutubeUrl ||
-										!isValidYoutubeUrl(youtubeUrlInput)
+										savingVideoUrl ||
+										(videoUrlInput.trim() !== "" &&
+											!isValidVideoUrl(videoUrlInput))
 									}
 									className="flex-1"
 								>
-									{savingYoutubeUrl ? "Saving..." : "Save"}
+									{savingVideoUrl ? "Saving..." : "Save"}
 								</Button>
 							</Stack>
 						</DrawerFooter>

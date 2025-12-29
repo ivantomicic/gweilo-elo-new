@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { verifyAdmin } from "@/lib/supabase/admin";
+import { isValidVideoUrl } from "@/lib/video";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -10,14 +11,14 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 /**
- * POST /api/sessions/[sessionId]/matches/[matchId]/youtube-url
+ * POST /api/sessions/[sessionId]/matches/[matchId]/video-url
  *
- * Update YouTube URL for a match (admin only)
+ * Update video URL for a match (admin only)
  *
  * Security:
  * - Requires authentication
  * - Requires admin role
- * - Only updates youtube_url (does not touch scores, status, or Elo)
+ * - Only updates video_url (does not touch scores, status, or Elo)
  */
 export async function POST(
 	request: NextRequest,
@@ -62,19 +63,16 @@ export async function POST(
 
 		// Parse request body
 		const body = await request.json();
-		const { youtube_url } = body;
+		const { video_url } = body;
 
-		// Validate YouTube URL if provided
-		if (youtube_url !== null && youtube_url !== undefined && youtube_url !== "") {
-			const urlString = String(youtube_url).trim();
-			if (
-				!urlString.includes("youtube.com") &&
-				!urlString.includes("youtu.be")
-			) {
+		// Validate video URL if provided
+		if (video_url !== null && video_url !== undefined && video_url !== "") {
+			const urlString = String(video_url).trim();
+			if (!isValidVideoUrl(urlString)) {
 				return NextResponse.json(
 					{
 						error:
-							"Invalid YouTube URL. Must contain youtube.com or youtu.be",
+							"Invalid video URL. Currently only YouTube URLs are supported.",
 					},
 					{ status: 400 }
 				);
@@ -96,28 +94,28 @@ export async function POST(
 			);
 		}
 
-		// Update only youtube_url (explicitly set to null if empty string)
-		const urlToSave = youtube_url === "" ? null : youtube_url || null;
+		// Update only video_url (explicitly set to null if empty string)
+		const urlToSave = video_url === "" ? null : video_url || null;
 
 		const { error: updateError } = await supabase
 			.from("session_matches")
-			.update({ youtube_url: urlToSave })
+			.update({ video_url: urlToSave })
 			.eq("id", matchId);
 
 		if (updateError) {
-			console.error("Error updating YouTube URL:", updateError);
+			console.error("Error updating video URL:", updateError);
 			return NextResponse.json(
-				{ error: "Failed to update YouTube URL" },
+				{ error: "Failed to update video URL" },
 				{ status: 500 }
 			);
 		}
 
 		return NextResponse.json({
 			success: true,
-			youtube_url: urlToSave,
+			video_url: urlToSave,
 		});
 	} catch (error) {
-		console.error("Unexpected error in POST /api/sessions/[sessionId]/matches/[matchId]/youtube-url:", error);
+		console.error("Unexpected error in POST /api/sessions/[sessionId]/matches/[matchId]/video-url:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

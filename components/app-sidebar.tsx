@@ -61,7 +61,7 @@ const data = {
 		},
 		{
 			title: "Video",
-			url: "#",
+			url: "/videos",
 			icon: PlayIcon,
 		},
 		{
