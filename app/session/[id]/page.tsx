@@ -15,9 +15,17 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { Stack } from "@/components/ui/stack";
+import {
+	Drawer,
+	DrawerContent,
+	DrawerHeader,
+	DrawerTitle,
+	DrawerFooter,
+} from "@/components/ui/drawer";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { calculateEloChange, averageElo } from "@/lib/elo";
+import { getUserRole } from "@/lib/auth/getUserRole";
 import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -42,6 +50,7 @@ type Match = {
 	status?: "pending" | "completed";
 	team1_score?: number | null;
 	team2_score?: number | null;
+	youtube_url?: string | null;
 };
 
 type SessionData = {
@@ -72,6 +81,11 @@ function SessionPageContent() {
 	const [showConfirmModal, setShowConfirmModal] = useState(false);
 	const [showForceCloseModal, setShowForceCloseModal] = useState(false);
 	const [forceClosing, setForceClosing] = useState(false);
+	const [isAdmin, setIsAdmin] = useState(false);
+	const [selectedMatchForYoutube, setSelectedMatchForYoutube] =
+		useState<Match | null>(null);
+	const [youtubeUrlInput, setYoutubeUrlInput] = useState("");
+	const [savingYoutubeUrl, setSavingYoutubeUrl] = useState(false);
 
 	// Load session data
 	useEffect(() => {
@@ -238,6 +252,15 @@ function SessionPageContent() {
 		// Only fetch on mount or sessionId change, not on every render
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [sessionId]);
+
+	// Check if user is admin
+	useEffect(() => {
+		const checkAdmin = async () => {
+			const role = await getUserRole();
+			setIsAdmin(role === "admin");
+		};
+		checkAdmin();
+	}, []);
 
 	// Get available rounds
 	const roundNumbers = useMemo(() => {
@@ -520,6 +543,111 @@ function SessionPageContent() {
 		}
 	}, [sessionData, forceClosing, sessionId]);
 
+	// Handle opening YouTube URL drawer
+	const handleOpenYoutubeDrawer = useCallback(
+		(match: Match) => {
+			if (!isAdmin) return;
+			setSelectedMatchForYoutube(match);
+			setYoutubeUrlInput(match.youtube_url || "");
+		},
+		[isAdmin]
+	);
+
+	// Handle closing YouTube URL drawer
+	const handleCloseYoutubeDrawer = useCallback(() => {
+		setSelectedMatchForYoutube(null);
+		setYoutubeUrlInput("");
+		setError(null);
+	}, []);
+
+	// Validate YouTube URL (empty is valid, non-empty must contain youtube.com or youtu.be)
+	const isValidYoutubeUrl = useCallback((url: string): boolean => {
+		const trimmed = url.trim();
+		if (trimmed === "") return true; // Empty is valid (clears link)
+		return trimmed.includes("youtube.com") || trimmed.includes("youtu.be");
+	}, []);
+
+	// Handle saving YouTube URL
+	const handleSaveYoutubeUrl = useCallback(async () => {
+		if (!selectedMatchForYoutube || !sessionId || savingYoutubeUrl) return;
+
+		// Validate URL if provided
+		if (!isValidYoutubeUrl(youtubeUrlInput)) {
+			setError(
+				"Invalid YouTube URL. Must contain youtube.com or youtu.be"
+			);
+			return;
+		}
+
+		try {
+			setSavingYoutubeUrl(true);
+			setError(null);
+
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				setError("Not authenticated");
+				return;
+			}
+
+			const response = await fetch(
+				`/api/sessions/${sessionId}/matches/${selectedMatchForYoutube.id}/youtube-url`,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${session.access_token}`,
+					},
+					body: JSON.stringify({
+						youtube_url: youtubeUrlInput.trim() || null,
+					}),
+				}
+			);
+
+			if (!response.ok) {
+				const errorData = await response.json();
+				setError(errorData.error || "Failed to save YouTube URL");
+				return;
+			}
+
+			// Optimistically update the match in sessionData
+			setSessionData((prev) => {
+				if (!prev) return prev;
+
+				const updatedMatchesByRound = { ...prev.matchesByRound };
+				const roundNumber = selectedMatchForYoutube.round_number;
+				const roundMatches = updatedMatchesByRound[roundNumber] || [];
+
+				updatedMatchesByRound[roundNumber] = roundMatches.map((m) =>
+					m.id === selectedMatchForYoutube.id
+						? { ...m, youtube_url: youtubeUrlInput.trim() || null }
+						: m
+				);
+
+				return {
+					...prev,
+					matchesByRound: updatedMatchesByRound,
+				};
+			});
+
+			handleCloseYoutubeDrawer();
+		} catch (err) {
+			console.error("Error saving YouTube URL:", err);
+			setError("Failed to save YouTube URL");
+		} finally {
+			setSavingYoutubeUrl(false);
+		}
+	}, [
+		selectedMatchForYoutube,
+		sessionId,
+		youtubeUrlInput,
+		savingYoutubeUrl,
+		isValidYoutubeUrl,
+		handleCloseYoutubeDrawer,
+	]);
+
 	if (loading) {
 		return (
 			<SidebarProvider>
@@ -571,343 +699,520 @@ function SessionPageContent() {
 			.sort((a, b) => a - b);
 
 		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title="Session" />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								{/* Header */}
-								<Box className="flex justify-between items-end">
-									<Box>
-										<h1 className="text-3xl font-bold font-heading tracking-tight">
-											Session Results
-										</h1>
-										<p className="text-sm text-muted-foreground mt-1">
-											Completed on{" "}
-											{sessionData.session.completed_at
-												? new Date(
-														sessionData.session.completed_at
-												  ).toLocaleDateString()
-												: "Unknown"}
-										</p>
+			<>
+				<SidebarProvider>
+					<AppSidebar variant="inset" />
+					<SidebarInset>
+						<SiteHeader title="Session" />
+						<div className="flex flex-1 flex-col">
+							<div className="@container/main flex flex-1 flex-col gap-2">
+								<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+									{/* Header */}
+									<Box className="flex justify-between items-end">
+										<Box>
+											<h1 className="text-3xl font-bold font-heading tracking-tight">
+												Session Results
+											</h1>
+											<p className="text-sm text-muted-foreground mt-1">
+												Completed on{" "}
+												{sessionData.session
+													.completed_at
+													? new Date(
+															sessionData.session.completed_at
+													  ).toLocaleDateString()
+													: "Unknown"}
+											</p>
+										</Box>
 									</Box>
-								</Box>
 
-								{/* Rounds */}
-								<Stack direction="column" spacing={6}>
-									{roundNumbersList.map((roundNumber) => {
-										const roundMatches =
-											sessionData.matchesByRound[
-												roundNumber
-											] || [];
-										return (
-											<Box key={roundNumber}>
-												<h2 className="text-xl font-bold font-heading mb-4">
-													Round {roundNumber}
-												</h2>
-												<Stack
-													direction="column"
-													spacing={3}
-												>
-													{roundMatches.map(
-														(match) => {
-															const isSingles =
-																match.match_type ===
-																"singles";
+									{/* Rounds */}
+									<Stack direction="column" spacing={6}>
+										{roundNumbersList.map((roundNumber) => {
+											const roundMatches =
+												sessionData.matchesByRound[
+													roundNumber
+												] || [];
+											return (
+												<Box key={roundNumber}>
+													<h2 className="text-xl font-bold font-heading mb-4">
+														Round {roundNumber}
+													</h2>
+													<Stack
+														direction="column"
+														spacing={3}
+													>
+														{roundMatches.map(
+															(match) => {
+																const isSingles =
+																	match.match_type ===
+																	"singles";
 
-															// Get players for each team
-															const team1PlayerIds =
-																isSingles
-																	? [
-																			match
-																				.player_ids[0],
-																	  ]
-																	: [
-																			match
-																				.player_ids[0],
-																			match
-																				.player_ids[1],
-																	  ];
-															const team2PlayerIds =
-																isSingles
-																	? [
-																			match
-																				.player_ids[1],
-																	  ]
-																	: [
-																			match
-																				.player_ids[2],
-																			match
-																				.player_ids[3],
-																	  ];
+																// Get players for each team
+																const team1PlayerIds =
+																	isSingles
+																		? [
+																				match
+																					.player_ids[0],
+																		  ]
+																		: [
+																				match
+																					.player_ids[0],
+																				match
+																					.player_ids[1],
+																		  ];
+																const team2PlayerIds =
+																	isSingles
+																		? [
+																				match
+																					.player_ids[1],
+																		  ]
+																		: [
+																				match
+																					.player_ids[2],
+																				match
+																					.player_ids[3],
+																		  ];
 
-															const team1Players =
-																team1PlayerIds
-																	.map((id) =>
-																		getPlayer(
-																			id
+																const team1Players =
+																	team1PlayerIds
+																		.map(
+																			(
+																				id
+																			) =>
+																				getPlayer(
+																					id
+																				)
 																		)
-																	)
-																	.filter(
-																		Boolean
-																	) as Player[];
-															const team2Players =
-																team2PlayerIds
-																	.map((id) =>
-																		getPlayer(
-																			id
+																		.filter(
+																			Boolean
+																		) as Player[];
+																const team2Players =
+																	team2PlayerIds
+																		.map(
+																			(
+																				id
+																			) =>
+																				getPlayer(
+																					id
+																				)
 																		)
-																	)
-																	.filter(
-																		Boolean
-																	) as Player[];
+																		.filter(
+																			Boolean
+																		) as Player[];
 
-															const team1Name =
-																isSingles
-																	? team1Players[0]
-																			?.name ||
-																	  "Unknown"
-																	: `${
-																			team1Players[0]
+																const team1Name =
+																	isSingles
+																		? team1Players[0]
 																				?.name ||
-																			""
-																	  } & ${
-																			team1Players[1]
+																		  "Unknown"
+																		: `${
+																				team1Players[0]
+																					?.name ||
+																				""
+																		  } & ${
+																				team1Players[1]
+																					?.name ||
+																				""
+																		  }`.trim();
+																const team2Name =
+																	isSingles
+																		? team2Players[0]
 																				?.name ||
-																			""
-																	  }`.trim();
-															const team2Name =
-																isSingles
-																	? team2Players[0]
-																			?.name ||
-																	  "Unknown"
-																	: `${
-																			team2Players[0]
-																				?.name ||
-																			""
-																	  } & ${
-																			team2Players[1]
-																				?.name ||
-																			""
-																	  }`.trim();
+																		  "Unknown"
+																		: `${
+																				team2Players[0]
+																					?.name ||
+																				""
+																		  } & ${
+																				team2Players[1]
+																					?.name ||
+																				""
+																		  }`.trim();
 
-															return (
-																<Box
-																	key={
-																		match.id
-																	}
-																	className="bg-card rounded-[20px] p-5 border border-border/50 shadow-sm"
-																>
-																	<Stack
-																		direction="row"
-																		alignItems="center"
-																		justifyContent="between"
-																		spacing={
-																			4
+																const hasYoutubeUrl =
+																	!!match.youtube_url;
+
+																return (
+																	<Box
+																		key={
+																			match.id
 																		}
+																		onClick={() =>
+																			isAdmin &&
+																			handleOpenYoutubeDrawer(
+																				match
+																			)
+																		}
+																		className={cn(
+																			"bg-card rounded-[20px] p-5 border border-border/50 shadow-sm relative",
+																			isAdmin &&
+																				"cursor-pointer hover:border-border active:scale-[0.99] transition-all"
+																		)}
 																	>
-																		{/* Team 1 */}
-																		<Stack
-																			direction="column"
-																			alignItems="center"
-																			spacing={
-																				2
-																			}
-																			className="flex-1"
-																		>
-																			{isSingles ? (
-																				<Avatar className="size-16 border-2 border-border shadow-md">
-																					<AvatarImage
-																						src={
-																							team1Players[0]
-																								?.avatar ||
-																							undefined
-																						}
-																						alt={
-																							team1Players[0]
-																								?.name
-																						}
-																					/>
-																					<AvatarFallback>
-																						{team1Players[0]?.name
-																							?.charAt(
-																								0
-																							)
-																							.toUpperCase() ||
-																							"?"}
-																					</AvatarFallback>
-																				</Avatar>
-																			) : (
-																				<Stack
-																					direction="row"
-																					spacing={
-																						-4
-																					}
-																				>
-																					{team1Players.map(
-																						(
-																							player
-																						) => (
-																							<Avatar
-																								key={
-																									player.id
-																								}
-																								className="size-14 border-2 border-background shadow-sm"
-																							>
-																								<AvatarImage
-																									src={
-																										player.avatar ||
-																										undefined
-																									}
-																									alt={
-																										player.name
-																									}
-																								/>
-																								<AvatarFallback>
-																									{player.name
-																										?.charAt(
-																											0
-																										)
-																										.toUpperCase() ||
-																										"?"}
-																								</AvatarFallback>
-																							</Avatar>
-																						)
-																					)}
-																				</Stack>
-																			)}
-																			<Box className="text-center">
-																				<p className="text-base font-bold leading-tight">
-																					{
-																						team1Name
-																					}
-																				</p>
+																		{/* YouTube URL Indicator */}
+																		{hasYoutubeUrl && (
+																			<Box className="absolute top-3 right-3">
+																				<Icon
+																					icon="solar:play-circle-bold"
+																					className="size-5 text-chart-4"
+																				/>
 																			</Box>
-																		</Stack>
-
-																		{/* Scores */}
+																		)}
 																		<Stack
 																			direction="row"
 																			alignItems="center"
+																			justifyContent="between"
 																			spacing={
-																				3
+																				4
 																			}
-																			className="shrink-0"
 																		>
-																			<Box className="text-center">
-																				<p className="text-3xl font-black">
-																					{match.team1_score ??
-																						"-"}
-																				</p>
-																			</Box>
-																			<Box className="px-1">
-																				<span className="text-xs font-black text-muted-foreground">
-																					VS
-																				</span>
-																			</Box>
-																			<Box className="text-center">
-																				<p className="text-3xl font-black">
-																					{match.team2_score ??
-																						"-"}
-																				</p>
-																			</Box>
-																		</Stack>
-
-																		{/* Team 2 */}
-																		<Stack
-																			direction="column"
-																			alignItems="center"
-																			spacing={
-																				2
-																			}
-																			className="flex-1"
-																		>
-																			{isSingles ? (
-																				<Avatar className="size-16 border-2 border-border shadow-md">
-																					<AvatarImage
-																						src={
-																							team2Players[0]
-																								?.avatar ||
-																							undefined
+																			{/* Team 1 */}
+																			<Stack
+																				direction="column"
+																				alignItems="center"
+																				spacing={
+																					2
+																				}
+																				className="flex-1"
+																			>
+																				{isSingles ? (
+																					<Avatar className="size-16 border-2 border-border shadow-md">
+																						<AvatarImage
+																							src={
+																								team1Players[0]
+																									?.avatar ||
+																								undefined
+																							}
+																							alt={
+																								team1Players[0]
+																									?.name
+																							}
+																						/>
+																						<AvatarFallback>
+																							{team1Players[0]?.name
+																								?.charAt(
+																									0
+																								)
+																								.toUpperCase() ||
+																								"?"}
+																						</AvatarFallback>
+																					</Avatar>
+																				) : (
+																					<Stack
+																						direction="row"
+																						spacing={
+																							-4
 																						}
-																						alt={
-																							team2Players[0]
-																								?.name
-																						}
-																					/>
-																					<AvatarFallback>
-																						{team2Players[0]?.name
-																							?.charAt(
-																								0
+																					>
+																						{team1Players.map(
+																							(
+																								player
+																							) => (
+																								<Avatar
+																									key={
+																										player.id
+																									}
+																									className="size-14 border-2 border-background shadow-sm"
+																								>
+																									<AvatarImage
+																										src={
+																											player.avatar ||
+																											undefined
+																										}
+																										alt={
+																											player.name
+																										}
+																									/>
+																									<AvatarFallback>
+																										{player.name
+																											?.charAt(
+																												0
+																											)
+																											.toUpperCase() ||
+																											"?"}
+																									</AvatarFallback>
+																								</Avatar>
 																							)
-																							.toUpperCase() ||
-																							"?"}
-																					</AvatarFallback>
-																				</Avatar>
-																			) : (
-																				<Stack
-																					direction="row"
-																					spacing={
-																						-4
-																					}
-																				>
-																					{team2Players.map(
-																						(
-																							player
-																						) => (
-																							<Avatar
-																								key={
-																									player.id
-																								}
-																								className="size-14 border-2 border-background shadow-sm"
-																							>
-																								<AvatarImage
-																									src={
-																										player.avatar ||
-																										undefined
+																						)}
+																					</Stack>
+																				)}
+																				<Box className="text-center">
+																					<p className="text-base font-bold leading-tight">
+																						{
+																							team1Name
+																						}
+																					</p>
+																				</Box>
+																			</Stack>
+
+																			{/* Scores */}
+																			<Stack
+																				direction="row"
+																				alignItems="center"
+																				spacing={
+																					3
+																				}
+																				className="shrink-0"
+																			>
+																				<Box className="text-center">
+																					<p className="text-3xl font-black">
+																						{match.team1_score ??
+																							"-"}
+																					</p>
+																				</Box>
+																				<Box className="px-1">
+																					<span className="text-xs font-black text-muted-foreground">
+																						VS
+																					</span>
+																				</Box>
+																				<Box className="text-center">
+																					<p className="text-3xl font-black">
+																						{match.team2_score ??
+																							"-"}
+																					</p>
+																				</Box>
+																			</Stack>
+
+																			{/* Team 2 */}
+																			<Stack
+																				direction="column"
+																				alignItems="center"
+																				spacing={
+																					2
+																				}
+																				className="flex-1"
+																			>
+																				{isSingles ? (
+																					<Avatar className="size-16 border-2 border-border shadow-md">
+																						<AvatarImage
+																							src={
+																								team2Players[0]
+																									?.avatar ||
+																								undefined
+																							}
+																							alt={
+																								team2Players[0]
+																									?.name
+																							}
+																						/>
+																						<AvatarFallback>
+																							{team2Players[0]?.name
+																								?.charAt(
+																									0
+																								)
+																								.toUpperCase() ||
+																								"?"}
+																						</AvatarFallback>
+																					</Avatar>
+																				) : (
+																					<Stack
+																						direction="row"
+																						spacing={
+																							-4
+																						}
+																					>
+																						{team2Players.map(
+																							(
+																								player
+																							) => (
+																								<Avatar
+																									key={
+																										player.id
 																									}
-																									alt={
-																										player.name
-																									}
-																								/>
-																								<AvatarFallback>
-																									{player.name
-																										?.charAt(
-																											0
-																										)
-																										.toUpperCase() ||
-																										"?"}
-																								</AvatarFallback>
-																							</Avatar>
-																						)
-																					)}
-																				</Stack>
-																			)}
-																			<Box className="text-center">
-																				<p className="text-base font-bold leading-tight">
-																					{
-																						team2Name
-																					}
-																				</p>
-																			</Box>
+																									className="size-14 border-2 border-background shadow-sm"
+																								>
+																									<AvatarImage
+																										src={
+																											player.avatar ||
+																											undefined
+																										}
+																										alt={
+																											player.name
+																										}
+																									/>
+																									<AvatarFallback>
+																										{player.name
+																											?.charAt(
+																												0
+																											)
+																											.toUpperCase() ||
+																											"?"}
+																									</AvatarFallback>
+																								</Avatar>
+																							)
+																						)}
+																					</Stack>
+																				)}
+																				<Box className="text-center">
+																					<p className="text-base font-bold leading-tight">
+																						{
+																							team2Name
+																						}
+																					</p>
+																				</Box>
+																			</Stack>
 																		</Stack>
-																	</Stack>
-																</Box>
-															);
-														}
-													)}
-												</Stack>
-											</Box>
-										);
-									})}
-								</Stack>
+																	</Box>
+																);
+															}
+														)}
+													</Stack>
+												</Box>
+											);
+										})}
+									</Stack>
+								</div>
 							</div>
 						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
+					</SidebarInset>
+				</SidebarProvider>
+
+				{/* YouTube URL Drawer */}
+				<Drawer
+					open={selectedMatchForYoutube !== null}
+					onOpenChange={(open) => !open && handleCloseYoutubeDrawer()}
+				>
+					<DrawerContent>
+						<DrawerHeader>
+							<DrawerTitle>
+								{selectedMatchForYoutube ? (
+									<>
+										Round{" "}
+										{selectedMatchForYoutube.round_number} –{" "}
+										{selectedMatchForYoutube.match_type ===
+										"singles"
+											? "Singles"
+											: "Doubles"}
+									</>
+								) : null}
+							</DrawerTitle>
+						</DrawerHeader>
+
+						{selectedMatchForYoutube ? (
+							<div className="px-4 pb-4 space-y-6">
+								{/* Players / Teams (Read-only) */}
+								<Box>
+									<Stack direction="column" spacing={3}>
+										{(() => {
+											const match =
+												selectedMatchForYoutube;
+											const isSingles =
+												match.match_type === "singles";
+											const team1PlayerIds = isSingles
+												? [match.player_ids[0]]
+												: [
+														match.player_ids[0],
+														match.player_ids[1],
+												  ];
+											const team2PlayerIds = isSingles
+												? [match.player_ids[1]]
+												: [
+														match.player_ids[2],
+														match.player_ids[3],
+												  ];
+
+											const team1Players = team1PlayerIds
+												.map((id) => getPlayer(id))
+												.filter(Boolean) as Player[];
+											const team2Players = team2PlayerIds
+												.map((id) => getPlayer(id))
+												.filter(Boolean) as Player[];
+
+											const team1Name = isSingles
+												? team1Players[0]?.name ||
+												  "Unknown"
+												: `${
+														team1Players[0]?.name ||
+														""
+												  } & ${
+														team1Players[1]?.name ||
+														""
+												  }`.trim();
+											const team2Name = isSingles
+												? team2Players[0]?.name ||
+												  "Unknown"
+												: `${
+														team2Players[0]?.name ||
+														""
+												  } & ${
+														team2Players[1]?.name ||
+														""
+												  }`.trim();
+
+											return (
+												<Box>
+													<p className="text-sm font-semibold text-muted-foreground mb-2">
+														Players
+													</p>
+													<Stack
+														direction="row"
+														alignItems="center"
+														spacing={2}
+													>
+														<span className="font-medium">
+															{team1Name}
+														</span>
+														<span className="text-muted-foreground">
+															vs
+														</span>
+														<span className="font-medium">
+															{team2Name}
+														</span>
+													</Stack>
+												</Box>
+											);
+										})()}
+									</Stack>
+								</Box>
+
+								{/* YouTube URL Input */}
+								<Box>
+									<label className="text-sm font-semibold text-foreground mb-2 block">
+										YouTube link
+									</label>
+									<Input
+										type="url"
+										value={youtubeUrlInput}
+										onChange={(e) =>
+											setYoutubeUrlInput(e.target.value)
+										}
+										placeholder="https://www.youtube.com/watch?v=..."
+										disabled={savingYoutubeUrl}
+										className="w-full"
+									/>
+								</Box>
+							</div>
+						) : null}
+
+						<DrawerFooter>
+							<Stack
+								direction="row"
+								spacing={3}
+								className="w-full"
+							>
+								<Button
+									variant="outline"
+									onClick={handleCloseYoutubeDrawer}
+									disabled={savingYoutubeUrl}
+									className="flex-1"
+								>
+									Cancel
+								</Button>
+								<Button
+									onClick={handleSaveYoutubeUrl}
+									disabled={
+										savingYoutubeUrl ||
+										!isValidYoutubeUrl(youtubeUrlInput)
+									}
+									className="flex-1"
+								>
+									{savingYoutubeUrl ? "Saving..." : "Save"}
+								</Button>
+							</Stack>
+						</DrawerFooter>
+					</DrawerContent>
+				</Drawer>
+			</>
 		);
 	}
 
