@@ -53,11 +53,12 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch latest session created by the user
+		// Fetch latest active session created by the user
 		const { data: session, error: sessionError } = await supabase
 			.from("sessions")
 			.select("*")
 			.eq("created_by", user.id)
+			.eq("status", "active")
 			.order("created_at", { ascending: false })
 			.limit(1)
 			.single();
@@ -74,7 +75,6 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// For now, any session is considered active (no finished_at field yet)
 		return NextResponse.json({ session });
 	} catch (error) {
 		console.error("Unexpected error in GET /api/sessions/active:", error);
