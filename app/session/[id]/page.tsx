@@ -30,6 +30,7 @@ type Player = {
 	name: string;
 	avatar: string | null;
 	elo: number;
+	matchCount?: number; // For accurate K-factor calculation
 };
 
 type Match = {
@@ -282,58 +283,11 @@ function SessionPageContent() {
 									<h1 className="text-3xl font-bold font-heading tracking-tight">
 										Session
 									</h1>
-									<p className="text-muted-foreground mt-1 text-sm">
-										Round {currentRound} of {totalRounds}
-									</p>
 								</Box>
 								<Box className="flex items-center gap-1 bg-chart-2/10 text-chart-2 px-2 py-1 rounded-lg border border-chart-2/20">
 									<Box className="size-2 rounded-full bg-chart-2 animate-pulse" />
 									<span className="text-[10px] font-black uppercase tracking-tight">Live</span>
 								</Box>
-							</Box>
-
-							{/* Round Navigation */}
-							<Box className="flex items-center gap-3 overflow-x-auto pb-2">
-								<Button
-									variant="outline"
-									onClick={goToPreviousRound}
-									disabled={currentRound === roundNumbers[0]}
-									className="shrink-0 h-8 px-3"
-								>
-									<Icon icon="solar:arrow-left-linear" className="size-4" />
-								</Button>
-
-								<Box className="flex gap-2 overflow-x-auto">
-									{roundNumbers.map((round) => {
-										const isCompleted = round < currentRound;
-										const isCurrent = round === currentRound;
-										return (
-											<Button
-												key={round}
-												variant={isCurrent ? "default" : "outline"}
-												onClick={() => goToRound(round)}
-												className={cn(
-													"shrink-0 h-8 px-4 text-xs font-bold",
-													isCurrent && "shadow-[0_0_15px_rgba(59,130,246,0.4)]"
-												)}
-											>
-												{isCompleted && (
-													<Icon icon="solar:check-circle-bold" className="size-3 mr-1" />
-												)}
-												Round {round}
-											</Button>
-										);
-									})}
-								</Box>
-
-								<Button
-									variant="outline"
-									onClick={goToNextRound}
-									disabled={currentRound === roundNumbers[roundNumbers.length - 1]}
-									className="shrink-0 h-8 px-3"
-								>
-									<Icon icon="solar:arrow-right-linear" className="size-4" />
-								</Button>
 							</Box>
 
 							{/* Matches */}
@@ -360,14 +314,28 @@ function SessionPageContent() {
 										? team2Players[0]?.elo || 1500
 										: averageElo(team2Players.map((p) => p.elo));
 
-									// Calculate Elo previews
-									const team1WinChange = calculateEloChange(team1Elo, team2Elo, "win");
-									const team1DrawChange = calculateEloChange(team1Elo, team2Elo, "draw");
-									const team1LoseChange = calculateEloChange(team1Elo, team2Elo, "lose");
+									// Get match counts for accurate K-factor calculation
+									// For singles: use player's match count
+									// For doubles: use average of team players' match counts (approximation for UI preview)
+									const team1MatchCount = isSingles
+										? team1Players[0]?.matchCount || 0
+										: Math.round(
+												((team1Players[0]?.matchCount || 0) + (team1Players[1]?.matchCount || 0)) / 2
+										  );
+									const team2MatchCount = isSingles
+										? team2Players[0]?.matchCount || 0
+										: Math.round(
+												((team2Players[0]?.matchCount || 0) + (team2Players[1]?.matchCount || 0)) / 2
+										  );
 
-									const team2WinChange = calculateEloChange(team2Elo, team1Elo, "win");
-									const team2DrawChange = calculateEloChange(team2Elo, team1Elo, "draw");
-									const team2LoseChange = calculateEloChange(team2Elo, team1Elo, "lose");
+									// Calculate Elo previews with accurate match counts
+									const team1WinChange = calculateEloChange(team1Elo, team2Elo, "win", team1MatchCount);
+									const team1DrawChange = calculateEloChange(team1Elo, team2Elo, "draw", team1MatchCount);
+									const team1LoseChange = calculateEloChange(team1Elo, team2Elo, "lose", team1MatchCount);
+
+									const team2WinChange = calculateEloChange(team2Elo, team1Elo, "win", team2MatchCount);
+									const team2DrawChange = calculateEloChange(team2Elo, team1Elo, "draw", team2MatchCount);
+									const team2LoseChange = calculateEloChange(team2Elo, team1Elo, "lose", team2MatchCount);
 
 									const team1Name = isSingles
 										? team1Players[0]?.name || "Unknown"
@@ -496,25 +464,60 @@ function SessionPageContent() {
 								})}
 							</Stack>
 
-							{/* Action Buttons */}
-							<Box className="pt-4 pb-8">
-								<Stack direction="column" spacing={3}>
-									<Button className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto">
+							{/* Round Indicators */}
+							<Box className="pt-6 pb-4">
+								<Stack direction="row" alignItems="center" justifyContent="center" spacing={2}>
+									{roundNumbers.map((round) => {
+										const isActive = round === currentRound;
+										return (
+											<Box
+												key={round}
+												className={cn(
+													"flex-1 h-1 rounded-full transition-all",
+													isActive
+														? "bg-primary"
+														: "bg-muted"
+												)}
+											/>
+										);
+									})}
+								</Stack>
+							</Box>
+
+							{/* Navigation Buttons */}
+							<Box className="pt-2 pb-8">
+								<Stack direction="row" spacing={3}>
+									<Button
+										variant="outline"
+										onClick={goToPreviousRound}
+										disabled={currentRound === roundNumbers[0]}
+										className="flex-1 py-4 px-6 rounded-full font-bold text-base h-auto"
+									>
 										<Stack
 											direction="row"
 											alignItems="center"
 											justifyContent="center"
 											spacing={2}
 										>
-											<span>Submit Round Results</span>
-											<Icon icon="solar:check-circle-bold" className="size-5" />
+											<Icon icon="solar:arrow-left-linear" className="size-5" />
+											<span>Previous</span>
 										</Stack>
 									</Button>
 									<Button
-										variant="secondary"
-										className="w-full py-4 px-6 rounded-full font-bold text-base h-auto border border-border/50"
+										variant="outline"
+										onClick={goToNextRound}
+										disabled={currentRound === roundNumbers[roundNumbers.length - 1]}
+										className="flex-1 py-4 px-6 rounded-full font-bold text-base h-auto"
 									>
-										End Session Early
+										<Stack
+											direction="row"
+											alignItems="center"
+											justifyContent="center"
+											spacing={2}
+										>
+											<span>Next</span>
+											<Icon icon="solar:arrow-right-linear" className="size-5" />
+										</Stack>
 									</Button>
 								</Stack>
 							</Box>

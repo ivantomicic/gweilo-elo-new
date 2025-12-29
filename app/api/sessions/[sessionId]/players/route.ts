@@ -13,7 +13,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 /**
  * GET /api/sessions/[sessionId]/players
  *
- * Fetch session players with user details and Elo ratings
+ * Fetch session players with user details, Elo ratings, and match counts
  *
  * Security:
  * - Requires authentication
@@ -70,14 +70,32 @@ export async function GET(
 		const adminClient = createAdminClient();
 		const playersWithRatings = await fetchPlayersWithRatings(adminClient, playerIds, false);
 
-		// Create a map for quick lookup
+		// Fetch match counts for accurate K-factor calculation
+		const { data: singlesRatings, error: ratingsError } = await adminClient
+			.from("player_ratings")
+			.select("player_id, wins, losses, draws")
+			.in("player_id", playerIds);
+
+		if (ratingsError) {
+			console.error("Error fetching match counts:", ratingsError);
+			// Non-fatal error, continue without match counts
+		}
+
+		// Create maps for quick lookup
 		const ratingsMap = new Map(
 			playersWithRatings.map((p) => [p.player_id, p])
 		);
+		const matchCountMap = new Map(
+			(singlesRatings || []).map((r) => [
+				r.player_id,
+				(r.wins || 0) + (r.losses || 0) + (r.draws || 0),
+			])
+		);
 
-		// Combine session player data with user details and ratings
+		// Combine session player data with user details, ratings, and match counts
 		const playersWithDetails = sessionPlayers.map((sp) => {
 			const playerData = ratingsMap.get(sp.player_id);
+			const matchCount = matchCountMap.get(sp.player_id) || 0;
 
 			return {
 				id: sp.player_id,
@@ -86,6 +104,7 @@ export async function GET(
 				name: playerData?.display_name || "User",
 				avatar: playerData?.avatar || null,
 				elo: playerData?.singles_elo ?? 1500, // Default to 1500 if no rating exists
+				matchCount, // For accurate K-factor calculation in UI previews
 			};
 		});
 
@@ -98,4 +117,3 @@ export async function GET(
 		);
 	}
 }
-
