@@ -56,7 +56,7 @@ const data = {
 		},
 		{
 			title: "Termini",
-			url: "#",
+			url: "/sessions",
 			icon: CalendarIcon,
 		},
 		{
