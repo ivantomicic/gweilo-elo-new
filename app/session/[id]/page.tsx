@@ -96,6 +96,39 @@ function SessionPageContent() {
 	const [isEditingMatch, setIsEditingMatch] = useState(false);
 	const [recalcStatus, setRecalcStatus] = useState<string | null>(null);
 
+	// Reusable function to fetch players with updated Elo ratings
+	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
+		const {
+			data: { session },
+		} = await supabase.auth.getSession();
+
+		if (!session) {
+			throw new Error("Not authenticated");
+		}
+
+		const playersResponse = await fetch(
+			`/api/sessions/${sessionId}/players`,
+			{
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+				},
+			}
+		);
+
+		if (!playersResponse.ok) {
+			const errorData = await playersResponse.json().catch(() => ({}));
+			console.error("Error fetching players:", errorData);
+			throw new Error(
+				`Failed to load players: ${
+					errorData.error || playersResponse.statusText
+				}`
+			);
+		}
+
+		const playersData = await playersResponse.json();
+		return playersData.players as Player[];
+	}, [sessionId]);
+
 	// Load session data
 	useEffect(() => {
 		const fetchSession = async () => {
@@ -144,31 +177,21 @@ function SessionPageContent() {
 				}
 
 				// Fetch players with details
-				const playersResponse = await fetch(
-					`/api/sessions/${sessionId}/players`,
-					{
-						headers: {
-							Authorization: `Bearer ${session.access_token}`,
-						},
-					}
-				);
-
-				if (!playersResponse.ok) {
-					const errorData = await playersResponse
-						.json()
-						.catch(() => ({}));
-					console.error("Error fetching players:", errorData);
+				let players: Player[];
+				try {
+					players = await fetchPlayers();
+				} catch (playersError) {
+					console.error("Error fetching players:", playersError);
 					setError(
 						`Failed to load players: ${
-							errorData.error || playersResponse.statusText
+							playersError instanceof Error
+								? playersError.message
+								: String(playersError)
 						}`
 					);
 					setLoading(false);
 					return;
 				}
-
-				const playersData = await playersResponse.json();
-				const players: Player[] = playersData.players;
 
 				// Fetch matches
 				const { data: matches, error: matchesError } =
@@ -258,9 +281,7 @@ function SessionPageContent() {
 		if (sessionId) {
 			fetchSession();
 		}
-		// Only fetch on mount or sessionId change, not on every render
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [sessionId]);
+	}, [sessionId, fetchPlayers]);
 
 	// Check if user is admin
 	useEffect(() => {
@@ -418,6 +439,9 @@ function SessionPageContent() {
 				throw new Error(errorData.error || "Failed to submit round");
 			}
 
+			// Refetch players to get updated Elo ratings after round submission
+			const updatedPlayers = await fetchPlayers();
+
 			// Update local state to mark matches as completed
 			// Also check if this was the last round and update session status
 			setSessionData((prev) => {
@@ -443,6 +467,7 @@ function SessionPageContent() {
 
 				return {
 					...prev,
+					players: updatedPlayers, // Update players with fresh Elo ratings
 					matchesByRound: updatedMatchesByRound,
 					session: {
 						...prev.session,
@@ -481,6 +506,7 @@ function SessionPageContent() {
 		canSubmitRound,
 		submitting,
 		sessionId,
+		fetchPlayers,
 	]);
 
 	const handleNextClick = useCallback(() => {

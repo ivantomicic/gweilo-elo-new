@@ -2,9 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-	getSnapshotBeforeMatch,
-	getInitialBaseline,
-	createEloSnapshots,
+	getPreviousSessionSnapshot,
+	updateSessionSnapshot,
 } from "@/lib/elo/snapshots";
 import {
 	calculateEloDelta,
@@ -28,14 +27,15 @@ const SUPABASE_ANON_KEY = supabaseAnonKey;
 /**
  * POST /api/sessions/[sessionId]/matches/[matchId]/edit
  *
- * Edit a match result using snapshot-based recalculation
+ * Edit a match result using session-level snapshot recalculation
  *
  * This endpoint:
- * 1. Loads baseline from snapshot before edited match (or initial baseline if first match)
- * 2. Deletes snapshots for edited match and all matches after it
- * 3. Replays matches forward from edited match, updating Elo in memory
- * 4. Creates new snapshots after each replayed match
- * 5. Persists final state to player_ratings
+ * 1. Loads baseline from Session N-1 snapshot (previous completed session)
+ * 2. If no snapshot exists, falls back to initial baseline (1500)
+ * 3. Replays ONLY matches from current session (Session N), starting from match 1
+ * 4. Does NOT replay matches from earlier sessions
+ * 5. Updates Session N snapshot after recalculation
+ * 6. Persists final state to player_ratings
  *
  * Request body:
  * {
@@ -181,7 +181,8 @@ export async function POST(
 		}
 
 		try {
-			// Step 2: Fetch all matches in session, ordered deterministically
+			// Step 2: Fetch ONLY matches from current session (Session N)
+			// CRITICAL: We only replay matches from the current session, not from earlier sessions
 			const { data: allMatches, error: allMatchesError } =
 				await adminClient
 					.from("session_matches")
@@ -203,7 +204,8 @@ export async function POST(
 
 			// Validate match types
 			const invalidMatches = allMatches.filter(
-				(m) => m.match_type !== "singles" && m.match_type !== "doubles"
+				(m: any) =>
+					m.match_type !== "singles" && m.match_type !== "doubles"
 			);
 			if (invalidMatches.length > 0) {
 				console.error(
@@ -225,10 +227,10 @@ export async function POST(
 			}
 
 			const singlesCount = allMatches.filter(
-				(m) => m.match_type === "singles"
+				(m: any) => m.match_type === "singles"
 			).length;
 			const doublesCount = allMatches.filter(
-				(m) => m.match_type === "doubles"
+				(m: any) => m.match_type === "doubles"
 			).length;
 
 			// 1️⃣ RECALCULATION ENTRY LOG
@@ -237,10 +239,11 @@ export async function POST(
 					tag: "[RECALC_START]",
 					session_id: sessionId,
 					edited_match_id: matchId,
-					total_matches: allMatches.length,
+					total_matches_in_session: allMatches.length,
 					singles_count: singlesCount,
 					doubles_count: doublesCount,
-					matches: allMatches.map((m, idx) => ({
+					approach: "session_level_snapshots",
+					matches: allMatches.map((m: any, idx: number) => ({
 						index: idx,
 						id: m.id,
 						round_number: m.round_number,
@@ -255,8 +258,10 @@ export async function POST(
 				})
 			);
 
-			// Find the position of the match to edit
-			const matchIndex = allMatches.findIndex((m) => m.id === matchId);
+			// Find the position of the match to edit in current session
+			const matchIndex = allMatches.findIndex(
+				(m: any) => m.id === matchId
+			);
 			if (matchIndex === -1) {
 				await adminClient
 					.from("sessions")
@@ -268,7 +273,7 @@ export async function POST(
 				);
 			}
 
-			const matchToEdit = allMatches[matchIndex];
+			const matchToEdit = allMatches[matchIndex] as any;
 			if (matchToEdit.match_type !== "singles") {
 				await adminClient
 					.from("sessions")
@@ -282,25 +287,27 @@ export async function POST(
 				);
 			}
 
-			// Get matches to replay (from edited match onward)
-			const matchesToReplay = allMatches.slice(matchIndex);
-			const matchIdsToReplay = matchesToReplay.map((m) => m.id);
+			// Note: We replay ALL matches from current session (Session N), starting from match 1
+			// This ensures the entire session is recalculated correctly
+			const matchIdsToReplay = allMatches.map((m: any) => m.id);
 
 			// Preserve scores before resetting (needed for replay)
 			const preservedScores = new Map<
 				string,
 				{ team1Score: number; team2Score: number }
 			>();
-			for (const match of matchesToReplay) {
-				if (match.team1_score !== null && match.team2_score !== null) {
-					preservedScores.set(match.id, {
-						team1Score: match.team1_score,
-						team2Score: match.team2_score,
+			for (const match of allMatches) {
+				const m = match as any;
+				if (m.team1_score !== null && m.team2_score !== null) {
+					preservedScores.set(m.id, {
+						team1Score: m.team1_score,
+						team2Score: m.team2_score,
 					});
 				}
 			}
 
-			// Step 3: Delete snapshots for edited match and all matches after it
+			// Step 3: Delete elo_snapshots for edited match and all matches after it (if using per-match snapshots)
+			// Note: We're using session-level snapshots, but clean up per-match snapshots for consistency
 			const { count: snapshotsBeforeDelete } = await adminClient
 				.from("elo_snapshots")
 				.select("*", { count: "exact", head: true })
@@ -365,18 +372,40 @@ export async function POST(
 				);
 			}
 
-			// Step 5: Load baseline for all players
-			// Collect all unique player IDs from matches to replay
+			// Step 5: Load baseline for all players from Session N-1 snapshot
+			// Collect unique player IDs from current session matches only
 			const allPlayerIds = new Set<string>();
-			for (const match of matchesToReplay) {
-				if (match.match_type === "singles") {
-					const playerIds = match.player_ids as string[];
+			for (const match of allMatches) {
+				if ((match as any).match_type === "singles") {
+					const playerIds = (match as any).player_ids as string[];
 					allPlayerIds.add(playerIds[0]);
 					allPlayerIds.add(playerIds[1]);
 				}
 			}
 
-			// Load baseline for each player
+			// Log which players are in replay vs all players
+			const playersInReplay = new Set<string>();
+			for (const match of allMatches) {
+				if ((match as any).match_type === "singles") {
+					const playerIds = (match as any).player_ids as string[];
+					playersInReplay.add(playerIds[0]);
+					playersInReplay.add(playerIds[1]);
+				}
+			}
+			console.log(
+				JSON.stringify({
+					tag: "[PLAYER_COLLECTION]",
+					session_id: sessionId,
+					all_players_in_session: Array.from(allPlayerIds),
+					players_in_replay_matches: Array.from(playersInReplay),
+					players_not_in_replay: Array.from(allPlayerIds).filter(
+						(p) => !playersInReplay.has(p)
+					),
+				})
+			);
+
+			// Load baseline for each player from Session N-1 snapshot
+			// If no snapshot exists, fall back to initial baseline (1500)
 			const baselineState = new Map<
 				string,
 				{
@@ -390,66 +419,54 @@ export async function POST(
 				}
 			>();
 
+			// Load baseline from previous session snapshot for each player
 			for (const playerId of allPlayerIds) {
-				let baseline;
+				const previousSnapshot = await getPreviousSessionSnapshot(
+					playerId,
+					sessionId
+				);
 
-				if (matchIndex === 0) {
-					// First match - use initial baseline
-					baseline = await getInitialBaseline(playerId, sessionId);
+				if (previousSnapshot) {
+					// Use snapshot from Session N-1
+					baselineState.set(playerId, { ...previousSnapshot });
 					console.log(
 						JSON.stringify({
 							tag: "[BASELINE_LOADED]",
 							session_id: sessionId,
 							player_id: playerId,
-							source: "initial_baseline",
-							baseline: baseline,
+							source: "session_n_minus_1_snapshot",
+							baseline: previousSnapshot,
 						})
 					);
 				} else {
-					// Not first match - get snapshot before edited match
-					const snapshot = await getSnapshotBeforeMatch(
-						playerId,
-						matchId
+					// Fallback to initial baseline (1500/0)
+					baselineState.set(playerId, {
+						elo: 1500,
+						matches_played: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+						sets_won: 0,
+						sets_lost: 0,
+					});
+					console.log(
+						JSON.stringify({
+							tag: "[BASELINE_LOADED]",
+							session_id: sessionId,
+							player_id: playerId,
+							source: "initial_baseline_fallback",
+							baseline: {
+								elo: 1500,
+								matches_played: 0,
+								wins: 0,
+								losses: 0,
+								draws: 0,
+								sets_won: 0,
+								sets_lost: 0,
+							},
+						})
 					);
-					if (snapshot) {
-						baseline = {
-							elo: snapshot.elo,
-							matches_played: snapshot.matches_played,
-							wins: snapshot.wins,
-							losses: snapshot.losses,
-							draws: snapshot.draws,
-							sets_won: snapshot.sets_won,
-							sets_lost: snapshot.sets_lost,
-						};
-						console.log(
-							JSON.stringify({
-								tag: "[BASELINE_LOADED]",
-								session_id: sessionId,
-								player_id: playerId,
-								source: "snapshot",
-								snapshot_match_id: snapshot.match_id,
-								baseline: baseline,
-							})
-						);
-					} else {
-						// Fallback to initial baseline if no snapshot found
-						baseline = await getInitialBaseline(
-							playerId,
-							sessionId
-						);
-						console.log(
-							JSON.stringify({
-								tag: "[BASELINE_LOADED]",
-								session_id: sessionId,
-								player_id: playerId,
-								source: "initial_baseline_fallback",
-								baseline: baseline,
-							})
-						);
-					}
 				}
-
-				baselineState.set(playerId, baseline);
 			}
 
 			// 2️⃣ BASELINE STATE LOG
@@ -472,8 +489,9 @@ export async function POST(
 				})
 			);
 
-			// Step 6: Replay matches forward, updating Elo in memory
-			// Track current state in memory (DO NOT read from player_ratings during replay)
+			// Step 6: Replay matches forward from Session N baseline, updating Elo in memory
+			// CRITICAL: We replay ONLY matches from current session (Session N), starting from match 1
+			// We do NOT replay matches from earlier sessions
 			const currentState = new Map<
 				string,
 				{
@@ -487,10 +505,42 @@ export async function POST(
 				}
 			>();
 
-			// Initialize current state from baseline
-			for (const [playerId, baseline] of baselineState.entries()) {
-				currentState.set(playerId, { ...baseline });
+			// Initialize current state from baseline (Session N-1 snapshot or initial baseline)
+			for (const playerId of allPlayerIds) {
+				const baseline = baselineState.get(playerId);
+				if (baseline) {
+					currentState.set(playerId, { ...baseline });
+				} else {
+					// Fallback: if no baseline found, use initial baseline
+					currentState.set(playerId, {
+						elo: 1500,
+						matches_played: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+						sets_won: 0,
+						sets_lost: 0,
+					});
+				}
 			}
+
+			console.log(
+				JSON.stringify({
+					tag: "[CURRENT_STATE_INITIALIZED]",
+					session_id: sessionId,
+					players_initialized: Array.from(currentState.keys()),
+					state: Array.from(currentState.entries()).map(
+						([id, state]) => ({
+							player_id: id,
+							elo: state.elo,
+							matches_played: state.matches_played,
+							wins: state.wins,
+							losses: state.losses,
+							draws: state.draws,
+						})
+					),
+				})
+			);
 
 			const eloHistoryEntries: Array<{
 				match_id: string;
@@ -507,9 +557,12 @@ export async function POST(
 			// Track replayed matches for duplicate detection
 			const replayedMatchIds = new Set<string>();
 
-			// Process matches sequentially
-			for (let i = 0; i < matchesToReplay.length; i++) {
-				const match = matchesToReplay[i];
+			// Process matches sequentially from current session
+			// CRITICAL: We replay ALL matches from current session (Session N), starting from match 1
+			// This ensures we recalculate the entire session correctly
+			// We do NOT replay matches from earlier sessions
+			for (let i = 0; i < allMatches.length; i++) {
+				const match = allMatches[i] as any;
 				const playerIds = match.player_ids as string[];
 
 				// 5️⃣ DUPLICATE DETECTION
@@ -531,18 +584,29 @@ export async function POST(
 				let score2: number;
 
 				if (match.id === matchId) {
+					// Edited match - use new scores
 					score1 = team1Score;
 					score2 = team2Score;
 				} else {
+					// Other matches in current session - use preserved scores
 					const preserved = preservedScores.get(match.id);
 					if (!preserved) {
-						console.warn(
-							`No preserved scores for match ${match.id}, skipping`
-						);
-						continue;
+						// If no preserved scores, use stored scores
+						if (
+							match.team1_score === null ||
+							match.team2_score === null
+						) {
+							console.warn(
+								`Match ${match.id} has no scores, skipping`
+							);
+							continue;
+						}
+						score1 = match.team1_score;
+						score2 = match.team2_score;
+					} else {
+						score1 = preserved.team1Score;
+						score2 = preserved.team2Score;
 					}
-					score1 = preserved.team1Score;
-					score2 = preserved.team2Score;
 				}
 
 				// Get current state from memory (NOT from DB)
@@ -668,7 +732,7 @@ export async function POST(
 					JSON.stringify({
 						tag: "[MATCH_REPLAY]",
 						session_id: sessionId,
-						match_index: matchIndex + i,
+						match_index: i,
 						match_id: match.id,
 						post: {
 							player1: {
@@ -693,21 +757,8 @@ export async function POST(
 					})
 				);
 
-				// Create snapshot after this match using in-memory state
-				try {
-					await createEloSnapshots(
-						match.id,
-						playerIds,
-						"singles",
-						currentState
-					);
-				} catch (snapshotError) {
-					console.error(
-						`Error creating snapshot for match ${match.id}:`,
-						snapshotError
-					);
-					// Continue even if snapshot creation fails
-				}
+				// Note: We're using session-level snapshots, not per-match snapshots
+				// Per-match snapshots (elo_snapshots) are optional and can be created for debugging
 
 				// Store history entry
 				eloHistoryEntries.push({
@@ -730,15 +781,21 @@ export async function POST(
 						team1_score: score1,
 						team2_score: score2,
 						is_edited:
-							match.id === matchId ? true : match.is_edited,
+							match.id === matchId
+								? true
+								: (match as any).is_edited,
 						edited_at:
 							match.id === matchId
 								? new Date().toISOString()
-								: match.edited_at,
+								: (match as any).edited_at,
 						edited_by:
-							match.id === matchId ? user.id : match.edited_by,
+							match.id === matchId
+								? user.id
+								: (match as any).edited_by,
 						edit_reason:
-							match.id === matchId ? reason : match.edit_reason,
+							match.id === matchId
+								? reason
+								: (match as any).edit_reason,
 					})
 					.eq("id", match.id);
 			}
@@ -766,7 +823,50 @@ export async function POST(
 			);
 
 			// Update player_ratings with final computed state
+			// CRITICAL: This contains the state after replaying Session N from Session N-1 baseline
+			// The final state = Session N-1 snapshot + all matches from Session N
+			// Guardrail: Verify matches_played doesn't decrease (would indicate bug)
 			for (const [playerId, state] of currentState.entries()) {
+				const { data: beforeState } = await adminClient
+					.from("player_ratings")
+					.select("elo, matches_played, wins, losses, draws")
+					.eq("player_id", playerId)
+					.single();
+
+				// Guardrail: Prevent matches_played from decreasing
+				const beforeMatchesPlayed = beforeState
+					? (beforeState.wins ?? 0) +
+					  (beforeState.losses ?? 0) +
+					  (beforeState.draws ?? 0)
+					: 0;
+
+				if (state.matches_played < beforeMatchesPlayed) {
+					console.error(
+						JSON.stringify({
+							tag: "[ERROR]",
+							session_id: sessionId,
+							player_id: playerId,
+							message: "matches_played would decrease - aborting",
+							before: beforeMatchesPlayed,
+							after: state.matches_played,
+						})
+					);
+					await adminClient
+						.from("sessions")
+						.update({ recalc_status: "failed" })
+						.eq("id", sessionId);
+					return NextResponse.json(
+						{
+							error: `Invalid state: matches_played would decrease for player ${playerId}`,
+							details: {
+								before: beforeMatchesPlayed,
+								after: state.matches_played,
+							},
+						},
+						{ status: 500 }
+					);
+				}
+
 				await adminClient.from("player_ratings").upsert({
 					player_id: playerId,
 					elo: state.elo,
@@ -778,6 +878,52 @@ export async function POST(
 					sets_lost: state.sets_lost,
 					updated_at: new Date().toISOString(),
 				});
+
+				console.log(
+					JSON.stringify({
+						tag: "[DB_UPSERT]",
+						session_id: sessionId,
+						player_id: playerId,
+						before: beforeState
+							? {
+									elo: beforeState.elo,
+									matches_played: beforeMatchesPlayed,
+									wins: beforeState.wins ?? 0,
+									losses: beforeState.losses ?? 0,
+									draws: beforeState.draws ?? 0,
+							  }
+							: null,
+						after: {
+							elo: state.elo,
+							matches_played: state.matches_played,
+							wins: state.wins,
+							losses: state.losses,
+							draws: state.draws,
+						},
+					})
+				);
+			}
+
+			// Step 8: Update Session N snapshot with final computed state
+			// This overwrites the snapshot for the current session after recalculation
+			for (const [playerId, state] of currentState.entries()) {
+				try {
+					await updateSessionSnapshot(sessionId, playerId, state);
+					console.log(
+						JSON.stringify({
+							tag: "[SESSION_SNAPSHOT_UPDATED]",
+							session_id: sessionId,
+							player_id: playerId,
+							state: state,
+						})
+					);
+				} catch (snapshotError) {
+					console.error(
+						`Error updating session snapshot for player ${playerId}:`,
+						snapshotError
+					);
+					// Continue even if snapshot update fails - ratings are still persisted
+				}
 			}
 
 			// Insert Elo history
