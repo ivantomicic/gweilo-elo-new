@@ -1,0 +1,1234 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
+import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import { calculateEloDelta, calculateKFactor, calculateExpectedScore } from "@/lib/elo/calculation";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseAnonKey) {
+	throw new Error("Missing Supabase environment variables");
+}
+
+/**
+ * POST /api/sessions/[sessionId]/matches/[matchId]/edit
+ *
+ * Edit a match result and replay all subsequent matches
+ *
+ * This endpoint:
+ * 1. Acquires a lock to prevent concurrent recalculations
+ * 2. Updates the edited match with new scores
+ * 3. Resets all matches from the edited match onward
+ * 4. Restores Elo state from session_rating_snapshots
+ * 5. Replays all matches sequentially from the edited match
+ * 6. Releases the lock
+ *
+ * Request body:
+ * {
+ *   team1Score: number,
+ *   team2Score: number,
+ *   reason?: string (optional)
+ * }
+ */
+export async function POST(
+	request: NextRequest,
+	{ params }: { params: { sessionId: string; matchId: string } }
+) {
+	const adminClient = createAdminClient();
+
+	try {
+		const authHeader = request.headers.get("authorization");
+		if (!authHeader || !authHeader.startsWith("Bearer ")) {
+			return NextResponse.json(
+				{ error: "Unauthorized. Authentication required." },
+				{ status: 401 }
+			);
+		}
+
+		const token = authHeader.replace("Bearer ", "");
+		const sessionId = params.sessionId;
+		const matchId = params.matchId;
+
+		if (!sessionId || !matchId) {
+			return NextResponse.json(
+				{ error: "Session ID and match ID are required" },
+				{ status: 400 }
+			);
+		}
+
+		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+			global: {
+				headers: {
+					Authorization: `Bearer ${token}`,
+				},
+			},
+		});
+
+		// Verify user is authenticated
+		const {
+			data: { user },
+			error: userError,
+		} = await supabase.auth.getUser(token);
+
+		if (userError || !user) {
+			return NextResponse.json(
+				{ error: "Unauthorized. Authentication required." },
+				{ status: 401 }
+			);
+		}
+
+		// Verify user owns the session
+		const { data: session, error: sessionError } = await supabase
+			.from("sessions")
+			.select("created_by, recalc_status")
+			.eq("id", sessionId)
+			.single();
+
+		if (sessionError || !session) {
+			return NextResponse.json(
+				{ error: "Session not found" },
+				{ status: 404 }
+			);
+		}
+
+		if (session.created_by !== user.id) {
+			return NextResponse.json(
+				{
+					error: "Unauthorized. You can only edit matches in your own sessions.",
+				},
+				{ status: 403 }
+			);
+		}
+
+		// Parse request body
+		const body = await request.json();
+		const { team1Score, team2Score, reason }: { team1Score: number; team2Score: number; reason?: string } = body;
+
+		if (typeof team1Score !== "number" || typeof team2Score !== "number" || isNaN(team1Score) || isNaN(team2Score)) {
+			return NextResponse.json(
+				{ error: "team1Score and team2Score must be valid numbers" },
+				{ status: 400 }
+			);
+		}
+
+		// Step 1: Acquire lock (atomic check-and-set)
+		// First, ensure recalc_status is set to 'idle' if it's null
+		await adminClient
+			.from("sessions")
+			.update({ recalc_status: "idle" })
+			.eq("id", sessionId)
+			.is("recalc_status", null);
+
+		const recalcToken = crypto.randomUUID();
+		const { data: lockResult, error: lockError } = await adminClient
+			.from("sessions")
+			.update({
+				recalc_status: "running",
+				recalc_token: recalcToken,
+				recalc_started_at: new Date().toISOString(),
+			})
+			.eq("id", sessionId)
+			.in("recalc_status", ["idle", "done", "failed"]) // Allow update if idle, done, or failed
+			.select()
+			.single();
+
+		if (lockError || !lockResult) {
+			// Check if session is already being recalculated
+			const { data: currentSession } = await adminClient
+				.from("sessions")
+				.select("recalc_status")
+				.eq("id", sessionId)
+				.single();
+
+			if (currentSession?.recalc_status === "running") {
+				return NextResponse.json(
+					{ error: "Recalculation already in progress. Please wait." },
+					{ status: 409 } // Conflict
+				);
+			}
+
+			console.error("Lock acquisition failed:", lockError);
+			return NextResponse.json(
+				{ 
+					error: "Failed to acquire recalculation lock",
+					details: lockError?.message || "Unknown error"
+				},
+				{ status: 500 }
+			);
+		}
+
+		try {
+			// Step 2: Fetch the match to edit
+			const { data: matchToEdit, error: matchError } = await adminClient
+				.from("session_matches")
+				.select("*")
+				.eq("id", matchId)
+				.eq("session_id", sessionId)
+				.single();
+
+			if (matchError || !matchToEdit) {
+				// Release lock on error
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Match not found" },
+					{ status: 404 }
+				);
+			}
+
+			// Step 3: Fetch all matches in session, ordered deterministically
+			const { data: allMatches, error: allMatchesError } = await adminClient
+				.from("session_matches")
+				.select("*")
+				.eq("session_id", sessionId)
+				.order("round_number", { ascending: true })
+				.order("match_order", { ascending: true });
+
+			if (allMatchesError || !allMatches) {
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Failed to fetch session matches" },
+					{ status: 500 }
+				);
+			}
+
+			// Validate match types before proceeding
+			const invalidMatches = allMatches.filter(m => 
+				m.match_type !== "singles" && m.match_type !== "doubles"
+			);
+			if (invalidMatches.length > 0) {
+				console.error(`Found ${invalidMatches.length} matches with invalid match_type:`, invalidMatches);
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: `Invalid match types found: ${invalidMatches.map(m => m.id).join(", ")}` },
+					{ status: 500 }
+				);
+			}
+
+			// 1️⃣ RECALCULATION ENTRY LOG
+			const singlesCount = allMatches.filter(m => m.match_type === "singles").length;
+			const doublesCount = allMatches.filter(m => m.match_type === "doubles").length;
+
+			// 7️⃣ DOUBLES GUARD - Check if doubles code should NOT run
+			if (doublesCount === 0 && singlesCount > 0) {
+				console.log(JSON.stringify({
+					tag: "[DOUBLES_GUARD]",
+					session_id: sessionId,
+					message: "Singles-only session detected - doubles code should NOT execute",
+					singles_count: singlesCount,
+					doubles_count: doublesCount,
+				}));
+			}
+
+			console.log(JSON.stringify({
+				tag: "[RECALC_START]",
+				session_id: sessionId,
+				edited_match_id: matchId,
+				total_matches: allMatches.length,
+				singles_count: singlesCount,
+				doubles_count: doublesCount,
+				matches: allMatches.map((m, idx) => ({
+					index: idx,
+					id: m.id,
+					round_number: m.round_number,
+					match_order: m.match_order,
+					match_type: m.match_type,
+					players: m.player_ids,
+					team1_score: m.team1_score,
+					team2_score: m.team2_score,
+					status: m.status,
+				})),
+				new_scores: { team1Score, team2Score },
+			}));
+
+			// Find the position of the match to edit
+			const matchIndex = allMatches.findIndex((m) => m.id === matchId);
+			if (matchIndex === -1) {
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Match not found in session" },
+					{ status: 404 }
+				);
+			}
+
+			// Get matches to reset (from edited match onward)
+			const matchesToReset = allMatches.slice(matchIndex);
+			const matchIdsToReset = matchesToReset.map((m) => m.id);
+
+			// Preserve scores before resetting (needed for replay)
+			const preservedScores = new Map<string, { team1Score: number; team2Score: number }>();
+			for (const match of matchesToReset) {
+				if (match.team1_score !== null && match.team2_score !== null) {
+					preservedScores.set(match.id, {
+						team1Score: match.team1_score,
+						team2Score: match.team2_score,
+					});
+				}
+			}
+
+			// Step 4: Delete Elo history for matches to be replayed
+			// 3️⃣ RESET CONFIRMATION - Before deletion
+			const { count: historyCountBefore } = await adminClient
+				.from("match_elo_history")
+				.select("*", { count: "exact", head: true })
+				.in("match_id", matchIdsToReset);
+
+			const { error: deleteHistoryError } = await adminClient
+				.from("match_elo_history")
+				.delete()
+				.in("match_id", matchIdsToReset);
+
+			if (deleteHistoryError) {
+				console.error("Error deleting Elo history:", deleteHistoryError);
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Failed to reset Elo history" },
+					{ status: 500 }
+				);
+			}
+
+			// 3️⃣ RESET CONFIRMATION - After deletion
+			const { count: historyCountAfter } = await adminClient
+				.from("match_elo_history")
+				.select("*", { count: "exact", head: true })
+				.in("match_id", matchIdsToReset);
+
+			console.log(JSON.stringify({
+				tag: "[RESET]",
+				session_id: sessionId,
+				cleared_elo_history: true,
+				history_rows_before: historyCountBefore || 0,
+				history_rows_after: historyCountAfter || 0,
+				matches_reset: matchIdsToReset.length,
+				match_ids_reset: matchIdsToReset,
+			}));
+
+			// Step 5: Restore Elo state from snapshots (or calculate baseline from history)
+			const { data: snapshots, error: snapshotsError } = await adminClient
+				.from("session_rating_snapshots")
+				.select("*")
+				.eq("session_id", sessionId);
+
+			if (snapshotsError) {
+				console.error("Error fetching snapshots:", snapshotsError);
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Failed to fetch Elo snapshots" },
+					{ status: 500 }
+				);
+			}
+
+			// If snapshots don't exist, calculate baseline by reversing all Elo changes
+			if (!snapshots || snapshots.length === 0) {
+				console.log("No snapshots found, calculating baseline from Elo history...");
+				
+				// Get all Elo history for this session
+				const { data: allHistory, error: historyError } = await adminClient
+					.from("match_elo_history")
+					.select("*")
+					.in("match_id", allMatches.map(m => m.id));
+
+				if (historyError) {
+					console.error("Error fetching Elo history:", historyError);
+					await adminClient
+						.from("sessions")
+						.update({ recalc_status: "failed" })
+						.eq("id", sessionId);
+					return NextResponse.json(
+						{ error: "Failed to fetch Elo history for baseline calculation" },
+						{ status: 500 }
+					);
+				}
+
+				// Get current ratings for all entities in the session
+				const allPlayerIds = new Set<string>();
+				const doublesPlayerIds = new Set<string>(); // Only players who played doubles
+				const allTeamIds = new Set<string>();
+				
+				for (const match of allMatches) {
+					const playerIds = match.player_ids as string[];
+					if (match.match_type === "singles") {
+						allPlayerIds.add(playerIds[0]);
+						allPlayerIds.add(playerIds[1]);
+					} else if (match.match_type === "doubles") {
+						// Only add to doubles set if match is actually doubles
+						allPlayerIds.add(playerIds[0]);
+						allPlayerIds.add(playerIds[1]);
+						allPlayerIds.add(playerIds[2]);
+						allPlayerIds.add(playerIds[3]);
+						doublesPlayerIds.add(playerIds[0]);
+						doublesPlayerIds.add(playerIds[1]);
+						doublesPlayerIds.add(playerIds[2]);
+						doublesPlayerIds.add(playerIds[3]);
+						if (match.team_1_id) allTeamIds.add(match.team_1_id);
+						if (match.team_2_id) allTeamIds.add(match.team_2_id);
+					} else {
+						console.warn(`Match ${match.id} has unknown match_type: ${match.match_type}`);
+					}
+				}
+
+				// Get current ratings (with defaults for missing ones)
+				const currentRatings = new Map<string, any>();
+				
+				// Singles ratings (for all players)
+				for (const playerId of allPlayerIds) {
+					const { data: rating } = await adminClient
+						.from("player_ratings")
+						.select("*")
+						.eq("player_id", playerId)
+						.single();
+					currentRatings.set(`player_singles:${playerId}`, rating || {
+						player_id: playerId,
+						elo: 1500,
+						matches_played: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+						sets_won: 0,
+						sets_lost: 0,
+					});
+				}
+
+				// Doubles player ratings (ONLY for players who actually played doubles in this session)
+				for (const playerId of doublesPlayerIds) {
+					const { data: rating } = await adminClient
+						.from("player_double_ratings")
+						.select("*")
+						.eq("player_id", playerId)
+						.single();
+					currentRatings.set(`player_doubles:${playerId}`, rating || {
+						player_id: playerId,
+						elo: 1500,
+						matches_played: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+						sets_won: 0,
+						sets_lost: 0,
+					});
+				}
+
+				// Team ratings
+				for (const teamId of allTeamIds) {
+					const { data: rating } = await adminClient
+						.from("double_team_ratings")
+						.select("*")
+						.eq("team_id", teamId)
+						.single();
+					currentRatings.set(`double_team:${teamId}`, rating || {
+						team_id: teamId,
+						elo: 1500,
+						matches_played: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+						sets_won: 0,
+						sets_lost: 0,
+					});
+				}
+
+				// Reverse all Elo deltas from history to get baseline
+				// Process history in reverse order (most recent first) to properly reverse
+				const sortedHistory = (allHistory || []).sort((a, b) => {
+					// Sort by match order (we need to reverse chronologically)
+					const matchA = allMatches.find(m => m.id === a.match_id);
+					const matchB = allMatches.find(m => m.id === b.match_id);
+					if (!matchA || !matchB) return 0;
+					if (matchA.round_number !== matchB.round_number) {
+						return matchB.round_number - matchA.round_number;
+					}
+					return matchB.match_order - matchA.match_order;
+				});
+
+				// Create a map of match scores for determining results
+				const matchScoresMap = new Map<string, { team1Score: number; team2Score: number }>();
+				for (const match of allMatches) {
+					if (match.team1_score !== null && match.team2_score !== null) {
+						matchScoresMap.set(match.id, {
+							team1Score: match.team1_score,
+							team2Score: match.team2_score,
+						});
+					}
+				}
+
+				for (const history of sortedHistory) {
+					const matchScores = matchScoresMap.get(history.match_id);
+					if (!matchScores) continue; // Skip if no scores
+					// Determine result from scores
+					const player1Won = matchScores.team1Score > matchScores.team2Score;
+					const player2Won = matchScores.team2Score > matchScores.team1Score;
+					const wasDraw = matchScores.team1Score === matchScores.team2Score;
+
+					// Reverse singles deltas
+					if (history.player1_id && history.player1_elo_delta !== null && history.player1_elo_delta !== undefined) {
+						const key = `player_singles:${history.player1_id}`;
+						const current = currentRatings.get(key);
+						if (current) {
+							currentRatings.set(key, {
+								...current,
+								elo: current.elo - history.player1_elo_delta,
+								matches_played: Math.max(0, current.matches_played - 1),
+								wins: Math.max(0, current.wins - (player1Won ? 1 : 0)),
+								losses: Math.max(0, current.losses - (player2Won ? 1 : 0)),
+								draws: Math.max(0, current.draws - (wasDraw ? 1 : 0)),
+							});
+						}
+					}
+					if (history.player2_id && history.player2_elo_delta !== null && history.player2_elo_delta !== undefined) {
+						const key = `player_singles:${history.player2_id}`;
+						const current = currentRatings.get(key);
+						if (current) {
+							currentRatings.set(key, {
+								...current,
+								elo: current.elo - history.player2_elo_delta,
+								matches_played: Math.max(0, current.matches_played - 1),
+								wins: Math.max(0, current.wins - (player2Won ? 1 : 0)),
+								losses: Math.max(0, current.losses - (player1Won ? 1 : 0)),
+								draws: Math.max(0, current.draws - (wasDraw ? 1 : 0)),
+							});
+						}
+					}
+
+					// For doubles, determine team results from scores
+					const team1Won = matchScores.team1Score > matchScores.team2Score;
+					const team2Won = matchScores.team2Score > matchScores.team1Score;
+					const teamsDraw = matchScores.team1Score === matchScores.team2Score;
+
+					// Reverse doubles team deltas
+					if (history.team1_id && history.team1_elo_delta !== null && history.team1_elo_delta !== undefined) {
+						const key = `double_team:${history.team1_id}`;
+						const current = currentRatings.get(key);
+						if (current) {
+							currentRatings.set(key, {
+								...current,
+								elo: current.elo - history.team1_elo_delta,
+								matches_played: Math.max(0, current.matches_played - 1),
+								wins: Math.max(0, current.wins - (team1Won ? 1 : 0)),
+								losses: Math.max(0, current.losses - (team2Won ? 1 : 0)),
+								draws: Math.max(0, current.draws - (teamsDraw ? 1 : 0)),
+							});
+						}
+					}
+					if (history.team2_id && history.team2_elo_delta !== null && history.team2_elo_delta !== undefined) {
+						const key = `double_team:${history.team2_id}`;
+						const current = currentRatings.get(key);
+						if (current) {
+							currentRatings.set(key, {
+								...current,
+								elo: current.elo - history.team2_elo_delta,
+								matches_played: Math.max(0, current.matches_played - 1),
+								wins: Math.max(0, current.wins - (team2Won ? 1 : 0)),
+								losses: Math.max(0, current.losses - (team1Won ? 1 : 0)),
+								draws: Math.max(0, current.draws - (teamsDraw ? 1 : 0)),
+							});
+						}
+					}
+
+					// For doubles matches, players get the same delta as their team
+					// Find the match to get player IDs
+					const match = allMatches.find(m => m.id === history.match_id);
+					if (match && match.match_type === "doubles" && history.team1_id && history.team2_id) {
+						const playerIds = match.player_ids as string[];
+						// Team 1 players (playerIds[0], playerIds[1]) get team1 delta
+						if (history.team1_elo_delta !== null && history.team1_elo_delta !== undefined) {
+							for (const playerId of [playerIds[0], playerIds[1]]) {
+								const key = `player_doubles:${playerId}`;
+								const current = currentRatings.get(key);
+								if (current) {
+									currentRatings.set(key, {
+										...current,
+										elo: current.elo - history.team1_elo_delta,
+										matches_played: Math.max(0, current.matches_played - 1),
+										wins: Math.max(0, current.wins - (team1Won ? 1 : 0)),
+										losses: Math.max(0, current.losses - (team2Won ? 1 : 0)),
+										draws: Math.max(0, current.draws - (teamsDraw ? 1 : 0)),
+									});
+								}
+							}
+						}
+						// Team 2 players (playerIds[2], playerIds[3]) get team2 delta
+						if (history.team2_elo_delta !== null && history.team2_elo_delta !== undefined) {
+							for (const playerId of [playerIds[2], playerIds[3]]) {
+								const key = `player_doubles:${playerId}`;
+								const current = currentRatings.get(key);
+								if (current) {
+									currentRatings.set(key, {
+										...current,
+										elo: current.elo - history.team2_elo_delta,
+										matches_played: Math.max(0, current.matches_played - 1),
+										wins: Math.max(0, current.wins - (team2Won ? 1 : 0)),
+										losses: Math.max(0, current.losses - (team1Won ? 1 : 0)),
+										draws: Math.max(0, current.draws - (teamsDraw ? 1 : 0)),
+									});
+								}
+							}
+						}
+					}
+				}
+
+				// 2️⃣ BASELINE STATE - Log before restoration
+				const baselineLog: any[] = [];
+				for (const [key, rating] of currentRatings.entries()) {
+					const [entityType, entityId] = key.split(":");
+					baselineLog.push({
+						entity_type: entityType,
+						entity_id: entityId,
+						elo: rating.elo,
+						matches_played: rating.matches_played,
+						wins: rating.wins,
+						losses: rating.losses,
+						draws: rating.draws,
+						source: "calculated_from_history",
+					});
+				}
+				console.log(JSON.stringify({
+					tag: "[BASELINE]",
+					session_id: sessionId,
+					source: "calculated_from_history",
+					baseline_state: baselineLog,
+				}));
+
+				// Restore ratings from calculated baseline
+				for (const [key, rating] of currentRatings.entries()) {
+					const [entityType, entityId] = key.split(":");
+					
+					if (entityType === "player_singles") {
+						await adminClient
+							.from("player_ratings")
+							.upsert({
+								player_id: entityId,
+								elo: rating.elo,
+								matches_played: rating.matches_played,
+								wins: rating.wins,
+								losses: rating.losses,
+								draws: rating.draws,
+								sets_won: rating.sets_won || 0,
+								sets_lost: rating.sets_lost || 0,
+								updated_at: new Date().toISOString(),
+							});
+					} else if (entityType === "player_doubles") {
+						await adminClient
+							.from("player_double_ratings")
+							.upsert({
+								player_id: entityId,
+								elo: rating.elo,
+								matches_played: rating.matches_played,
+								wins: rating.wins,
+								losses: rating.losses,
+								draws: rating.draws,
+								sets_won: rating.sets_won || 0,
+								sets_lost: rating.sets_lost || 0,
+								updated_at: new Date().toISOString(),
+							});
+					} else if (entityType === "double_team") {
+						await adminClient
+							.from("double_team_ratings")
+							.upsert({
+								team_id: entityId,
+								elo: rating.elo,
+								matches_played: rating.matches_played,
+								wins: rating.wins,
+								losses: rating.losses,
+								draws: rating.draws,
+								sets_won: rating.sets_won || 0,
+								sets_lost: rating.sets_lost || 0,
+								updated_at: new Date().toISOString(),
+							});
+					}
+				}
+			} else {
+				// 2️⃣ BASELINE STATE - Log from snapshots before restoration
+				const baselineLog: any[] = [];
+				for (const snapshot of snapshots) {
+					baselineLog.push({
+						entity_type: snapshot.entity_type,
+						entity_id: snapshot.entity_id,
+						elo: snapshot.elo,
+						matches_played: snapshot.matches_played,
+						wins: snapshot.wins,
+						losses: snapshot.losses,
+						draws: snapshot.draws,
+						source: "session_rating_snapshots",
+					});
+				}
+				console.log(JSON.stringify({
+					tag: "[BASELINE]",
+					session_id: sessionId,
+					source: "session_rating_snapshots",
+					baseline_state: baselineLog,
+				}));
+
+				// Restore ratings from snapshots
+				for (const snapshot of snapshots) {
+					if (snapshot.entity_type === "player_singles") {
+						// Restore player_ratings
+						await adminClient
+							.from("player_ratings")
+							.upsert({
+								player_id: snapshot.entity_id,
+								elo: snapshot.elo,
+								matches_played: snapshot.matches_played,
+								wins: snapshot.wins,
+								losses: snapshot.losses,
+								draws: snapshot.draws,
+								sets_won: snapshot.sets_won,
+								sets_lost: snapshot.sets_lost,
+								updated_at: new Date().toISOString(),
+							});
+					} else if (snapshot.entity_type === "player_doubles") {
+						// Restore player_double_ratings
+						await adminClient
+							.from("player_double_ratings")
+							.upsert({
+								player_id: snapshot.entity_id,
+								elo: snapshot.elo,
+								matches_played: snapshot.matches_played,
+								wins: snapshot.wins,
+								losses: snapshot.losses,
+								draws: snapshot.draws,
+								sets_won: snapshot.sets_won,
+								sets_lost: snapshot.sets_lost,
+								updated_at: new Date().toISOString(),
+							});
+					} else if (snapshot.entity_type === "double_team") {
+						// Restore double_team_ratings
+						await adminClient
+							.from("double_team_ratings")
+							.upsert({
+								team_id: snapshot.entity_id,
+								elo: snapshot.elo,
+								matches_played: snapshot.matches_played,
+								wins: snapshot.wins,
+								losses: snapshot.losses,
+								draws: snapshot.draws,
+								sets_won: snapshot.sets_won,
+								sets_lost: snapshot.sets_lost,
+								updated_at: new Date().toISOString(),
+							});
+					}
+				}
+			}
+
+			// Step 6: Reset match statuses (set to pending, clear scores)
+			const { error: resetMatchesError } = await adminClient
+				.from("session_matches")
+				.update({
+					status: "pending",
+					team1_score: null,
+					team2_score: null,
+				})
+				.in("id", matchIdsToReset);
+
+			if (resetMatchesError) {
+				console.error("Error resetting matches:", resetMatchesError);
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Failed to reset matches" },
+					{ status: 500 }
+				);
+			}
+
+			// Step 7: Update the edited match with new scores and edit metadata
+			const { error: updateMatchError } = await adminClient
+				.from("session_matches")
+				.update({
+					team1_score: team1Score,
+					team2_score: team2Score,
+					is_edited: true,
+					edited_at: new Date().toISOString(),
+					edited_by: user.id,
+					edit_reason: reason || null,
+				})
+				.eq("id", matchId);
+
+			if (updateMatchError) {
+				console.error("Error updating match:", updateMatchError);
+				await adminClient
+					.from("sessions")
+					.update({ recalc_status: "failed" })
+					.eq("id", sessionId);
+				return NextResponse.json(
+					{ error: "Failed to update match" },
+					{ status: 500 }
+				);
+			}
+
+			// Step 8: Replay all matches sequentially from the edited match
+			// Process matches in order, updating Elo and creating history
+			const eloHistoryEntries: Array<{
+				match_id: string;
+				player1_id?: string;
+				player2_id?: string;
+				player1_elo_before?: number;
+				player1_elo_after?: number;
+				player1_elo_delta?: number;
+				player2_elo_before?: number;
+				player2_elo_after?: number;
+				player2_elo_delta?: number;
+				team1_id?: string;
+				team2_id?: string;
+				team1_elo_before?: number;
+				team1_elo_after?: number;
+				team1_elo_delta?: number;
+				team2_elo_before?: number;
+				team2_elo_after?: number;
+				team2_elo_delta?: number;
+			}> = [];
+
+			// 5️⃣ DUPLICATE DETECTION - Track replayed matches
+			const replayedMatchIds = new Set<string>();
+
+			// Process matches sequentially (no Promise.all)
+			for (let i = matchIndex; i < allMatches.length; i++) {
+				const match = allMatches[i];
+				const isSingles = match.match_type === "singles";
+				const playerIds = match.player_ids as string[];
+
+				// 5️⃣ DUPLICATE DETECTION
+				if (replayedMatchIds.has(match.id)) {
+					console.error(JSON.stringify({
+						tag: "[ERROR]",
+						session_id: sessionId,
+						message: `Match ${match.id} replayed more than once`,
+						match_id: match.id,
+					}));
+					continue;
+				}
+				replayedMatchIds.add(match.id);
+
+				// Get scores: use new scores for edited match, existing scores for others
+				let score1: number;
+				let score2: number;
+
+				if (match.id === matchId) {
+					// Use new scores for edited match
+					score1 = team1Score;
+					score2 = team2Score;
+				} else {
+					// For other matches, use preserved scores
+					const preserved = preservedScores.get(match.id);
+					if (!preserved) {
+						// Match doesn't have scores yet, skip it
+						continue;
+					}
+					score1 = preserved.team1Score;
+					score2 = preserved.team2Score;
+				}
+
+				// Get current Elo ratings before update (for history)
+				if (isSingles) {
+
+					const { data: rating1Before } = await adminClient
+						.from("player_ratings")
+						.select("elo, wins, losses, draws")
+						.eq("player_id", playerIds[0])
+						.single();
+					const { data: rating2Before } = await adminClient
+						.from("player_ratings")
+						.select("elo, wins, losses, draws")
+						.eq("player_id", playerIds[1])
+						.single();
+
+					const player1EloBefore = rating1Before?.elo ?? 1500;
+					const player2EloBefore = rating2Before?.elo ?? 1500;
+					const player1MatchesPlayedBefore = (rating1Before?.wins ?? 0) + (rating1Before?.losses ?? 0) + (rating1Before?.draws ?? 0);
+					const player2MatchesPlayedBefore = (rating2Before?.wins ?? 0) + (rating2Before?.losses ?? 0) + (rating2Before?.draws ?? 0);
+
+					// Calculate expected values for logging
+					const player1Result = score1 > score2 ? "win" : score1 < score2 ? "loss" : "draw";
+					const player2Result = score2 > score1 ? "win" : score2 < score1 ? "loss" : "draw";
+					const player1K = calculateKFactor(player1MatchesPlayedBefore);
+					const player2K = calculateKFactor(player2MatchesPlayedBefore);
+					const player1Expected = calculateExpectedScore(player1EloBefore, player2EloBefore);
+					const player2Expected = calculateExpectedScore(player2EloBefore, player1EloBefore);
+					const player1Actual = player1Result === "win" ? 1 : player1Result === "loss" ? 0 : 0.5;
+					const player2Actual = player2Result === "win" ? 1 : player2Result === "loss" ? 0 : 0.5;
+					const player1DeltaExpected = Math.round(player1K * (player1Actual - player1Expected));
+					const player2DeltaExpected = Math.round(player2K * (player2Actual - player2Expected));
+
+					// 4️⃣ PER-MATCH REPLAY - Before update
+					console.log(JSON.stringify({
+						tag: "[MATCH_REPLAY]",
+						session_id: sessionId,
+						match_index: i,
+						match_id: match.id,
+						match_type: "singles",
+						players: [playerIds[0], playerIds[1]],
+						scores: { team1: score1, team2: score2 },
+						pre: {
+							player1: {
+								id: playerIds[0],
+								elo: player1EloBefore,
+								matches_played: player1MatchesPlayedBefore,
+								wins: rating1Before?.wins ?? 0,
+								losses: rating1Before?.losses ?? 0,
+								draws: rating1Before?.draws ?? 0,
+							},
+							player2: {
+								id: playerIds[1],
+								elo: player2EloBefore,
+								matches_played: player2MatchesPlayedBefore,
+								wins: rating2Before?.wins ?? 0,
+								losses: rating2Before?.losses ?? 0,
+								draws: rating2Before?.draws ?? 0,
+							},
+						},
+						calculation: {
+							player1: {
+								K: player1K,
+								expected_score: player1Expected,
+								actual_score: player1Actual,
+								result: player1Result,
+								delta_expected: player1DeltaExpected,
+							},
+							player2: {
+								K: player2K,
+								expected_score: player2Expected,
+								actual_score: player2Actual,
+								result: player2Result,
+								delta_expected: player2DeltaExpected,
+							},
+						},
+					}));
+
+					// Update Elo ratings
+					await updateSinglesRatings(
+						playerIds[0],
+						playerIds[1],
+						score1,
+						score2
+					);
+
+					// Get updated ratings for history
+					const { data: rating1After } = await adminClient
+						.from("player_ratings")
+						.select("elo, wins, losses, draws")
+						.eq("player_id", playerIds[0])
+						.single();
+					const { data: rating2After } = await adminClient
+						.from("player_ratings")
+						.select("elo, wins, losses, draws")
+						.eq("player_id", playerIds[1])
+						.single();
+
+					const player1EloAfter = rating1After?.elo ?? player1EloBefore;
+					const player2EloAfter = rating2After?.elo ?? player2EloBefore;
+					const player1MatchesPlayedAfter = (rating1After?.wins ?? 0) + (rating1After?.losses ?? 0) + (rating1After?.draws ?? 0);
+					const player2MatchesPlayedAfter = (rating2After?.wins ?? 0) + (rating2After?.losses ?? 0) + (rating2After?.draws ?? 0);
+					const player1DeltaActual = player1EloAfter - player1EloBefore;
+					const player2DeltaActual = player2EloAfter - player2EloBefore;
+
+					// 4️⃣ PER-MATCH REPLAY - After update
+					console.log(JSON.stringify({
+						tag: "[MATCH_REPLAY]",
+						session_id: sessionId,
+						match_index: i,
+						match_id: match.id,
+						post: {
+							player1: {
+								id: playerIds[0],
+								elo: player1EloAfter,
+								matches_played: player1MatchesPlayedAfter,
+								wins: rating1After?.wins ?? 0,
+								losses: rating1After?.losses ?? 0,
+								draws: rating1After?.draws ?? 0,
+								delta_actual: player1DeltaActual,
+								delta_expected: player1DeltaExpected,
+								delta_match: player1DeltaActual === player1DeltaExpected ? "match" : "MISMATCH",
+							},
+							player2: {
+								id: playerIds[1],
+								elo: player2EloAfter,
+								matches_played: player2MatchesPlayedAfter,
+								wins: rating2After?.wins ?? 0,
+								losses: rating2After?.losses ?? 0,
+								draws: rating2After?.draws ?? 0,
+								delta_actual: player2DeltaActual,
+								delta_expected: player2DeltaExpected,
+								delta_match: player2DeltaActual === player2DeltaExpected ? "match" : "MISMATCH",
+							},
+						},
+					}));
+
+					eloHistoryEntries.push({
+						match_id: match.id,
+						player1_id: playerIds[0],
+						player2_id: playerIds[1],
+						player1_elo_before: player1EloBefore,
+						player1_elo_after: player1EloAfter,
+						player1_elo_delta: player1EloAfter - player1EloBefore,
+						player2_elo_before: player2EloBefore,
+						player2_elo_after: player2EloAfter,
+						player2_elo_delta: player2EloAfter - player2EloBefore,
+					});
+				} else if (match.match_type === "doubles") {
+					// 7️⃣ DOUBLES GUARD
+					console.error(JSON.stringify({
+						tag: "[ERROR]",
+						session_id: sessionId,
+						message: "Doubles logic executed",
+						match_id: match.id,
+						match_type: match.match_type,
+						singles_count: singlesCount,
+						doubles_count: doublesCount,
+					}));
+
+					// Doubles match - only process if explicitly doubles
+					if (playerIds.length < 4) {
+						console.error(`Match ${match.id} is marked as doubles but has < 4 players. Skipping.`);
+						continue;
+					}
+
+					const team1Id = match.team_1_id || await getOrCreateDoubleTeam(playerIds[0], playerIds[1]);
+					const team2Id = match.team_2_id || await getOrCreateDoubleTeam(playerIds[2], playerIds[3]);
+
+					// Ensure match has team IDs
+					if (!match.team_1_id || !match.team_2_id) {
+						await adminClient
+							.from("session_matches")
+							.update({
+								team_1_id: team1Id,
+								team_2_id: team2Id,
+							})
+							.eq("id", match.id);
+					}
+
+					const { data: team1Rating } = await adminClient
+						.from("double_team_ratings")
+						.select("elo")
+						.eq("team_id", team1Id)
+						.single();
+					const { data: team2Rating } = await adminClient
+						.from("double_team_ratings")
+						.select("elo")
+						.eq("team_id", team2Id)
+						.single();
+
+					const team1EloBefore = team1Rating?.elo ?? 1500;
+					const team2EloBefore = team2Rating?.elo ?? 1500;
+
+					// Update Elo ratings
+					await updateDoublesRatings(
+						[playerIds[0], playerIds[1]],
+						[playerIds[2], playerIds[3]],
+						score1,
+						score2
+					);
+
+					// Get updated team ratings for history
+					const { data: team1RatingAfter } = await adminClient
+						.from("double_team_ratings")
+						.select("elo")
+						.eq("team_id", team1Id)
+						.single();
+					const { data: team2RatingAfter } = await adminClient
+						.from("double_team_ratings")
+						.select("elo")
+						.eq("team_id", team2Id)
+						.single();
+
+					const team1EloAfter = team1RatingAfter?.elo ?? team1EloBefore;
+					const team2EloAfter = team2RatingAfter?.elo ?? team2EloBefore;
+
+					eloHistoryEntries.push({
+						match_id: match.id,
+						team1_id: team1Id,
+						team2_id: team2Id,
+						team1_elo_before: team1EloBefore,
+						team1_elo_after: team1EloAfter,
+						team1_elo_delta: team1EloAfter - team1EloBefore,
+						team2_elo_before: team2EloBefore,
+						team2_elo_after: team2EloAfter,
+						team2_elo_delta: team2EloAfter - team2EloBefore,
+					});
+				} else {
+					// Unknown match type - log and skip
+					console.error(`Match ${match.id} has unknown match_type: ${match.match_type}. Skipping replay.`);
+					continue;
+				}
+
+				// Mark match as completed
+				await adminClient
+					.from("session_matches")
+					.update({
+						status: "completed",
+						team1_score: score1,
+						team2_score: score2,
+					})
+					.eq("id", match.id);
+			}
+
+			// 6️⃣ FINAL PERSISTED STATE - Before DB write
+			// Collect all unique player IDs from replayed matches
+			const allReplayedPlayerIds = new Set<string>();
+			for (let i = matchIndex; i < allMatches.length; i++) {
+				const match = allMatches[i];
+				if (match.match_type === "singles" && replayedMatchIds.has(match.id)) {
+					const playerIds = match.player_ids as string[];
+					allReplayedPlayerIds.add(playerIds[0]);
+					allReplayedPlayerIds.add(playerIds[1]);
+				}
+			}
+
+			const finalComputedState: any[] = [];
+			for (const playerId of allReplayedPlayerIds) {
+				const { data: rating } = await adminClient
+					.from("player_ratings")
+					.select("elo, wins, losses, draws")
+					.eq("player_id", playerId)
+					.single();
+				if (rating) {
+					finalComputedState.push({
+						player_id: playerId,
+						elo: rating.elo,
+						matches_played: (rating.wins ?? 0) + (rating.losses ?? 0) + (rating.draws ?? 0),
+						wins: rating.wins ?? 0,
+						losses: rating.losses ?? 0,
+						draws: rating.draws ?? 0,
+					});
+				}
+			}
+
+			console.log(JSON.stringify({
+				tag: "[FINAL_COMPUTED]",
+				session_id: sessionId,
+				state: finalComputedState,
+			}));
+
+			// Step 9: Insert Elo history records
+			if (eloHistoryEntries.length > 0) {
+				const { error: historyError } = await adminClient
+					.from("match_elo_history")
+					.insert(eloHistoryEntries);
+
+				if (historyError) {
+					console.error("Error inserting Elo history:", historyError);
+					await adminClient
+						.from("sessions")
+						.update({ recalc_status: "failed" })
+						.eq("id", sessionId);
+					return NextResponse.json(
+						{ error: "Failed to insert Elo history" },
+						{ status: 500 }
+					);
+				}
+			}
+
+			// 6️⃣ FINAL PERSISTED STATE - After DB write
+			const dbPersistedState: any[] = [];
+			for (const playerId of allReplayedPlayerIds) {
+				const { data: rating } = await adminClient
+					.from("player_ratings")
+					.select("elo, wins, losses, draws")
+					.eq("player_id", playerId)
+					.single();
+				if (rating) {
+					dbPersistedState.push({
+						player_id: playerId,
+						elo: rating.elo,
+						matches_played: (rating.wins ?? 0) + (rating.losses ?? 0) + (rating.draws ?? 0),
+						wins: rating.wins ?? 0,
+						losses: rating.losses ?? 0,
+						draws: rating.draws ?? 0,
+					});
+				}
+			}
+
+			console.log(JSON.stringify({
+				tag: "[DB_PERSISTED]",
+				session_id: sessionId,
+				state: dbPersistedState,
+			}));
+
+			// Compare computed vs persisted
+			for (const computed of finalComputedState) {
+				const persisted = dbPersistedState.find(p => p.player_id === computed.player_id);
+				if (persisted) {
+					if (computed.elo !== persisted.elo || computed.matches_played !== persisted.matches_played) {
+						console.error(JSON.stringify({
+							tag: "[ERROR]",
+							session_id: sessionId,
+							message: "Computed vs persisted mismatch",
+							player_id: computed.player_id,
+							computed: computed,
+							persisted: persisted,
+						}));
+					}
+				}
+			}
+
+			// Step 10: Release lock (mark as done)
+			await adminClient
+				.from("sessions")
+				.update({
+					recalc_status: "done",
+					recalc_finished_at: new Date().toISOString(),
+					recalc_token: null,
+				})
+				.eq("id", sessionId);
+
+			// Success
+			return NextResponse.json({
+				success: true,
+				message: "Match edited and session recalculated successfully",
+			});
+		} catch (error) {
+			// On any error, release lock with failed status
+			console.error("Error during recalculation:", error);
+			try {
+				await adminClient
+					.from("sessions")
+					.update({
+						recalc_status: "failed",
+						recalc_finished_at: new Date().toISOString(),
+					})
+					.eq("id", sessionId);
+			} catch (lockError) {
+				console.error("Failed to release lock:", lockError);
+			}
+
+			return NextResponse.json(
+				{ 
+					error: "Internal server error during recalculation",
+					details: error instanceof Error ? error.message : String(error)
+				},
+				{ status: 500 }
+			);
+		}
+	} catch (error) {
+		console.error(
+			"Unexpected error in POST /api/sessions/[sessionId]/matches/[matchId]/edit:",
+			error
+		);
+		return NextResponse.json(
+			{ 
+				error: "Internal server error",
+				details: error instanceof Error ? error.message : String(error)
+			},
+			{ status: 500 }
+		);
+	}
+}
+

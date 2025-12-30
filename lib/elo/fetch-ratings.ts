@@ -51,8 +51,16 @@ export async function fetchPlayersWithRatings(
 		.in("player_id", playerIds);
 
 	if (singlesError) {
+		console.error("Error fetching singles ratings:", singlesError);
 		throw new Error(`Failed to fetch singles ratings: ${singlesError.message}`);
 	}
+
+	// Debug: Log what we fetched
+	console.log(`[fetchPlayersWithRatings] Fetched ratings for ${playerIds.length} players:`, {
+		requestedPlayerIds: playerIds,
+		foundRatings: (singlesRatings || []).map(r => ({ player_id: r.player_id, elo: r.elo })),
+		ratingsCount: (singlesRatings || []).length
+	});
 
 	// Fetch doubles ratings if needed
 	let doublesRatings: Array<{ player_id: string; elo: number }> = [];
@@ -70,11 +78,12 @@ export async function fetchPlayersWithRatings(
 	}
 
 	// Create maps for fast lookup
+	// Convert elo to number in case it's returned as string from NUMERIC type
 	const singlesMap = new Map(
-		(singlesRatings || []).map((r) => [r.player_id, r.elo])
+		(singlesRatings || []).map((r) => [r.player_id, typeof r.elo === 'string' ? parseFloat(r.elo) : Number(r.elo)])
 	);
 	const doublesMap = new Map(
-		doublesRatings.map((r) => [r.player_id, r.elo])
+		doublesRatings.map((r) => [r.player_id, typeof r.elo === 'string' ? parseFloat(r.elo) : Number(r.elo)])
 	);
 
 	// Combine user data with ratings
@@ -88,6 +97,11 @@ export async function fetchPlayersWithRatings(
 		const avatar = user.user_metadata?.avatar_url || null;
 		const singlesElo = singlesMap.get(user.id) ?? 1500;
 		const doublesElo = includeDoublesElo ? (doublesMap.get(user.id) ?? 1500) : null;
+
+		// Debug: Log if using default 1500
+		if (!singlesMap.has(user.id)) {
+			console.log(`[fetchPlayersWithRatings] No rating found for player ${user.id} (${displayName}), using default 1500`);
+		}
 
 		return {
 			player_id: user.id,

@@ -13,7 +13,7 @@ import { supabase } from "@/lib/supabase/client";
 
 /**
  * AuthScreen component
- * 
+ *
  * Renders login/register UI with all auth functionality.
  * Does NOT handle routing - parent component manages auth state and rendering.
  * When auth succeeds, parent will automatically re-render via onAuthStateChange.
@@ -271,7 +271,9 @@ export function AuthScreen() {
 
 										<Input
 											type={
-												showPassword ? "text" : "password"
+												showPassword
+													? "text"
+													: "password"
 											}
 											label={t.auth.password}
 											icon="solar:lock-password-bold"
@@ -365,7 +367,10 @@ export function AuthScreen() {
 								<Box className="p-6 rounded-xl bg-card border border-border/50">
 									<Stack direction="column" spacing={3}>
 										<p className="text-center text-foreground">
-											{t.auth.success.emailConfirmationSent}
+											{
+												t.auth.success
+													.emailConfirmationSent
+											}
 										</p>
 										<p className="text-center text-muted-foreground text-sm">
 											{t.auth.success.checkInbox}
@@ -449,7 +454,9 @@ export function AuthScreen() {
 
 										<Input
 											type={
-												showPassword ? "text" : "password"
+												showPassword
+													? "text"
+													: "password"
 											}
 											label={t.auth.password}
 											icon="solar:lock-password-bold"
@@ -550,7 +557,10 @@ export function AuthScreen() {
 										className="size-5 animate-spin"
 									/>
 								) : (
-									<Icon icon="logos:google-icon" className="size-5" />
+									<Icon
+										icon="logos:google-icon"
+										className="size-5"
+									/>
 								)}
 								<span>Google</span>
 							</Stack>
@@ -593,4 +603,3 @@ export function AuthScreen() {
 		</Stack>
 	);
 }
-

@@ -43,8 +43,15 @@ export async function updateSinglesRatings(
 	const player2MatchCount = (rating2?.wins ?? 0) + (rating2?.losses ?? 0) + (rating2?.draws ?? 0);
 
 	// Calculate Elo changes based on current ratings and match counts (for dynamic K-factor)
-	const player1Delta = calculateEloDelta(player1Elo, player2Elo, player1Result as MatchResult, player1MatchCount);
-	const player2Delta = calculateEloDelta(player2Elo, player1Elo, player2Result as MatchResult, player2MatchCount);
+	// Note: If decimal migration hasn't been run, RPC function expects INTEGER, so we round here
+	// After running decimal migration, this rounding can be removed
+	const player1DeltaRaw = calculateEloDelta(player1Elo, player2Elo, player1Result as MatchResult, player1MatchCount);
+	const player2DeltaRaw = calculateEloDelta(player2Elo, player1Elo, player2Result as MatchResult, player2MatchCount);
+	
+	// Round to integer for now (until decimal migration is run and RPC functions are updated)
+	// TODO: Remove Math.round() after running decimal migration and updating RPC functions to NUMERIC(10, 2)
+	const player1Delta = Math.round(player1DeltaRaw);
+	const player2Delta = Math.round(player2DeltaRaw);
 
 	// Determine sets won/lost
 	const player1SetsWon = player1Score > player2Score ? 1 : 0;
@@ -53,7 +60,7 @@ export async function updateSinglesRatings(
 	const player2SetsLost = player2Score < player1Score ? 1 : 0;
 
 	// Update player 1 rating
-	await supabase.rpc("upsert_player_rating", {
+	const { error: error1 } = await supabase.rpc("upsert_player_rating", {
 		p_player_id: player1Id,
 		p_elo_delta: player1Delta,
 		p_wins: player1Result === "win" ? 1 : 0,
@@ -63,8 +70,13 @@ export async function updateSinglesRatings(
 		p_sets_lost: player1SetsLost,
 	});
 
+	if (error1) {
+		console.error("Error updating player 1 rating:", error1);
+		throw new Error(`Failed to update player 1 rating: ${error1.message}`);
+	}
+
 	// Update player 2 rating
-	await supabase.rpc("upsert_player_rating", {
+	const { error: error2 } = await supabase.rpc("upsert_player_rating", {
 		p_player_id: player2Id,
 		p_elo_delta: player2Delta,
 		p_wins: player2Result === "win" ? 1 : 0,
@@ -73,6 +85,11 @@ export async function updateSinglesRatings(
 		p_sets_won: player2SetsWon,
 		p_sets_lost: player2SetsLost,
 	});
+
+	if (error2) {
+		console.error("Error updating player 2 rating:", error2);
+		throw new Error(`Failed to update player 2 rating: ${error2.message}`);
+	}
 }
 
 /**
@@ -120,8 +137,15 @@ export async function updateDoublesRatings(
 	const team2MatchCount = (team2Rating?.wins ?? 0) + (team2Rating?.losses ?? 0) + (team2Rating?.draws ?? 0);
 
 	// Calculate Elo changes for teams using dynamic K-factor (based on team match count)
-	const team1Delta = calculateEloDelta(team1Elo, team2Elo, team1Result as MatchResult, team1MatchCount);
-	const team2Delta = calculateEloDelta(team2Elo, team1Elo, team2Result as MatchResult, team2MatchCount);
+	// Note: If decimal migration hasn't been run, RPC function expects INTEGER, so we round here
+	// After running decimal migration, this rounding can be removed
+	const team1DeltaRaw = calculateEloDelta(team1Elo, team2Elo, team1Result as MatchResult, team1MatchCount);
+	const team2DeltaRaw = calculateEloDelta(team2Elo, team1Elo, team2Result as MatchResult, team2MatchCount);
+	
+	// Round to integer for now (until decimal migration is run and RPC functions are updated)
+	// TODO: Remove Math.round() after running decimal migration and updating RPC functions to NUMERIC(10, 2)
+	const team1Delta = Math.round(team1DeltaRaw);
+	const team2Delta = Math.round(team2DeltaRaw);
 
 	// Note: For player_double_ratings updates, we use the team delta (as per requirement:
 	// "Both players on the same team receive the same Elo delta")
@@ -134,7 +158,7 @@ export async function updateDoublesRatings(
 	const team2SetsLost = team2Score < team1Score ? 1 : 0;
 
 	// Update team ratings
-	await supabase.rpc("upsert_double_team_rating", {
+	const { error: team1Error } = await supabase.rpc("upsert_double_team_rating", {
 		p_team_id: team1Id,
 		p_elo_delta: team1Delta,
 		p_wins: team1Result === "win" ? 1 : 0,
@@ -144,7 +168,12 @@ export async function updateDoublesRatings(
 		p_sets_lost: team1SetsLost,
 	});
 
-	await supabase.rpc("upsert_double_team_rating", {
+	if (team1Error) {
+		console.error("Error updating team 1 rating:", team1Error);
+		throw new Error(`Failed to update team 1 rating: ${team1Error.message}`);
+	}
+
+	const { error: team2Error } = await supabase.rpc("upsert_double_team_rating", {
 		p_team_id: team2Id,
 		p_elo_delta: team2Delta,
 		p_wins: team2Result === "win" ? 1 : 0,
@@ -154,6 +183,11 @@ export async function updateDoublesRatings(
 		p_sets_lost: team2SetsLost,
 	});
 
+	if (team2Error) {
+		console.error("Error updating team 2 rating:", team2Error);
+		throw new Error(`Failed to update team 2 rating: ${team2Error.message}`);
+	}
+
 	// Update individual player double ratings
 	// NOTE: Each player gets their own delta based on their match count (for accurate K-factor)
 	// However, since we're using team delta, we need to recalculate for each player
@@ -161,7 +195,7 @@ export async function updateDoublesRatings(
 	// (This matches the requirement: "Both players on the same team receive the same Elo delta")
 	
 	// Team 1 players - use team delta (both get same delta)
-	await supabase.rpc("upsert_player_double_rating", {
+	const { error: team1Player1Error } = await supabase.rpc("upsert_player_double_rating", {
 		p_player_id: team1PlayerIds[0],
 		p_elo_delta: team1Delta,
 		p_wins: team1Result === "win" ? 1 : 0,
@@ -171,7 +205,12 @@ export async function updateDoublesRatings(
 		p_sets_lost: team1SetsLost,
 	});
 
-	await supabase.rpc("upsert_player_double_rating", {
+	if (team1Player1Error) {
+		console.error("Error updating team 1 player 1 double rating:", team1Player1Error);
+		throw new Error(`Failed to update team 1 player 1 double rating: ${team1Player1Error.message}`);
+	}
+
+	const { error: team1Player2Error } = await supabase.rpc("upsert_player_double_rating", {
 		p_player_id: team1PlayerIds[1],
 		p_elo_delta: team1Delta,
 		p_wins: team1Result === "win" ? 1 : 0,
@@ -181,8 +220,13 @@ export async function updateDoublesRatings(
 		p_sets_lost: team1SetsLost,
 	});
 
+	if (team1Player2Error) {
+		console.error("Error updating team 1 player 2 double rating:", team1Player2Error);
+		throw new Error(`Failed to update team 1 player 2 double rating: ${team1Player2Error.message}`);
+	}
+
 	// Team 2 players - use team delta (both get same delta)
-	await supabase.rpc("upsert_player_double_rating", {
+	const { error: team2Player1Error } = await supabase.rpc("upsert_player_double_rating", {
 		p_player_id: team2PlayerIds[0],
 		p_elo_delta: team2Delta,
 		p_wins: team2Result === "win" ? 1 : 0,
@@ -192,7 +236,12 @@ export async function updateDoublesRatings(
 		p_sets_lost: team2SetsLost,
 	});
 
-	await supabase.rpc("upsert_player_double_rating", {
+	if (team2Player1Error) {
+		console.error("Error updating team 2 player 1 double rating:", team2Player1Error);
+		throw new Error(`Failed to update team 2 player 1 double rating: ${team2Player1Error.message}`);
+	}
+
+	const { error: team2Player2Error } = await supabase.rpc("upsert_player_double_rating", {
 		p_player_id: team2PlayerIds[1],
 		p_elo_delta: team2Delta,
 		p_wins: team2Result === "win" ? 1 : 0,
@@ -201,5 +250,10 @@ export async function updateDoublesRatings(
 		p_sets_won: team2SetsWon,
 		p_sets_lost: team2SetsLost,
 	});
+
+	if (team2Player2Error) {
+		console.error("Error updating team 2 player 2 double rating:", team2Player2Error);
+		throw new Error(`Failed to update team 2 player 2 double rating: ${team2Player2Error.message}`);
+	}
 }
 

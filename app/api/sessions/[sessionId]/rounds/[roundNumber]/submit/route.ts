@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
+import { createEloSnapshots } from "@/lib/elo/snapshots";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -259,12 +260,26 @@ export async function POST(
 				const player2EloBefore = rating2?.elo ?? 1500;
 
 				// Update Elo ratings
-				await updateSinglesRatings(
-					playerIds[0],
-					playerIds[1],
-					score.team1Score,
-					score.team2Score
-				);
+				try {
+					await updateSinglesRatings(
+						playerIds[0],
+						playerIds[1],
+						score.team1Score,
+						score.team2Score
+					);
+				} catch (eloError) {
+					console.error(
+						`Error updating Elo ratings for match ${match.id}:`,
+						eloError
+					);
+					throw new Error(
+						`Failed to update Elo ratings: ${
+							eloError instanceof Error
+								? eloError.message
+								: String(eloError)
+						}`
+					);
+				}
 
 				// Get updated ratings for history
 				const { data: rating1After } = await adminClient
@@ -292,6 +307,18 @@ export async function POST(
 					player2_elo_after: player2EloAfter,
 					player2_elo_delta: player2EloAfter - player2EloBefore,
 				});
+
+				// Create Elo snapshots after match completes
+				try {
+					await createEloSnapshots(match.id, playerIds, "singles");
+				} catch (snapshotError) {
+					console.error(
+						`Error creating snapshots for match ${match.id}:`,
+						snapshotError
+					);
+					// Non-fatal: log error but don't fail the request
+					// In production, you might want to rollback here
+				}
 			} else {
 				// Get current team ratings for doubles
 				const { data: team1Rating } = await adminClient
@@ -309,12 +336,26 @@ export async function POST(
 				const team2EloBefore = team2Rating?.elo ?? 1500;
 
 				// Update Elo ratings
-				await updateDoublesRatings(
-					[playerIds[0], playerIds[1]],
-					[playerIds[2], playerIds[3]],
-					score.team1Score,
-					score.team2Score
-				);
+				try {
+					await updateDoublesRatings(
+						[playerIds[0], playerIds[1]],
+						[playerIds[2], playerIds[3]],
+						score.team1Score,
+						score.team2Score
+					);
+				} catch (eloError) {
+					console.error(
+						`Error updating Elo ratings for match ${match.id}:`,
+						eloError
+					);
+					throw new Error(
+						`Failed to update Elo ratings: ${
+							eloError instanceof Error
+								? eloError.message
+								: String(eloError)
+						}`
+					);
+				}
 
 				// Get updated team ratings for history
 				const { data: team1RatingAfter } = await adminClient
@@ -342,6 +383,17 @@ export async function POST(
 					team2_elo_after: team2EloAfter,
 					team2_elo_delta: team2EloAfter - team2EloBefore,
 				});
+
+				// Create Elo snapshots after match completes (for doubles, snapshot all 4 players)
+				try {
+					await createEloSnapshots(match.id, playerIds, "doubles");
+				} catch (snapshotError) {
+					console.error(
+						`Error creating snapshots for match ${match.id}:`,
+						snapshotError
+					);
+					// Non-fatal: log error but don't fail the request
+				}
 			}
 		}
 
@@ -428,7 +480,11 @@ export async function POST(
 			error
 		);
 		return NextResponse.json(
-			{ error: "Internal server error" },
+			{
+				error: "Internal server error",
+				details: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+			},
 			{ status: 500 }
 		);
 	}

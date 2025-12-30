@@ -68,7 +68,7 @@ export function getActualScore(result: MatchResult): number {
  * @param opponentElo - Current Elo rating of the opponent
  * @param result - Match result: "win", "loss", or "draw"
  * @param matchCount - Total matches played by the player (for K-factor calculation)
- * @returns Elo change (positive for win, negative for loss)
+ * @returns Elo change (positive for win, negative for loss) - decimal precision preserved
  */
 export function calculateEloDelta(
 	playerElo: number,
@@ -81,6 +81,6 @@ export function calculateEloDelta(
 	const actualScore = getActualScore(result);
 
 	const delta = K * (actualScore - expectedScore);
-	return Math.round(delta);
+	return delta; // Return decimal delta - no rounding
 }
 

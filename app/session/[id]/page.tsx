@@ -25,9 +25,12 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { calculateEloChange, averageElo } from "@/lib/elo";
+import { formatEloDelta } from "@/lib/elo/format";
 import { getUserRole } from "@/lib/auth/getUserRole";
 import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
+import { EditMatchDrawer } from "./_components/edit-match-drawer";
+import { toast } from "sonner";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -87,6 +90,11 @@ function SessionPageContent() {
 		useState<Match | null>(null);
 	const [videoUrlInput, setVideoUrlInput] = useState("");
 	const [savingVideoUrl, setSavingVideoUrl] = useState(false);
+	const [selectedMatchForEdit, setSelectedMatchForEdit] =
+		useState<Match | null>(null);
+	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+	const [isEditingMatch, setIsEditingMatch] = useState(false);
+	const [recalcStatus, setRecalcStatus] = useState<string | null>(null);
 
 	// Load session data
 	useEffect(() => {
@@ -561,9 +569,160 @@ function SessionPageContent() {
 		setError(null);
 	}, []);
 
-	// Handle saving video URL
-	const handleSaveVideoUrl = useCallback(async () => {
-		if (!selectedMatchForVideo || !sessionId || savingVideoUrl) return;
+	// Fetch recalc status
+	const fetchRecalcStatus = useCallback(async () => {
+		if (!sessionId) return;
+		try {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+			if (!session) return;
+
+			const { data, error } = await supabase
+				.from("sessions")
+				.select("recalc_status")
+				.eq("id", sessionId)
+				.single();
+
+			if (!error && data) {
+				setRecalcStatus(data.recalc_status);
+			}
+		} catch (err) {
+			console.error("Error fetching recalc status:", err);
+		}
+	}, [sessionId]);
+
+	// Poll recalc status when it's running
+	useEffect(() => {
+		if (recalcStatus === "running") {
+			const interval = setInterval(fetchRecalcStatus, 1000); // Poll every second
+			return () => clearInterval(interval);
+		}
+	}, [recalcStatus, fetchRecalcStatus]);
+
+	// Initial fetch of recalc status
+	useEffect(() => {
+		fetchRecalcStatus();
+	}, [fetchRecalcStatus]);
+
+	// Handle match edit
+	const handleEditMatch = useCallback(
+		async (
+			team1Score: number,
+			team2Score: number,
+			reason?: string,
+			matchId?: string
+		) => {
+			// Use provided matchId, or fall back to selectedMatchForEdit
+			const targetMatchId = matchId || selectedMatchForEdit?.id;
+			if (!targetMatchId || !sessionId) {
+				console.error("Missing matchId or sessionId", {
+					matchId,
+					targetMatchId,
+					sessionId,
+				});
+				return;
+			}
+
+			setIsEditingMatch(true);
+			const toastId = toast.loading("Recalculating session...", {
+				description: "This may take a moment",
+			});
+
+			try {
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+				if (!session) {
+					toast.error("Authentication required");
+					setIsEditingMatch(false);
+					return;
+				}
+
+				const response = await fetch(
+					`/api/sessions/${sessionId}/matches/${targetMatchId}/edit`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${session.access_token}`,
+						},
+						body: JSON.stringify({
+							team1Score,
+							team2Score,
+							reason,
+						}),
+					}
+				);
+
+				if (!response.ok) {
+					const errorData = await response.json();
+					toast.error("Failed to edit match", {
+						description: errorData.error || "Unknown error",
+						id: toastId,
+					});
+					setIsEditingMatch(false);
+					return;
+				}
+
+				// Poll until recalculation is done
+				const maxWait = 60000; // 60 seconds max
+				const startTime = Date.now();
+				const pollInterval = setInterval(async () => {
+					await fetchRecalcStatus();
+					// Check status by fetching it directly
+					const {
+						data: { session: authSession },
+					} = await supabase.auth.getSession();
+					if (!authSession) return;
+
+					const { data: statusData } = await supabase
+						.from("sessions")
+						.select("recalc_status")
+						.eq("id", sessionId)
+						.single();
+
+					if (statusData?.recalc_status === "done") {
+						clearInterval(pollInterval);
+						toast.success("Session recalculated successfully", {
+							id: toastId,
+						});
+						// Reload session data
+						window.location.reload();
+					} else if (statusData?.recalc_status === "failed") {
+						clearInterval(pollInterval);
+						toast.error("Recalculation failed", {
+							id: toastId,
+						});
+					} else if (Date.now() - startTime > maxWait) {
+						clearInterval(pollInterval);
+						toast.error("Recalculation timed out", {
+							id: toastId,
+						});
+					}
+				}, 1000);
+			} catch (err) {
+				console.error("Error editing match:", err);
+				toast.error("Failed to edit match", {
+					description:
+						err instanceof Error ? err.message : "Unknown error",
+				});
+			} finally {
+				setIsEditingMatch(false);
+			}
+		},
+		[selectedMatchForEdit, sessionId, fetchRecalcStatus]
+	);
+
+	// Unified save handler for match drawer
+	const handleSaveMatchDrawer = useCallback(async () => {
+		if (
+			!selectedMatchForVideo ||
+			!sessionId ||
+			savingVideoUrl ||
+			isEditingMatch
+		)
+			return;
 
 		try {
 			setSavingVideoUrl(true);
@@ -578,50 +737,86 @@ function SessionPageContent() {
 				return;
 			}
 
-			const response = await fetch(
-				`/api/sessions/${sessionId}/matches/${selectedMatchForVideo.id}/video-url`,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${session.access_token}`,
-					},
-					body: JSON.stringify({
-						video_url: videoUrlInput.trim() || null,
-					}),
-				}
-			);
+			// Check what needs to be saved
+			const originalMatch = sessionData?.matchesByRound[
+				selectedMatchForVideo.round_number
+			]?.find((m) => m.id === selectedMatchForVideo.id);
 
-			if (!response.ok) {
-				const errorData = await response.json();
-				setError(errorData.error || "Failed to save video URL");
-				return;
+			const scoresChanged =
+				originalMatch?.team1_score !==
+					selectedMatchForVideo.team1_score ||
+				originalMatch?.team2_score !==
+					selectedMatchForVideo.team2_score;
+			const videoUrlChanged =
+				originalMatch?.video_url !== videoUrlInput.trim();
+
+			const hasValidScores =
+				selectedMatchForVideo.team1_score !== null &&
+				selectedMatchForVideo.team2_score !== null;
+
+			// Save match result if scores changed
+			if (scoresChanged && hasValidScores) {
+				await handleEditMatch(
+					selectedMatchForVideo.team1_score!,
+					selectedMatchForVideo.team2_score!,
+					undefined,
+					selectedMatchForVideo.id
+				);
+				// Don't close drawer yet - wait for video URL save if needed
 			}
 
-			// Optimistically update the match in sessionData
-			setSessionData((prev) => {
-				if (!prev) return prev;
-
-				const updatedMatchesByRound = { ...prev.matchesByRound };
-				const roundNumber = selectedMatchForVideo.round_number;
-				const roundMatches = updatedMatchesByRound[roundNumber] || [];
-
-				updatedMatchesByRound[roundNumber] = roundMatches.map((m) =>
-					m.id === selectedMatchForVideo.id
-						? { ...m, video_url: videoUrlInput.trim() || null }
-						: m
+			// Save video URL if changed
+			if (videoUrlChanged) {
+				const response = await fetch(
+					`/api/sessions/${sessionId}/matches/${selectedMatchForVideo.id}/video-url`,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${session.access_token}`,
+						},
+						body: JSON.stringify({
+							video_url: videoUrlInput.trim() || null,
+						}),
+					}
 				);
 
-				return {
-					...prev,
-					matchesByRound: updatedMatchesByRound,
-				};
-			});
+				if (!response.ok) {
+					const errorData = await response.json();
+					setError(errorData.error || "Failed to save video URL");
+					return;
+				}
 
-			handleCloseVideoDrawer();
+				// Optimistically update the match in sessionData
+				setSessionData((prev) => {
+					if (!prev) return prev;
+
+					const updatedMatchesByRound = { ...prev.matchesByRound };
+					const roundNumber = selectedMatchForVideo.round_number;
+					const roundMatches =
+						updatedMatchesByRound[roundNumber] || [];
+
+					updatedMatchesByRound[roundNumber] = roundMatches.map((m) =>
+						m.id === selectedMatchForVideo.id
+							? { ...m, video_url: videoUrlInput.trim() || null }
+							: m
+					);
+
+					return {
+						...prev,
+						matchesByRound: updatedMatchesByRound,
+					};
+				});
+			}
+
+			// Close drawer if no match result edit (video-only save)
+			if (!scoresChanged) {
+				handleCloseVideoDrawer();
+			}
+			// If scores changed, the page will reload after recalculation
 		} catch (err) {
-			console.error("Error saving video URL:", err);
-			setError("Failed to save video URL");
+			console.error("Error saving match data:", err);
+			setError("Failed to save changes");
 		} finally {
 			setSavingVideoUrl(false);
 		}
@@ -630,6 +825,9 @@ function SessionPageContent() {
 		sessionId,
 		videoUrlInput,
 		savingVideoUrl,
+		isEditingMatch,
+		sessionData,
+		handleEditMatch,
 		handleCloseVideoDrawer,
 	]);
 
@@ -1075,128 +1273,351 @@ function SessionPageContent() {
 
 						{selectedMatchForVideo ? (
 							<div className="px-4 pb-4 space-y-6">
-								{/* Players / Teams (Read-only) */}
-								<Box>
-									<Stack direction="column" spacing={3}>
-										{(() => {
-											const match = selectedMatchForVideo;
-											const isSingles =
-												match.match_type === "singles";
-											const team1PlayerIds = isSingles
-												? [match.player_ids[0]]
-												: [
-														match.player_ids[0],
-														match.player_ids[1],
-												  ];
-											const team2PlayerIds = isSingles
-												? [match.player_ids[1]]
-												: [
-														match.player_ids[2],
-														match.player_ids[3],
-												  ];
+								{(() => {
+									const match = selectedMatchForVideo;
+									const isSingles =
+										match.match_type === "singles";
+									const team1PlayerIds = isSingles
+										? [match.player_ids[0]]
+										: [
+												match.player_ids[0],
+												match.player_ids[1],
+										  ];
+									const team2PlayerIds = isSingles
+										? [match.player_ids[1]]
+										: [
+												match.player_ids[2],
+												match.player_ids[3],
+										  ];
 
-											const team1Players = team1PlayerIds
-												.map((id) => getPlayer(id))
-												.filter(Boolean) as Player[];
-											const team2Players = team2PlayerIds
-												.map((id) => getPlayer(id))
-												.filter(Boolean) as Player[];
+									const team1Players = team1PlayerIds
+										.map((id) => getPlayer(id))
+										.filter(Boolean) as Player[];
+									const team2Players = team2PlayerIds
+										.map((id) => getPlayer(id))
+										.filter(Boolean) as Player[];
 
-											const team1Name = isSingles
-												? team1Players[0]?.name ||
-												  "Unknown"
-												: `${
-														team1Players[0]?.name ||
-														""
-												  } & ${
-														team1Players[1]?.name ||
-														""
-												  }`.trim();
-											const team2Name = isSingles
-												? team2Players[0]?.name ||
-												  "Unknown"
-												: `${
-														team2Players[0]?.name ||
-														""
-												  } & ${
-														team2Players[1]?.name ||
-														""
-												  }`.trim();
+									const team1Name = isSingles
+										? team1Players[0]?.name || "Unknown"
+										: `${team1Players[0]?.name || ""} & ${
+												team1Players[1]?.name || ""
+										  }`.trim();
+									const team2Name = isSingles
+										? team2Players[0]?.name || "Unknown"
+										: `${team2Players[0]?.name || ""} & ${
+												team2Players[1]?.name || ""
+										  }`.trim();
 
-											return (
+									return (
+										<>
+											{/* Players / Teams (Read-only) */}
+											<Box>
+												<Stack
+													direction="column"
+													spacing={3}
+												>
+													<Box>
+														<p className="text-sm font-semibold text-muted-foreground mb-2">
+															Players
+														</p>
+														<Stack
+															direction="row"
+															alignItems="center"
+															spacing={2}
+														>
+															<span className="font-medium">
+																{team1Name}
+															</span>
+															<span className="text-muted-foreground">
+																vs
+															</span>
+															<span className="font-medium">
+																{team2Name}
+															</span>
+														</Stack>
+													</Box>
+												</Stack>
+											</Box>
+
+											{/* Match Scores (Editable) */}
+											{match.status === "completed" && (
 												<Box>
-													<p className="text-sm font-semibold text-muted-foreground mb-2">
-														Players
-													</p>
+													<label className="text-sm font-semibold text-foreground mb-2 block">
+														Match Result
+													</label>
 													<Stack
 														direction="row"
+														spacing={3}
 														alignItems="center"
-														spacing={2}
 													>
-														<span className="font-medium">
-															{team1Name}
-														</span>
-														<span className="text-muted-foreground">
-															vs
-														</span>
-														<span className="font-medium">
-															{team2Name}
-														</span>
+														<Box className="flex-1">
+															<Input
+																type="number"
+																value={
+																	match.team1_score?.toString() ??
+																	""
+																}
+																onChange={(
+																	e
+																) => {
+																	// Update the match in state
+																	setSelectedMatchForVideo(
+																		{
+																			...match,
+																			team1_score:
+																				e
+																					.target
+																					.value
+																					? parseInt(
+																							e
+																								.target
+																								.value,
+																							10
+																					  )
+																					: null,
+																		}
+																	);
+																}}
+																placeholder="0"
+																min="0"
+																disabled={
+																	isEditingMatch ||
+																	recalcStatus ===
+																		"running"
+																}
+																className="w-full"
+															/>
+															<p className="text-xs text-muted-foreground mt-1 text-center">
+																{team1Name}
+															</p>
+														</Box>
+														<Box className="px-2">
+															<span className="text-sm font-semibold text-muted-foreground">
+																vs
+															</span>
+														</Box>
+														<Box className="flex-1">
+															<Input
+																type="number"
+																value={
+																	match.team2_score?.toString() ??
+																	""
+																}
+																onChange={(
+																	e
+																) => {
+																	// Update the match in state
+																	setSelectedMatchForVideo(
+																		{
+																			...match,
+																			team2_score:
+																				e
+																					.target
+																					.value
+																					? parseInt(
+																							e
+																								.target
+																								.value,
+																							10
+																					  )
+																					: null,
+																		}
+																	);
+																}}
+																placeholder="0"
+																min="0"
+																disabled={
+																	isEditingMatch ||
+																	recalcStatus ===
+																		"running"
+																}
+																className="w-full"
+															/>
+															<p className="text-xs text-muted-foreground mt-1 text-center">
+																{team2Name}
+															</p>
+														</Box>
 													</Stack>
+													{recalcStatus ===
+														"running" && (
+														<p className="text-xs text-muted-foreground mt-2">
+															Recalculation in
+															progress...
+														</p>
+													)}
 												</Box>
-											);
-										})()}
-									</Stack>
-								</Box>
+											)}
 
-								{/* Video URL Input */}
-								<Box>
-									<label className="text-sm font-semibold text-foreground mb-2 block">
-										Video link
-									</label>
-									<Input
-										type="url"
-										value={videoUrlInput}
-										onChange={(e) =>
-											setVideoUrlInput(e.target.value)
-										}
-										placeholder="https://www.youtube.com/watch?v=..."
-										disabled={savingVideoUrl}
-										className="w-full"
-									/>
-								</Box>
+											{/* Video URL Input */}
+											<Box>
+												<label className="text-sm font-semibold text-foreground mb-2 block">
+													Video link
+												</label>
+												<Input
+													type="url"
+													value={videoUrlInput}
+													onChange={(e) =>
+														setVideoUrlInput(
+															e.target.value
+														)
+													}
+													placeholder="https://www.youtube.com/watch?v=..."
+													disabled={savingVideoUrl}
+													className="w-full"
+												/>
+											</Box>
+										</>
+									);
+								})()}
 							</div>
 						) : null}
 
 						<DrawerFooter>
-							<Stack
-								direction="row"
-								spacing={3}
-								className="w-full"
-							>
-								<Button
-									variant="outline"
-									onClick={handleCloseVideoDrawer}
-									disabled={savingVideoUrl}
-									className="flex-1"
-								>
-									Cancel
-								</Button>
-								<Button
-									onClick={handleSaveVideoUrl}
-									disabled={
-										savingVideoUrl ||
-										(videoUrlInput.trim() !== "" &&
-											!isValidVideoUrl(videoUrlInput))
+							{selectedMatchForVideo &&
+								(() => {
+									// Determine what has changed
+									const originalMatch =
+										sessionData?.matchesByRound[
+											selectedMatchForVideo.round_number
+										]?.find(
+											(m) =>
+												m.id ===
+												selectedMatchForVideo.id
+										);
+
+									const scoresChanged =
+										selectedMatchForVideo.status ===
+											"completed" &&
+										(originalMatch?.team1_score !==
+											selectedMatchForVideo.team1_score ||
+											originalMatch?.team2_score !==
+												selectedMatchForVideo.team2_score);
+									const videoUrlChanged =
+										originalMatch?.video_url !==
+										videoUrlInput.trim();
+									const hasChanges =
+										scoresChanged || videoUrlChanged;
+									const hasValidScores =
+										selectedMatchForVideo.team1_score !==
+											null &&
+										selectedMatchForVideo.team2_score !==
+											null;
+
+									// Validate video URL if provided
+									const videoUrlValid =
+										videoUrlInput.trim() === "" ||
+										isValidVideoUrl(videoUrlInput);
+
+									// Determine button text
+									let buttonText = "Save";
+									if (isEditingMatch || savingVideoUrl) {
+										buttonText = scoresChanged
+											? "Recalculating..."
+											: "Saving...";
+									} else if (
+										scoresChanged &&
+										videoUrlChanged
+									) {
+										buttonText = "Save Result & Video";
+									} else if (scoresChanged) {
+										buttonText = "Save Result";
+									} else if (videoUrlChanged) {
+										buttonText = "Save Video";
 									}
-									className="flex-1"
-								>
-									{savingVideoUrl ? "Saving..." : "Save"}
-								</Button>
-							</Stack>
+
+									return (
+										<Stack
+											direction="row"
+											spacing={3}
+											className="w-full"
+										>
+											<Button
+												variant="outline"
+												onClick={handleCloseVideoDrawer}
+												disabled={
+													isEditingMatch ||
+													savingVideoUrl
+												}
+												className="flex-1"
+											>
+												Cancel
+											</Button>
+											<Button
+												onClick={handleSaveMatchDrawer}
+												disabled={
+													!hasChanges ||
+													isEditingMatch ||
+													savingVideoUrl ||
+													recalcStatus ===
+														"running" ||
+													(scoresChanged &&
+														!hasValidScores) ||
+													!videoUrlValid
+												}
+												className="flex-1"
+											>
+												{isEditingMatch ||
+												savingVideoUrl ? (
+													<>
+														<Icon
+															icon="lucide:loader-circle"
+															className="animate-spin mr-2"
+														/>
+														{buttonText}
+													</>
+												) : (
+													buttonText
+												)}
+											</Button>
+										</Stack>
+									);
+								})()}
 						</DrawerFooter>
 					</DrawerContent>
 				</Drawer>
+
+				{/* Edit Match Drawer */}
+				{selectedMatchForEdit && (
+					<EditMatchDrawer
+						open={isEditDrawerOpen}
+						onOpenChange={setIsEditDrawerOpen}
+						match={selectedMatchForEdit}
+						team1Players={
+							selectedMatchForEdit.match_type === "singles"
+								? ([
+										getPlayer(
+											selectedMatchForEdit.player_ids[0]
+										),
+								  ].filter(Boolean) as Player[])
+								: ([
+										getPlayer(
+											selectedMatchForEdit.player_ids[0]
+										),
+										getPlayer(
+											selectedMatchForEdit.player_ids[1]
+										),
+								  ].filter(Boolean) as Player[])
+						}
+						team2Players={
+							selectedMatchForEdit.match_type === "singles"
+								? ([
+										getPlayer(
+											selectedMatchForEdit.player_ids[1]
+										),
+								  ].filter(Boolean) as Player[])
+								: ([
+										getPlayer(
+											selectedMatchForEdit.player_ids[2]
+										),
+										getPlayer(
+											selectedMatchForEdit.player_ids[3]
+										),
+								  ].filter(Boolean) as Player[])
+						}
+						onSave={handleEditMatch}
+						isSaving={isEditingMatch}
+					/>
+				)}
 			</>
 		);
 	}
@@ -1463,8 +1884,34 @@ function SessionPageContent() {
 										return (
 											<Box
 												key={match.id}
-												className="bg-card rounded-[20px] p-5 border border-border/50 shadow-sm"
+												className="bg-card rounded-[20px] p-5 border border-border/50 shadow-sm relative"
 											>
+												{/* Edit button for completed matches */}
+												{isMatchCompleted && (
+													<Button
+														variant="ghost"
+														size="sm"
+														onClick={() => {
+															setSelectedMatchForEdit(
+																match
+															);
+															setIsEditDrawerOpen(
+																true
+															);
+														}}
+														disabled={
+															recalcStatus ===
+																"running" ||
+															isEditingMatch
+														}
+														className="absolute top-2 right-2 size-8 p-0"
+													>
+														<Icon
+															icon="lucide:edit"
+															className="size-4"
+														/>
+													</Button>
+												)}
 												<Stack
 													direction="row"
 													alignItems="center"
@@ -1556,22 +2003,22 @@ function SessionPageContent() {
 															className="text-xs font-bold mt-2"
 														>
 															<span className="text-chart-2">
-																+
-																{team1WinChange}
+																{formatEloDelta(
+																	team1WinChange,
+																	false
+																)}
 															</span>
 															<span className="text-chart-3">
-																{team1DrawChange >=
-																0
-																	? "+"
-																	: ""}
-																{
-																	team1DrawChange
-																}
+																{formatEloDelta(
+																	team1DrawChange,
+																	false
+																)}
 															</span>
 															<span className="text-chart-4">
-																{
-																	team1LoseChange
-																}
+																{formatEloDelta(
+																	team1LoseChange,
+																	false
+																)}
 															</span>
 														</Stack>
 													</Stack>
@@ -1721,22 +2168,22 @@ function SessionPageContent() {
 															className="text-xs font-bold mt-2"
 														>
 															<span className="text-chart-2">
-																+
-																{team2WinChange}
+																{formatEloDelta(
+																	team2WinChange,
+																	false
+																)}
 															</span>
 															<span className="text-chart-3">
-																{team2DrawChange >=
-																0
-																	? "+"
-																	: ""}
-																{
-																	team2DrawChange
-																}
+																{formatEloDelta(
+																	team2DrawChange,
+																	false
+																)}
 															</span>
 															<span className="text-chart-4">
-																{
-																	team2LoseChange
-																}
+																{formatEloDelta(
+																	team2LoseChange,
+																	false
+																)}
 															</span>
 														</Stack>
 													</Stack>
@@ -1829,6 +2276,49 @@ function SessionPageContent() {
 					</div>
 				</SidebarInset>
 			</SidebarProvider>
+
+			{/* Edit Match Drawer */}
+			{selectedMatchForEdit && (
+				<EditMatchDrawer
+					open={isEditDrawerOpen}
+					onOpenChange={setIsEditDrawerOpen}
+					match={selectedMatchForEdit}
+					team1Players={
+						selectedMatchForEdit.match_type === "singles"
+							? ([
+									getPlayer(
+										selectedMatchForEdit.player_ids[0]
+									),
+							  ].filter(Boolean) as Player[])
+							: ([
+									getPlayer(
+										selectedMatchForEdit.player_ids[0]
+									),
+									getPlayer(
+										selectedMatchForEdit.player_ids[1]
+									),
+							  ].filter(Boolean) as Player[])
+					}
+					team2Players={
+						selectedMatchForEdit.match_type === "singles"
+							? ([
+									getPlayer(
+										selectedMatchForEdit.player_ids[1]
+									),
+							  ].filter(Boolean) as Player[])
+							: ([
+									getPlayer(
+										selectedMatchForEdit.player_ids[2]
+									),
+									getPlayer(
+										selectedMatchForEdit.player_ids[3]
+									),
+							  ].filter(Boolean) as Player[])
+					}
+					onSave={handleEditMatch}
+					isSaving={isEditingMatch}
+				/>
+			)}
 		</>
 	);
 }
