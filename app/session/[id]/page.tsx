@@ -24,13 +24,14 @@ import {
 } from "@/components/ui/drawer";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
-import { calculateEloChange, averageElo } from "@/lib/elo";
+import { calculateEloChange } from "@/lib/elo";
 import { formatEloDelta } from "@/lib/elo/format";
 import { getUserRole } from "@/lib/auth/getUserRole";
 import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
 import { EditMatchDrawer } from "./_components/edit-match-drawer";
 import { toast } from "sonner";
+import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -55,6 +56,8 @@ type Match = {
 	team1_score?: number | null;
 	team2_score?: number | null;
 	video_url?: string | null;
+	team_1_id?: string | null;
+	team_2_id?: string | null;
 };
 
 type SessionData = {
@@ -95,6 +98,12 @@ function SessionPageContent() {
 	const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
 	const [isEditingMatch, setIsEditingMatch] = useState(false);
 	const [recalcStatus, setRecalcStatus] = useState<string | null>(null);
+	const [teamEloRatings, setTeamEloRatings] = useState<
+		Record<string, number>
+	>({});
+	const [playerPairToTeamId, setPlayerPairToTeamId] = useState<
+		Record<string, string>
+	>({});
 
 	// Reusable function to fetch players with updated Elo ratings
 	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
@@ -227,6 +236,122 @@ function SessionPageContent() {
 					session: sessionRecord,
 					players,
 					matchesByRound,
+				});
+
+				// Fetch team Elo ratings for doubles matches
+				// This is async, so we'll do it separately
+				const fetchTeamEloRatings = async () => {
+					const teamIds = new Set<string>();
+
+					// Collect team IDs from matches (if stored)
+					for (const match of matches || []) {
+						if (match.match_type === "doubles") {
+							if (match.team_1_id) {
+								teamIds.add(match.team_1_id);
+							}
+							if (match.team_2_id) {
+								teamIds.add(match.team_2_id);
+							}
+						}
+					}
+
+					// For matches without team IDs, get/create them
+					const pairToTeamIdMap: Record<string, string> = {};
+					for (const match of matches || []) {
+						if (
+							match.match_type === "doubles" &&
+							match.player_ids.length >= 4
+						) {
+							// Normalize player pairs for lookup
+							const normalizePair = (p1: string, p2: string) =>
+								p1 < p2 ? `${p1}:${p2}` : `${p2}:${p1}`;
+
+							const pair1Key = normalizePair(
+								match.player_ids[0],
+								match.player_ids[1]
+							);
+							const pair2Key = normalizePair(
+								match.player_ids[2],
+								match.player_ids[3]
+							);
+
+							let team1Id = match.team_1_id;
+							let team2Id = match.team_2_id;
+
+							if (!team1Id) {
+								try {
+									team1Id = await getOrCreateDoubleTeam(
+										match.player_ids[0],
+										match.player_ids[1]
+									);
+									pairToTeamIdMap[pair1Key] = team1Id;
+								} catch (error) {
+									console.error(
+										"Error getting team 1 ID:",
+										error
+									);
+								}
+							} else {
+								pairToTeamIdMap[pair1Key] = team1Id;
+							}
+
+							if (!team2Id) {
+								try {
+									team2Id = await getOrCreateDoubleTeam(
+										match.player_ids[2],
+										match.player_ids[3]
+									);
+									pairToTeamIdMap[pair2Key] = team2Id;
+								} catch (error) {
+									console.error(
+										"Error getting team 2 ID:",
+										error
+									);
+								}
+							} else {
+								pairToTeamIdMap[pair2Key] = team2Id;
+							}
+
+							if (team1Id) teamIds.add(team1Id);
+							if (team2Id) teamIds.add(team2Id);
+						}
+					}
+
+					// Store player pair to team ID mapping
+					setPlayerPairToTeamId(pairToTeamIdMap);
+
+					// Fetch team Elo ratings for all team IDs
+					if (teamIds.size > 0) {
+						const { data: teamRatings, error: teamRatingsError } =
+							await supabaseClient
+								.from("double_team_ratings")
+								.select("team_id, elo")
+								.in("team_id", Array.from(teamIds));
+
+						const teamEloMap: Record<string, number> = {};
+						if (!teamRatingsError && teamRatings) {
+							for (const rating of teamRatings) {
+								// Convert elo to number if it's a string (NUMERIC type)
+								const eloValue =
+									typeof rating.elo === "string"
+										? parseFloat(rating.elo)
+										: Number(rating.elo);
+								teamEloMap[rating.team_id] = eloValue;
+							}
+						}
+						// Set default 1500 for teams that don't have ratings yet
+						for (const teamId of teamIds) {
+							if (!teamEloMap[teamId]) {
+								teamEloMap[teamId] = 1500;
+							}
+						}
+						setTeamEloRatings(teamEloMap);
+					}
+				};
+
+				// Fetch team Elo ratings asynchronously
+				fetchTeamEloRatings().catch((error) => {
+					console.error("Error fetching team Elo ratings:", error);
 				});
 
 				// Initialize scores from completed matches
@@ -1808,20 +1933,64 @@ function SessionPageContent() {
 											.map((id) => getPlayer(id))
 											.filter(Boolean) as Player[];
 
-										const team1Elo = isSingles
-											? team1Players[0]?.elo || 1500
-											: averageElo(
-													team1Players.map(
-														(p) => p.elo
-													)
-											  );
-										const team2Elo = isSingles
-											? team2Players[0]?.elo || 1500
-											: averageElo(
-													team2Players.map(
-														(p) => p.elo
-													)
-											  );
+										// For singles: use player Elo
+										// For doubles: use team Elo from double_team_ratings
+										let team1Elo: number;
+										let team2Elo: number;
+
+										if (isSingles) {
+											team1Elo =
+												team1Players[0]?.elo || 1500;
+											team2Elo =
+												team2Players[0]?.elo || 1500;
+										} else {
+											// Doubles: get team IDs from match or lookup by player pair
+											const normalizePair = (
+												p1: string,
+												p2: string
+											) =>
+												p1 < p2
+													? `${p1}:${p2}`
+													: `${p2}:${p1}`;
+
+											let team1Id = match.team_1_id;
+											let team2Id = match.team_2_id;
+
+											// If team IDs not in match, try to find them from player pair mapping
+											if (
+												!team1Id &&
+												team1PlayerIds.length >= 2
+											) {
+												const pairKey = normalizePair(
+													team1PlayerIds[0],
+													team1PlayerIds[1]
+												);
+												team1Id =
+													playerPairToTeamId[pairKey];
+											}
+
+											if (
+												!team2Id &&
+												team2PlayerIds.length >= 2
+											) {
+												const pairKey = normalizePair(
+													team2PlayerIds[0],
+													team2PlayerIds[1]
+												);
+												team2Id =
+													playerPairToTeamId[pairKey];
+											}
+
+											// Get team Elo from state (fetched earlier) or default to 1500
+											team1Elo = team1Id
+												? teamEloRatings[team1Id] ??
+												  1500
+												: 1500;
+											team2Elo = team2Id
+												? teamEloRatings[team2Id] ??
+												  1500
+												: 1500;
+										}
 
 										// Get match counts for accurate K-factor calculation
 										// For singles: use player's match count
@@ -2018,7 +2187,7 @@ function SessionPageContent() {
 															<p className="text-xs text-muted-foreground font-medium">
 																{isSingles
 																	? `Elo ${team1Elo}`
-																	: `Avg. ${team1Elo}`}
+																	: `Elo ${team1Elo}`}
 															</p>
 														</Box>
 														<Stack
@@ -2183,7 +2352,7 @@ function SessionPageContent() {
 															<p className="text-xs text-muted-foreground font-medium">
 																{isSingles
 																	? `Elo ${team2Elo}`
-																	: `Avg. ${team2Elo}`}
+																	: `Elo ${team2Elo}`}
 															</p>
 														</Box>
 														<Stack
