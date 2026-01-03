@@ -878,6 +878,9 @@ export async function POST(
 			// Track which players/teams were actually replayed (for persistence scoping)
 			const replayedPlayerIds = new Set<string>();
 			const replayedTeamIds = new Set<string>();
+			// Track players who participated in replayed doubles matches
+			// (for doubles player persistence - they're derived, not directly replayed)
+			const playersInReplayedDoublesMatches = new Set<string>();
 
 			// Determine the type of the edited match
 			// CRITICAL: We only replay matches of the SAME TYPE as the edited match
@@ -1209,259 +1212,108 @@ export async function POST(
 					replayedTeamIds.add(team1Id);
 					replayedTeamIds.add(team2Id);
 
-					// Get or initialize team state from memory
+					// Track all players in this replayed doubles match
+					// CRITICAL: These players must have their doubles Elo persisted
+					// even though they're not in replayedPlayerIds (which is for singles)
+					for (const playerId of playerIds) {
+						playersInReplayedDoublesMatches.add(playerId);
+					}
+
+					// Initialize team state from scratch (session-scoped recomputation)
+					// CRITICAL: NEVER read team Elo from database during replay
+					// All teams start at 1500/0/0/0/0 for this session
+					// This ensures mathematical correctness and prevents double counting
 					if (!teamState.has(team1Id)) {
-						// Load team baseline from DB if exists, otherwise 1500
-						const { data: team1Rating } = await adminClient
-							.from("double_team_ratings")
-							.select(
-								"elo, wins, losses, draws, sets_won, sets_lost"
-							)
-							.eq("team_id", team1Id)
-							.maybeSingle();
-
-						const team1MatchesPlayed = team1Rating
-							? (team1Rating.wins ?? 0) +
-							  (team1Rating.losses ?? 0) +
-							  (team1Rating.draws ?? 0)
-							: 0;
-
 						teamState.set(team1Id, {
-							elo: team1Rating?.elo ?? 1500,
-							matches_played: team1MatchesPlayed,
-							wins: team1Rating?.wins ?? 0,
-							losses: team1Rating?.losses ?? 0,
-							draws: team1Rating?.draws ?? 0,
-							sets_won: team1Rating?.sets_won ?? 0,
-							sets_lost: team1Rating?.sets_lost ?? 0,
+							elo: 1500,
+							matches_played: 0,
+							wins: 0,
+							losses: 0,
+							draws: 0,
+							sets_won: 0,
+							sets_lost: 0,
 						});
+
+						console.log(
+							JSON.stringify({
+								tag: "[TEAM_INITIALIZED]",
+								session_id: sessionId,
+								team_id: team1Id,
+								source: "session_scoped_recomputation",
+								initial_state: {
+									elo: 1500,
+									matches_played: 0,
+									wins: 0,
+									losses: 0,
+									draws: 0,
+								},
+								message:
+									"Team initialized at 1500 for session-scoped recomputation",
+							})
+						);
 					}
 
 					if (!teamState.has(team2Id)) {
-						// Load team baseline from DB if exists, otherwise 1500
-						const { data: team2Rating } = await adminClient
-							.from("double_team_ratings")
-							.select(
-								"elo, wins, losses, draws, sets_won, sets_lost"
-							)
-							.eq("team_id", team2Id)
-							.maybeSingle();
-
-						const team2MatchesPlayed = team2Rating
-							? (team2Rating.wins ?? 0) +
-							  (team2Rating.losses ?? 0) +
-							  (team2Rating.draws ?? 0)
-							: 0;
-
 						teamState.set(team2Id, {
-							elo: team2Rating?.elo ?? 1500,
-							matches_played: team2MatchesPlayed,
-							wins: team2Rating?.wins ?? 0,
-							losses: team2Rating?.losses ?? 0,
-							draws: team2Rating?.draws ?? 0,
-							sets_won: team2Rating?.sets_won ?? 0,
-							sets_lost: team2Rating?.sets_lost ?? 0,
+							elo: 1500,
+							matches_played: 0,
+							wins: 0,
+							losses: 0,
+							draws: 0,
+							sets_won: 0,
+							sets_lost: 0,
 						});
+
+						console.log(
+							JSON.stringify({
+								tag: "[TEAM_INITIALIZED]",
+								session_id: sessionId,
+								team_id: team2Id,
+								source: "session_scoped_recomputation",
+								initial_state: {
+									elo: 1500,
+									matches_played: 0,
+									wins: 0,
+									losses: 0,
+									draws: 0,
+								},
+								message:
+									"Team initialized at 1500 for session-scoped recomputation",
+							})
+						);
 					}
 
-					// Initialize player doubles state for all 4 players if not already initialized
+					// Initialize player doubles state from scratch (session-scoped recomputation)
+					// CRITICAL: NEVER read player doubles Elo from database during replay
+					// Player doubles Elo is derived ONLY from replayed team Elo deltas
+					// All players start at 1500/0/0/0/0 for this session
 					for (const playerId of playerIds) {
 						if (!playerDoublesState.has(playerId)) {
-							// Load player doubles baseline from DB if exists, otherwise 1500
-							const { data: playerDoublesRating } =
-								await adminClient
-									.from("player_double_ratings")
-									.select(
-										"elo, matches_played, wins, losses, draws, sets_won, sets_lost"
-									)
-									.eq("player_id", playerId)
-									.maybeSingle();
-
-							// CRITICAL: Reset to baseline by reversing this session's doubles matches
-							// Get all doubles Elo history entries for this session
-							// For doubles, match_elo_history stores team deltas
-							// Each player gets the same delta as their team
-							const { data: sessionDoublesEloHistory } =
-								await adminClient
-									.from("match_elo_history")
-									.select(
-										"match_id, team1_id, team2_id, team1_elo_delta, team2_elo_delta"
-									)
-									.in("match_id", matchIdsToReplay)
-									.not("team1_id", "is", null);
-
-							// Count doubles matches this player played in this session
-							const doublesMatchesInSession = allMatches.filter(
-								(m: any) =>
-									m.match_type === "doubles" &&
-									(m.player_ids as string[]).includes(
-										playerId
-									)
-							);
-
-							let sessionDoublesEloDelta = 0;
-							let sessionDoublesMatchesPlayed = 0;
-							let sessionDoublesWins = 0;
-							let sessionDoublesLosses = 0;
-							let sessionDoublesDraws = 0;
-							let sessionDoublesSetsWon = 0;
-							let sessionDoublesSetsLost = 0;
-
-							// Reverse Elo deltas from this session's doubles matches
-							// For each doubles match, determine which team the player was on
-							// and use that team's delta
-							if (sessionDoublesEloHistory) {
-								for (const history of sessionDoublesEloHistory) {
-									// Find the match to see which players were on which team
-									const match = doublesMatchesInSession.find(
-										(m: any) => m.id === history.match_id
-									);
-									if (!match) continue;
-
-									const matchPlayerIds = (match as any)
-										.player_ids as string[];
-									if (!matchPlayerIds.includes(playerId))
-										continue;
-
-									// Determine which team the player was on
-									const playerIndex =
-										matchPlayerIds.indexOf(playerId);
-									const isTeam1 = playerIndex < 2;
-
-									// Get the team delta for this player's team
-									const teamDelta = isTeam1
-										? history.team1_elo_delta
-										: history.team2_elo_delta;
-
-									if (
-										teamDelta !== null &&
-										teamDelta !== undefined
-									) {
-										const deltaNum =
-											typeof teamDelta === "string"
-												? parseFloat(teamDelta)
-												: Number(teamDelta);
-										sessionDoublesEloDelta += deltaNum;
-									}
-								}
-							}
-
-							// Count wins/losses/draws from doubles matches in this session
-							for (const match of doublesMatchesInSession) {
-								const matchPlayerIds = (match as any)
-									.player_ids as string[];
-								const playerIndex =
-									matchPlayerIds.indexOf(playerId);
-								const isTeam1 = playerIndex < 2;
-								const team1Score = match.team1_score;
-								const team2Score = match.team2_score;
-
-								if (
-									team1Score !== null &&
-									team2Score !== null
-								) {
-									sessionDoublesMatchesPlayed += 1;
-									const playerWon =
-										(isTeam1 && team1Score > team2Score) ||
-										(!isTeam1 && team2Score > team1Score);
-									const playerLost =
-										(isTeam1 && team1Score < team2Score) ||
-										(!isTeam1 && team2Score < team1Score);
-									const isDraw = team1Score === team2Score;
-
-									if (playerWon) {
-										sessionDoublesWins += 1;
-										sessionDoublesSetsWon += 1;
-									} else if (playerLost) {
-										sessionDoublesLosses += 1;
-										sessionDoublesSetsLost += 1;
-									} else if (isDraw) {
-										sessionDoublesDraws += 1;
-									}
-								}
-							}
-
-							// Calculate baseline by reversing session changes
-							const currentDoublesElo = playerDoublesRating?.elo
-								? typeof playerDoublesRating.elo === "string"
-									? parseFloat(playerDoublesRating.elo)
-									: Number(playerDoublesRating.elo)
-								: 1500;
-
-							const baselineDoublesElo =
-								currentDoublesElo - sessionDoublesEloDelta;
-							const baselineDoublesMatchesPlayed = Math.max(
-								0,
-								(playerDoublesRating?.matches_played ?? 0) -
-									sessionDoublesMatchesPlayed
-							);
-							const baselineDoublesWins = Math.max(
-								0,
-								(playerDoublesRating?.wins ?? 0) -
-									sessionDoublesWins
-							);
-							const baselineDoublesLosses = Math.max(
-								0,
-								(playerDoublesRating?.losses ?? 0) -
-									sessionDoublesLosses
-							);
-							const baselineDoublesDraws = Math.max(
-								0,
-								(playerDoublesRating?.draws ?? 0) -
-									sessionDoublesDraws
-							);
-							const baselineDoublesSetsWon = Math.max(
-								0,
-								(playerDoublesRating?.sets_won ?? 0) -
-									sessionDoublesSetsWon
-							);
-							const baselineDoublesSetsLost = Math.max(
-								0,
-								(playerDoublesRating?.sets_lost ?? 0) -
-									sessionDoublesSetsLost
-							);
-
 							playerDoublesState.set(playerId, {
-								elo: baselineDoublesElo,
-								matches_played: baselineDoublesMatchesPlayed,
-								wins: baselineDoublesWins,
-								losses: baselineDoublesLosses,
-								draws: baselineDoublesDraws,
-								sets_won: baselineDoublesSetsWon,
-								sets_lost: baselineDoublesSetsLost,
+								elo: 1500,
+								matches_played: 0,
+								wins: 0,
+								losses: 0,
+								draws: 0,
+								sets_won: 0,
+								sets_lost: 0,
 							});
 
 							console.log(
 								JSON.stringify({
-									tag: "[PLAYER_DOUBLES_BASELINE]",
+									tag: "[PLAYER_DOUBLES_INITIALIZED]",
 									session_id: sessionId,
 									player_id: playerId,
-									baseline: {
-										elo: baselineDoublesElo,
-										matches_played:
-											baselineDoublesMatchesPlayed,
-										wins: baselineDoublesWins,
-										losses: baselineDoublesLosses,
-										draws: baselineDoublesDraws,
+									source: "session_scoped_recomputation",
+									initial_state: {
+										elo: 1500,
+										matches_played: 0,
+										wins: 0,
+										losses: 0,
+										draws: 0,
 									},
-									current: playerDoublesRating
-										? {
-												elo: currentDoublesElo,
-												matches_played:
-													playerDoublesRating.matches_played,
-												wins: playerDoublesRating.wins,
-												losses: playerDoublesRating.losses,
-												draws: playerDoublesRating.draws,
-										  }
-										: null,
-									session_changes_reversed: {
-										elo_delta: -sessionDoublesEloDelta,
-										matches_played:
-											-sessionDoublesMatchesPlayed,
-										wins: -sessionDoublesWins,
-										losses: -sessionDoublesLosses,
-										draws: -sessionDoublesDraws,
-									},
+									message:
+										"Player doubles initialized at 1500, will be updated from team deltas during replay",
 								})
 							);
 						}
@@ -2025,18 +1877,20 @@ export async function POST(
 			}
 
 			// Persist player double ratings
-			// CRITICAL: Only persist players that were actually replayed
+			// CRITICAL: Persist ALL players who participated in replayed doubles matches
+			// Player doubles Elo is derived from team deltas, so players are not in replayedPlayerIds
+			// Source of truth: playersInReplayedDoublesMatches (collected during replay)
 			// ONLY persist if at least one doubles match was replayed
 			if (replayedAnyDoublesMatches) {
 				for (const [playerId, state] of playerDoublesState.entries()) {
-					// Only persist if this player was actually replayed
-					if (!replayedPlayerIds.has(playerId)) {
+					// Persist if this player participated in any replayed doubles match
+					if (!playersInReplayedDoublesMatches.has(playerId)) {
 						console.log(
 							JSON.stringify({
 								tag: "[PERSISTENCE_SKIPPED]",
 								session_id: sessionId,
 								player_id: playerId,
-								reason: "Player was not in replayed doubles matches",
+								reason: "Player did not participate in any replayed doubles matches",
 							})
 						);
 						continue;
