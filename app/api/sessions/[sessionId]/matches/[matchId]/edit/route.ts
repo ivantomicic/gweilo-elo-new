@@ -700,112 +700,10 @@ export async function POST(
 				}
 
 				// Load baseline for each player in doubles matches
-				// Baseline selection order (same as singles):
-				// 1. Session N-1 snapshot (if exists)
-				// 2. Current session snapshot (if exists - created at session start)
-				// 3. Calculate from current rating by reversing this session's matches
-				// 4. Initial baseline (1500/0) - only for truly new players
+				// CRITICAL: Baseline must ALWAYS come from persisted player_double_ratings (or 1500 if none exist)
+				// Never derive from: singles Elo, session snapshots, calculated session-start values
 				for (const playerId of playersInDoublesMatches) {
-					// Step 1: Try to get snapshot from previous session
-					// Get current session's created_at
-					const { data: currentSession } = await adminClient
-						.from("sessions")
-						.select("created_at")
-						.eq("id", sessionId)
-						.single();
-
-					let previousSnapshot = null;
-					if (currentSession) {
-						// Find most recent completed session before current session
-						const { data: previousSessions } = await adminClient
-							.from("sessions")
-							.select("id")
-							.lt("created_at", currentSession.created_at)
-							.eq("status", "completed")
-							.order("created_at", { ascending: false })
-							.limit(1);
-
-						if (previousSessions && previousSessions.length > 0) {
-							const previousSessionId = previousSessions[0].id;
-							const { data: snapshot } = await adminClient
-								.from("session_rating_snapshots")
-								.select("elo, matches_played, wins, losses, draws, sets_won, sets_lost")
-								.eq("session_id", previousSessionId)
-								.eq("entity_type", "player_doubles")
-								.eq("entity_id", playerId)
-								.maybeSingle();
-
-							if (snapshot) {
-								previousSnapshot = {
-									elo: typeof snapshot.elo === "string" ? parseFloat(snapshot.elo) : Number(snapshot.elo),
-									matches_played: snapshot.matches_played,
-									wins: snapshot.wins,
-									losses: snapshot.losses,
-									draws: snapshot.draws,
-									sets_won: snapshot.sets_won,
-									sets_lost: snapshot.sets_lost,
-								};
-							}
-						}
-					}
-
-					if (previousSnapshot) {
-						playerDoublesBaselineState.set(playerId, previousSnapshot);
-						console.log(
-							JSON.stringify({
-								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
-								session_id: sessionId,
-								player_id: playerId,
-								source: "session_n_minus_1_snapshot",
-								baseline: previousSnapshot,
-							})
-						);
-						continue;
-					}
-
-					// Step 2: Check if there's a snapshot for THIS session
-					const { data: currentSessionSnapshot } = await adminClient
-						.from("session_rating_snapshots")
-						.select("elo, matches_played, wins, losses, draws, sets_won, sets_lost")
-						.eq("session_id", sessionId)
-						.eq("entity_type", "player_doubles")
-						.eq("entity_id", playerId)
-						.maybeSingle();
-
-					if (currentSessionSnapshot) {
-						const snapshotElo =
-							typeof currentSessionSnapshot.elo === "string"
-								? parseFloat(currentSessionSnapshot.elo)
-								: Number(currentSessionSnapshot.elo);
-
-						playerDoublesBaselineState.set(playerId, {
-							elo: snapshotElo,
-							matches_played: currentSessionSnapshot.matches_played,
-							wins: currentSessionSnapshot.wins,
-							losses: currentSessionSnapshot.losses,
-							draws: currentSessionSnapshot.draws,
-							sets_won: currentSessionSnapshot.sets_won,
-							sets_lost: currentSessionSnapshot.sets_lost,
-						});
-						console.log(
-							JSON.stringify({
-								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
-								session_id: sessionId,
-								player_id: playerId,
-								source: "session_start_snapshot",
-								baseline: {
-									elo: snapshotElo,
-									matches_played: currentSessionSnapshot.matches_played,
-									wins: currentSessionSnapshot.wins,
-									losses: currentSessionSnapshot.losses,
-									draws: currentSessionSnapshot.draws,
-								},
-							})
-						);
-						continue;
-					}
-
-					// Step 3: Calculate baseline by reversing this session's matches
+					// ALWAYS load from persisted player_double_ratings (authoritative source)
 					const { data: currentPlayerDoublesRating } = await adminClient
 						.from("player_double_ratings")
 						.select("elo, matches_played, wins, losses, draws, sets_won, sets_lost")
@@ -813,14 +711,21 @@ export async function POST(
 						.maybeSingle();
 
 					if (currentPlayerDoublesRating) {
-						// Get all doubles matches for this player in this session
+						// Get persisted state from player_double_ratings
+						const persistedElo =
+							typeof currentPlayerDoublesRating.elo === "string"
+								? parseFloat(currentPlayerDoublesRating.elo)
+								: Number(currentPlayerDoublesRating.elo);
+
+						// Count completed doubles matches for this player in this session
+						// to calculate baseline matches_played by subtracting session matches
 						const doublesMatchesForPlayer = allMatches.filter(
 							(m: any) =>
 								m.match_type === "doubles" &&
+								m.status === "completed" &&
 								((m as any).player_ids as string[]).includes(playerId)
 						);
 
-						let sessionEloDelta = 0;
 						let sessionMatchesPlayed = 0;
 						let sessionWins = 0;
 						let sessionLosses = 0;
@@ -828,16 +733,10 @@ export async function POST(
 						let sessionSetsWon = 0;
 						let sessionSetsLost = 0;
 
-						// Calculate baseline by reversing session changes
-						// Note: We can't use match_elo_history for player doubles because
-						// it only tracks singles matches. Instead, we'll calculate from match results.
-						// For now, we'll use a simplified approach: load from DB if exists, otherwise 1500
-						const currentElo =
-							typeof currentPlayerDoublesRating.elo === "string"
-								? parseFloat(currentPlayerDoublesRating.elo)
-								: Number(currentPlayerDoublesRating.elo);
-
 						// Count matches and wins/losses from session matches
+						// Also accumulate Elo deltas from match_elo_history to reverse them
+						// CRITICAL: Player doubles deltas equal team deltas (both players on same team get same delta)
+						let sessionPlayerDoublesEloDelta = 0;
 						for (const match of doublesMatchesForPlayer) {
 							const playerIds = (match as any).player_ids as string[];
 							const playerIndex = playerIds.indexOf(playerId);
@@ -864,14 +763,35 @@ export async function POST(
 								} else if (isDraw) {
 									sessionDraws += 1;
 								}
+
+								// Load team delta from match_elo_history to reverse player doubles Elo
+								// NOTE: We query BEFORE deletion (history still exists at this point)
+								const { data: matchHistory } = await adminClient
+									.from("match_elo_history")
+									.select("team1_elo_delta, team2_elo_delta")
+									.eq("match_id", match.id)
+									.maybeSingle();
+
+								if (matchHistory) {
+									const teamDelta = isTeam1
+										? matchHistory.team1_elo_delta
+										: matchHistory.team2_elo_delta;
+									if (teamDelta !== null && teamDelta !== undefined) {
+										const deltaNum =
+											typeof teamDelta === "string"
+												? parseFloat(teamDelta)
+												: Number(teamDelta);
+										// Reverse: subtract the delta that was applied to get baseline
+										sessionPlayerDoublesEloDelta -= deltaNum;
+									}
+								}
 							}
 						}
 
-						// For player doubles, we can't easily reverse deltas without replaying
-						// So we'll use a conservative approach: start from current DB state
-						// and let the replay recalculate correctly
-						// This means baseline = current state (will be adjusted during replay if needed)
-						const baselineElo = currentElo;
+						// Calculate baseline by reversing session effects from persisted state
+						// CRITICAL: Persisted Elo already includes this session's matches, so we must reverse them
+						// Player doubles deltas equal team deltas (both players on same team get same delta)
+						const baselineElo = persistedElo + sessionPlayerDoublesEloDelta;
 						const baselineMatchesPlayed = Math.max(
 							0,
 							(currentPlayerDoublesRating.matches_played ?? 0) -
@@ -912,20 +832,28 @@ export async function POST(
 								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
 								session_id: sessionId,
 								player_id: playerId,
-								source: "session_start_rating_calculated",
+								source: "player_double_ratings_persisted",
 								baseline: {
 									elo: baselineElo,
-									matches_played: Math.max(0, baselineMatchesPlayed),
+									matches_played: baselineMatchesPlayed,
 									wins: baselineWins,
 									losses: baselineLosses,
 									draws: baselineDraws,
 								},
+								persisted_state: {
+									elo: persistedElo,
+									matches_played: currentPlayerDoublesRating.matches_played ?? 0,
+									wins: currentPlayerDoublesRating.wins ?? 0,
+									losses: currentPlayerDoublesRating.losses ?? 0,
+									draws: currentPlayerDoublesRating.draws ?? 0,
+								},
+								session_matches_subtracted: sessionMatchesPlayed,
+								session_elo_delta_reversed: sessionPlayerDoublesEloDelta,
+								baseline_elo_calculation: `${persistedElo} + ${sessionPlayerDoublesEloDelta} = ${baselineElo}`,
 							})
 						);
-						continue;
-					}
-
-					// Step 4: Player doesn't exist - truly new player
+					} else {
+						// Player doesn't exist in player_double_ratings - use initial baseline
 					playerDoublesBaselineState.set(playerId, {
 						elo: 1500,
 						matches_played: 0,
@@ -935,21 +863,22 @@ export async function POST(
 						sets_won: 0,
 						sets_lost: 0,
 					});
-					console.log(
-						JSON.stringify({
-							tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
-							session_id: sessionId,
-							player_id: playerId,
-							source: "initial_baseline",
-							baseline: {
-								elo: 1500,
-								matches_played: 0,
-								wins: 0,
-								losses: 0,
-								draws: 0,
-							},
-						})
-					);
+						console.log(
+							JSON.stringify({
+								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
+								session_id: sessionId,
+								player_id: playerId,
+								source: "initial_baseline_1500",
+								baseline: {
+									elo: 1500,
+									matches_played: 0,
+									wins: 0,
+									losses: 0,
+									draws: 0,
+								},
+							})
+						);
+					}
 				}
 			}
 
@@ -1431,6 +1360,10 @@ export async function POST(
 					// Note: We're using session-level snapshots, not per-match snapshots
 					// Per-match snapshots (elo_snapshots) are optional and can be created for debugging
 
+					// Track replayed players for persistence scoping
+					replayedPlayerIds.add(playerIds[0]);
+					replayedPlayerIds.add(playerIds[1]);
+
 					// Store history entry
 					eloHistoryEntries.push({
 						match_id: match.id,
@@ -1786,21 +1719,25 @@ export async function POST(
 						playerIds[3]
 					)!;
 
-					// Calculate team averages from player doubles Elo
+					// Calculate team averages from player doubles Elo (from current replay state)
+					// CRITICAL: Both teams must use values from the same replay-state snapshot
 					const team1PlayerAverageElo =
 						(player1DoublesState.elo + player2DoublesState.elo) / 2;
 					const team2PlayerAverageElo =
 						(player3DoublesState.elo + player4DoublesState.elo) / 2;
 
 					// Calculate player doubles match counts for K-factor
+					// CRITICAL: K-factor must be based on matches_played BEFORE this match
+					// matches_played hasn't been incremented yet for this match, so current value is correct
+					const player1MatchesPlayedBefore = player1DoublesState.matches_played;
+					const player2MatchesPlayedBefore = player2DoublesState.matches_played;
+					const player3MatchesPlayedBefore = player3DoublesState.matches_played;
+					const player4MatchesPlayedBefore = player4DoublesState.matches_played;
+
 					const team1PlayerAverageMatchCount =
-						(player1DoublesState.matches_played +
-							player2DoublesState.matches_played) /
-						2;
+						(player1MatchesPlayedBefore + player2MatchesPlayedBefore) / 2;
 					const team2PlayerAverageMatchCount =
-						(player3DoublesState.matches_played +
-							player4DoublesState.matches_played) /
-						2;
+						(player3MatchesPlayedBefore + player4MatchesPlayedBefore) / 2;
 
 					// Calculate player doubles delta using player-average expected score
 					const playerDoublesTeam1Delta = calculateEloDelta(
@@ -1815,6 +1752,21 @@ export async function POST(
 						team2Result,
 						team2PlayerAverageMatchCount
 					);
+
+					// Validation: Sum of deltas must equal 0 (team1Delta + team2Delta = 0)
+					const deltaSum = playerDoublesTeam1Delta + playerDoublesTeam2Delta;
+					if (Math.abs(deltaSum) > 0.01) {
+						console.error(
+							JSON.stringify({
+								tag: "[ERROR]",
+								message: "Player doubles delta sum != 0 (asymmetric calculation bug)",
+								match_id: match.id,
+								team1_delta: playerDoublesTeam1Delta,
+								team2_delta: playerDoublesTeam2Delta,
+								delta_sum: deltaSum,
+							})
+						);
+					}
 
 					// Log player doubles calculation for diagnostics
 					console.log(
@@ -1989,6 +1941,72 @@ export async function POST(
 				}
 			}
 
+			// Validation: Ensure replayed matches result in non-empty entity sets
+			const replayedMatchCount = replayedMatchIds.size;
+			if (replayedMatchCount > 0) {
+				if (editedMatchType === "singles") {
+					// For singles matches, we must have replayed player IDs
+					if (replayedPlayerIds.size === 0) {
+						console.error(
+							JSON.stringify({
+								tag: "[ERROR]",
+								session_id: sessionId,
+								message:
+									"BUG DETECTED: Matches were replayed but no player IDs were tracked",
+								replayed_match_count: replayedMatchCount,
+								replayed_match_ids: Array.from(replayedMatchIds),
+								replayed_player_ids: Array.from(replayedPlayerIds),
+								edited_match_type: editedMatchType,
+							})
+						);
+						throw new Error(
+							"Replay tracking bug: singles matches replayed but no player IDs collected"
+						);
+					}
+				} else if (editedMatchType === "doubles") {
+					// For doubles matches, we must have replayed team IDs and player IDs in doubles matches
+					if (
+						replayedTeamIds.size === 0 ||
+						playersInReplayedDoublesMatches.size === 0
+					) {
+						console.error(
+							JSON.stringify({
+								tag: "[ERROR]",
+								session_id: sessionId,
+								message:
+									"BUG DETECTED: Doubles matches were replayed but no team/player IDs were tracked",
+								replayed_match_count: replayedMatchCount,
+								replayed_match_ids: Array.from(replayedMatchIds),
+								replayed_team_ids: Array.from(replayedTeamIds),
+								players_in_replayed_doubles_matches: Array.from(
+									playersInReplayedDoublesMatches
+								),
+								edited_match_type: editedMatchType,
+							})
+						);
+						throw new Error(
+							"Replay tracking bug: doubles matches replayed but no team/player IDs collected"
+						);
+					}
+				}
+
+				// Log successful tracking
+				console.log(
+					JSON.stringify({
+						tag: "[REPLAY_TRACKING_VALIDATION]",
+						session_id: sessionId,
+						edited_match_type: editedMatchType,
+						replayed_match_count: replayedMatchCount,
+						replayed_player_ids_count: replayedPlayerIds.size,
+						replayed_team_ids_count: replayedTeamIds.size,
+						players_in_replayed_doubles_matches_count:
+							playersInReplayedDoublesMatches.size,
+						message:
+							"Validation passed: replayed matches have corresponding tracked entities",
+					})
+				);
+			}
+
 			// Step 7: Persist final state to player_ratings, double_team_ratings, and player_double_ratings
 			// CRITICAL: Only persist entities that were actually replayed
 			// If editing doubles, only persist doubles entities (teams, player_doubles)
@@ -2000,8 +2018,12 @@ export async function POST(
 					tag: "[PERSISTENCE_SCOPE]",
 					session_id: sessionId,
 					edited_match_type: editedMatchType,
+					replayed_match_count: replayedMatchIds.size,
 					replayed_player_ids: Array.from(replayedPlayerIds),
 					replayed_team_ids: Array.from(replayedTeamIds),
+					players_in_replayed_doubles_matches: Array.from(
+						playersInReplayedDoublesMatches
+					),
 					message:
 						"Only persisting entities that were actually replayed",
 				})

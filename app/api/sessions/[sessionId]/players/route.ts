@@ -66,9 +66,9 @@ export async function GET(
 
 		// Fetch players with ratings using the reusable helper
 		// Use admin client to access auth.users and ratings tables
-		// For now, we only need singles Elo (doubles Elo can be added later if needed)
+		// Include doubles Elo for display in live session doubles matches
 		const adminClient = createAdminClient();
-		const playersWithRatings = await fetchPlayersWithRatings(adminClient, playerIds, false);
+		const playersWithRatings = await fetchPlayersWithRatings(adminClient, playerIds, true);
 
 		// Fetch match counts for accurate K-factor calculation
 		const { data: singlesRatings, error: ratingsError } = await adminClient
@@ -104,6 +104,7 @@ export async function GET(
 				name: playerData?.display_name || "User",
 				avatar: playerData?.avatar || null,
 				elo: playerData?.singles_elo ?? 1500, // Default to 1500 if no rating exists
+				doublesElo: playerData?.doubles_elo ?? 1500, // Player doubles Elo (partner-independent skill)
 				matchCount, // For accurate K-factor calculation in UI previews
 			};
 		});

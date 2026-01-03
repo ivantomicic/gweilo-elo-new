@@ -43,6 +43,7 @@ type Player = {
 	name: string;
 	avatar: string | null;
 	elo: number;
+	doublesElo?: number; // Player doubles Elo (partner-independent skill)
 	matchCount?: number; // For accurate K-factor calculation
 };
 
@@ -2041,6 +2042,19 @@ function SessionPageContent() {
 													team2Players[1]?.name || ""
 											  }`.trim();
 
+										// Calculate player doubles Elo values for doubles matches
+										const team1Player1DoublesElo = !isSingles ? (team1Players[0]?.doublesElo ?? 1500) : 0;
+										const team1Player2DoublesElo = !isSingles ? (team1Players[1]?.doublesElo ?? 1500) : 0;
+										const team1PlayerAverageDoublesElo = !isSingles 
+											? (team1Player1DoublesElo + team1Player2DoublesElo) / 2 
+											: 0;
+										
+										const team2Player1DoublesElo = !isSingles ? (team2Players[0]?.doublesElo ?? 1500) : 0;
+										const team2Player2DoublesElo = !isSingles ? (team2Players[1]?.doublesElo ?? 1500) : 0;
+										const team2PlayerAverageDoublesElo = !isSingles 
+											? (team2Player1DoublesElo + team2Player2DoublesElo) / 2 
+											: 0;
+
 										return (
 											<Box
 												key={match.id}
@@ -2152,8 +2166,22 @@ function SessionPageContent() {
 															<p className="text-xs text-muted-foreground font-medium">
 																{isSingles
 																	? `Elo ${team1Elo}`
-																	: `Elo ${team1Elo}`}
+																	: `Team Elo ${team1Elo}`}
 															</p>
+															{!isSingles && (
+																<Box className="mt-1.5 pt-1.5 border-t border-border/30">
+																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
+																		Player doubles Elo
+																	</p>
+																	<p className="text-[10px] text-muted-foreground/80 leading-tight">
+																		{team1Players[0]?.name?.split(" ")[0] || "P1"}: {team1Player1DoublesElo.toFixed(1)}
+																		<br />
+																		{team1Players[1]?.name?.split(" ")[0] || "P2"}: {team1Player2DoublesElo.toFixed(1)}
+																		<br />
+																		<span className="font-semibold">Avg: {team1PlayerAverageDoublesElo.toFixed(1)}</span>
+																	</p>
+																</Box>
+															)}
 														</Box>
 														<Stack
 															direction="row"
@@ -2317,8 +2345,22 @@ function SessionPageContent() {
 															<p className="text-xs text-muted-foreground font-medium">
 																{isSingles
 																	? `Elo ${team2Elo}`
-																	: `Elo ${team2Elo}`}
+																	: `Team Elo ${team2Elo}`}
 															</p>
+															{!isSingles && (
+																<Box className="mt-1.5 pt-1.5 border-t border-border/30">
+																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
+																		Player doubles Elo
+																	</p>
+																	<p className="text-[10px] text-muted-foreground/80 leading-tight">
+																		{team2Players[0]?.name?.split(" ")[0] || "P1"}: {team2Player1DoublesElo.toFixed(1)}
+																		<br />
+																		{team2Players[1]?.name?.split(" ")[0] || "P2"}: {team2Player2DoublesElo.toFixed(1)}
+																		<br />
+																		<span className="font-semibold">Avg: {team2PlayerAverageDoublesElo.toFixed(1)}</span>
+																	</p>
+																</Box>
+															)}
 														</Box>
 														<Stack
 															direction="row"
