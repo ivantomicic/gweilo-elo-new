@@ -85,7 +85,6 @@ function SessionPageContent() {
 	const [currentRound, setCurrentRound] = useState(1);
 	const [scores, setScores] = useState<Scores>({});
 	const [submitting, setSubmitting] = useState(false);
-	const [showConfirmModal, setShowConfirmModal] = useState(false);
 	const [showForceCloseModal, setShowForceCloseModal] = useState(false);
 	const [forceClosing, setForceClosing] = useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
@@ -622,7 +621,6 @@ function SessionPageContent() {
 			);
 		} finally {
 			setSubmitting(false);
-			setShowConfirmModal(false);
 		}
 	}, [
 		sessionData,
@@ -634,16 +632,19 @@ function SessionPageContent() {
 		fetchPlayers,
 	]);
 
-	const handleNextClick = useCallback(() => {
+	const handleNextClick = useCallback(async () => {
+		if (submitting) return; // Prevent duplicate clicks during submission
+
 		if (isCurrentRoundCompleted) {
 			goToNextRound();
 		} else if (canSubmitRound) {
-			setShowConfirmModal(true);
+			// Auto-submit the round, then advance (no confirmation modal)
+			await handleSubmitRound();
 		} else {
 			// Can't submit - just go to next if allowed
 			goToNextRound();
 		}
-	}, [isCurrentRoundCompleted, canSubmitRound, goToNextRound]);
+	}, [isCurrentRoundCompleted, canSubmitRound, goToNextRound, submitting, handleSubmitRound]);
 
 	// Force close session handler
 	const handleForceClose = useCallback(async () => {
@@ -1777,42 +1778,6 @@ function SessionPageContent() {
 
 	return (
 		<>
-			{/* Confirmation Modal */}
-			{showConfirmModal && (
-				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
-						<Stack direction="column" spacing={4}>
-							<Box>
-								<h2 className="text-2xl font-bold font-heading">
-									Confirm Submission
-								</h2>
-								<p className="text-muted-foreground mt-2 text-sm">
-									Submit results for Round {currentRound}?
-									This will update Elo ratings and cannot be
-									undone.
-								</p>
-							</Box>
-							<Stack direction="row" spacing={3}>
-								<Button
-									variant="outline"
-									onClick={() => setShowConfirmModal(false)}
-									disabled={submitting}
-									className="flex-1"
-								>
-									Cancel
-								</Button>
-								<Button
-									onClick={handleSubmitRound}
-									disabled={submitting}
-									className="flex-1"
-								>
-									{submitting ? "Submitting..." : "Confirm"}
-								</Button>
-							</Stack>
-						</Stack>
-					</Box>
-				</Box>
-			)}
 			{/* Force Close Confirmation Modal */}
 			{showForceCloseModal && (
 				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -2442,12 +2407,13 @@ function SessionPageContent() {
 											variant="outline"
 											onClick={handleNextClick}
 											disabled={
-												currentRound ===
+												submitting ||
+												(currentRound ===
 													roundNumbers[
 														roundNumbers.length - 1
 													] &&
 												!canSubmitRound &&
-												!isCurrentRoundCompleted
+												!isCurrentRoundCompleted)
 											}
 											className="flex-1 py-4 px-6 rounded-full font-bold text-base h-auto"
 										>
@@ -2457,11 +2423,23 @@ function SessionPageContent() {
 												justifyContent="center"
 												spacing={2}
 											>
-												<span>Next</span>
-												<Icon
-													icon="solar:arrow-right-linear"
-													className="size-5"
-												/>
+												{submitting ? (
+													<>
+														<Icon
+															icon="lucide:loader-circle"
+															className="size-5 animate-spin"
+														/>
+														<span>Submitting...</span>
+													</>
+												) : (
+													<>
+														<span>Next</span>
+														<Icon
+															icon="solar:arrow-right-linear"
+															className="size-5"
+														/>
+													</>
+												)}
 											</Stack>
 										</Button>
 									</Stack>

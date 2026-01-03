@@ -109,6 +109,21 @@ export async function updateSinglesRatings(
 /**
  * Update ratings for a doubles match
  *
+ * This function maintains TWO INDEPENDENT Elo systems:
+ *
+ * 1. double_team_ratings: Tracks team-specific performance (how well a pair plays together)
+ *    - Expected score: team Elo vs team Elo (from double_team_ratings table)
+ *    - K-factor: Based on team match count
+ *    - Delta: Calculated from team vs team expected score
+ *
+ * 2. player_double_ratings: Tracks partner-independent player skill (how good a player is in doubles)
+ *    - Expected score: average(player1_doubles_elo, player2_doubles_elo) vs average(player3_doubles_elo, player4_doubles_elo)
+ *    - K-factor: Based on average of the two players' match counts
+ *    - Delta: Calculated from player-average expected score
+ *    - Both players on the same team receive the same delta
+ *
+ * These systems are completely independent - changes to one do not affect the other.
+ *
  * @param team1PlayerIds - [player1, player2] for team 1
  * @param team2PlayerIds - [player3, player4] for team 2
  * @param team1Score - Team 1's score
@@ -145,6 +160,14 @@ export async function updateDoublesRatings(
 		team2PlayerIds[0],
 		team2PlayerIds[1]
 	);
+
+	// ============================================================================
+	// SYSTEM 1: double_team_ratings (TEAM-ONLY PERFORMANCE)
+	// ============================================================================
+	// This system tracks how well a specific pair of players performs together.
+	// It is completely independent of player_double_ratings.
+	// Expected score uses team Elo vs team Elo.
+	// ============================================================================
 
 	// Get current team ratings with match counts
 	// Use .maybeSingle() to avoid error when rating doesn't exist yet (first match for team)
@@ -196,10 +219,10 @@ export async function updateDoublesRatings(
 		(team2Rating?.losses ?? 0) +
 		(team2Rating?.draws ?? 0);
 
-	// Log expectation input source (CRITICAL: must be from double_team_ratings.elo)
+	// Log expectation input source (CRITICAL: team ratings use double_team_ratings.elo)
 	console.log(
 		JSON.stringify({
-			tag: "[DOUBLES_EXPECTATION_INPUT]",
+			tag: "[DOUBLES_TEAM_EXPECTATION_INPUT]",
 			team1_id: team1Id,
 			team1_elo_source: team1Rating
 				? "double_team_ratings.elo"
@@ -215,7 +238,8 @@ export async function updateDoublesRatings(
 		})
 	);
 
-	// Calculate Elo changes for teams using dynamic K-factor (based on team match count)
+	// Calculate Elo changes for teams using team Elo vs team Elo
+	// This is independent of player_double_ratings
 	// Decimal precision is preserved - no rounding
 	const team1Delta = calculateEloDelta(
 		team1Elo,
@@ -230,10 +254,124 @@ export async function updateDoublesRatings(
 		team2MatchCount
 	);
 
-	// Log Elo calculation for diagnostics
+	// ============================================================================
+	// SYSTEM 2: player_double_ratings (PARTNER-INDEPENDENT PLAYER SKILL)
+	// ============================================================================
+	// This system tracks how good each player is in doubles, regardless of partner.
+	// It is completely independent of double_team_ratings.
+	// Expected score uses average of player doubles Elo vs average of opponent player doubles Elo.
+	// ============================================================================
+
+	// Read player_double_ratings for all 4 players
+	const { data: player1DoublesRating } = await supabase
+		.from("player_double_ratings")
+		.select("elo, wins, losses, draws")
+		.eq("player_id", team1PlayerIds[0])
+		.maybeSingle();
+
+	const { data: player2DoublesRating } = await supabase
+		.from("player_double_ratings")
+		.select("elo, wins, losses, draws")
+		.eq("player_id", team1PlayerIds[1])
+		.maybeSingle();
+
+	const { data: player3DoublesRating } = await supabase
+		.from("player_double_ratings")
+		.select("elo, wins, losses, draws")
+		.eq("player_id", team2PlayerIds[0])
+		.maybeSingle();
+
+	const { data: player4DoublesRating } = await supabase
+		.from("player_double_ratings")
+		.select("elo, wins, losses, draws")
+		.eq("player_id", team2PlayerIds[1])
+		.maybeSingle();
+
+	// Get player doubles Elo values (default to 1500 if no rating exists)
+	const player1DoublesElo = player1DoublesRating?.elo ?? 1500;
+	const player2DoublesElo = player2DoublesRating?.elo ?? 1500;
+	const player3DoublesElo = player3DoublesRating?.elo ?? 1500;
+	const player4DoublesElo = player4DoublesRating?.elo ?? 1500;
+
+	// Calculate team averages from player doubles Elo
+	// This is used for expected score calculation (NOT team Elo)
+	const team1PlayerAverageElo = (player1DoublesElo + player2DoublesElo) / 2;
+	const team2PlayerAverageElo = (player3DoublesElo + player4DoublesElo) / 2;
+
+	// Get player doubles match counts for K-factor calculation
+	// Each player uses their own match count for K-factor
+	const player1DoublesMatchCount =
+		(player1DoublesRating?.wins ?? 0) +
+		(player1DoublesRating?.losses ?? 0) +
+		(player1DoublesRating?.draws ?? 0);
+	const player2DoublesMatchCount =
+		(player2DoublesRating?.wins ?? 0) +
+		(player2DoublesRating?.losses ?? 0) +
+		(player2DoublesRating?.draws ?? 0);
+	const player3DoublesMatchCount =
+		(player3DoublesRating?.wins ?? 0) +
+		(player3DoublesRating?.losses ?? 0) +
+		(player3DoublesRating?.draws ?? 0);
+	const player4DoublesMatchCount =
+		(player4DoublesRating?.wins ?? 0) +
+		(player4DoublesRating?.losses ?? 0) +
+		(player4DoublesRating?.draws ?? 0);
+
+	// Log player doubles expectation input source
 	console.log(
 		JSON.stringify({
-			tag: "[DOUBLES_ELO_CALCULATED]",
+			tag: "[DOUBLES_PLAYER_EXPECTATION_INPUT]",
+			team1_players: [team1PlayerIds[0], team1PlayerIds[1]],
+			team1_player_elos: [player1DoublesElo, player2DoublesElo],
+			team1_average_elo: team1PlayerAverageElo,
+			team2_players: [team2PlayerIds[0], team2PlayerIds[1]],
+			team2_player_elos: [player3DoublesElo, player4DoublesElo],
+			team2_average_elo: team2PlayerAverageElo,
+			source: "player_double_ratings.elo (averaged)",
+		})
+	);
+
+	// Calculate player doubles Elo deltas using player-average expected score
+	// Both players on the same team receive the same delta
+	// K-factor is calculated using the average of the two players' match counts
+	// (This ensures consistent delta application while respecting individual player experience)
+	const team1PlayerAverageMatchCount =
+		(player1DoublesMatchCount + player2DoublesMatchCount) / 2;
+	const team2PlayerAverageMatchCount =
+		(player3DoublesMatchCount + player4DoublesMatchCount) / 2;
+
+	const playerDoublesTeam1Delta = calculateEloDelta(
+		team1PlayerAverageElo,
+		team2PlayerAverageElo,
+		team1Result as MatchResult,
+		team1PlayerAverageMatchCount
+	);
+	const playerDoublesTeam2Delta = calculateEloDelta(
+		team2PlayerAverageElo,
+		team1PlayerAverageElo,
+		team2Result as MatchResult,
+		team2PlayerAverageMatchCount
+	);
+
+	// Log player doubles Elo calculation
+	console.log(
+		JSON.stringify({
+			tag: "[DOUBLES_PLAYER_ELO_CALCULATED]",
+			team1_players: [team1PlayerIds[0], team1PlayerIds[1]],
+			team1_average_elo_before: team1PlayerAverageElo,
+			team1_average_match_count: team1PlayerAverageMatchCount,
+			team1_delta: playerDoublesTeam1Delta,
+			team2_players: [team2PlayerIds[0], team2PlayerIds[1]],
+			team2_average_elo_before: team2PlayerAverageElo,
+			team2_average_match_count: team2PlayerAverageMatchCount,
+			team2_delta: playerDoublesTeam2Delta,
+		})
+	);
+
+	// Log team Elo calculation for diagnostics
+	console.log(
+		JSON.stringify({
+			tag: "[DOUBLES_TEAM_ELO_CALCULATED]",
 			team1_id: team1Id,
 			team1_elo_before: team1Elo,
 			team1_match_count: team1MatchCount,
@@ -244,10 +382,6 @@ export async function updateDoublesRatings(
 			team2_delta: team2Delta,
 		})
 	);
-
-	// Note: For player_double_ratings updates, we use the team delta (as per requirement:
-	// "Both players on the same team receive the same Elo delta")
-	// The K-factor calculation for teams uses team match count, which is correct.
 
 	// Determine sets won/lost
 	const team1SetsWon = team1Score > team2Score ? 1 : 0;
@@ -351,17 +485,16 @@ export async function updateDoublesRatings(
 	);
 
 	// Update individual player double ratings
-	// NOTE: Each player gets their own delta based on their match count (for accurate K-factor)
-	// However, since we're using team delta, we need to recalculate for each player
-	// For simplicity and correctness, we use the team delta for all players on the same team
-	// (This matches the requirement: "Both players on the same team receive the same Elo delta")
+	// CRITICAL: This uses player-average expected score delta, NOT team delta
+	// Both players on the same team receive the same delta (calculated from player averages)
+	// This ensures player_double_ratings represents partner-independent skill
 
-	// Team 1 players - use team delta (both get same delta)
+	// Team 1 players - use player doubles delta (both get same delta)
 	const { error: team1Player1Error } = await supabase.rpc(
 		"upsert_player_double_rating",
 		{
 			p_player_id: team1PlayerIds[0],
-			p_elo_delta: team1Delta,
+			p_elo_delta: playerDoublesTeam1Delta,
 			p_wins: team1Result === "win" ? 1 : 0,
 			p_losses: team1Result === "loss" ? 1 : 0,
 			p_draws: team1Result === "draw" ? 1 : 0,
@@ -384,7 +517,7 @@ export async function updateDoublesRatings(
 		"upsert_player_double_rating",
 		{
 			p_player_id: team1PlayerIds[1],
-			p_elo_delta: team1Delta,
+			p_elo_delta: playerDoublesTeam1Delta,
 			p_wins: team1Result === "win" ? 1 : 0,
 			p_losses: team1Result === "loss" ? 1 : 0,
 			p_draws: team1Result === "draw" ? 1 : 0,
@@ -403,12 +536,12 @@ export async function updateDoublesRatings(
 		);
 	}
 
-	// Team 2 players - use team delta (both get same delta)
+	// Team 2 players - use player doubles delta (both get same delta)
 	const { error: team2Player1Error } = await supabase.rpc(
 		"upsert_player_double_rating",
 		{
 			p_player_id: team2PlayerIds[0],
-			p_elo_delta: team2Delta,
+			p_elo_delta: playerDoublesTeam2Delta,
 			p_wins: team2Result === "win" ? 1 : 0,
 			p_losses: team2Result === "loss" ? 1 : 0,
 			p_draws: team2Result === "draw" ? 1 : 0,
@@ -431,7 +564,7 @@ export async function updateDoublesRatings(
 		"upsert_player_double_rating",
 		{
 			p_player_id: team2PlayerIds[1],
-			p_elo_delta: team2Delta,
+			p_elo_delta: playerDoublesTeam2Delta,
 			p_wins: team2Result === "win" ? 1 : 0,
 			p_losses: team2Result === "loss" ? 1 : 0,
 			p_draws: team2Result === "draw" ? 1 : 0,
