@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase/client";
+import { ArrowUp, ArrowDown } from "lucide-react";
 
 type PlayerStats = {
 	player_id: string;
@@ -32,6 +33,7 @@ type PlayerStats = {
 	losses: number;
 	draws: number;
 	elo: number;
+	rank_movement?: number;
 };
 
 type TeamStats = {
@@ -51,6 +53,7 @@ type TeamStats = {
 	losses: number;
 	draws: number;
 	elo: number;
+	rank_movement?: number;
 };
 
 type StatisticsData = {
@@ -129,6 +132,13 @@ function StatisticsPageContent() {
 				}
 
 				const data = await response.json();
+				// Debug: Log received data (remove in production)
+				console.log("[STATS] Received data:", {
+					singles: data.singles?.map((p: any) => ({
+						name: p.display_name,
+						movement: p.rank_movement,
+					})),
+				});
 				setStatistics({
 					singles: data.singles || [],
 					doublesPlayers: data.doublesPlayers || [],
@@ -286,6 +296,16 @@ function StatisticsPageContent() {
 																<span className="font-medium">
 																	{player.display_name}
 																</span>
+																{player.rank_movement !== undefined &&
+																	player.rank_movement !== 0 && (
+																		<>
+																			{player.rank_movement > 0 ? (
+																				<ArrowUp className="size-4 text-green-500" />
+																			) : (
+																				<ArrowDown className="size-4 text-red-500" />
+																			)}
+																		</>
+																	)}
 															</div>
 														</TableCell>
 														<TableCell className="text-right font-medium">
@@ -351,6 +371,16 @@ function StatisticsPageContent() {
 																<span className="font-medium">
 																	{player.display_name}
 																</span>
+																{player.rank_movement !== undefined &&
+																	player.rank_movement !== 0 && (
+																		<>
+																			{player.rank_movement > 0 ? (
+																				<ArrowUp className="size-4 text-green-500" />
+																			) : (
+																				<ArrowDown className="size-4 text-red-500" />
+																			)}
+																		</>
+																	)}
 															</div>
 														</TableCell>
 														<TableCell className="text-right font-medium">
@@ -437,6 +467,16 @@ function StatisticsPageContent() {
 																		{team.player2.display_name}
 																	</span>
 																</div>
+																{team.rank_movement !== undefined &&
+																	team.rank_movement !== 0 && (
+																		<>
+																			{team.rank_movement > 0 ? (
+																				<ArrowUp className="size-4 text-green-500" />
+																			) : (
+																				<ArrowDown className="size-4 text-red-500" />
+																			)}
+																		</>
+																	)}
 															</div>
 														</TableCell>
 														<TableCell className="text-right font-medium">

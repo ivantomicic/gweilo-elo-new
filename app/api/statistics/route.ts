@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+	getLatestTwoCompletedSessions,
+	computeRankMovements,
+} from "@/lib/elo/rank-movements";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -180,9 +184,35 @@ export async function GET(request: NextRequest) {
 				losses: rating.losses ?? 0,
 				draws: rating.draws ?? 0,
 				elo: rating.elo ?? 1500,
+				rank_movement: 0, // Will be updated below
 			};
 		});
 		singlesStats.sort((a, b) => b.elo - a.elo);
+
+		// ========== COMPUTE RANK MOVEMENTS FOR SINGLES ==========
+		// Note: We use latestSessionId because snapshots are stored at session start,
+		// which represents the state AFTER the previous session completes
+		const [latestSessionId, previousSessionId] =
+			await getLatestTwoCompletedSessions();
+		const singlesPlayerIds = singlesStats.map((s) => s.player_id);
+		const singlesRankMovements = await computeRankMovements(
+			singlesPlayerIds,
+			latestSessionId, // Use latest session snapshot (state after previous session)
+			"player_singles",
+			previousSessionId // Pass for fallback if snapshots don't exist
+		);
+		// Add rank_movement to each stat
+		singlesStats.forEach((stat) => {
+			const movement = singlesRankMovements.get(stat.player_id) ?? 0;
+			stat.rank_movement = movement;
+		});
+		
+		// Debug: Log rank movements (remove in production)
+		console.log("[STATS] Rank movements computed:", {
+			latestSessionId,
+			previousSessionId,
+			movements: Array.from(singlesRankMovements.entries()),
+		});
 
 		// ========== BUILD DOUBLES PLAYER STATISTICS ==========
 		const doublesPlayerStats = (doublesPlayerRatings || []).map((rating) => {
@@ -196,9 +226,24 @@ export async function GET(request: NextRequest) {
 				losses: rating.losses ?? 0,
 				draws: rating.draws ?? 0,
 				elo: rating.elo ?? 1500,
+				rank_movement: 0, // Will be updated below
 			};
 		});
 		doublesPlayerStats.sort((a, b) => b.elo - a.elo);
+
+		// ========== COMPUTE RANK MOVEMENTS FOR DOUBLES PLAYERS ==========
+		const doublesPlayerIds = doublesPlayerStats.map((s) => s.player_id);
+		const doublesPlayerRankMovements = await computeRankMovements(
+			doublesPlayerIds,
+			latestSessionId, // Use latest session snapshot (state after previous session)
+			"player_doubles",
+			previousSessionId // Pass for fallback if snapshots don't exist
+		);
+		// Add rank_movement to each stat
+		doublesPlayerStats.forEach((stat) => {
+			const movement = doublesPlayerRankMovements.get(stat.player_id) ?? 0;
+			stat.rank_movement = movement;
+		});
 
 		// ========== BUILD DOUBLES TEAM STATISTICS ==========
 		const doublesTeamStats = (doublesTeamRatings || [])
@@ -226,6 +271,7 @@ export async function GET(request: NextRequest) {
 					losses: rating.losses ?? 0,
 					draws: rating.draws ?? 0,
 					elo: rating.elo ?? 1500,
+					rank_movement: 0, // Will be updated below
 				};
 			})
 			.filter((team) => team !== null) as Array<{
@@ -239,6 +285,20 @@ export async function GET(request: NextRequest) {
 			elo: number;
 		}>;
 		doublesTeamStats.sort((a, b) => b.elo - a.elo);
+
+		// ========== COMPUTE RANK MOVEMENTS FOR DOUBLES TEAMS ==========
+		const doublesTeamIds = doublesTeamStats.map((s) => s.team_id);
+		const doublesTeamRankMovements = await computeRankMovements(
+			doublesTeamIds,
+			latestSessionId, // Use latest session snapshot (state after previous session)
+			"double_team",
+			previousSessionId // Pass for fallback if snapshots don't exist
+		);
+		// Add rank_movement to each stat
+		doublesTeamStats.forEach((stat) => {
+			const movement = doublesTeamRankMovements.get(stat.team_id) ?? 0;
+			stat.rank_movement = movement;
+		});
 
 		return NextResponse.json({
 			singles: singlesStats,
