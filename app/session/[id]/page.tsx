@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -30,6 +30,11 @@ import { getUserRole } from "@/lib/auth/getUserRole";
 import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
 import { EditMatchDrawer } from "./_components/edit-match-drawer";
+import {
+	SessionSummaryTable,
+	type SessionViewAvailability,
+} from "./_components/session-summary-table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 
@@ -78,7 +83,34 @@ type Scores = Record<string, { team1: number | null; team2: number | null }>;
 function SessionPageContent() {
 	const params = useParams();
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const sessionId = params.id as string;
+
+	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
+	// This controls both the table and the match list
+	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
+	const urlView = searchParams.get("view");
+	let activeView: "singles" | "doubles_player" | "doubles_team" = "singles";
+	if (urlView === "doubles-player") {
+		activeView = "doubles_player";
+	} else if (urlView === "doubles-team") {
+		activeView = "doubles_team";
+	}
+
+	const handleViewChange = useCallback(
+		(view: "singles" | "doubles_player" | "doubles_team") => {
+			const params = new URLSearchParams(searchParams.toString());
+			if (view === "singles") {
+				params.delete("view");
+			} else if (view === "doubles_player") {
+				params.set("view", "doubles-player");
+			} else if (view === "doubles_team") {
+				params.set("view", "doubles-team");
+			}
+			router.push(`?${params.toString()}`, { scroll: false });
+		},
+		[searchParams, router]
+	);
 
 	const [sessionData, setSessionData] = useState<SessionData | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -109,6 +141,11 @@ function SessionPageContent() {
 	const [playerPairToTeamId, setPlayerPairToTeamId] = useState<
 		Record<string, string>
 	>({});
+	const [viewAvailability, setViewAvailability] = useState<{
+		hasSingles: boolean;
+		hasDoublesPlayer: boolean;
+		hasDoublesTeam: boolean;
+	} | null>(null);
 
 	// Reusable function to fetch players with updated Elo ratings
 	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
@@ -1150,13 +1187,95 @@ function SessionPageContent() {
 										)}
 									</Box>
 
+									{/* Page-level Navigation Tabs */}
+									{viewAvailability && (
+										<Box className="mb-6 pb-4 border-b border-border/50">
+											<Tabs
+												value={
+													activeView === "doubles_player"
+														? "doubles-player"
+														: activeView === "doubles_team"
+														? "doubles-team"
+														: "singles"
+												}
+												onValueChange={(value) => {
+													if (value === "singles") {
+														handleViewChange("singles");
+													} else if (value === "doubles-player") {
+														handleViewChange("doubles_player");
+													} else if (value === "doubles-team") {
+														handleViewChange("doubles_team");
+													}
+												}}
+											>
+												<TabsList className="h-auto p-0 bg-transparent gap-6 border-none">
+													{viewAvailability.hasSingles && (
+														<TabsTrigger
+															value="singles"
+															className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
+														>
+															Singles
+														</TabsTrigger>
+													)}
+													{viewAvailability.hasDoublesPlayer && (
+														<TabsTrigger
+															value="doubles-player"
+															className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
+														>
+															Doubles – Player
+														</TabsTrigger>
+													)}
+													{viewAvailability.hasDoublesTeam && (
+														<TabsTrigger
+															value="doubles-team"
+															className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
+														>
+															Doubles – Team
+														</TabsTrigger>
+													)}
+												</TabsList>
+											</Tabs>
+										</Box>
+									)}
+
+									{/* Session Summary Table */}
+									<Box className="mb-6">
+										<h2 className="text-xl font-bold font-heading mb-4">
+											Session Summary
+										</h2>
+										<SessionSummaryTable
+											sessionId={sessionId}
+											activeView={activeView}
+											onViewChange={handleViewChange}
+											onViewAvailabilityChange={setViewAvailability}
+										/>
+									</Box>
+
 									{/* Rounds */}
 									<Stack direction="column" spacing={6}>
 										{roundNumbersList.map((roundNumber) => {
-											const roundMatches =
+											const allRoundMatches =
 												sessionData.matchesByRound[
 													roundNumber
 												] || [];
+
+											// Filter matches based on active view
+											const roundMatches = allRoundMatches.filter(
+												(match) => {
+													if (activeView === "singles") {
+														return match.match_type === "singles";
+													} else {
+														// doubles_player or doubles_team: show doubles matches
+														return match.match_type === "doubles";
+													}
+												}
+											);
+
+											// Don't render round if no matches after filtering
+											if (roundMatches.length === 0) {
+												return null;
+											}
+
 											return (
 												<Box key={roundNumber}>
 													<h2 className="text-xl font-bold font-heading mb-4">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -19,6 +20,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase/client";
 
 type PlayerStats = {
@@ -58,6 +60,33 @@ type StatisticsData = {
 };
 
 function StatisticsPageContent() {
+	const searchParams = useSearchParams();
+	const router = useRouter();
+	
+	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
+	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
+	const urlView = searchParams.get("view");
+	let activeView: "singles" | "doubles_player" | "doubles_team" = "singles";
+	if (urlView === "doubles-player") {
+		activeView = "doubles_player";
+	} else if (urlView === "doubles-team") {
+		activeView = "doubles_team";
+	}
+
+	const handleViewChange = (
+		view: "singles" | "doubles_player" | "doubles_team"
+	) => {
+		const params = new URLSearchParams(searchParams.toString());
+		if (view === "singles") {
+			params.delete("view");
+		} else if (view === "doubles_player") {
+			params.set("view", "doubles-player");
+		} else if (view === "doubles_team") {
+			params.set("view", "doubles-team");
+		}
+		router.push(`?${params.toString()}`, { scroll: false });
+	};
+
 	const [statistics, setStatistics] = useState<StatisticsData>({
 		singles: [],
 		doublesPlayers: [],
@@ -173,14 +202,55 @@ function StatisticsPageContent() {
 								</h1>
 							</Box>
 
-							{/* Statistics Tables */}
-							<Stack direction="column" spacing={8}>
-								{/* 1. Singles Statistics */}
-								<Box>
-									<h2 className="text-xl font-bold font-heading mb-4">
-										Singles
-									</h2>
-								{statistics.singles.length === 0 ? (
+							{/* Page-level Navigation Tabs */}
+							<Box className="mb-6 pb-4 border-b border-border/50">
+								<Tabs
+									value={
+										activeView === "doubles_player"
+											? "doubles-player"
+											: activeView === "doubles_team"
+											? "doubles-team"
+											: "singles"
+									}
+									onValueChange={(value) => {
+										if (value === "singles") {
+											handleViewChange("singles");
+										} else if (value === "doubles-player") {
+											handleViewChange("doubles_player");
+										} else if (value === "doubles-team") {
+											handleViewChange("doubles_team");
+										}
+									}}
+								>
+									<TabsList className="h-auto p-0 bg-transparent gap-6 border-none">
+										<TabsTrigger
+											value="singles"
+											className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
+										>
+											Singles
+										</TabsTrigger>
+										<TabsTrigger
+											value="doubles-player"
+											className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
+										>
+											Doubles – Player
+										</TabsTrigger>
+										<TabsTrigger
+											value="doubles-team"
+											className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
+										>
+											Doubles – Team
+										</TabsTrigger>
+									</TabsList>
+								</Tabs>
+							</Box>
+
+							{/* Statistics Table (Single view) */}
+							<Box>
+								{/* Singles Statistics */}
+								{activeView === "singles" && (
+									<>
+										{statistics.singles.length === 0 ? (
 									<p className="text-muted-foreground">
 										No singles statistics found.
 									</p>
@@ -238,15 +308,14 @@ function StatisticsPageContent() {
 											</TableBody>
 										</Table>
 									</Box>
+										)}
+									</>
 								)}
-								</Box>
 
-								{/* 2. Doubles - Players Statistics */}
-								<Box>
-									<h2 className="text-xl font-bold font-heading mb-4">
-										Doubles – Players
-									</h2>
-								{statistics.doublesPlayers.length === 0 ? (
+								{/* Doubles - Players Statistics */}
+								{activeView === "doubles_player" && (
+									<>
+										{statistics.doublesPlayers.length === 0 ? (
 									<p className="text-muted-foreground">
 										No doubles player statistics found.
 									</p>
@@ -304,15 +373,14 @@ function StatisticsPageContent() {
 											</TableBody>
 										</Table>
 									</Box>
+										)}
+									</>
 								)}
-								</Box>
 
-								{/* 3. Doubles - Teams Statistics */}
-								<Box>
-									<h2 className="text-xl font-bold font-heading mb-4">
-										Doubles – Teams
-									</h2>
-								{statistics.doublesTeams.length === 0 ? (
+								{/* Doubles - Teams Statistics */}
+								{activeView === "doubles_team" && (
+									<>
+										{statistics.doublesTeams.length === 0 ? (
 									<p className="text-muted-foreground">
 										No doubles team statistics found.
 									</p>
@@ -391,9 +459,10 @@ function StatisticsPageContent() {
 											</TableBody>
 										</Table>
 									</Box>
+										)}
+									</>
 								)}
-								</Box>
-							</Stack>
+							</Box>
 						</div>
 					</div>
 				</div>
