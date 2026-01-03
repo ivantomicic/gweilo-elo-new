@@ -57,9 +57,7 @@ function VideosPageContent() {
 
 				if (!response.ok) {
 					const errorData = await response.json().catch(() => ({}));
-					throw new Error(
-						errorData.error || "Failed to load videos"
-					);
+					throw new Error(errorData.error || "Failed to load videos");
 				}
 
 				const data = await response.json();
@@ -67,9 +65,7 @@ function VideosPageContent() {
 			} catch (err) {
 				console.error("Error fetching videos:", err);
 				setError(
-					err instanceof Error
-						? err.message
-						: "Failed to load videos"
+					err instanceof Error ? err.message : "Failed to load videos"
 				);
 			} finally {
 				setLoading(false);
@@ -129,16 +125,6 @@ function VideosPageContent() {
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Header */}
-							<Box>
-								<h1 className="text-3xl font-bold font-heading tracking-tight">
-									Video
-								</h1>
-								<p className="text-sm text-muted-foreground mt-1">
-									Match highlights and replays
-								</p>
-							</Box>
-
 							{/* Videos Grid */}
 							{videos.length === 0 ? (
 								<Box>
@@ -150,7 +136,9 @@ function VideosPageContent() {
 								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
 									{videos.map((video) => {
 										const thumbnailUrl =
-											getVideoThumbnailUrl(video.videoUrl);
+											getVideoThumbnailUrl(
+												video.videoUrl
+											);
 
 										const sessionDate = new Date(
 											video.sessionDate
@@ -208,8 +196,10 @@ function VideosPageContent() {
 													</Box>
 
 													{/* Score Overlay */}
-													{video.team1Score !== null &&
-													video.team2Score !== null ? (
+													{video.team1Score !==
+														null &&
+													video.team2Score !==
+														null ? (
 														<Box className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/80 backdrop-blur-sm px-4 py-2 rounded-lg">
 															<Stack
 																direction="row"
@@ -261,13 +251,17 @@ function VideosPageContent() {
 														{/* Players */}
 														<Box>
 															<p className="text-base font-bold leading-tight">
-																{video.team1Name}
+																{
+																	video.team1Name
+																}
 															</p>
 															<p className="text-xs text-muted-foreground font-medium mt-0.5">
 																vs
 															</p>
 															<p className="text-base font-bold leading-tight mt-0.5">
-																{video.team2Name}
+																{
+																	video.team2Name
+																}
 															</p>
 														</Box>
 
@@ -278,7 +272,9 @@ function VideosPageContent() {
 															spacing={2}
 															className="text-xs text-muted-foreground"
 														>
-															<span>{formattedDate}</span>
+															<span>
+																{formattedDate}
+															</span>
 															<span>•</span>
 															<span>
 																Round{" "}
@@ -309,4 +305,3 @@ export default function VideosPage() {
 		</AuthGuard>
 	);
 }
-

@@ -183,6 +183,8 @@ export async function GET(request: NextRequest) {
 				wins: rating.wins ?? 0,
 				losses: rating.losses ?? 0,
 				draws: rating.draws ?? 0,
+				sets_won: rating.sets_won ?? 0,
+				sets_lost: rating.sets_lost ?? 0,
 				elo: rating.elo ?? 1500,
 				rank_movement: 0, // Will be updated below
 			};
@@ -225,6 +227,8 @@ export async function GET(request: NextRequest) {
 				wins: rating.wins ?? 0,
 				losses: rating.losses ?? 0,
 				draws: rating.draws ?? 0,
+				sets_won: rating.sets_won ?? 0,
+				sets_lost: rating.sets_lost ?? 0,
 				elo: rating.elo ?? 1500,
 				rank_movement: 0, // Will be updated below
 			};
@@ -270,6 +274,8 @@ export async function GET(request: NextRequest) {
 					wins: rating.wins ?? 0,
 					losses: rating.losses ?? 0,
 					draws: rating.draws ?? 0,
+					sets_won: rating.sets_won ?? 0,
+					sets_lost: rating.sets_lost ?? 0,
 					elo: rating.elo ?? 1500,
 					rank_movement: 0, // Will be updated below
 				};
@@ -282,6 +288,8 @@ export async function GET(request: NextRequest) {
 			wins: number;
 			losses: number;
 			draws: number;
+			sets_won: number;
+			sets_lost: number;
 			elo: number;
 		}>;
 		doublesTeamStats.sort((a, b) => b.elo - a.elo);

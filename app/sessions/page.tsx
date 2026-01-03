@@ -33,9 +33,9 @@ function SessionsPageContent() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [isAdmin, setIsAdmin] = useState(false);
-	const [deletableSessions, setDeletableSessions] = useState<
-		Set<string>
-	>(new Set());
+	const [deletableSessions, setDeletableSessions] = useState<Set<string>>(
+		new Set()
+	);
 	const [showDeleteModal, setShowDeleteModal] = useState(false);
 	const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
 	const [deleteConfirmationChecked, setDeleteConfirmationChecked] =
@@ -156,7 +156,8 @@ function SessionsPageContent() {
 					console.error("Error fetching sessions:", sessionsError);
 					setError(
 						`Failed to load sessions: ${
-							sessionsError.message || JSON.stringify(sessionsError)
+							sessionsError.message ||
+							JSON.stringify(sessionsError)
 						}`
 					);
 					return;
@@ -251,7 +252,9 @@ function SessionsPageContent() {
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Box>
-									<p className="text-muted-foreground">Loading sessions...</p>
+									<p className="text-muted-foreground">
+										Loading sessions...
+									</p>
 								</Box>
 							</div>
 						</div>
@@ -290,13 +293,6 @@ function SessionsPageContent() {
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								{/* Header */}
-								<Box>
-									<h1 className="text-3xl font-bold font-heading tracking-tight">
-										Sessions
-									</h1>
-								</Box>
-
 								{/* Sessions List */}
 								{sessions.length === 0 ? (
 									<Box>
@@ -309,7 +305,11 @@ function SessionsPageContent() {
 										{sessions.map((session) => (
 											<Box
 												key={session.id}
-												onClick={() => router.push(`/session/${session.id}`)}
+												onClick={() =>
+													router.push(
+														`/session/${session.id}`
+													)
+												}
 												className="bg-card rounded-[16px] p-4 border border-border/50 hover:border-border cursor-pointer transition-colors active:scale-[0.99]"
 											>
 												<Stack
@@ -324,11 +324,19 @@ function SessionsPageContent() {
 														className="flex-1 min-w-0"
 													>
 														<p className="text-base font-semibold truncate">
-															{formatSessionDate(session.created_at)}
+															{formatSessionDate(
+																session.created_at
+															)}
 														</p>
 														<p className="text-sm text-muted-foreground">
-															{session.player_count} player
-															{session.player_count !== 1 ? "s" : ""}
+															{
+																session.player_count
+															}{" "}
+															player
+															{session.player_count !==
+															1
+																? "s"
+																: ""}
 														</p>
 													</Stack>
 													<Stack
@@ -340,24 +348,34 @@ function SessionsPageContent() {
 															className={`
 																px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap
 																${
-																	session.status === "active"
+																	session.status ===
+																	"active"
 																		? "bg-chart-2/10 text-chart-2 border border-chart-2/20"
 																		: "bg-muted text-muted-foreground border border-border"
 																}
 															`}
 														>
-															{session.status === "active"
+															{session.status ===
+															"active"
 																? "Active"
 																: "Completed"}
 														</Box>
 														{isAdmin &&
-															session.status === "completed" &&
-															deletableSessions.has(session.id) && (
+															session.status ===
+																"completed" &&
+															deletableSessions.has(
+																session.id
+															) && (
 																<Button
 																	variant="destructive"
 																	size="sm"
-																	onClick={(e) =>
-																		handleDeleteClick(e, session.id)
+																	onClick={(
+																		e
+																	) =>
+																		handleDeleteClick(
+																			e,
+																			session.id
+																		)
 																	}
 																	className="text-xs"
 																>
@@ -385,9 +403,9 @@ function SessionsPageContent() {
 									Delete Session
 								</h2>
 								<p className="text-muted-foreground mt-2 text-sm">
-									This will permanently delete this session and
-									rebuild all Elo ratings from scratch. This action
-									cannot be undone.
+									This will permanently delete this session
+									and rebuild all Elo ratings from scratch.
+									This action cannot be undone.
 								</p>
 							</Box>
 							<Box>
@@ -396,7 +414,9 @@ function SessionsPageContent() {
 										type="checkbox"
 										checked={deleteConfirmationChecked}
 										onChange={(e) =>
-											setDeleteConfirmationChecked(e.target.checked)
+											setDeleteConfirmationChecked(
+												e.target.checked
+											)
 										}
 										disabled={deleting}
 										className="mt-1 size-4 rounded border-border"
@@ -408,7 +428,9 @@ function SessionsPageContent() {
 							</Box>
 							{error && (
 								<Box>
-									<p className="text-sm text-destructive">{error}</p>
+									<p className="text-sm text-destructive">
+										{error}
+									</p>
 								</Box>
 							)}
 							<Stack direction="row" spacing={3}>
@@ -428,10 +450,14 @@ function SessionsPageContent() {
 								<Button
 									variant="destructive"
 									onClick={handleDeleteSession}
-									disabled={deleting || !deleteConfirmationChecked}
+									disabled={
+										deleting || !deleteConfirmationChecked
+									}
 									className="flex-1"
 								>
-									{deleting ? "Deleting..." : "Delete Session"}
+									{deleting
+										? "Deleting..."
+										: "Delete Session"}
 								</Button>
 							</Stack>
 						</Stack>
@@ -440,7 +466,7 @@ function SessionsPageContent() {
 			)}
 		</>
 	);
-	}
+}
 
 export default function SessionsPage() {
 	return (
@@ -449,4 +475,3 @@ export default function SessionsPage() {
 		</AuthGuard>
 	);
 }
-

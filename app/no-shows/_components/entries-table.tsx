@@ -10,6 +10,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Box } from "@/components/ui/box";
 import { UserNameCard } from "@/components/ui/user-name-card";
 import { Pagination } from "@/components/ui/pagination";
 import { t } from "@/lib/i18n";
@@ -139,7 +140,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 	return (
 		<div className="space-y-4">
 			{/* Table */}
-			<div className="relative overflow-hidden rounded-lg border min-h-[400px]">
+			<Box className="relative rounded-lg border border-border/50 overflow-hidden bg-card min-h-[400px]">
 				{/* Loading overlay */}
 				{loading && !initialLoad && (
 					<div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
@@ -149,7 +150,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 					</div>
 				)}
 				<Table>
-					<TableHeader className="bg-muted sticky top-0 z-10">
+					<TableHeader className="bg-muted/30">
 						<TableRow>
 							<TableHead>{t.ispale.table.player}</TableHead>
 							<TableHead>{t.ispale.table.date}</TableHead>
@@ -206,7 +207,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 						)}
 					</TableBody>
 				</Table>
-			</div>
+			</Box>
 
 			{/* Pagination */}
 			{totalPages > 0 && (

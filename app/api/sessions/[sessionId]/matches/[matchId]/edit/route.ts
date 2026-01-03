@@ -1316,13 +1316,11 @@ export async function POST(
 						player2State.draws += 1;
 					}
 
-					if (score1 > score2) {
-						player1State.sets_won += 1;
-						player2State.sets_lost += 1;
-					} else if (score1 < score2) {
-						player1State.sets_lost += 1;
-						player2State.sets_won += 1;
-					}
+					// Match scores represent sets, so we use the actual score values
+					player1State.sets_won += score1;
+					player1State.sets_lost += score2;
+					player2State.sets_won += score2;
+					player2State.sets_lost += score1;
 
 					const player1EloAfter = player1State.elo;
 					const player2EloAfter = player2State.elo;
@@ -1686,13 +1684,11 @@ export async function POST(
 						team2State.draws += 1;
 					}
 
-					if (score1 > score2) {
-						team1State.sets_won += 1;
-						team2State.sets_lost += 1;
-					} else if (score1 < score2) {
-						team1State.sets_lost += 1;
-						team2State.sets_won += 1;
-					}
+					// Match scores represent sets, so we use the actual score values
+					team1State.sets_won += score1;
+					team1State.sets_lost += score2;
+					team2State.sets_won += score2;
+					team2State.sets_lost += score1;
 
 					const team1EloAfter = team1State.elo;
 					const team2EloAfter = team2State.elo;
@@ -1810,13 +1806,12 @@ export async function POST(
 						player1DoublesState.draws += 1;
 						player2DoublesState.draws += 1;
 					}
-					if (score1 > score2) {
-						player1DoublesState.sets_won += 1;
-						player2DoublesState.sets_won += 1;
-					} else if (score1 < score2) {
-						player1DoublesState.sets_lost += 1;
-						player2DoublesState.sets_lost += 1;
-					}
+					// Match scores represent sets, so we use the actual score values
+					// Team 1 players both get team 1's sets
+					player1DoublesState.sets_won += score1;
+					player1DoublesState.sets_lost += score2;
+					player2DoublesState.sets_won += score1;
+					player2DoublesState.sets_lost += score2;
 
 					// Team 2 players
 					player3DoublesState.elo += playerDoublesTeam2Delta;
@@ -1833,13 +1828,12 @@ export async function POST(
 						player3DoublesState.draws += 1;
 						player4DoublesState.draws += 1;
 					}
-					if (score2 > score1) {
-						player3DoublesState.sets_won += 1;
-						player4DoublesState.sets_won += 1;
-					} else if (score2 < score1) {
-						player3DoublesState.sets_lost += 1;
-						player4DoublesState.sets_lost += 1;
-					}
+					// Match scores represent sets, so we use the actual score values
+					// Team 2 players both get team 2's sets
+					player3DoublesState.sets_won += score2;
+					player3DoublesState.sets_lost += score1;
+					player4DoublesState.sets_won += score2;
+					player4DoublesState.sets_lost += score1;
 
 					// 4️⃣ PER-MATCH REPLAY - After update (doubles)
 					console.log(

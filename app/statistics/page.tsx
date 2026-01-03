@@ -32,6 +32,8 @@ type PlayerStats = {
 	wins: number;
 	losses: number;
 	draws: number;
+	sets_won: number;
+	sets_lost: number;
 	elo: number;
 	rank_movement?: number;
 };
@@ -52,6 +54,8 @@ type TeamStats = {
 	wins: number;
 	losses: number;
 	draws: number;
+	sets_won: number;
+	sets_lost: number;
 	elo: number;
 	rank_movement?: number;
 };
@@ -65,7 +69,7 @@ type StatisticsData = {
 function StatisticsPageContent() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
-	
+
 	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
 	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
 	const urlView = searchParams.get("view");
@@ -126,7 +130,9 @@ function StatisticsPageContent() {
 						setError("Unauthorized");
 					} else {
 						const errorData = await response.json();
-						setError(errorData.error || "Failed to load statistics");
+						setError(
+							errorData.error || "Failed to load statistics"
+						);
 					}
 					return;
 				}
@@ -205,13 +211,6 @@ function StatisticsPageContent() {
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Header */}
-							<Box>
-								<h1 className="text-3xl font-bold font-heading tracking-tight">
-									Statistics
-								</h1>
-							</Box>
-
 							{/* Page-level Navigation Tabs */}
 							<Box className="mb-6 pb-4 border-b border-border/50">
 								<Tabs
@@ -255,253 +254,310 @@ function StatisticsPageContent() {
 								</Tabs>
 							</Box>
 
-							{/* Statistics Table (Single view) */}
+							{/* Statistics Table */}
 							<Box>
-								{/* Singles Statistics */}
-								{activeView === "singles" && (
-									<>
-										{statistics.singles.length === 0 ? (
-									<p className="text-muted-foreground">
-										No singles statistics found.
-									</p>
-								) : (
-									<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
-										<Table>
-											<TableHeader className="bg-muted/30">
-												<TableRow>
-													<TableHead>Player</TableHead>
-													<TableHead className="text-right">Matches</TableHead>
-													<TableHead className="text-right">Wins</TableHead>
-													<TableHead className="text-right">Losses</TableHead>
-													<TableHead className="text-right">Draws</TableHead>
-													<TableHead className="text-right">Elo</TableHead>
-												</TableRow>
-											</TableHeader>
-											<TableBody>
-												{statistics.singles.map((player) => (
-													<TableRow key={player.player_id}>
-														<TableCell>
-															<div className="flex items-center gap-3">
-																<Avatar className="size-10 border-2 border-border">
-																	<AvatarImage
-																		src={player.avatar || undefined}
-																		alt={player.display_name}
-																	/>
-																	<AvatarFallback>
-																		{player.display_name
-																			.charAt(0)
-																			.toUpperCase()}
-																	</AvatarFallback>
-																</Avatar>
-																<span className="font-medium">
-																	{player.display_name}
-																</span>
-																{player.rank_movement !== undefined &&
-																	player.rank_movement !== 0 && (
-																		<>
-																			{player.rank_movement > 0 ? (
-																				<ArrowUp className="size-4 text-green-500" />
-																			) : (
-																				<ArrowDown className="size-4 text-red-500" />
-																			)}
-																		</>
-																	)}
-															</div>
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.matches_played}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.wins}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.losses}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.draws}
-														</TableCell>
-														<TableCell className="text-right font-bold">
-															{player.elo}
-														</TableCell>
-													</TableRow>
-												))}
-											</TableBody>
-										</Table>
-									</Box>
-										)}
-									</>
-								)}
+								{(() => {
+									// Determine current data and empty message based on view
+									let currentData: (
+										| PlayerStats
+										| TeamStats
+									)[] = [];
+									let emptyMessage = "";
+									let headerLabel = "";
 
-								{/* Doubles - Players Statistics */}
-								{activeView === "doubles_player" && (
-									<>
-										{statistics.doublesPlayers.length === 0 ? (
-									<p className="text-muted-foreground">
-										No doubles player statistics found.
-									</p>
-								) : (
-									<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
-										<Table>
-											<TableHeader className="bg-muted/30">
-												<TableRow>
-													<TableHead>Player</TableHead>
-													<TableHead className="text-right">Matches</TableHead>
-													<TableHead className="text-right">Wins</TableHead>
-													<TableHead className="text-right">Losses</TableHead>
-													<TableHead className="text-right">Draws</TableHead>
-													<TableHead className="text-right">Elo</TableHead>
-												</TableRow>
-											</TableHeader>
-											<TableBody>
-												{statistics.doublesPlayers.map((player) => (
-													<TableRow key={player.player_id}>
-														<TableCell>
-															<div className="flex items-center gap-3">
-																<Avatar className="size-10 border-2 border-border">
-																	<AvatarImage
-																		src={player.avatar || undefined}
-																		alt={player.display_name}
-																	/>
-																	<AvatarFallback>
-																		{player.display_name
-																			.charAt(0)
-																			.toUpperCase()}
-																	</AvatarFallback>
-																</Avatar>
-																<span className="font-medium">
-																	{player.display_name}
-																</span>
-																{player.rank_movement !== undefined &&
-																	player.rank_movement !== 0 && (
-																		<>
-																			{player.rank_movement > 0 ? (
-																				<ArrowUp className="size-4 text-green-500" />
-																			) : (
-																				<ArrowDown className="size-4 text-red-500" />
-																			)}
-																		</>
-																	)}
-															</div>
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.matches_played}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.wins}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.losses}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{player.draws}
-														</TableCell>
-														<TableCell className="text-right font-bold">
-															{player.elo}
-														</TableCell>
-													</TableRow>
-												))}
-											</TableBody>
-										</Table>
-									</Box>
-										)}
-									</>
-								)}
+									if (activeView === "singles") {
+										currentData = statistics.singles;
+										emptyMessage =
+											"No singles statistics found.";
+										headerLabel = "Player";
+									} else if (
+										activeView === "doubles_player"
+									) {
+										currentData = statistics.doublesPlayers;
+										emptyMessage =
+											"No doubles player statistics found.";
+										headerLabel = "Player";
+									} else {
+										currentData = statistics.doublesTeams;
+										emptyMessage =
+											"No doubles team statistics found.";
+										headerLabel = "Team";
+									}
 
-								{/* Doubles - Teams Statistics */}
-								{activeView === "doubles_team" && (
-									<>
-										{statistics.doublesTeams.length === 0 ? (
-									<p className="text-muted-foreground">
-										No doubles team statistics found.
-									</p>
-								) : (
-									<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
-										<Table>
-											<TableHeader className="bg-muted/30">
-												<TableRow>
-													<TableHead>Team</TableHead>
-													<TableHead className="text-right">Matches</TableHead>
-													<TableHead className="text-right">Wins</TableHead>
-													<TableHead className="text-right">Losses</TableHead>
-													<TableHead className="text-right">Draws</TableHead>
-													<TableHead className="text-right">Elo</TableHead>
-												</TableRow>
-											</TableHeader>
-											<TableBody>
-												{statistics.doublesTeams.map((team) => (
-													<TableRow key={team.team_id}>
-														<TableCell>
-															<div className="flex items-center gap-2 flex-wrap">
-																<div className="flex items-center gap-2">
-																	<Avatar className="size-8 border-2 border-border">
-																		<AvatarImage
-																			src={team.player1.avatar || undefined}
-																			alt={team.player1.display_name}
-																		/>
-																		<AvatarFallback>
-																			{team.player1.display_name
-																				.charAt(0)
-																				.toUpperCase()}
-																		</AvatarFallback>
-																	</Avatar>
-																	<span className="font-medium text-sm">
-																		{team.player1.display_name}
-																	</span>
-																</div>
-																<span className="text-muted-foreground text-sm">
-																	&
-																</span>
-																<div className="flex items-center gap-2">
-																	<Avatar className="size-8 border-2 border-border">
-																		<AvatarImage
-																			src={team.player2.avatar || undefined}
-																			alt={team.player2.display_name}
-																		/>
-																		<AvatarFallback>
-																			{team.player2.display_name
-																				.charAt(0)
-																				.toUpperCase()}
-																		</AvatarFallback>
-																	</Avatar>
-																	<span className="font-medium text-sm">
-																		{team.player2.display_name}
-																	</span>
-																</div>
-																{team.rank_movement !== undefined &&
-																	team.rank_movement !== 0 && (
-																		<>
-																			{team.rank_movement > 0 ? (
-																				<ArrowUp className="size-4 text-green-500" />
-																			) : (
-																				<ArrowDown className="size-4 text-red-500" />
-																			)}
-																		</>
-																	)}
-															</div>
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{team.matches_played}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{team.wins}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{team.losses}
-														</TableCell>
-														<TableCell className="text-right font-medium">
-															{team.draws}
-														</TableCell>
-														<TableCell className="text-right font-bold">
-															{team.elo}
-														</TableCell>
+									if (currentData.length === 0) {
+										return (
+											<p className="text-muted-foreground">
+												{emptyMessage}
+											</p>
+										);
+									}
+
+									return (
+										<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
+											<Table>
+												<TableHeader className="bg-muted/30">
+													<TableRow>
+														<TableHead className="text-left">
+															{headerLabel}
+														</TableHead>
+														<TableHead className="text-center">
+															Matches
+														</TableHead>
+														<TableHead className="text-center">
+															Wins
+														</TableHead>
+														<TableHead className="text-center">
+															Losses
+														</TableHead>
+														<TableHead className="text-center">
+															Draws
+														</TableHead>
+														<TableHead className="text-center">
+															Elo
+														</TableHead>
 													</TableRow>
-												))}
-											</TableBody>
-										</Table>
-									</Box>
-										)}
-									</>
-								)}
+												</TableHeader>
+												<TableBody>
+													{currentData.map((item) => {
+														const isTeam =
+															"team_id" in item;
+														const key = isTeam
+															? (
+																	item as TeamStats
+															  ).team_id
+															: (
+																	item as PlayerStats
+															  ).player_id;
+
+														if (isTeam) {
+															const team =
+																item as TeamStats;
+															return (
+																<TableRow
+																	key={key}
+																>
+																	<TableCell>
+																		<div className="flex items-center gap-2 flex-wrap">
+																			<div className="flex items-center gap-2">
+																				<Avatar className="size-8 border-2 border-border">
+																					<AvatarImage
+																						src={
+																							team
+																								.player1
+																								.avatar ||
+																							undefined
+																						}
+																						alt={
+																							team
+																								.player1
+																								.display_name
+																						}
+																					/>
+																					<AvatarFallback>
+																						{team.player1.display_name
+																							.charAt(
+																								0
+																							)
+																							.toUpperCase()}
+																					</AvatarFallback>
+																				</Avatar>
+																				<span className="font-medium text-sm">
+																					{
+																						team
+																							.player1
+																							.display_name
+																					}
+																				</span>
+																			</div>
+																			<span className="text-muted-foreground text-sm">
+																				&
+																			</span>
+																			<div className="flex items-center gap-2">
+																				<Avatar className="size-8 border-2 border-border">
+																					<AvatarImage
+																						src={
+																							team
+																								.player2
+																								.avatar ||
+																							undefined
+																						}
+																						alt={
+																							team
+																								.player2
+																								.display_name
+																						}
+																					/>
+																					<AvatarFallback>
+																						{team.player2.display_name
+																							.charAt(
+																								0
+																							)
+																							.toUpperCase()}
+																					</AvatarFallback>
+																				</Avatar>
+																				<span className="font-medium text-sm">
+																					{
+																						team
+																							.player2
+																							.display_name
+																					}
+																				</span>
+																			</div>
+																			{team.rank_movement !==
+																				undefined &&
+																				team.rank_movement !==
+																					0 && (
+																					<>
+																						{team.rank_movement >
+																						0 ? (
+																							<ArrowUp className="size-4 text-green-500" />
+																						) : (
+																							<ArrowDown className="size-4 text-red-500" />
+																						)}
+																					</>
+																				)}
+																		</div>
+																	</TableCell>
+																	<TableCell className="text-center font-medium">
+																		{
+																			team.matches_played
+																		}
+																	</TableCell>
+																	<TableCell className="text-center">
+																		<span className="font-medium text-green-500">
+																			{
+																				team.wins
+																			}
+																		</span>{" "}
+																		<span className="text-xs font-medium text-muted-foreground">
+																			(
+																			{
+																				team.sets_won
+																			}
+																			)
+																		</span>
+																	</TableCell>
+																	<TableCell className="text-center">
+																		<span className="font-medium text-red-500">
+																			{
+																				team.losses
+																			}
+																		</span>{" "}
+																		<span className="text-xs font-medium text-muted-foreground">
+																			(
+																			{
+																				team.sets_lost
+																			}
+																			)
+																		</span>
+																	</TableCell>
+																	<TableCell className="text-center font-medium text-yellow-500">
+																		{
+																			team.draws
+																		}
+																	</TableCell>
+																	<TableCell className="text-center font-bold">
+																		{
+																			team.elo
+																		}
+																	</TableCell>
+																</TableRow>
+															);
+														}
+
+														const player =
+															item as PlayerStats;
+														return (
+															<TableRow key={key}>
+																<TableCell>
+																	<div className="flex items-center gap-3">
+																		<Avatar className="size-10 border-2 border-border">
+																			<AvatarImage
+																				src={
+																					player.avatar ||
+																					undefined
+																				}
+																				alt={
+																					player.display_name
+																				}
+																			/>
+																			<AvatarFallback>
+																				{player.display_name
+																					.charAt(
+																						0
+																					)
+																					.toUpperCase()}
+																			</AvatarFallback>
+																		</Avatar>
+																		<span className="font-medium">
+																			{
+																				player.display_name
+																			}
+																		</span>
+																		{player.rank_movement !==
+																			undefined &&
+																			player.rank_movement !==
+																				0 && (
+																				<>
+																					{player.rank_movement >
+																					0 ? (
+																						<ArrowUp className="size-4 text-green-500" />
+																					) : (
+																						<ArrowDown className="size-4 text-red-500" />
+																					)}
+																				</>
+																			)}
+																	</div>
+																</TableCell>
+																<TableCell className="text-center font-medium">
+																	{
+																		player.matches_played
+																	}
+																</TableCell>
+																<TableCell className="text-center">
+																	<span className="font-medium text-green-500">
+																		{
+																			player.wins
+																		}
+																	</span>{" "}
+																	<span className="text-xs font-medium text-muted-foreground">
+																		(
+																		{
+																			player.sets_won
+																		}
+																		)
+																	</span>
+																</TableCell>
+																<TableCell className="text-center">
+																	<span className="font-medium text-red-500">
+																		{
+																			player.losses
+																		}
+																	</span>{" "}
+																	<span className="text-xs font-medium text-muted-foreground">
+																		(
+																		{
+																			player.sets_lost
+																		}
+																		)
+																	</span>
+																</TableCell>
+																<TableCell className="text-center font-medium text-yellow-500">
+																	{
+																		player.draws
+																	}
+																</TableCell>
+																<TableCell className="text-center font-bold">
+																	{player.elo}
+																</TableCell>
+															</TableRow>
+														);
+													})}
+												</TableBody>
+											</Table>
+										</Box>
+									);
+								})()}
 							</Box>
 						</div>
 					</div>
@@ -518,4 +574,3 @@ export default function StatisticsPage() {
 		</AuthGuard>
 	);
 }
-

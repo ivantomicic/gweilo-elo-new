@@ -68,10 +68,11 @@ export async function updateSinglesRatings(
 	);
 
 	// Determine sets won/lost
-	const player1SetsWon = player1Score > player2Score ? 1 : 0;
-	const player1SetsLost = player1Score < player2Score ? 1 : 0;
-	const player2SetsWon = player2Score > player1Score ? 1 : 0;
-	const player2SetsLost = player2Score < player1Score ? 1 : 0;
+	// Match scores represent sets, so we use the actual score values
+	const player1SetsWon = player1Score;
+	const player1SetsLost = player2Score;
+	const player2SetsWon = player2Score;
+	const player2SetsLost = player1Score;
 
 	// Update player 1 rating
 	const { error: error1 } = await supabase.rpc("upsert_player_rating", {
@@ -384,10 +385,11 @@ export async function updateDoublesRatings(
 	);
 
 	// Determine sets won/lost
-	const team1SetsWon = team1Score > team2Score ? 1 : 0;
-	const team1SetsLost = team1Score < team2Score ? 1 : 0;
-	const team2SetsWon = team2Score > team1Score ? 1 : 0;
-	const team2SetsLost = team2Score < team1Score ? 1 : 0;
+	// Match scores represent sets, so we use the actual score values
+	const team1SetsWon = team1Score;
+	const team1SetsLost = team2Score;
+	const team2SetsWon = team2Score;
+	const team2SetsLost = team1Score;
 
 	// Update team ratings
 	const { error: team1Error } = await supabase.rpc(
