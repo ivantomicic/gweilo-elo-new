@@ -88,6 +88,11 @@ function SessionPageContent() {
 	const [submitting, setSubmitting] = useState(false);
 	const [showForceCloseModal, setShowForceCloseModal] = useState(false);
 	const [forceClosing, setForceClosing] = useState(false);
+	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+	const [isDeletable, setIsDeletable] = useState(false);
+	const [deleteConfirmationChecked, setDeleteConfirmationChecked] =
+		useState(false);
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [selectedMatchForVideo, setSelectedMatchForVideo] =
 		useState<Match | null>(null);
@@ -408,14 +413,44 @@ function SessionPageContent() {
 		}
 	}, [sessionId, fetchPlayers]);
 
-	// Check if user is admin
+	// Check if user is admin and if session is deletable
 	useEffect(() => {
-		const checkAdmin = async () => {
+		const checkAdminAndDeletable = async () => {
 			const role = await getUserRole();
 			setIsAdmin(role === "admin");
+
+			// Check if session is deletable (only for admins and completed sessions)
+			if (role === "admin" && sessionData?.session.status === "completed") {
+				try {
+					const {
+						data: { session },
+					} = await supabase.auth.getSession();
+
+					if (!session) return;
+
+					const response = await fetch(
+						`/api/sessions/${sessionId}/deletable`,
+						{
+							headers: {
+								Authorization: `Bearer ${session.access_token}`,
+							},
+						}
+					);
+
+					if (response.ok) {
+						const data = await response.json();
+						setIsDeletable(data.deletable || false);
+					}
+				} catch (error) {
+					console.error("Error checking if session is deletable:", error);
+					setIsDeletable(false);
+				}
+			} else {
+				setIsDeletable(false);
+			}
 		};
-		checkAdmin();
-	}, []);
+		checkAdminAndDeletable();
+	}, [sessionId, sessionData?.session.status]);
 
 	// Get available rounds
 	const roundNumbers = useMemo(() => {
@@ -646,6 +681,45 @@ function SessionPageContent() {
 			goToNextRound();
 		}
 	}, [isCurrentRoundCompleted, canSubmitRound, goToNextRound, submitting, handleSubmitRound]);
+
+	// Delete session handler
+	const handleDeleteSession = useCallback(async () => {
+		if (!sessionData || deleting || !deleteConfirmationChecked) return;
+
+		setDeleting(true);
+		try {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				setError("Not authenticated");
+				return;
+			}
+
+			const response = await fetch(`/api/sessions/${sessionId}`, {
+				method: "DELETE",
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+				},
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.error || "Failed to delete session");
+			}
+
+			// Redirect to sessions list after successful deletion
+			router.push("/sessions");
+		} catch (err) {
+			console.error("Error deleting session:", err);
+			setError(
+				err instanceof Error ? err.message : "Failed to delete session"
+			);
+		} finally {
+			setDeleting(false);
+		}
+	}, [sessionData, deleting, deleteConfirmationChecked, sessionId, router]);
 
 	// Force close session handler
 	const handleForceClose = useCallback(async () => {
@@ -1059,6 +1133,21 @@ function SessionPageContent() {
 													: "Unknown"}
 											</p>
 										</Box>
+										{isAdmin && isDeletable && (
+											<Button
+												variant="destructive"
+												size="sm"
+												onClick={(e) => {
+													e.preventDefault();
+													e.stopPropagation();
+													console.log("Delete button clicked, setting showDeleteModal to true");
+													setShowDeleteModal(true);
+												}}
+												className="text-xs"
+											>
+												Delete Session
+											</Button>
+										)}
 									</Box>
 
 									{/* Rounds */}
@@ -1771,14 +1860,69 @@ function SessionPageContent() {
 						isSaving={isEditingMatch}
 					/>
 				)}
-			</>
-		);
-	}
 
-	const totalRounds = roundNumbers.length;
-
-	return (
-		<>
+				{/* Delete Session Confirmation Modal */}
+				{showDeleteModal && (
+					<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+						<Stack direction="column" spacing={4}>
+							<Box>
+								<h2 className="text-2xl font-bold font-heading text-destructive">
+									Delete Session
+								</h2>
+								<p className="text-muted-foreground mt-2 text-sm">
+									This will permanently delete this session and
+									rebuild all Elo ratings from scratch. This action
+									cannot be undone.
+								</p>
+							</Box>
+							<Box>
+								<label className="flex items-start gap-3 cursor-pointer">
+									<input
+										type="checkbox"
+										checked={deleteConfirmationChecked}
+										onChange={(e) =>
+											setDeleteConfirmationChecked(e.target.checked)
+										}
+										disabled={deleting}
+										className="mt-1 size-4 rounded border-border"
+									/>
+									<span className="text-sm text-foreground">
+										I understand this cannot be undone
+									</span>
+								</label>
+							</Box>
+							{error && (
+								<Box>
+									<p className="text-sm text-destructive">{error}</p>
+								</Box>
+							)}
+							<Stack direction="row" spacing={3}>
+								<Button
+									variant="outline"
+									onClick={() => {
+										setShowDeleteModal(false);
+										setDeleteConfirmationChecked(false);
+										setError(null);
+									}}
+									disabled={deleting}
+									className="flex-1"
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={handleDeleteSession}
+									disabled={deleting || !deleteConfirmationChecked}
+									className="flex-1"
+								>
+									{deleting ? "Deleting..." : "Delete Session"}
+								</Button>
+							</Stack>
+						</Stack>
+					</Box>
+				</Box>
+			)}
 			{/* Force Close Confirmation Modal */}
 			{showForceCloseModal && (
 				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
@@ -1821,6 +1965,12 @@ function SessionPageContent() {
 					</Box>
 				</Box>
 			)}
+		</>
+		);
+	}
+
+	return (
+		<>
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>

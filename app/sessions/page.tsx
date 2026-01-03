@@ -11,8 +11,10 @@ import {
 } from "@/components/vendor/shadcn/sidebar";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
+import { getUserRole } from "@/lib/auth/getUserRole";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -30,6 +32,80 @@ function SessionsPageContent() {
 	const [sessions, setSessions] = useState<Session[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [isAdmin, setIsAdmin] = useState(false);
+	const [deletableSessions, setDeletableSessions] = useState<
+		Set<string>
+	>(new Set());
+	const [showDeleteModal, setShowDeleteModal] = useState(false);
+	const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+	const [deleteConfirmationChecked, setDeleteConfirmationChecked] =
+		useState(false);
+	const [deleting, setDeleting] = useState(false);
+
+	// Check if user is admin
+	useEffect(() => {
+		const checkAdmin = async () => {
+			const role = await getUserRole();
+			setIsAdmin(role === "admin");
+		};
+		checkAdmin();
+	}, []);
+
+	// Check which sessions are deletable (for admins)
+	useEffect(() => {
+		const checkDeletableSessions = async () => {
+			if (!isAdmin || sessions.length === 0) {
+				setDeletableSessions(new Set());
+				return;
+			}
+
+			try {
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+
+				if (!session) return;
+
+				const deletable = new Set<string>();
+
+				// Only check completed sessions
+				const completedSessions = sessions.filter(
+					(s) => s.status === "completed"
+				);
+
+				for (const sessionItem of completedSessions) {
+					try {
+						const response = await fetch(
+							`/api/sessions/${sessionItem.id}/deletable`,
+							{
+								headers: {
+									Authorization: `Bearer ${session.access_token}`,
+								},
+							}
+						);
+
+						if (response.ok) {
+							const data = await response.json();
+							if (data.deletable) {
+								deletable.add(sessionItem.id);
+							}
+						}
+					} catch (error) {
+						console.error(
+							`Error checking if session ${sessionItem.id} is deletable:`,
+							error
+						);
+					}
+				}
+
+				setDeletableSessions(deletable);
+			} catch (error) {
+				console.error("Error checking deletable sessions:", error);
+			}
+		};
+
+		checkDeletableSessions();
+	}, [isAdmin, sessions]);
 
 	// Load sessions
 	useEffect(() => {
@@ -109,6 +185,62 @@ function SessionsPageContent() {
 		});
 	};
 
+	// Handle delete session
+	const handleDeleteSession = async () => {
+		if (!sessionToDelete || deleting || !deleteConfirmationChecked) return;
+
+		setDeleting(true);
+		try {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				setError("Not authenticated");
+				return;
+			}
+
+			const response = await fetch(`/api/sessions/${sessionToDelete}`, {
+				method: "DELETE",
+				headers: {
+					Authorization: `Bearer ${session.access_token}`,
+				},
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.error || "Failed to delete session");
+			}
+
+			// Remove session from list and refresh
+			setSessions((prev) => prev.filter((s) => s.id !== sessionToDelete));
+			setShowDeleteModal(false);
+			setSessionToDelete(null);
+			setDeleteConfirmationChecked(false);
+			setDeletableSessions((prev) => {
+				const next = new Set(prev);
+				next.delete(sessionToDelete);
+				return next;
+			});
+		} catch (err) {
+			console.error("Error deleting session:", err);
+			setError(
+				err instanceof Error ? err.message : "Failed to delete session"
+			);
+		} finally {
+			setDeleting(false);
+		}
+	};
+
+	// Handle delete button click (stop event propagation)
+	const handleDeleteClick = (e: React.MouseEvent, sessionId: string) => {
+		e.stopPropagation(); // Prevent navigation to session detail
+		setSessionToDelete(sessionId);
+		setShowDeleteModal(true);
+		setDeleteConfirmationChecked(false);
+		setError(null);
+	};
+
 	if (loading) {
 		return (
 			<SidebarProvider>
@@ -150,80 +282,165 @@ function SessionsPageContent() {
 	}
 
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title="Sessions" />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Header */}
-							<Box>
-								<h1 className="text-3xl font-bold font-heading tracking-tight">
-									Sessions
-								</h1>
-							</Box>
-
-							{/* Sessions List */}
-							{sessions.length === 0 ? (
+		<>
+			<SidebarProvider>
+				<AppSidebar variant="inset" />
+				<SidebarInset>
+					<SiteHeader title="Sessions" />
+					<div className="flex flex-1 flex-col">
+						<div className="@container/main flex flex-1 flex-col gap-2">
+							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+								{/* Header */}
 								<Box>
-									<p className="text-muted-foreground">
-										No sessions found.
-									</p>
+									<h1 className="text-3xl font-bold font-heading tracking-tight">
+										Sessions
+									</h1>
 								</Box>
-							) : (
-								<Stack direction="column" spacing={2}>
-									{sessions.map((session) => (
-										<Box
-											key={session.id}
-											onClick={() => router.push(`/session/${session.id}`)}
-											className="bg-card rounded-[16px] p-4 border border-border/50 hover:border-border cursor-pointer transition-colors active:scale-[0.99]"
-										>
-											<Stack
-												direction="row"
-												alignItems="center"
-												justifyContent="between"
-												spacing={4}
+
+								{/* Sessions List */}
+								{sessions.length === 0 ? (
+									<Box>
+										<p className="text-muted-foreground">
+											No sessions found.
+										</p>
+									</Box>
+								) : (
+									<Stack direction="column" spacing={2}>
+										{sessions.map((session) => (
+											<Box
+												key={session.id}
+												onClick={() => router.push(`/session/${session.id}`)}
+												className="bg-card rounded-[16px] p-4 border border-border/50 hover:border-border cursor-pointer transition-colors active:scale-[0.99]"
 											>
 												<Stack
-													direction="column"
-													spacing={1}
-													className="flex-1 min-w-0"
+													direction="row"
+													alignItems="center"
+													justifyContent="between"
+													spacing={4}
 												>
-													<p className="text-base font-semibold truncate">
-														{formatSessionDate(session.created_at)}
-													</p>
-													<p className="text-sm text-muted-foreground">
-														{session.player_count} player
-														{session.player_count !== 1 ? "s" : ""}
-													</p>
+													<Stack
+														direction="column"
+														spacing={1}
+														className="flex-1 min-w-0"
+													>
+														<p className="text-base font-semibold truncate">
+															{formatSessionDate(session.created_at)}
+														</p>
+														<p className="text-sm text-muted-foreground">
+															{session.player_count} player
+															{session.player_count !== 1 ? "s" : ""}
+														</p>
+													</Stack>
+													<Stack
+														direction="row"
+														alignItems="center"
+														spacing={3}
+													>
+														<Box
+															className={`
+																px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap
+																${
+																	session.status === "active"
+																		? "bg-chart-2/10 text-chart-2 border border-chart-2/20"
+																		: "bg-muted text-muted-foreground border border-border"
+																}
+															`}
+														>
+															{session.status === "active"
+																? "Active"
+																: "Completed"}
+														</Box>
+														{isAdmin &&
+															session.status === "completed" &&
+															deletableSessions.has(session.id) && (
+																<Button
+																	variant="destructive"
+																	size="sm"
+																	onClick={(e) =>
+																		handleDeleteClick(e, session.id)
+																	}
+																	className="text-xs"
+																>
+																	Delete
+																</Button>
+															)}
+													</Stack>
 												</Stack>
-												<Box
-													className={`
-														px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap
-														${
-															session.status === "active"
-																? "bg-chart-2/10 text-chart-2 border border-chart-2/20"
-																: "bg-muted text-muted-foreground border border-border"
-														}
-													`}
-												>
-													{session.status === "active"
-														? "Active"
-														: "Completed"}
-												</Box>
-											</Stack>
-										</Box>
-									))}
-								</Stack>
-							)}
+											</Box>
+										))}
+									</Stack>
+								)}
+							</div>
 						</div>
 					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+				</SidebarInset>
+			</SidebarProvider>
+			{/* Delete Session Confirmation Modal */}
+			{showDeleteModal && (
+				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+						<Stack direction="column" spacing={4}>
+							<Box>
+								<h2 className="text-2xl font-bold font-heading text-destructive">
+									Delete Session
+								</h2>
+								<p className="text-muted-foreground mt-2 text-sm">
+									This will permanently delete this session and
+									rebuild all Elo ratings from scratch. This action
+									cannot be undone.
+								</p>
+							</Box>
+							<Box>
+								<label className="flex items-start gap-3 cursor-pointer">
+									<input
+										type="checkbox"
+										checked={deleteConfirmationChecked}
+										onChange={(e) =>
+											setDeleteConfirmationChecked(e.target.checked)
+										}
+										disabled={deleting}
+										className="mt-1 size-4 rounded border-border"
+									/>
+									<span className="text-sm text-foreground">
+										I understand this cannot be undone
+									</span>
+								</label>
+							</Box>
+							{error && (
+								<Box>
+									<p className="text-sm text-destructive">{error}</p>
+								</Box>
+							)}
+							<Stack direction="row" spacing={3}>
+								<Button
+									variant="outline"
+									onClick={() => {
+										setShowDeleteModal(false);
+										setSessionToDelete(null);
+										setDeleteConfirmationChecked(false);
+										setError(null);
+									}}
+									disabled={deleting}
+									className="flex-1"
+								>
+									Cancel
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={handleDeleteSession}
+									disabled={deleting || !deleteConfirmationChecked}
+									className="flex-1"
+								>
+									{deleting ? "Deleting..." : "Delete Session"}
+								</Button>
+							</Stack>
+						</Stack>
+					</Box>
+				</Box>
+			)}
+		</>
 	);
-}
+	}
 
 export default function SessionsPage() {
 	return (
