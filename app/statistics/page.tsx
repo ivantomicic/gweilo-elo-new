@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase/client";
 import { ArrowUp, ArrowDown } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 type PlayerStats = {
 	player_id: string;
@@ -113,7 +114,7 @@ function StatisticsPageContent() {
 				} = await supabase.auth.getSession();
 
 				if (!session) {
-					setError("Not authenticated");
+					setError(t.statistics.error.notAuthenticated);
 					return;
 				}
 
@@ -126,11 +127,11 @@ function StatisticsPageContent() {
 
 				if (!response.ok) {
 					if (response.status === 401) {
-						setError("Unauthorized");
+						setError(t.statistics.error.unauthorized);
 					} else {
 						const errorData = await response.json();
 						setError(
-							errorData.error || "Failed to load statistics"
+							errorData.error || t.statistics.error.fetchFailed
 						);
 					}
 					return;
@@ -151,7 +152,7 @@ function StatisticsPageContent() {
 				});
 			} catch (err) {
 				console.error("Error fetching statistics:", err);
-				setError("Failed to load statistics");
+				setError(t.statistics.error.fetchFailed);
 			} finally {
 				setLoading(false);
 			}
@@ -165,13 +166,13 @@ function StatisticsPageContent() {
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title="Statistics" />
+					<SiteHeader title={t.statistics.title} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Box>
 									<p className="text-muted-foreground">
-										Loading statistics...
+										{t.statistics.loading}
 									</p>
 								</Box>
 							</div>
@@ -187,7 +188,7 @@ function StatisticsPageContent() {
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title="Statistics" />
+					<SiteHeader title={t.statistics.title} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -206,7 +207,7 @@ function StatisticsPageContent() {
 		<SidebarProvider>
 			<AppSidebar variant="inset" />
 			<SidebarInset>
-				<SiteHeader title="Statistics" />
+				<SiteHeader title={t.statistics.title} />
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -232,13 +233,13 @@ function StatisticsPageContent() {
 								>
 									<TabsList>
 										<TabsTrigger value="singles">
-											Singles
+											{t.statistics.tabs.singles}
 										</TabsTrigger>
 										<TabsTrigger value="doubles-player">
-											Doubles – Player
+											{t.statistics.tabs.doublesPlayers}
 										</TabsTrigger>
 										<TabsTrigger value="doubles-team">
-											Doubles – Team
+											{t.statistics.tabs.doublesTeams}
 										</TabsTrigger>
 									</TabsList>
 								</Tabs>
@@ -260,8 +261,8 @@ function StatisticsPageContent() {
 
 									const headerLabel =
 										activeView === "doubles_team"
-											? "Team"
-											: "Player";
+											? t.statistics.table.team
+											: t.statistics.table.player;
 
 									return (
 										<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
@@ -272,19 +273,36 @@ function StatisticsPageContent() {
 															{headerLabel}
 														</TableHead>
 														<TableHead className="text-center">
-															Matches
+															{
+																t.statistics
+																	.table
+																	.matches
+															}
 														</TableHead>
 														<TableHead className="text-center">
-															Wins
+															{
+																t.statistics
+																	.table.wins
+															}
 														</TableHead>
 														<TableHead className="text-center">
-															Losses
+															{
+																t.statistics
+																	.table
+																	.losses
+															}
 														</TableHead>
 														<TableHead className="text-center">
-															Draws
+															{
+																t.statistics
+																	.table.draws
+															}
 														</TableHead>
 														<TableHead className="text-center">
-															Elo
+															{
+																t.statistics
+																	.table.elo
+															}
 														</TableHead>
 													</TableRow>
 												</TableHeader>

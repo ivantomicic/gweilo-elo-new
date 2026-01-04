@@ -55,6 +55,30 @@ export const sr = {
 		rules: "Pravila igre",
 		polls: "Anketarijum",
 		notifications: "Notifikacije",
+		statistics: "Statistika",
+	},
+	statistics: {
+		title: "Statistika",
+		loading: "Učitavanje statistike...",
+		tabs: {
+			singles: "Singlovi",
+			doublesPlayers: "Dublovi",
+			doublesTeams: "Timovi",
+		},
+		table: {
+			player: "Igrač",
+			team: "Tim",
+			matches: "Mečeva",
+			wins: "Pobede",
+			losses: "Porazi",
+			draws: "Nerešeno",
+			elo: "Elo",
+		},
+		error: {
+			notAuthenticated: "Niste prijavljeni",
+			unauthorized: "Nemate dozvolu za pristup",
+			fetchFailed: "Greška pri učitavanju statistike",
+		},
 	},
 	settings: {
 		profile: "Profil",
