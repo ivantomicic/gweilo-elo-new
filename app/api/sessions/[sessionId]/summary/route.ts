@@ -409,14 +409,35 @@ export async function GET(
 					}
 				}
 
-				// Build summary: elo_before from snapshot, elo_after = elo_before + aggregated deltas
+				// Fetch current Elo from player_ratings table (actual current Elo)
+				const { data: currentSinglesRatings, error: currentSinglesError } =
+					await adminClient
+						.from("player_ratings")
+						.select("player_id, elo")
+						.in("player_id", singlesPlayerIds);
+
+				if (currentSinglesError) {
+					console.error(
+						"Error fetching current singles ratings:",
+						currentSinglesError
+					);
+				}
+
+				const currentSinglesEloMap = new Map(
+					(currentSinglesRatings || []).map((r) => [
+						r.player_id,
+						typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
+					])
+				);
+
+				// Build summary: elo_before from snapshot, elo_after from actual current Elo, elo_change from this session only
 				const singlesSummary: SessionPlayerSummary[] = [];
 				for (const playerId of singlesPlayerIds) {
 					const baseline = baselineSnapshots.get(playerId);
 					const eloBefore = baseline?.elo ?? 1500;
+					const currentElo = currentSinglesEloMap.get(playerId) ?? eloBefore;
 					const totalDelta = playerDeltaMap.get(playerId) ?? 0;
-					const eloAfter = eloBefore + totalDelta;
-					const eloChange = eloAfter - eloBefore;
+					const eloChange = totalDelta; // Change in this session only
 
 					const stats = playerStatsMap.get(playerId)!;
 					const userInfo = userMap.get(playerId);
@@ -427,7 +448,7 @@ export async function GET(
 						display_name: userInfo.display_name,
 						avatar: userInfo.avatar,
 						elo_before: eloBefore,
-						elo_after: eloAfter,
+						elo_after: currentElo,
 						elo_change: eloChange,
 						matches_played: stats.matchesPlayed,
 						wins: stats.wins,
@@ -580,14 +601,37 @@ export async function GET(
 					}
 				}
 
-				// Build summary: elo_before from snapshot, elo_after = elo_before + aggregated deltas
+				// Fetch current Elo from player_double_ratings table (actual current Elo)
+				const {
+					data: currentDoublesRatings,
+					error: currentDoublesError,
+				} = await adminClient
+					.from("player_double_ratings")
+					.select("player_id, elo")
+					.in("player_id", doublesPlayerIds);
+
+				if (currentDoublesError) {
+					console.error(
+						"Error fetching current doubles ratings:",
+						currentDoublesError
+					);
+				}
+
+				const currentDoublesEloMap = new Map(
+					(currentDoublesRatings || []).map((r) => [
+						r.player_id,
+						typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
+					])
+				);
+
+				// Build summary: elo_before from snapshot, elo_after from actual current Elo, elo_change from this session only
 				const doublesPlayerSummary: SessionPlayerSummary[] = [];
 				for (const playerId of doublesPlayerIds) {
 					const baseline = baselineSnapshots.get(playerId);
 					const eloBefore = baseline?.elo ?? 1500;
+					const currentElo = currentDoublesEloMap.get(playerId) ?? eloBefore;
 					const totalDelta = playerDeltaMap.get(playerId) ?? 0;
-					const eloAfter = eloBefore + totalDelta;
-					const eloChange = eloAfter - eloBefore;
+					const eloChange = totalDelta; // Change in this session only
 
 					const stats = playerStatsMap.get(playerId)!;
 					const userInfo = userMap.get(playerId);
@@ -598,7 +642,7 @@ export async function GET(
 						display_name: userInfo.display_name,
 						avatar: userInfo.avatar,
 						elo_before: eloBefore,
-						elo_after: eloAfter,
+						elo_after: currentElo,
 						elo_change: eloChange,
 						matches_played: stats.matchesPlayed,
 						wins: stats.wins,
@@ -765,14 +809,35 @@ export async function GET(
 					}
 				}
 
-				// Build summary: elo_before from snapshot, elo_after = elo_before + aggregated deltas
+				// Fetch current Elo from double_team_ratings table (actual current Elo)
+				const { data: currentTeamRatings, error: currentTeamError } =
+					await adminClient
+						.from("double_team_ratings")
+						.select("team_id, elo")
+						.in("team_id", teamIds);
+
+				if (currentTeamError) {
+					console.error(
+						"Error fetching current team ratings:",
+						currentTeamError
+					);
+				}
+
+				const currentTeamEloMap = new Map(
+					(currentTeamRatings || []).map((r) => [
+						r.team_id,
+						typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
+					])
+				);
+
+				// Build summary: elo_before from snapshot, elo_after from actual current Elo, elo_change from this session only
 				const doublesTeamSummary: SessionTeamSummary[] = [];
 				for (const teamId of teamIds) {
 					const baseline = baselineSnapshots.get(teamId);
 					const eloBefore = baseline?.elo ?? 1500;
+					const currentElo = currentTeamEloMap.get(teamId) ?? eloBefore;
 					const totalDelta = teamDeltaMap.get(teamId) ?? 0;
-					const eloAfter = eloBefore + totalDelta;
-					const eloChange = eloAfter - eloBefore;
+					const eloChange = totalDelta; // Change in this session only
 
 					const stats = teamStatsMap.get(teamId)!;
 					const players = teamPlayerMap.get(teamId);
@@ -790,7 +855,7 @@ export async function GET(
 						player1_avatar: player1Info?.avatar || null,
 						player2_avatar: player2Info?.avatar || null,
 						elo_before: eloBefore,
-						elo_after: eloAfter,
+						elo_after: currentElo,
 						elo_change: eloChange,
 						matches_played: stats.matchesPlayed,
 						wins: stats.wins,

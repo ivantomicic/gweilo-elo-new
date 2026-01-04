@@ -106,7 +106,7 @@ export function PlayerNameCard({
 			</Avatar>
 			<div className={cn("flex flex-col", reverse && "items-end")}>
 				<span className={cn("font-medium", textSize)}>{name}</span>
-				{addon}
+				<div className={cn(reverse && "text-right")}>{addon}</div>
 			</div>
 		</div>
 	);

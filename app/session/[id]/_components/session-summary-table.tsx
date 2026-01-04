@@ -192,6 +192,11 @@ export function SessionSummaryTable({
 		const rounded = Math.round(change);
 		return rounded > 0 ? `+${rounded}` : `${rounded}`;
 	};
+	const formatEloChangeColor = (change: number) => {
+		if (change > 0) return "text-emerald-500";
+		if (change < 0) return "text-red-500";
+		return "text-foreground";
+	};
 
 	// Get rank color based on position
 	const getRankColor = (index: number) => {
@@ -241,22 +246,20 @@ export function SessionSummaryTable({
 				<Table>
 					<TableHeader className="bg-muted/30">
 						<TableRow>
-							<TableHead className="text-left w-[60px]">
-								#
-							</TableHead>
+							<TableHead className="text-left w-8">#</TableHead>
 							<TableHead className="text-left">
 								{t.statistics.table.player}
 							</TableHead>
-							<TableHead className="text-center">
+							<TableHead className="text-center hidden md:table-cell">
 								{t.statistics.table.wins}
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.draws}
-							</TableHead>
-							<TableHead className="text-center">
+							<TableHead className="text-center hidden md:table-cell">
 								{t.statistics.table.losses}
 							</TableHead>
-							<TableHead className="text-center">
+							<TableHead className="text-center hidden md:table-cell">
+								{t.statistics.table.draws}
+							</TableHead>
+							<TableHead className="text-center" colSpan={2}>
 								{t.statistics.table.elo}
 							</TableHead>
 						</TableRow>
@@ -266,18 +269,15 @@ export function SessionSummaryTable({
 							const eloChange = formatEloChange(
 								player.elo_change
 							);
-							const eloChangeColor =
-								player.elo_change > 0
-									? "text-emerald-500"
-									: player.elo_change < 0
-									? "text-red-500"
-									: "text-foreground";
+							const eloChangeColor = formatEloChangeColor(
+								player.elo_change
+							);
 
 							return (
 								<TableRow key={player.player_id}>
 									<TableCell
 										className={cn(
-											"font-bold w-[60px]",
+											"font-bold w-8",
 											getRankColor(index)
 										)}
 									>
@@ -288,25 +288,43 @@ export function SessionSummaryTable({
 											name={player.display_name}
 											avatar={player.avatar}
 											id={player.player_id}
-											size="md"
+											size="sm"
+											addon={
+												<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+													<span className="text-emerald-500">
+														{player.wins}
+													</span>
+													{" / "}
+													<span className="text-red-500">
+														{player.losses}
+													</span>
+													{" / "}
+													<span className="text-muted-foreground">
+														{player.draws}
+													</span>
+												</span>
+											}
 										/>
 									</TableCell>
-									<TableCell className="text-center">
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 										{player.wins}
 									</TableCell>
-									<TableCell className="text-center text-muted-foreground">
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
+										{player.losses}
+									</TableCell>
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
 										{player.draws}
 									</TableCell>
-									<TableCell className="text-center text-muted-foreground">
-										{player.losses}
+									<TableCell className="text-center font-mono">
+										{formatElo(player.elo_after)}
 									</TableCell>
 									<TableCell
 										className={cn(
-											"text-center font-bold",
+											"text-center font-mono",
 											eloChangeColor
 										)}
 									>
-										{eloChange}
+										({eloChange})
 									</TableCell>
 								</TableRow>
 							);
@@ -322,20 +340,18 @@ export function SessionSummaryTable({
 				<Table>
 					<TableHeader className="bg-muted/30">
 						<TableRow>
-							<TableHead className="text-left w-[60px]">
-								#
-							</TableHead>
+							<TableHead className="text-left w-8">#</TableHead>
 							<TableHead className="text-left">
 								{t.statistics.table.player}
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.wins}
+							<TableHead className="text-center hidden md:table-cell">
+								W
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.draws}
+							<TableHead className="text-center hidden md:table-cell">
+								L
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.losses}
+							<TableHead className="text-center hidden md:table-cell">
+								D
 							</TableHead>
 							<TableHead className="text-center">
 								{t.statistics.table.elo}
@@ -347,18 +363,15 @@ export function SessionSummaryTable({
 							const eloChange = formatEloChange(
 								player.elo_change
 							);
-							const eloChangeColor =
-								player.elo_change > 0
-									? "text-emerald-500"
-									: player.elo_change < 0
-									? "text-red-500"
-									: "text-foreground";
+							const eloChangeColor = formatEloChangeColor(
+								player.elo_change
+							);
 
 							return (
 								<TableRow key={player.player_id}>
 									<TableCell
 										className={cn(
-											"font-bold w-[60px]",
+											"font-bold w-8",
 											getRankColor(index)
 										)}
 									>
@@ -369,25 +382,41 @@ export function SessionSummaryTable({
 											name={player.display_name}
 											avatar={player.avatar}
 											id={player.player_id}
-											size="md"
+											size="sm"
+											addon={
+												<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+													<span className="text-emerald-500">
+														{player.wins}
+													</span>
+													{" / "}
+													<span className="text-red-500">
+														{player.losses}
+													</span>
+													{" / "}
+													<span className="text-muted-foreground">
+														{player.draws}
+													</span>
+												</span>
+											}
 										/>
 									</TableCell>
-									<TableCell className="text-center">
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 										{player.wins}
 									</TableCell>
-									<TableCell className="text-center text-muted-foreground">
-										{player.draws}
-									</TableCell>
-									<TableCell className="text-center text-muted-foreground">
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
 										{player.losses}
+									</TableCell>
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
+										{player.draws}
 									</TableCell>
 									<TableCell
 										className={cn(
-											"text-center font-bold",
+											"text-center font-bold font-mono",
 											eloChangeColor
 										)}
 									>
-										{eloChange}
+										{formatElo(player.elo_after)} (
+										{eloChange})
 									</TableCell>
 								</TableRow>
 							);
@@ -403,20 +432,18 @@ export function SessionSummaryTable({
 				<Table>
 					<TableHeader className="bg-muted/30">
 						<TableRow>
-							<TableHead className="text-left w-[60px]">
-								#
-							</TableHead>
+							<TableHead className="text-left w-8">#</TableHead>
 							<TableHead className="text-left">
 								{t.statistics.table.team}
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.wins}
+							<TableHead className="text-center hidden md:table-cell">
+								W
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.draws}
+							<TableHead className="text-center hidden md:table-cell">
+								L
 							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.losses}
+							<TableHead className="text-center hidden md:table-cell">
+								D
 							</TableHead>
 							<TableHead className="text-center">
 								{t.statistics.table.elo}
@@ -426,18 +453,15 @@ export function SessionSummaryTable({
 					<TableBody>
 						{sortedTeams.map((team, index) => {
 							const eloChange = formatEloChange(team.elo_change);
-							const eloChangeColor =
-								team.elo_change > 0
-									? "text-emerald-500"
-									: team.elo_change < 0
-									? "text-red-500"
-									: "text-foreground";
+							const eloChangeColor = formatEloChangeColor(
+								team.elo_change
+							);
 
 							return (
 								<TableRow key={team.team_id}>
 									<TableCell
 										className={cn(
-											"font-bold w-[60px]",
+											"font-bold w-8",
 											getRankColor(index)
 										)}
 									>
@@ -453,25 +477,41 @@ export function SessionSummaryTable({
 												name: team.player2_name,
 												avatar: team.player2_avatar,
 											}}
-											size="md"
+											size="sm"
+											addon={
+												<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+													<span className="text-emerald-500">
+														{team.wins}
+													</span>
+													{" / "}
+													<span className="text-red-500">
+														{team.losses}
+													</span>
+													{" / "}
+													<span className="text-muted-foreground">
+														{team.draws}
+													</span>
+												</span>
+											}
 										/>
 									</TableCell>
-									<TableCell className="text-center">
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 										{team.wins}
 									</TableCell>
-									<TableCell className="text-center text-muted-foreground">
-										{team.draws}
-									</TableCell>
-									<TableCell className="text-center text-muted-foreground">
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
 										{team.losses}
+									</TableCell>
+									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
+										{team.draws}
 									</TableCell>
 									<TableCell
 										className={cn(
-											"text-center font-bold",
+											"text-center font-bold font-mono",
 											eloChangeColor
 										)}
 									>
-										{eloChange}
+										{formatElo(team.elo_after)} ({eloChange}
+										)
 									</TableCell>
 								</TableRow>
 							);

@@ -24,6 +24,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabase/client";
 import { ArrowUp, ArrowDown } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 type PlayerStats = {
@@ -262,35 +263,48 @@ function StatisticsPageContent() {
 											? t.statistics.table.team
 											: t.statistics.table.player;
 
+									// Get rank color based on position
+									const getRankColor = (index: number) => {
+										if (index === 0)
+											return "text-yellow-500";
+										if (index === 1) return "text-zinc-400";
+										if (index === 2)
+											return "text-orange-700";
+										return "text-muted-foreground";
+									};
+
 									return (
 										<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
 											<Table>
 												<TableHeader className="bg-muted/30">
 													<TableRow>
+														<TableHead className="text-left w-8">
+															#
+														</TableHead>
 														<TableHead className="text-left">
 															{headerLabel}
 														</TableHead>
-														<TableHead className="text-center">
+														<TableHead className="text-center hidden md:table-cell">
 															{
 																t.statistics
 																	.table
 																	.matches
 															}
 														</TableHead>
-														<TableHead className="text-center">
+														<TableHead className="text-center hidden md:table-cell">
 															{
 																t.statistics
 																	.table.wins
 															}
 														</TableHead>
-														<TableHead className="text-center">
+														<TableHead className="text-center hidden md:table-cell">
 															{
 																t.statistics
 																	.table
 																	.losses
 															}
 														</TableHead>
-														<TableHead className="text-center">
+														<TableHead className="text-center hidden md:table-cell">
 															{
 																t.statistics
 																	.table.draws
@@ -305,57 +319,214 @@ function StatisticsPageContent() {
 													</TableRow>
 												</TableHeader>
 												<TableBody>
-													{currentData.map((item) => {
-														const isTeam =
-															"team_id" in item;
-														const key = isTeam
-															? (
-																	item as TeamStats
-															  ).team_id
-															: (
-																	item as PlayerStats
-															  ).player_id;
+													{currentData.map(
+														(item, index) => {
+															const isTeam =
+																"team_id" in
+																item;
+															const key = isTeam
+																? (
+																		item as TeamStats
+																  ).team_id
+																: (
+																		item as PlayerStats
+																  ).player_id;
 
-														if (isTeam) {
-															const team =
-																item as TeamStats;
+															if (isTeam) {
+																const team =
+																	item as TeamStats;
+																return (
+																	<TableRow
+																		key={
+																			key
+																		}
+																	>
+																		<TableCell
+																			className={cn(
+																				"font-bold w-8",
+																				getRankColor(
+																					index
+																				)
+																			)}
+																		>
+																			{index +
+																				1}
+																		</TableCell>
+																		<TableCell>
+																			<div className="flex items-center gap-3">
+																				<TeamNameCard
+																					player1={{
+																						name: team
+																							.player1
+																							.display_name,
+																						avatar: team
+																							.player1
+																							.avatar,
+																						id: team
+																							.player1
+																							.id,
+																					}}
+																					player2={{
+																						name: team
+																							.player2
+																							.display_name,
+																						avatar: team
+																							.player2
+																							.avatar,
+																						id: team
+																							.player2
+																							.id,
+																					}}
+																					size="md"
+																					addon={
+																						<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+																							<span className="text-emerald-500">
+																								{
+																									team.wins
+																								}
+																							</span>
+																							{
+																								" / "
+																							}
+																							<span className="text-red-500">
+																								{
+																									team.losses
+																								}
+																							</span>
+																							{
+																								" / "
+																							}
+																							<span className="text-muted-foreground">
+																								{
+																									team.draws
+																								}
+																							</span>
+																						</span>
+																					}
+																				/>
+																				{team.rank_movement !==
+																					undefined &&
+																					team.rank_movement !==
+																						0 && (
+																						<>
+																							{team.rank_movement >
+																							0 ? (
+																								<ArrowUp className="size-4 text-green-500" />
+																							) : (
+																								<ArrowDown className="size-4 text-red-500" />
+																							)}
+																						</>
+																					)}
+																			</div>
+																		</TableCell>
+																		<TableCell className="text-center font-medium hidden md:table-cell">
+																			{
+																				team.matches_played
+																			}
+																		</TableCell>
+																		<TableCell className="text-center hidden md:table-cell">
+																			<span className="font-medium text-green-500">
+																				{
+																					team.wins
+																				}
+																			</span>{" "}
+																			<span className="text-xs font-medium text-muted-foreground">
+																				(
+																				{
+																					team.sets_won
+																				}
+
+																				)
+																			</span>
+																		</TableCell>
+																		<TableCell className="text-center hidden md:table-cell">
+																			<span className="font-medium text-red-500">
+																				{
+																					team.losses
+																				}
+																			</span>{" "}
+																			<span className="text-xs font-medium text-muted-foreground">
+																				(
+																				{
+																					team.sets_lost
+																				}
+
+																				)
+																			</span>
+																		</TableCell>
+																		<TableCell className="text-center hidden md:table-cell font-medium text-yellow-500">
+																			{
+																				team.draws
+																			}
+																		</TableCell>
+																		<TableCell className="text-center font-bold">
+																			{
+																				team.elo
+																			}
+																		</TableCell>
+																	</TableRow>
+																);
+															}
+
+															const player =
+																item as PlayerStats;
 															return (
 																<TableRow
 																	key={key}
 																>
+																	<TableCell
+																		className={cn(
+																			"font-bold w-8",
+																			getRankColor(
+																				index
+																			)
+																		)}
+																	>
+																		{index +
+																			1}
+																	</TableCell>
 																	<TableCell>
 																		<div className="flex items-center gap-3">
-																			<TeamNameCard
-																				player1={{
-																					name: team
-																						.player1
-																						.display_name,
-																					avatar: team
-																						.player1
-																						.avatar,
-																					id: team
-																						.player1
-																						.id,
-																				}}
-																				player2={{
-																					name: team
-																						.player2
-																						.display_name,
-																					avatar: team
-																						.player2
-																						.avatar,
-																					id: team
-																						.player2
-																						.id,
-																				}}
+																			<PlayerNameCard
+																				name={
+																					player.display_name
+																				}
+																				avatar={
+																					player.avatar
+																				}
 																				size="md"
+																				addon={
+																					<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+																						<span className="text-emerald-500">
+																							{
+																								player.wins
+																							}
+																						</span>
+																						{
+																							" / "
+																						}
+																						<span className="text-red-500">
+																							{
+																								player.losses
+																							}
+																						</span>
+																						{
+																							" / "
+																						}
+																						<span className="text-muted-foreground">
+																							{
+																								player.draws
+																							}
+																						</span>
+																					</span>
+																				}
 																			/>
-																			{team.rank_movement !==
+																			{player.rank_movement !==
 																				undefined &&
-																				team.rank_movement !==
+																				player.rank_movement !==
 																					0 && (
 																					<>
-																						{team.rank_movement >
+																						{player.rank_movement >
 																						0 ? (
 																							<ArrowUp className="size-4 text-green-500" />
 																						) : (
@@ -365,127 +536,53 @@ function StatisticsPageContent() {
 																				)}
 																		</div>
 																	</TableCell>
-																	<TableCell className="text-center font-medium">
+																	<TableCell className="text-center hidden md:table-cell font-medium">
 																		{
-																			team.matches_played
+																			player.matches_played
 																		}
 																	</TableCell>
-																	<TableCell className="text-center">
+																	<TableCell className="text-center hidden md:table-cell">
 																		<span className="font-medium text-green-500">
 																			{
-																				team.wins
+																				player.wins
 																			}
 																		</span>{" "}
 																		<span className="text-xs font-medium text-muted-foreground">
 																			(
 																			{
-																				team.sets_won
+																				player.sets_won
 																			}
 																			)
 																		</span>
 																	</TableCell>
-																	<TableCell className="text-center">
+																	<TableCell className="text-center hidden md:table-cell">
 																		<span className="font-medium text-red-500">
 																			{
-																				team.losses
+																				player.losses
 																			}
 																		</span>{" "}
 																		<span className="text-xs font-medium text-muted-foreground">
 																			(
 																			{
-																				team.sets_lost
+																				player.sets_lost
 																			}
 																			)
 																		</span>
 																	</TableCell>
-																	<TableCell className="text-center font-medium text-yellow-500">
+																	<TableCell className="text-center hidden md:table-cell font-medium text-yellow-500">
 																		{
-																			team.draws
+																			player.draws
 																		}
 																	</TableCell>
 																	<TableCell className="text-center font-bold">
 																		{
-																			team.elo
+																			player.elo
 																		}
 																	</TableCell>
 																</TableRow>
 															);
 														}
-
-														const player =
-															item as PlayerStats;
-														return (
-															<TableRow key={key}>
-																<TableCell>
-																	<div className="flex items-center gap-3">
-																		<PlayerNameCard
-																			name={
-																				player.display_name
-																			}
-																			avatar={
-																				player.avatar
-																			}
-																			size="md"
-																		/>
-																		{player.rank_movement !==
-																			undefined &&
-																			player.rank_movement !==
-																				0 && (
-																				<>
-																					{player.rank_movement >
-																					0 ? (
-																						<ArrowUp className="size-4 text-green-500" />
-																					) : (
-																						<ArrowDown className="size-4 text-red-500" />
-																					)}
-																				</>
-																			)}
-																	</div>
-																</TableCell>
-																<TableCell className="text-center font-medium">
-																	{
-																		player.matches_played
-																	}
-																</TableCell>
-																<TableCell className="text-center">
-																	<span className="font-medium text-green-500">
-																		{
-																			player.wins
-																		}
-																	</span>{" "}
-																	<span className="text-xs font-medium text-muted-foreground">
-																		(
-																		{
-																			player.sets_won
-																		}
-																		)
-																	</span>
-																</TableCell>
-																<TableCell className="text-center">
-																	<span className="font-medium text-red-500">
-																		{
-																			player.losses
-																		}
-																	</span>{" "}
-																	<span className="text-xs font-medium text-muted-foreground">
-																		(
-																		{
-																			player.sets_lost
-																		}
-																		)
-																	</span>
-																</TableCell>
-																<TableCell className="text-center font-medium text-yellow-500">
-																	{
-																		player.draws
-																	}
-																</TableCell>
-																<TableCell className="text-center font-bold">
-																	{player.elo}
-																</TableCell>
-															</TableRow>
-														);
-													})}
+													)}
 												</TableBody>
 											</Table>
 										</Box>

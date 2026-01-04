@@ -168,12 +168,12 @@ export function MatchHistoryCard({
 								avatar: team2Players[1]?.avatar || null,
 							}}
 							size="sm"
-							className="flex-row-reverse"
+							reverse
 							addon={
 								team2Change ? (
 									<span
 										className={cn(
-											"text-[10px] text-right",
+											"text-[10px]",
 											team2Change.startsWith("+")
 												? "text-emerald-500"
 												: "text-red-500"

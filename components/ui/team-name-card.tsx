@@ -16,6 +16,7 @@ type TeamNameCardProps = {
 	};
 	size?: "sm" | "md" | "lg";
 	variant?: "horizontal" | "vertical";
+	reverse?: boolean;
 	className?: string;
 	addon?: React.ReactNode;
 };
@@ -37,6 +38,7 @@ export function TeamNameCard({
 	player2,
 	size = "md",
 	variant = "horizontal",
+	reverse = false,
 	className,
 	addon,
 }: TeamNameCardProps) {
@@ -53,7 +55,9 @@ export function TeamNameCard({
 							src={player1.avatar || undefined}
 							alt={player1.name}
 						/>
-						<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
+						<AvatarFallback
+							className={size === "lg" ? "text-lg" : ""}
+						>
 							{player1.name.charAt(0).toUpperCase()}
 						</AvatarFallback>
 					</Avatar>
@@ -62,7 +66,9 @@ export function TeamNameCard({
 							src={player2.avatar || undefined}
 							alt={player2.name}
 						/>
-						<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
+						<AvatarFallback
+							className={size === "lg" ? "text-lg" : ""}
+						>
 							{player2.name.charAt(0).toUpperCase()}
 						</AvatarFallback>
 					</Avatar>
@@ -106,9 +112,8 @@ export function TeamNameCard({
 				<span className={cn("font-medium", textSize)}>
 					{player1.name} & {player2.name}
 				</span>
-				{addon}
+				<div className={cn(reverse && "text-right")}>{addon}</div>
 			</div>
 		</div>
 	);
 }
-
