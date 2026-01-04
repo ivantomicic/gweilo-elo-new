@@ -10,7 +10,8 @@ import {
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
 import { Box } from "@/components/ui/box";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { PlayerNameCard } from "@/components/ui/player-name-card";
+import { TeamNameCard } from "@/components/ui/team-name-card";
 import {
 	Table,
 	TableBody,
@@ -326,72 +327,32 @@ function StatisticsPageContent() {
 																	key={key}
 																>
 																	<TableCell>
-																		<div className="flex items-center gap-2 flex-wrap">
-																			<div className="flex items-center gap-2">
-																				<Avatar className="size-8 border-2 border-border">
-																					<AvatarImage
-																						src={
-																							team
-																								.player1
-																								.avatar ||
-																							undefined
-																						}
-																						alt={
-																							team
-																								.player1
-																								.display_name
-																						}
-																					/>
-																					<AvatarFallback>
-																						{team.player1.display_name
-																							.charAt(
-																								0
-																							)
-																							.toUpperCase()}
-																					</AvatarFallback>
-																				</Avatar>
-																				<span className="font-medium text-sm">
-																					{
-																						team
-																							.player1
-																							.display_name
-																					}
-																				</span>
-																			</div>
-																			<span className="text-muted-foreground text-sm">
-																				&
-																			</span>
-																			<div className="flex items-center gap-2">
-																				<Avatar className="size-8 border-2 border-border">
-																					<AvatarImage
-																						src={
-																							team
-																								.player2
-																								.avatar ||
-																							undefined
-																						}
-																						alt={
-																							team
-																								.player2
-																								.display_name
-																						}
-																					/>
-																					<AvatarFallback>
-																						{team.player2.display_name
-																							.charAt(
-																								0
-																							)
-																							.toUpperCase()}
-																					</AvatarFallback>
-																				</Avatar>
-																				<span className="font-medium text-sm">
-																					{
-																						team
-																							.player2
-																							.display_name
-																					}
-																				</span>
-																			</div>
+																		<div className="flex items-center gap-3">
+																			<TeamNameCard
+																				player1={{
+																					name: team
+																						.player1
+																						.display_name,
+																					avatar: team
+																						.player1
+																						.avatar,
+																					id: team
+																						.player1
+																						.id,
+																				}}
+																				player2={{
+																					name: team
+																						.player2
+																						.display_name,
+																					avatar: team
+																						.player2
+																						.avatar,
+																					id: team
+																						.player2
+																						.id,
+																				}}
+																				size="md"
+																			/>
 																			{team.rank_movement !==
 																				undefined &&
 																				team.rank_movement !==
@@ -460,29 +421,15 @@ function StatisticsPageContent() {
 															<TableRow key={key}>
 																<TableCell>
 																	<div className="flex items-center gap-3">
-																		<Avatar className="size-10 border-2 border-border">
-																			<AvatarImage
-																				src={
-																					player.avatar ||
-																					undefined
-																				}
-																				alt={
-																					player.display_name
-																				}
-																			/>
-																			<AvatarFallback>
-																				{player.display_name
-																					.charAt(
-																						0
-																					)
-																					.toUpperCase()}
-																			</AvatarFallback>
-																		</Avatar>
-																		<span className="font-medium">
-																			{
+																		<PlayerNameCard
+																			name={
 																				player.display_name
 																			}
-																		</span>
+																			avatar={
+																				player.avatar
+																			}
+																			size="md"
+																		/>
 																		{player.rank_movement !==
 																			undefined &&
 																			player.rank_movement !==

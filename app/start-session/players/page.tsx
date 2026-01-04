@@ -14,7 +14,7 @@ import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { UserNameCard } from "@/components/ui/user-name-card";
+import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
@@ -155,7 +155,7 @@ function SelectPlayersPageContent() {
 														disabled={selectedPlayers.length >= maxSelections}
 														className="flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
 													>
-														<UserNameCard
+														<PlayerNameCard
 															name={user.name}
 															avatar={user.avatar}
 															id={user.id}

@@ -2,7 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
-import { UserNameCard } from "@/components/ui/user-name-card";
+import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { TrophyIcon } from "lucide-react";
 import { t } from "@/lib/i18n";
 import {

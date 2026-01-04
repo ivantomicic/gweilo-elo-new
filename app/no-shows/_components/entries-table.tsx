@@ -11,7 +11,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Box } from "@/components/ui/box";
-import { UserNameCard } from "@/components/ui/user-name-card";
+import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { Pagination } from "@/components/ui/pagination";
 import { t } from "@/lib/i18n";
 
@@ -181,7 +181,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 								<TableRow key={entry.id}>
 									{/* Player */}
 									<TableCell>
-										<UserNameCard
+										<PlayerNameCard
 											name={entry.user.name}
 											avatar={entry.user.avatar}
 											id={entry.user.id}

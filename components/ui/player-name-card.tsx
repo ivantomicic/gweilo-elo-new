@@ -3,7 +3,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-type UserNameCardProps = {
+type PlayerNameCardProps = {
 	name: string;
 	avatar: string | null;
 	id?: string;
@@ -25,7 +25,7 @@ const textSizeClasses = {
 	lg: "text-base",
 };
 
-export function UserNameCard({
+export function PlayerNameCard({
 	name,
 	avatar,
 	id,
@@ -33,7 +33,7 @@ export function UserNameCard({
 	variant = "horizontal",
 	avatarBorder = "none",
 	className,
-}: UserNameCardProps) {
+}: PlayerNameCardProps) {
 	const avatarSize = sizeClasses[size];
 	const textSize = textSizeClasses[size];
 
