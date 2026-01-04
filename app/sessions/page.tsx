@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
-import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
-import { Icon } from "@/components/ui/icon";
 import { InfiniteScroll } from "@/components/ui/infinite-scroll";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
+import { SessionCard } from "./_components/session-card";
+import { SessionsLayout, SessionsState } from "./_components/sessions-layout";
+import { t } from "@/lib/i18n";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -42,7 +36,6 @@ type Session = {
 const PAGE_SIZE = 5;
 
 function SessionsPageContent() {
-	const router = useRouter();
 	const [sessions, setSessions] = useState<Session[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [loadingMore, setLoadingMore] = useState(false);
@@ -65,7 +58,7 @@ function SessionsPageContent() {
 				} = await supabase.auth.getSession();
 
 				if (!authSession) {
-					setError("Not authenticated");
+					setError(t.sessions.error.notAuthenticated);
 					return;
 				}
 
@@ -86,7 +79,7 @@ function SessionsPageContent() {
 				} = await supabaseClient.auth.getUser();
 
 				if (!currentUser) {
-					setError("Not authenticated");
+					setError(t.sessions.error.notAuthenticated);
 					return;
 				}
 
@@ -101,12 +94,7 @@ function SessionsPageContent() {
 
 				if (sessionsError) {
 					console.error("Error fetching sessions:", sessionsError);
-					setError(
-						`Failed to load sessions: ${
-							sessionsError.message ||
-							JSON.stringify(sessionsError)
-						}`
-					);
+					setError(t.sessions.error.fetchFailed);
 					return;
 				}
 
@@ -246,7 +234,7 @@ function SessionsPageContent() {
 				setHasMore(newSessions.length === PAGE_SIZE);
 			} catch (err) {
 				console.error("Error fetching sessions:", err);
-				setError("Failed to load sessions");
+				setError(t.sessions.error.fetchFailed);
 			} finally {
 				setLoading(false);
 				setLoadingMore(false);
@@ -267,297 +255,61 @@ function SessionsPageContent() {
 		}
 	}, [fetchSessions, loadingMore, hasMore, sessions.length]);
 
-	// Format date helpers
-	const formatDateWeekday = (dateString: string) => {
-		const date = new Date(dateString);
-		return date.toLocaleDateString("en-US", { weekday: "short" });
-	};
+	// Date formatting helpers (Serbian locale)
+	const formatDateWeekday = useCallback((dateString: string) => {
+		return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
+			weekday: "long",
+		});
+	}, []);
 
-	const formatDateDay = (dateString: string) => {
-		const date = new Date(dateString);
-		return date.toLocaleDateString("en-US", {
+	const formatDateDay = useCallback((dateString: string) => {
+		return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
 			month: "short",
 			day: "numeric",
 		});
-	};
+	}, []);
 
-	const formatDateYear = (dateString: string) => {
-		const date = new Date(dateString);
-		return date.toLocaleDateString("en-US", { year: "numeric" });
-	};
+	const formatDateYear = useCallback((dateString: string) => {
+		return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
+			year: "numeric",
+		});
+	}, []);
 
 	if (loading) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title="Sessions" />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-muted-foreground">
-										Loading sessions...
-									</p>
-								</Box>
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
+		return <SessionsState message={t.sessions.loading} variant="loading" />;
 	}
 
 	if (error) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title="Sessions" />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-destructive">{error}</p>
-								</Box>
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
+		return <SessionsState message={error} variant="error" />;
 	}
 
 	return (
-		<>
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title="Sessions" />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								{/* Sessions List */}
-								{sessions.length === 0 && !loading ? (
-									<Box>
-										<p className="text-muted-foreground">
-											No sessions found.
-										</p>
-									</Box>
-								) : (
-									<InfiniteScroll
-										hasMore={hasMore}
-										loading={loadingMore}
-										onLoadMore={handleLoadMore}
-									>
-										<Stack direction="column" spacing={4}>
-											{sessions.map((session) => {
-												return (
-													<Box
-														key={session.id}
-														onClick={() =>
-															router.push(
-																`/session/${session.id}`
-															)
-														}
-														className="group relative bg-card rounded-[24px] border border-border/50 p-4 transition-all active:scale-[0.98] active:bg-accent/50 cursor-pointer shadow-sm hover:border-primary/30"
-													>
-														<Stack
-															direction="row"
-															alignItems="center"
-															spacing={4}
-														>
-															{/* Left: Date */}
-															<Box className="flex flex-col items-center justify-center min-w-[72px] border-r border-border/30 pr-4">
-																<span className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5">
-																	{formatDateWeekday(
-																		session.created_at
-																	)}
-																</span>
-																<span className="text-xl font-bold font-heading">
-																	{formatDateDay(
-																		session.created_at
-																	)}
-																</span>
-																<Stack
-																	direction="row"
-																	alignItems="center"
-																	spacing={1}
-																	className="mt-1 text-[10px] text-muted-foreground font-medium"
-																>
-																	<Icon
-																		icon="solar:clock-circle-linear"
-																		className="size-3"
-																	/>
-																	<span>
-																		{formatDateYear(
-																			session.created_at
-																		)}
-																	</span>
-																</Stack>
-															</Box>
-
-															{/* Center: Stats */}
-															<Box className="flex-1 min-w-0 py-1">
-																<Stack
-																	direction="column"
-																	spacing={
-																		1.5
-																	}
-																>
-																	<Stack
-																		direction="row"
-																		alignItems="center"
-																		spacing={
-																			1.5
-																		}
-																	>
-																		<Icon
-																			icon="solar:users-group-two-rounded-bold-duotone"
-																			className="size-4 text-muted-foreground"
-																		/>
-																		<span className="text-xs font-semibold">
-																			{
-																				session.player_count
-																			}{" "}
-																			<span className="text-muted-foreground font-normal">
-																				Players
-																			</span>
-																		</span>
-																	</Stack>
-																	{((session.singles_match_count ??
-																		0) >
-																		0 ||
-																		(session.doubles_match_count ??
-																			0) >
-																			0) && (
-																		<Box className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground font-medium bg-secondary/30 w-fit px-2 py-1 rounded-lg">
-																			{(session.singles_match_count ??
-																				0) >
-																				0 && (
-																				<span>
-																					Singles:{" "}
-																					{session.singles_match_count ??
-																						0}
-																				</span>
-																			)}
-																			{(session.singles_match_count ??
-																				0) >
-																				0 &&
-																				(session.doubles_match_count ??
-																					0) >
-																					0 && (
-																					<span className="w-1 h-1 rounded-full bg-border" />
-																				)}
-																			{(session.doubles_match_count ??
-																				0) >
-																				0 && (
-																				<span>
-																					Doubles:{" "}
-																					{session.doubles_match_count ??
-																						0}
-																				</span>
-																			)}
-																		</Box>
-																	)}
-																	{session.best_worst_player &&
-																		(session
-																			.best_worst_player
-																			.best_player_delta !==
-																			null ||
-																			session
-																				.best_worst_player
-																				.worst_player_delta !==
-																				null) && (
-																			<Stack
-																				direction="row"
-																				alignItems="center"
-																				spacing={
-																					2
-																				}
-																				className="mt-2 flex-wrap"
-																			>
-																				{session
-																					.best_worst_player
-																					.best_player_delta !==
-																					null && (
-																					<Box className="flex items-center gap-1.5 text-[10px] bg-secondary/30 w-fit px-2 py-1 rounded-lg">
-																						<Icon
-																							icon="solar:star-bold"
-																							className="size-3.5 text-yellow-400"
-																						/>
-																						<span className="text-foreground font-semibold">
-																							{session
-																								.best_worst_player
-																								.best_player_display_name ||
-																								"Unknown"}
-																						</span>
-																						<span className="text-emerald-400 font-semibold ml-1">
-																							(+
-																							{Math.round(
-																								Number(
-																									session
-																										.best_worst_player
-																										.best_player_delta
-																								)
-																							)}
-
-																							)
-																						</span>
-																					</Box>
-																				)}
-																				{session
-																					.best_worst_player
-																					.worst_player_delta !==
-																					null && (
-																					<Box className="flex items-center gap-1.5 text-[10px] bg-secondary/30 w-fit px-2 py-1 rounded-lg">
-																						<Icon
-																							icon="solar:arrow-down-bold"
-																							className="size-3.5 text-red-400"
-																						/>
-																						<span className="text-foreground font-semibold">
-																							{session
-																								.best_worst_player
-																								.worst_player_display_name ||
-																								"Unknown"}
-																						</span>
-																						<span className="text-red-400 font-semibold ml-1">
-																							(
-																							{Math.round(
-																								Number(
-																									session
-																										.best_worst_player
-																										.worst_player_delta
-																								)
-																							)}
-
-																							)
-																						</span>
-																					</Box>
-																				)}
-																			</Stack>
-																		)}
-																</Stack>
-															</Box>
-
-															{/* Right: Actions */}
-															<Icon
-																icon="solar:alt-arrow-right-linear"
-																className="size-4 text-muted-foreground/50"
-															/>
-														</Stack>
-													</Box>
-												);
-											})}
-										</Stack>
-									</InfiniteScroll>
-								)}
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		</>
+		<SessionsLayout>
+			{sessions.length === 0 ? (
+				<SessionsState
+					message={t.sessions.noSessions}
+					variant="empty"
+				/>
+			) : (
+				<InfiniteScroll
+					hasMore={hasMore}
+					loading={loadingMore}
+					onLoadMore={handleLoadMore}
+				>
+					<Stack direction="column" spacing={4}>
+						{sessions.map((session) => (
+							<SessionCard
+								key={session.id}
+								session={session}
+								formatDateWeekday={formatDateWeekday}
+								formatDateDay={formatDateDay}
+								formatDateYear={formatDateYear}
+							/>
+						))}
+					</Stack>
+				</InfiniteScroll>
+			)}
+		</SessionsLayout>
 	);
 }
 

@@ -56,6 +56,7 @@ export const sr = {
 		polls: "Anketarijum",
 		notifications: "Notifikacije",
 		statistics: "Statistika",
+		sessions: "Termini",
 	},
 	statistics: {
 		title: "Statistika",
@@ -78,6 +79,19 @@ export const sr = {
 			notAuthenticated: "Niste prijavljeni",
 			unauthorized: "Nemate dozvolu za pristup",
 			fetchFailed: "Greška pri učitavanju statistike",
+		},
+	},
+	sessions: {
+		title: "Termini",
+		loading: "Učitavanje termina...",
+		noSessions: "Nema termina.",
+		players: "Igrača",
+		singles: "Singlovi",
+		doubles: "Dublovi",
+		unknown: "Nepoznato",
+		error: {
+			notAuthenticated: "Niste prijavljeni",
+			fetchFailed: "Greška pri učitavanju termina",
 		},
 	},
 	settings: {
