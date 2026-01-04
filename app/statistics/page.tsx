@@ -10,7 +10,6 @@ import {
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
 import { Box } from "@/components/ui/box";
-import { Stack } from "@/components/ui/stack";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
 	Table,
@@ -257,40 +256,21 @@ function StatisticsPageContent() {
 							{/* Statistics Table */}
 							<Box>
 								{(() => {
-									// Determine current data and empty message based on view
-									let currentData: (
+									// Determine current data and header label based on view
+									const currentData: (
 										| PlayerStats
 										| TeamStats
-									)[] = [];
-									let emptyMessage = "";
-									let headerLabel = "";
+									)[] =
+										activeView === "singles"
+											? statistics.singles
+											: activeView === "doubles_player"
+											? statistics.doublesPlayers
+											: statistics.doublesTeams;
 
-									if (activeView === "singles") {
-										currentData = statistics.singles;
-										emptyMessage =
-											"No singles statistics found.";
-										headerLabel = "Player";
-									} else if (
-										activeView === "doubles_player"
-									) {
-										currentData = statistics.doublesPlayers;
-										emptyMessage =
-											"No doubles player statistics found.";
-										headerLabel = "Player";
-									} else {
-										currentData = statistics.doublesTeams;
-										emptyMessage =
-											"No doubles team statistics found.";
-										headerLabel = "Team";
-									}
-
-									if (currentData.length === 0) {
-										return (
-											<p className="text-muted-foreground">
-												{emptyMessage}
-											</p>
-										);
-									}
+									const headerLabel =
+										activeView === "doubles_team"
+											? "Team"
+											: "Player";
 
 									return (
 										<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
