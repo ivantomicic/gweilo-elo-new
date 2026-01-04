@@ -105,5 +105,11 @@
       @apply border-primary/30;
     }
   }
+  
+  /* Mobile bottom padding for floating navigation */
+  /* Mobile nav is ~96px tall (56px items + 16px padding + 24px bottom offset) */
+  .pb-mobile-nav {
+    @apply pb-24 md:pb-0;
+  }
 }
 

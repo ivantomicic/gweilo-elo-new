@@ -146,6 +146,15 @@ function SessionPageContent() {
 		hasDoublesPlayer: boolean;
 		hasDoublesTeam: boolean;
 	} | null>(null);
+	const [matchEloHistory, setMatchEloHistory] = useState<
+		Record<
+			string,
+			{
+				team1EloChange?: number;
+				team2EloChange?: number;
+			}
+		>
+	>({});
 
 	// Reusable function to fetch players with updated Elo ratings
 	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
@@ -394,6 +403,126 @@ function SessionPageContent() {
 				// Fetch team Elo ratings asynchronously
 				fetchTeamEloRatings().catch((error) => {
 					console.error("Error fetching team Elo ratings:", error);
+				});
+
+				// Fetch match Elo history for completed matches
+				const fetchMatchEloHistory = async () => {
+					const completedMatchIds = (matches || [])
+						.filter((m) => m.status === "completed")
+						.map((m) => m.id);
+
+					if (completedMatchIds.length === 0) {
+						return;
+					}
+
+					const {
+						data: { session: authSession },
+					} = await supabase.auth.getSession();
+
+					if (!authSession) {
+						return;
+					}
+
+					const supabaseClient = createClient(
+						supabaseUrl,
+						supabaseAnonKey,
+						{
+							global: {
+								headers: {
+									Authorization: `Bearer ${authSession.access_token}`,
+								},
+							},
+						}
+					);
+
+					const { data: eloHistory, error: eloHistoryError } =
+						await supabaseClient
+							.from("match_elo_history")
+							.select("*")
+							.in("match_id", completedMatchIds);
+
+					if (eloHistoryError) {
+						console.error(
+							"Error fetching match Elo history:",
+							eloHistoryError
+						);
+						return;
+					}
+
+					const eloHistoryMap: Record<
+						string,
+						{
+							team1EloChange?: number;
+							team2EloChange?: number;
+						}
+					> = {};
+
+					if (eloHistory) {
+						for (const history of eloHistory) {
+							let team1Change: number | undefined;
+							let team2Change: number | undefined;
+
+							// For singles matches, use player deltas
+							if (
+								history.player1_elo_delta !== null &&
+								history.player1_elo_delta !== undefined
+							) {
+								const delta =
+									typeof history.player1_elo_delta ===
+									"string"
+										? parseFloat(history.player1_elo_delta)
+										: Number(history.player1_elo_delta);
+								team1Change = delta;
+							}
+
+							if (
+								history.player2_elo_delta !== null &&
+								history.player2_elo_delta !== undefined
+							) {
+								const delta =
+									typeof history.player2_elo_delta ===
+									"string"
+										? parseFloat(history.player2_elo_delta)
+										: Number(history.player2_elo_delta);
+								team2Change = delta;
+							}
+
+							// For doubles matches, use team deltas (override player deltas)
+							if (
+								history.team1_elo_delta !== null &&
+								history.team1_elo_delta !== undefined
+							) {
+								const delta =
+									typeof history.team1_elo_delta === "string"
+										? parseFloat(history.team1_elo_delta)
+										: Number(history.team1_elo_delta);
+								team1Change = delta;
+							}
+
+							if (
+								history.team2_elo_delta !== null &&
+								history.team2_elo_delta !== undefined
+							) {
+								const delta =
+									typeof history.team2_elo_delta === "string"
+										? parseFloat(history.team2_elo_delta)
+										: Number(history.team2_elo_delta);
+								team2Change = delta;
+							}
+
+							eloHistoryMap[history.match_id] = {
+								team1EloChange: team1Change,
+								team2EloChange: team2Change,
+							};
+						}
+					}
+
+					setMatchEloHistory(eloHistoryMap);
+				};
+
+				// Fetch match Elo history asynchronously
+				fetchMatchEloHistory().catch((error) => {
+					console.error("Error fetching match Elo history:", error);
 				});
 
 				// Initialize scores from completed matches
@@ -1129,7 +1258,7 @@ function SessionPageContent() {
 				<SidebarInset>
 					<SiteHeader title={t.sessions.session.loading} />
 					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Loading label={t.sessions.session.loading} />
 							</div>
@@ -1147,7 +1276,7 @@ function SessionPageContent() {
 				<SidebarInset>
 					<SiteHeader title={t.sessions.session.title} />
 					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Box>
 									<p className="text-destructive">
@@ -1206,7 +1335,7 @@ function SessionPageContent() {
 							}
 						/>
 						<div className="flex flex-1 flex-col">
-							<div className="@container/main flex flex-1 flex-col gap-2">
+							<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 								<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 									{/* Compact Header */}
 									<Box className="mb-4">
@@ -1398,6 +1527,10 @@ function SessionPageContent() {
 																		Boolean
 																	) as Player[];
 
+															const eloHistory =
+																matchEloHistory[
+																	match.id
+																];
 															return (
 																<MatchHistoryCard
 																	key={
@@ -1431,6 +1564,12 @@ function SessionPageContent() {
 																	team2Score={
 																		match.team2_score ??
 																		null
+																	}
+																	team1EloChange={
+																		eloHistory?.team1EloChange
+																	}
+																	team2EloChange={
+																		eloHistory?.team2EloChange
 																	}
 																	onClick={() =>
 																		isAdmin &&
@@ -1973,7 +2112,7 @@ function SessionPageContent() {
 				<SidebarInset>
 					<SiteHeader title={formattedSessionDate} />
 					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								{/* Header */}
 								<Box className="flex justify-between items-end">

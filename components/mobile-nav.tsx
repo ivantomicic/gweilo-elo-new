@@ -83,7 +83,7 @@ export function MobileNav() {
 	return (
 		<nav
 			className="fixed left-0 right-0 z-50 flex justify-center px-4 md:hidden"
-			style={{ bottom: isIOSSafari26 ? "24px" : "24px" }}
+			style={{ bottom: isIOSSafari26 ? "8px" : "24px" }}
 		>
 			<div className="bg-card/85 backdrop-blur-xl border border-border/50 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.5)] px-2 py-2 flex items-center gap-1 w-full max-w-[360px] justify-between relative">
 				{navItems.map((item) => {

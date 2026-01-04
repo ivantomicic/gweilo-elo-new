@@ -12,6 +12,7 @@ type PlayerNameCardProps = {
 	avatarBorder?: "none" | "primary" | "transparent";
 	reverse?: boolean;
 	className?: string;
+	addon?: React.ReactNode;
 };
 
 const sizeClasses = {
@@ -35,6 +36,7 @@ export function PlayerNameCard({
 	avatarBorder = "none",
 	reverse = false,
 	className,
+	addon,
 }: PlayerNameCardProps) {
 	const avatarSize = sizeClasses[size];
 	const textSize = textSizeClasses[size];
@@ -71,10 +73,22 @@ export function PlayerNameCard({
 						</AvatarFallback>
 					</Avatar>
 				)}
-				<span className={cn("font-semibold", textSize)}>{name}</span>
+				<div className="flex flex-col items-center">
+					<span className={cn("font-semibold", textSize)}>
+						{name}
+					</span>
+					{addon}
+				</div>
 			</div>
 		);
 	}
+
+	const borderClass =
+		avatarBorder === "primary"
+			? "border-2 border-primary/40"
+			: avatarBorder === "transparent"
+			? "border-2 border-transparent"
+			: "";
 
 	return (
 		<div
@@ -84,13 +98,16 @@ export function PlayerNameCard({
 				className
 			)}
 		>
-			<Avatar className={avatarSize}>
+			<Avatar className={cn(avatarSize, borderClass)}>
 				<AvatarImage src={avatar || undefined} alt={name} />
 				<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
 					{name.charAt(0).toUpperCase()}
 				</AvatarFallback>
 			</Avatar>
-			<span className={cn("font-medium", textSize)}>{name}</span>
+			<div className={cn("flex flex-col", reverse && "items-end")}>
+				<span className={cn("font-medium", textSize)}>{name}</span>
+				{addon}
+			</div>
 		</div>
 	);
 }

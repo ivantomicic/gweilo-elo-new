@@ -81,7 +81,7 @@ function VideosPageContent() {
 				<SidebarInset>
 					<SiteHeader title="Video" />
 					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Loading />
 							</div>
@@ -99,7 +99,7 @@ function VideosPageContent() {
 				<SidebarInset>
 					<SiteHeader title="Video" />
 					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Box>
 									<p className="text-destructive">{error}</p>
@@ -118,7 +118,7 @@ function VideosPageContent() {
 			<SidebarInset>
 				<SiteHeader title="Video" />
 				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2">
+					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 							{/* Videos List */}
 							{videos.length === 0 ? (
@@ -128,7 +128,13 @@ function VideosPageContent() {
 									</p>
 								</Box>
 							) : (
-								<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+								<div
+									className="grid gap-4 md:gap-6"
+									style={{
+										gridTemplateColumns:
+											"repeat(auto-fill, minmax(350px, 1fr))",
+									}}
+								>
 									{videos.map((video) => (
 										<VideoCard
 											key={video.matchId}

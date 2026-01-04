@@ -246,7 +246,7 @@ function SettingsPageContent() {
 				<SidebarInset>
 					<SiteHeader title={t.pages.settings} />
 					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 								<div className="px-4 lg:px-6">
 									<p className="text-muted-foreground">
@@ -267,7 +267,7 @@ function SettingsPageContent() {
 			<SidebarInset>
 				<SiteHeader title={t.pages.settings} />
 				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2">
+					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col py-8 md:py-12">
 							<div className="px-4 lg:px-6">
 								<div className="max-w-2xl mx-auto">

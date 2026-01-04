@@ -17,6 +17,7 @@ type TeamNameCardProps = {
 	size?: "sm" | "md" | "lg";
 	variant?: "horizontal" | "vertical";
 	className?: string;
+	addon?: React.ReactNode;
 };
 
 const sizeClasses = {
@@ -37,6 +38,7 @@ export function TeamNameCard({
 	size = "md",
 	variant = "horizontal",
 	className,
+	addon,
 }: TeamNameCardProps) {
 	const avatarSize = sizeClasses[size];
 	const textSize = textSizeClasses[size];
@@ -66,9 +68,12 @@ export function TeamNameCard({
 					</Avatar>
 				</div>
 				{/* Names */}
-				<span className={cn("font-semibold text-center", textSize)}>
-					{player1.name} & {player2.name}
-				</span>
+				<div className="flex flex-col items-center">
+					<span className={cn("font-semibold text-center", textSize)}>
+						{player1.name} & {player2.name}
+					</span>
+					{addon}
+				</div>
 			</div>
 		);
 	}
@@ -97,9 +102,12 @@ export function TeamNameCard({
 				</Avatar>
 			</div>
 			{/* Names */}
-			<span className={cn("font-medium", textSize)}>
-				{player1.name} & {player2.name}
-			</span>
+			<div className="flex flex-col">
+				<span className={cn("font-medium", textSize)}>
+					{player1.name} & {player2.name}
+				</span>
+				{addon}
+			</div>
 		</div>
 	);
 }
