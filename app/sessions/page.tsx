@@ -20,12 +20,24 @@ import { cn } from "@/lib/utils";
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+type BestWorstPlayer = {
+	best_player_id: string | null;
+	best_player_display_name: string | null;
+	best_player_delta: number | null;
+	worst_player_id: string | null;
+	worst_player_display_name: string | null;
+	worst_player_delta: number | null;
+};
+
 type Session = {
 	id: string;
 	player_count: number;
 	created_at: string;
 	status: "active" | "completed";
 	completed_at?: string | null;
+	singles_match_count: number;
+	doubles_match_count: number;
+	best_worst_player?: BestWorstPlayer | null;
 };
 
 const PAGE_SIZE = 5;
@@ -50,10 +62,10 @@ function SessionsPageContent() {
 				setError(null);
 
 				const {
-					data: { session },
+					data: { session: authSession },
 				} = await supabase.auth.getSession();
 
-				if (!session) {
+				if (!authSession) {
 					setError("Not authenticated");
 					return;
 				}
@@ -64,7 +76,7 @@ function SessionsPageContent() {
 					{
 						global: {
 							headers: {
-								Authorization: `Bearer ${session.access_token}`,
+								Authorization: `Bearer ${authSession.access_token}`,
 							},
 						},
 					}
@@ -101,10 +113,134 @@ function SessionsPageContent() {
 
 				const newSessions = sessionsData || [];
 
+				// If no sessions, skip match count fetching
+				if (newSessions.length === 0) {
+					if (append) {
+						setSessions((prev) => [...prev, ...newSessions]);
+					} else {
+						setSessions(newSessions);
+					}
+					setHasMore(false);
+					return;
+				}
+
+				// Batch fetch match counts for all sessions
+				const sessionIds = newSessions.map((s) => s.id);
+
+				// Fetch match counts grouped by session_id and match_type
+				// Using a single query with filters for efficiency
+				const { data: matchCounts, error: matchCountsError } =
+					await supabaseClient
+						.from("session_matches")
+						.select("session_id, match_type")
+						.in("session_id", sessionIds)
+						.eq("status", "completed");
+
+				if (matchCountsError) {
+					console.error(
+						"Error fetching match counts:",
+						matchCountsError
+					);
+					// Non-fatal: continue with zero counts
+				}
+
+				// Aggregate match counts by session_id and match_type
+				const countsMap = new Map<
+					string,
+					{ singles: number; doubles: number }
+				>();
+
+				// Initialize all sessions with zero counts
+				sessionIds.forEach((sessionId) => {
+					countsMap.set(sessionId, { singles: 0, doubles: 0 });
+				});
+
+				// Aggregate counts from query results
+				if (matchCounts) {
+					matchCounts.forEach((match) => {
+						const counts = countsMap.get(match.session_id) || {
+							singles: 0,
+							doubles: 0,
+						};
+						if (match.match_type === "singles") {
+							counts.singles += 1;
+						} else if (match.match_type === "doubles") {
+							counts.doubles += 1;
+						}
+						countsMap.set(match.session_id, counts);
+					});
+				}
+
+				// Merge match counts into sessions
+				const sessionsWithCounts = newSessions.map((session) => {
+					const counts = countsMap.get(session.id) || {
+						singles: 0,
+						doubles: 0,
+					};
+					return {
+						...session,
+						singles_match_count: counts.singles,
+						doubles_match_count: counts.doubles,
+					};
+				});
+
+				// Fetch best/worst player data for completed sessions
+				const completedSessions = sessionsWithCounts.filter(
+					(s) => s.status === "completed"
+				);
+
+				// Batch fetch best/worst player data in parallel
+				const bestWorstPromises = completedSessions.map(
+					async (session) => {
+						try {
+							const response = await fetch(
+								`/api/sessions/${session.id}/best-worst-player`,
+								{
+									headers: {
+										Authorization: `Bearer ${authSession.access_token}`,
+									},
+								}
+							);
+
+							if (!response.ok) {
+								console.error(
+									`Failed to fetch best/worst for session ${session.id}`
+								);
+								return { sessionId: session.id, data: null };
+							}
+
+							const data = await response.json();
+							return { sessionId: session.id, data };
+						} catch (err) {
+							console.error(
+								`Error fetching best/worst for session ${session.id}:`,
+								err
+							);
+							return { sessionId: session.id, data: null };
+						}
+					}
+				);
+
+				const bestWorstResults = await Promise.all(bestWorstPromises);
+
+				// Create map of sessionId -> best/worst data
+				const bestWorstMap = new Map<string, BestWorstPlayer | null>();
+				bestWorstResults.forEach((result) => {
+					bestWorstMap.set(result.sessionId, result.data);
+				});
+
+				// Merge best/worst player data into sessions
+				const sessionsWithAllData = sessionsWithCounts.map(
+					(session) => ({
+						...session,
+						best_worst_player: bestWorstMap.get(session.id) || null,
+					})
+				);
+
 				if (append) {
-					setSessions((prev) => [...prev, ...newSessions]);
+					setSessions((prev) => [...prev, ...sessionsWithAllData]);
 				} else {
-					setSessions(newSessions);
+					setSessions(sessionsWithAllData);
 				}
 
 				// Check if there are more items to load
@@ -265,24 +401,149 @@ function SessionsPageContent() {
 															{/* Center: Stats */}
 															<Box className="flex-1 min-w-0 py-1">
 																<Stack
-																	direction="row"
-																	alignItems="center"
+																	direction="column"
 																	spacing={
 																		1.5
 																	}
 																>
-																	<Icon
-																		icon="solar:users-group-two-rounded-bold-duotone"
-																		className="size-4 text-muted-foreground"
-																	/>
-																	<span className="text-xs font-semibold">
-																		{
-																			session.player_count
-																		}{" "}
-																		<span className="text-muted-foreground font-normal">
-																			Players
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={
+																			1.5
+																		}
+																	>
+																		<Icon
+																			icon="solar:users-group-two-rounded-bold-duotone"
+																			className="size-4 text-muted-foreground"
+																		/>
+																		<span className="text-xs font-semibold">
+																			{
+																				session.player_count
+																			}{" "}
+																			<span className="text-muted-foreground font-normal">
+																				Players
+																			</span>
 																		</span>
-																	</span>
+																	</Stack>
+																	{((session.singles_match_count ??
+																		0) >
+																		0 ||
+																		(session.doubles_match_count ??
+																			0) >
+																			0) && (
+																		<Box className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground font-medium bg-secondary/30 w-fit px-2 py-1 rounded-lg">
+																			{(session.singles_match_count ??
+																				0) >
+																				0 && (
+																				<span>
+																					Singles:{" "}
+																					{session.singles_match_count ??
+																						0}
+																				</span>
+																			)}
+																			{(session.singles_match_count ??
+																				0) >
+																				0 &&
+																				(session.doubles_match_count ??
+																					0) >
+																					0 && (
+																					<span className="w-1 h-1 rounded-full bg-border" />
+																				)}
+																			{(session.doubles_match_count ??
+																				0) >
+																				0 && (
+																				<span>
+																					Doubles:{" "}
+																					{session.doubles_match_count ??
+																						0}
+																				</span>
+																			)}
+																		</Box>
+																	)}
+																	{session.best_worst_player &&
+																		(session
+																			.best_worst_player
+																			.best_player_delta !==
+																			null ||
+																			session
+																				.best_worst_player
+																				.worst_player_delta !==
+																				null) && (
+																			<Stack
+																				direction="row"
+																				alignItems="center"
+																				spacing={
+																					2
+																				}
+																				className="mt-2 flex-wrap"
+																			>
+																				{session
+																					.best_worst_player
+																					.best_player_delta !==
+																					null && (
+																					<Box className="flex items-center gap-1.5 text-[10px] bg-secondary/30 w-fit px-2 py-1 rounded-lg">
+																						<Icon
+																							icon="solar:star-bold"
+																							className="size-3.5 text-yellow-400"
+																						/>
+																						<span className="text-foreground font-medium">
+																							Best:{" "}
+																							<span className="font-semibold">
+																								{session
+																									.best_worst_player
+																									.best_player_display_name ||
+																									"Unknown"}
+																							</span>
+																						</span>
+																						<span className="text-emerald-400 font-semibold ml-1">
+																							(+
+																							{Number(
+																								session
+																									.best_worst_player
+																									.best_player_delta
+																							).toFixed(
+																								2
+																							)}
+
+																							)
+																						</span>
+																					</Box>
+																				)}
+																				{session
+																					.best_worst_player
+																					.worst_player_delta !==
+																					null && (
+																					<Box className="flex items-center gap-1.5 text-[10px] bg-secondary/30 w-fit px-2 py-1 rounded-lg">
+																						<Icon
+																							icon="solar:arrow-down-bold"
+																							className="size-3.5 text-red-400"
+																						/>
+																						<span className="text-foreground font-medium">
+																							Worst:{" "}
+																							<span className="font-semibold">
+																								{session
+																									.best_worst_player
+																									.worst_player_display_name ||
+																									"Unknown"}
+																							</span>
+																						</span>
+																						<span className="text-red-400 font-semibold ml-1">
+																							(
+																							{Number(
+																								session
+																									.best_worst_player
+																									.worst_player_delta
+																							).toFixed(
+																								2
+																							)}
+
+																							)
+																						</span>
+																					</Box>
+																				)}
+																			</Stack>
+																		)}
 																</Stack>
 															</Box>
 
