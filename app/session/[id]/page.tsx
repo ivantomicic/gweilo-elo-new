@@ -1311,12 +1311,7 @@ function SessionPageContent() {
 					<AppSidebar variant="inset" />
 					<SidebarInset>
 						<SiteHeader
-							title={
-								t.sessions.session.title +
-								" (" +
-								formattedSessionDate +
-								")"
-							}
+							title={formattedSessionDate}
 							actionLabel={
 								isAdmin && isDeletable
 									? t.sessions.session.delete.button
