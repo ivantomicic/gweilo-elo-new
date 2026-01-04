@@ -230,23 +230,14 @@ function StatisticsPageContent() {
 										}
 									}}
 								>
-									<TabsList className="h-auto p-0 bg-transparent gap-6 border-none">
-										<TabsTrigger
-											value="singles"
-											className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
-										>
+									<TabsList>
+										<TabsTrigger value="singles">
 											Singles
 										</TabsTrigger>
-										<TabsTrigger
-											value="doubles-player"
-											className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
-										>
+										<TabsTrigger value="doubles-player">
 											Doubles – Player
 										</TabsTrigger>
-										<TabsTrigger
-											value="doubles-team"
-											className="px-0 py-2 text-base font-medium text-muted-foreground data-[state=active]:text-foreground data-[state=active]:font-semibold data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none border-b-2 border-transparent data-[state=active]:border-primary hover:text-foreground transition-colors"
-										>
+										<TabsTrigger value="doubles-team">
 											Doubles – Team
 										</TabsTrigger>
 									</TabsList>
