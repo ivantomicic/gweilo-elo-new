@@ -6,6 +6,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset } from "@/components/vendor/shadcn/sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { Box } from "@/components/ui/box";
+import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 
 type SessionsLayoutProps = {
@@ -36,6 +37,14 @@ type SessionsStateProps = {
 };
 
 export function SessionsState({ message, variant = "empty" }: SessionsStateProps) {
+	if (variant === "loading") {
+		return (
+			<SessionsLayout>
+				<Loading label={message} />
+			</SessionsLayout>
+		);
+	}
+
 	return (
 		<SessionsLayout>
 			<Box>

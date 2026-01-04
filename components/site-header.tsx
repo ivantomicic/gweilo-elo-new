@@ -26,12 +26,20 @@ export function SiteHeader({
 	actionHref,
 	actionOnClick,
 	actionIcon,
+	actionVariant,
 }: {
 	title: string;
 	actionLabel?: string;
 	actionHref?: string;
 	actionOnClick?: () => void;
 	actionIcon?: string;
+	actionVariant?:
+		| "default"
+		| "destructive"
+		| "outline"
+		| "secondary"
+		| "ghost"
+		| "link";
 }) {
 	// Determine which action to show
 	const hasCustomAction = actionLabel && (actionHref || actionOnClick);
@@ -62,6 +70,7 @@ export function SiteHeader({
 					) : (
 						<Button
 							size="sm"
+							variant={actionVariant || "default"}
 							asChild={!!actionHref}
 							onClick={actionOnClick}
 						>

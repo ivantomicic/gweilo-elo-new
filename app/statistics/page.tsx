@@ -10,6 +10,7 @@ import {
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
 import { Box } from "@/components/ui/box";
+import { Loading } from "@/components/ui/loading";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { TeamNameCard } from "@/components/ui/team-name-card";
 import {
@@ -171,11 +172,7 @@ function StatisticsPageContent() {
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-muted-foreground">
-										{t.statistics.loading}
-									</p>
-								</Box>
+								<Loading label={t.statistics.loading} />
 							</div>
 						</div>
 					</div>
@@ -213,7 +210,7 @@ function StatisticsPageContent() {
 					<div className="@container/main flex flex-1 flex-col gap-2">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 							{/* Page-level Navigation Tabs */}
-							<Box className="mb-6 pb-4 border-b border-border/50">
+							<Box className="mb-4">
 								<Tabs
 									value={
 										activeView === "doubles_player"

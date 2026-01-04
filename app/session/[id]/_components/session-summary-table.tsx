@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { PlayerNameCard } from "@/components/ui/player-name-card";
+import { TeamNameCard } from "@/components/ui/team-name-card";
 import {
 	Table,
 	TableBody,
@@ -11,8 +13,10 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Box } from "@/components/ui/box";
+import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 type SessionPlayerSummary = {
 	player_id: string;
@@ -33,6 +37,8 @@ type SessionTeamSummary = {
 	player2_id: string;
 	player1_name: string;
 	player2_name: string;
+	player1_avatar: string | null;
+	player2_avatar: string | null;
 	elo_before: number;
 	elo_after: number;
 	elo_change: number;
@@ -66,9 +72,9 @@ export function SessionSummaryTable({
 	onViewChange,
 	onViewAvailabilityChange,
 }: SessionSummaryTableProps) {
-	const [singlesSummary, setSinglesSummary] = useState<SessionPlayerSummary[]>(
-		[]
-	);
+	const [singlesSummary, setSinglesSummary] = useState<
+		SessionPlayerSummary[]
+	>([]);
 	const [doublesPlayerSummary, setDoublesPlayerSummary] = useState<
 		SessionPlayerSummary[]
 	>([]);
@@ -93,15 +99,20 @@ export function SessionSummaryTable({
 					return;
 				}
 
-				const response = await fetch(`/api/sessions/${sessionId}/summary`, {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
-				});
+				const response = await fetch(
+					`/api/sessions/${sessionId}/summary`,
+					{
+						headers: {
+							Authorization: `Bearer ${session.access_token}`,
+						},
+					}
+				);
 
 				if (!response.ok) {
 					const errorData = await response.json().catch(() => ({}));
-					throw new Error(errorData.error || "Failed to load session summary");
+					throw new Error(
+						errorData.error || "Failed to load session summary"
+					);
 				}
 
 				const data = await response.json();
@@ -119,7 +130,9 @@ export function SessionSummaryTable({
 			} catch (err) {
 				console.error("Error fetching session summary:", err);
 				setError(
-					err instanceof Error ? err.message : "Failed to load session summary"
+					err instanceof Error
+						? err.message
+						: "Failed to load session summary"
 				);
 			} finally {
 				setLoading(false);
@@ -180,10 +193,23 @@ export function SessionSummaryTable({
 		return rounded > 0 ? `+${rounded}` : `${rounded}`;
 	};
 
+	// Get rank color based on position
+	const getRankColor = (index: number) => {
+		if (index === 0) return "text-yellow-500";
+		if (index === 1) return "text-zinc-400";
+		if (index === 2) return "text-orange-700";
+		return "text-muted-foreground";
+	};
+
+	// Sort by wins (descending) for display
+	const sortByWins = <T extends { wins: number }>(arr: T[]): T[] => {
+		return [...arr].sort((a, b) => b.wins - a.wins);
+	};
+
 	if (loading) {
 		return (
 			<Box>
-				<p className="text-muted-foreground">Loading session summary...</p>
+				<Loading inline label={t.sessions.session.loading} />
 			</Box>
 		);
 	}
@@ -200,207 +226,258 @@ export function SessionSummaryTable({
 	if (!hasSingles && !hasDoublesPlayer && !hasDoublesTeam) {
 		return (
 			<Box>
-				<p className="text-muted-foreground">No summary data available.</p>
+				<p className="text-muted-foreground">
+					No summary data available.
+				</p>
 			</Box>
 		);
 	}
 
 	// Return just the table content based on current view
 	const renderTable = () => {
-
 		if (currentView === "singles" && hasSingles) {
+			const sortedPlayers = sortByWins(singlesSummary);
 			return (
 				<Table>
-							<TableHeader className="bg-muted/30">
-								<TableRow>
-									<TableHead>Player</TableHead>
-									<TableHead className="text-right">Elo Before</TableHead>
-									<TableHead className="text-right">Elo After</TableHead>
-									<TableHead className="text-right">Elo Change</TableHead>
-									<TableHead className="text-right">Matches</TableHead>
-									<TableHead className="text-right">Wins</TableHead>
-									<TableHead className="text-right">Losses</TableHead>
-									<TableHead className="text-right">Draws</TableHead>
+					<TableHeader className="bg-muted/30">
+						<TableRow>
+							<TableHead className="text-left w-[60px]">
+								#
+							</TableHead>
+							<TableHead className="text-left">
+								{t.statistics.table.player}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.wins}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.draws}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.losses}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.elo}
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{sortedPlayers.map((player, index) => {
+							const eloChange = formatEloChange(
+								player.elo_change
+							);
+							const eloChangeColor =
+								player.elo_change > 0
+									? "text-emerald-500"
+									: player.elo_change < 0
+									? "text-red-500"
+									: "text-foreground";
+
+							return (
+								<TableRow key={player.player_id}>
+									<TableCell
+										className={cn(
+											"font-bold w-[60px]",
+											getRankColor(index)
+										)}
+									>
+										{index + 1}
+									</TableCell>
+									<TableCell>
+										<PlayerNameCard
+											name={player.display_name}
+											avatar={player.avatar}
+											id={player.player_id}
+											size="md"
+										/>
+									</TableCell>
+									<TableCell className="text-center">
+										{player.wins}
+									</TableCell>
+									<TableCell className="text-center text-muted-foreground">
+										{player.draws}
+									</TableCell>
+									<TableCell className="text-center text-muted-foreground">
+										{player.losses}
+									</TableCell>
+									<TableCell
+										className={cn(
+											"text-center font-bold",
+											eloChangeColor
+										)}
+									>
+										{eloChange}
+									</TableCell>
 								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{singlesSummary.map((player) => (
-									<TableRow key={player.player_id}>
-										<TableCell>
-											<div className="flex items-center gap-3">
-												<Avatar className="size-10 border-2 border-border">
-													<AvatarImage
-														src={player.avatar || undefined}
-														alt={player.display_name}
-													/>
-													<AvatarFallback>
-														{player.display_name.charAt(0).toUpperCase()}
-													</AvatarFallback>
-												</Avatar>
-												<span className="font-medium">
-													{player.display_name}
-												</span>
-											</div>
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatElo(player.elo_before)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatElo(player.elo_after)}
-										</TableCell>
-										<TableCell
-											className={cn(
-												"text-right font-bold",
-												player.elo_change > 0 && "text-green-500",
-												player.elo_change < 0 && "text-red-500",
-												player.elo_change === 0 && "text-foreground"
-											)}
-										>
-											{formatEloChange(player.elo_change)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.matches_played}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.wins}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.losses}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.draws}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+							);
+						})}
+					</TableBody>
+				</Table>
 			);
 		}
 
 		if (currentView === "doubles_player" && hasDoublesPlayer) {
+			const sortedPlayers = sortByWins(doublesPlayerSummary);
 			return (
 				<Table>
-							<TableHeader className="bg-muted/30">
-								<TableRow>
-									<TableHead>Player</TableHead>
-									<TableHead className="text-right">Elo Before</TableHead>
-									<TableHead className="text-right">Elo After</TableHead>
-									<TableHead className="text-right">Elo Change</TableHead>
-									<TableHead className="text-right">Matches</TableHead>
-									<TableHead className="text-right">Wins</TableHead>
-									<TableHead className="text-right">Losses</TableHead>
-									<TableHead className="text-right">Draws</TableHead>
+					<TableHeader className="bg-muted/30">
+						<TableRow>
+							<TableHead className="text-left w-[60px]">
+								#
+							</TableHead>
+							<TableHead className="text-left">
+								{t.statistics.table.player}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.wins}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.draws}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.losses}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.elo}
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{sortedPlayers.map((player, index) => {
+							const eloChange = formatEloChange(
+								player.elo_change
+							);
+							const eloChangeColor =
+								player.elo_change > 0
+									? "text-emerald-500"
+									: player.elo_change < 0
+									? "text-red-500"
+									: "text-foreground";
+
+							return (
+								<TableRow key={player.player_id}>
+									<TableCell
+										className={cn(
+											"font-bold w-[60px]",
+											getRankColor(index)
+										)}
+									>
+										{index + 1}
+									</TableCell>
+									<TableCell>
+										<PlayerNameCard
+											name={player.display_name}
+											avatar={player.avatar}
+											id={player.player_id}
+											size="md"
+										/>
+									</TableCell>
+									<TableCell className="text-center">
+										{player.wins}
+									</TableCell>
+									<TableCell className="text-center text-muted-foreground">
+										{player.draws}
+									</TableCell>
+									<TableCell className="text-center text-muted-foreground">
+										{player.losses}
+									</TableCell>
+									<TableCell
+										className={cn(
+											"text-center font-bold",
+											eloChangeColor
+										)}
+									>
+										{eloChange}
+									</TableCell>
 								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{doublesPlayerSummary.map((player) => (
-									<TableRow key={player.player_id}>
-										<TableCell>
-											<div className="flex items-center gap-3">
-												<Avatar className="size-10 border-2 border-border">
-													<AvatarImage
-														src={player.avatar || undefined}
-														alt={player.display_name}
-													/>
-													<AvatarFallback>
-														{player.display_name.charAt(0).toUpperCase()}
-													</AvatarFallback>
-												</Avatar>
-												<span className="font-medium">
-													{player.display_name}
-												</span>
-											</div>
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatElo(player.elo_before)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatElo(player.elo_after)}
-										</TableCell>
-										<TableCell
-											className={cn(
-												"text-right font-bold",
-												player.elo_change > 0 && "text-green-500",
-												player.elo_change < 0 && "text-red-500",
-												player.elo_change === 0 && "text-foreground"
-											)}
-										>
-											{formatEloChange(player.elo_change)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.matches_played}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.wins}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.losses}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{player.draws}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+							);
+						})}
+					</TableBody>
+				</Table>
 			);
 		}
 
 		if (currentView === "doubles_team" && hasDoublesTeam) {
+			const sortedTeams = sortByWins(doublesTeamSummary);
 			return (
 				<Table>
-							<TableHeader className="bg-muted/30">
-								<TableRow>
-									<TableHead>Team</TableHead>
-									<TableHead className="text-right">Elo Before</TableHead>
-									<TableHead className="text-right">Elo After</TableHead>
-									<TableHead className="text-right">Elo Change</TableHead>
-									<TableHead className="text-right">Matches</TableHead>
-									<TableHead className="text-right">Wins</TableHead>
-									<TableHead className="text-right">Losses</TableHead>
-									<TableHead className="text-right">Draws</TableHead>
+					<TableHeader className="bg-muted/30">
+						<TableRow>
+							<TableHead className="text-left w-[60px]">
+								#
+							</TableHead>
+							<TableHead className="text-left">
+								{t.statistics.table.team}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.wins}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.draws}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.losses}
+							</TableHead>
+							<TableHead className="text-center">
+								{t.statistics.table.elo}
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{sortedTeams.map((team, index) => {
+							const eloChange = formatEloChange(team.elo_change);
+							const eloChangeColor =
+								team.elo_change > 0
+									? "text-emerald-500"
+									: team.elo_change < 0
+									? "text-red-500"
+									: "text-foreground";
+
+							return (
+								<TableRow key={team.team_id}>
+									<TableCell
+										className={cn(
+											"font-bold w-[60px]",
+											getRankColor(index)
+										)}
+									>
+										{index + 1}
+									</TableCell>
+									<TableCell>
+										<TeamNameCard
+											player1={{
+												name: team.player1_name,
+												avatar: team.player1_avatar,
+											}}
+											player2={{
+												name: team.player2_name,
+												avatar: team.player2_avatar,
+											}}
+											size="md"
+										/>
+									</TableCell>
+									<TableCell className="text-center">
+										{team.wins}
+									</TableCell>
+									<TableCell className="text-center text-muted-foreground">
+										{team.draws}
+									</TableCell>
+									<TableCell className="text-center text-muted-foreground">
+										{team.losses}
+									</TableCell>
+									<TableCell
+										className={cn(
+											"text-center font-bold",
+											eloChangeColor
+										)}
+									>
+										{eloChange}
+									</TableCell>
 								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{doublesTeamSummary.map((team) => (
-									<TableRow key={team.team_id}>
-										<TableCell>
-											<span className="font-medium">
-												{team.player1_name} & {team.player2_name}
-											</span>
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatElo(team.elo_before)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{formatElo(team.elo_after)}
-										</TableCell>
-										<TableCell
-											className={cn(
-												"text-right font-bold",
-												team.elo_change > 0 && "text-green-500",
-												team.elo_change < 0 && "text-red-500",
-												team.elo_change === 0 && "text-foreground"
-											)}
-										>
-											{formatEloChange(team.elo_change)}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{team.matches_played}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{team.wins}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{team.losses}
-										</TableCell>
-										<TableCell className="text-right font-medium">
-											{team.draws}
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
+							);
+						})}
+					</TableBody>
+				</Table>
 			);
 		}
 

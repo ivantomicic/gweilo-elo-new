@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
+import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
@@ -116,8 +117,8 @@ export default function HomePage() {
 	// Show loading state briefly to prevent flicker
 	if (isAuthenticated === null) {
 		return (
-			<div className="flex min-h-screen items-center justify-center bg-background">
-				<p className="text-muted-foreground">Loading...</p>
+			<div className="min-h-screen bg-background">
+				<Loading />
 			</div>
 		);
 	}

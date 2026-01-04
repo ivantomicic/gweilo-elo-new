@@ -787,6 +787,8 @@ export async function GET(
 						player2_id: players.player2Id,
 						player1_name: player1Info?.display_name || "Unknown",
 						player2_name: player2Info?.display_name || "Unknown",
+						player1_avatar: player1Info?.avatar || null,
+						player2_avatar: player2Info?.avatar || null,
 						elo_before: eloBefore,
 						elo_after: eloAfter,
 						elo_change: eloChange,

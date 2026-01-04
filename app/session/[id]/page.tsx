@@ -10,6 +10,7 @@ import {
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
 import { Box } from "@/components/ui/box";
+import { Loading } from "@/components/ui/loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -30,10 +31,8 @@ import { getUserRole } from "@/lib/auth/getUserRole";
 import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
 import { EditMatchDrawer } from "./_components/edit-match-drawer";
-import {
-	SessionSummaryTable,
-	type SessionViewAvailability,
-} from "./_components/session-summary-table";
+import { SessionSummaryTable } from "./_components/session-summary-table";
+import { MatchHistoryCard } from "./_components/match-history-card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
@@ -1112,20 +1111,27 @@ function SessionPageContent() {
 		handleCloseVideoDrawer,
 	]);
 
+	// Format session date for header title
+	const formattedSessionDate = useMemo(() => {
+		if (!sessionData) return t.sessions.session.title;
+		const date = new Date(sessionData.session.created_at);
+		return date.toLocaleDateString("sr-Latn-RS", {
+			day: "numeric",
+			month: "short",
+			year: "numeric",
+		});
+	}, [sessionData]);
+
 	if (loading) {
 		return (
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title={t.sessions.session.title} />
+					<SiteHeader title={t.sessions.session.loading} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-muted-foreground">
-										{t.sessions.session.loading}
-									</p>
-								</Box>
+								<Loading label={t.sessions.session.loading} />
 							</div>
 						</div>
 					</div>
@@ -1163,131 +1169,131 @@ function SessionPageContent() {
 			.map(Number)
 			.sort((a, b) => a - b);
 
+		// Calculate total matches
+		const totalMatches = roundNumbersList.reduce(
+			(sum, roundNum) =>
+				sum + (sessionData.matchesByRound[roundNum]?.length || 0),
+			0
+		);
+
 		return (
 			<>
 				<SidebarProvider>
 					<AppSidebar variant="inset" />
 					<SidebarInset>
-						<SiteHeader title={t.sessions.session.title} />
+						<SiteHeader
+							title={
+								t.sessions.session.title +
+								" (" +
+								formattedSessionDate +
+								")"
+							}
+							actionLabel={
+								isAdmin && isDeletable
+									? t.sessions.session.delete.button
+									: undefined
+							}
+							actionOnClick={
+								isAdmin && isDeletable
+									? () => setShowDeleteModal(true)
+									: undefined
+							}
+							actionIcon="solar:trash-bin-trash-bold"
+							actionVariant={
+								isAdmin && isDeletable
+									? "destructive"
+									: undefined
+							}
+						/>
 						<div className="flex flex-1 flex-col">
 							<div className="@container/main flex flex-1 flex-col gap-2">
 								<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-									{/* Header */}
-									<Box className="flex justify-between items-end">
-										<Box>
-											<h1 className="text-3xl font-bold font-heading tracking-tight">
-												{t.sessions.session.results}
-											</h1>
-											<p className="text-sm text-muted-foreground mt-1">
-												{t.sessions.session.completedOn}{" "}
-												{sessionData.session
-													.completed_at
-													? new Date(
-															sessionData.session.completed_at
-													  ).toLocaleDateString(
-															"sr-Latn-RS"
-													  )
-													: t.sessions.session
-															.unknown}
-											</p>
-										</Box>
-										{isAdmin && isDeletable && (
-											<Button
-												variant="destructive"
-												size="sm"
-												onClick={(e) => {
-													e.preventDefault();
-													e.stopPropagation();
-													console.log(
-														"Delete button clicked, setting showDeleteModal to true"
-													);
-													setShowDeleteModal(true);
-												}}
-												className="text-xs"
-											>
-												{
-													t.sessions.session.delete
-														.button
-												}
-											</Button>
+									{/* Compact Header */}
+									<Box className="mb-4">
+										{/* Page-level Navigation Tabs */}
+										{viewAvailability && (
+											<Box className="mb-2">
+												<Tabs
+													value={
+														activeView ===
+														"doubles_player"
+															? "doubles-player"
+															: activeView ===
+															  "doubles_team"
+															? "doubles-team"
+															: "singles"
+													}
+													onValueChange={(value) => {
+														if (
+															value === "singles"
+														) {
+															handleViewChange(
+																"singles"
+															);
+														} else if (
+															value ===
+															"doubles-player"
+														) {
+															handleViewChange(
+																"doubles_player"
+															);
+														} else if (
+															value ===
+															"doubles-team"
+														) {
+															handleViewChange(
+																"doubles_team"
+															);
+														}
+													}}
+												>
+													<TabsList>
+														{viewAvailability.hasSingles && (
+															<TabsTrigger value="singles">
+																{
+																	t.sessions
+																		.session
+																		.tabs
+																		.singles
+																}
+															</TabsTrigger>
+														)}
+														{viewAvailability.hasDoublesPlayer && (
+															<TabsTrigger value="doubles-player">
+																{
+																	t.sessions
+																		.session
+																		.tabs
+																		.doublesPlayer
+																}
+															</TabsTrigger>
+														)}
+														{viewAvailability.hasDoublesTeam && (
+															<TabsTrigger value="doubles-team">
+																{
+																	t.sessions
+																		.session
+																		.tabs
+																		.doublesTeam
+																}
+															</TabsTrigger>
+														)}
+													</TabsList>
+												</Tabs>
+											</Box>
 										)}
 									</Box>
 
-									{/* Page-level Navigation Tabs */}
-									{viewAvailability && (
-										<Box className="mb-6 pb-4 border-b border-border/50">
-											<Tabs
-												value={
-													activeView ===
-													"doubles_player"
-														? "doubles-player"
-														: activeView ===
-														  "doubles_team"
-														? "doubles-team"
-														: "singles"
-												}
-												onValueChange={(value) => {
-													if (value === "singles") {
-														handleViewChange(
-															"singles"
-														);
-													} else if (
-														value ===
-														"doubles-player"
-													) {
-														handleViewChange(
-															"doubles_player"
-														);
-													} else if (
-														value === "doubles-team"
-													) {
-														handleViewChange(
-															"doubles_team"
-														);
-													}
-												}}
-											>
-												<TabsList>
-													{viewAvailability.hasSingles && (
-														<TabsTrigger value="singles">
-															{
-																t.sessions
-																	.session
-																	.tabs
-																	.singles
-															}
-														</TabsTrigger>
-													)}
-													{viewAvailability.hasDoublesPlayer && (
-														<TabsTrigger value="doubles-player">
-															{
-																t.sessions
-																	.session
-																	.tabs
-																	.doublesPlayer
-															}
-														</TabsTrigger>
-													)}
-													{viewAvailability.hasDoublesTeam && (
-														<TabsTrigger value="doubles-team">
-															{
-																t.sessions
-																	.session
-																	.tabs
-																	.doublesTeam
-															}
-														</TabsTrigger>
-													)}
-												</TabsList>
-											</Tabs>
-										</Box>
-									)}
-
-									{/* Session Summary Table */}
+									{/* Performance Overview Table */}
 									<Box className="mb-6">
-										<h2 className="text-xl font-bold font-heading mb-4">
-											{t.sessions.session.sessionSummary}
-										</h2>
+										<Box className="flex items-center justify-between mb-3 px-1">
+											<h3 className="text-base font-bold font-heading">
+												{
+													t.sessions.session
+														.performanceOverview
+												}
+											</h3>
+										</Box>
 										<SessionSummaryTable
 											sessionId={sessionId}
 											activeView={activeView}
@@ -1298,373 +1304,151 @@ function SessionPageContent() {
 										/>
 									</Box>
 
-									{/* Rounds */}
-									<Stack direction="column" spacing={6}>
-										{roundNumbersList.map((roundNumber) => {
-											const allRoundMatches =
-												sessionData.matchesByRound[
-													roundNumber
-												] || [];
+									{/* Match History */}
+									<Box>
+										<Box className="flex items-center justify-between mb-3 px-1">
+											<h3 className="text-base font-bold font-heading">
+												{
+													t.sessions.session
+														.matchHistory
+												}
+											</h3>
+										</Box>
+										<Stack direction="column" spacing={2.5}>
+											{roundNumbersList.flatMap(
+												(roundNumber) => {
+													const allRoundMatches =
+														sessionData
+															.matchesByRound[
+															roundNumber
+														] || [];
 
-											// Filter matches based on active view
-											const roundMatches =
-												allRoundMatches.filter(
-													(match) => {
-														if (
-															activeView ===
-															"singles"
-														) {
-															return (
+													// Filter matches based on active view
+													const roundMatches =
+														allRoundMatches.filter(
+															(match) => {
+																if (
+																	activeView ===
+																	"singles"
+																) {
+																	return (
+																		match.match_type ===
+																		"singles"
+																	);
+																} else {
+																	// doubles_player or doubles_team: show doubles matches
+																	return (
+																		match.match_type ===
+																		"doubles"
+																	);
+																}
+															}
+														);
+
+													return roundMatches.map(
+														(match) => {
+															const isSingles =
 																match.match_type ===
-																"singles"
-															);
-														} else {
-															// doubles_player or doubles_team: show doubles matches
+																"singles";
+
+															// Get players for each team
+															const team1PlayerIds =
+																isSingles
+																	? [
+																			match
+																				.player_ids[0],
+																	  ]
+																	: [
+																			match
+																				.player_ids[0],
+																			match
+																				.player_ids[1],
+																	  ];
+															const team2PlayerIds =
+																isSingles
+																	? [
+																			match
+																				.player_ids[1],
+																	  ]
+																	: [
+																			match
+																				.player_ids[2],
+																			match
+																				.player_ids[3],
+																	  ];
+
+															const team1Players =
+																team1PlayerIds
+																	.map((id) =>
+																		getPlayer(
+																			id
+																		)
+																	)
+																	.filter(
+																		Boolean
+																	) as Player[];
+															const team2Players =
+																team2PlayerIds
+																	.map((id) =>
+																		getPlayer(
+																			id
+																		)
+																	)
+																	.filter(
+																		Boolean
+																	) as Player[];
+
 															return (
-																match.match_type ===
-																"doubles"
+																<MatchHistoryCard
+																	key={
+																		match.id
+																	}
+																	matchType={
+																		match.match_type
+																	}
+																	team1Players={team1Players.map(
+																		(
+																			p
+																		) => ({
+																			id: p.id,
+																			name: p.name,
+																			avatar: p.avatar,
+																		})
+																	)}
+																	team2Players={team2Players.map(
+																		(
+																			p
+																		) => ({
+																			id: p.id,
+																			name: p.name,
+																			avatar: p.avatar,
+																		})
+																	)}
+																	team1Score={
+																		match.team1_score ??
+																		null
+																	}
+																	team2Score={
+																		match.team2_score ??
+																		null
+																	}
+																	onClick={() =>
+																		isAdmin &&
+																		handleOpenVideoDrawer(
+																			match
+																		)
+																	}
+																	hasVideo={
+																		!!match.video_url
+																	}
+																/>
 															);
 														}
-													}
-												);
-
-											// Don't render round if no matches after filtering
-											if (roundMatches.length === 0) {
-												return null;
-											}
-
-											return (
-												<Box key={roundNumber}>
-													<h2 className="text-xl font-bold font-heading mb-4">
-														{t.sessions.session.round.replace(
-															"{number}",
-															roundNumber.toString()
-														)}
-													</h2>
-													<Stack
-														direction="column"
-														spacing={3}
-													>
-														{roundMatches.map(
-															(match) => {
-																const isSingles =
-																	match.match_type ===
-																	"singles";
-
-																// Get players for each team
-																const team1PlayerIds =
-																	isSingles
-																		? [
-																				match
-																					.player_ids[0],
-																		  ]
-																		: [
-																				match
-																					.player_ids[0],
-																				match
-																					.player_ids[1],
-																		  ];
-																const team2PlayerIds =
-																	isSingles
-																		? [
-																				match
-																					.player_ids[1],
-																		  ]
-																		: [
-																				match
-																					.player_ids[2],
-																				match
-																					.player_ids[3],
-																		  ];
-
-																const team1Players =
-																	team1PlayerIds
-																		.map(
-																			(
-																				id
-																			) =>
-																				getPlayer(
-																					id
-																				)
-																		)
-																		.filter(
-																			Boolean
-																		) as Player[];
-																const team2Players =
-																	team2PlayerIds
-																		.map(
-																			(
-																				id
-																			) =>
-																				getPlayer(
-																					id
-																				)
-																		)
-																		.filter(
-																			Boolean
-																		) as Player[];
-
-																const team1Name =
-																	isSingles
-																		? team1Players[0]
-																				?.name ||
-																		  "Unknown"
-																		: `${
-																				team1Players[0]
-																					?.name ||
-																				""
-																		  } & ${
-																				team1Players[1]
-																					?.name ||
-																				""
-																		  }`.trim();
-																const team2Name =
-																	isSingles
-																		? team2Players[0]
-																				?.name ||
-																		  "Unknown"
-																		: `${
-																				team2Players[0]
-																					?.name ||
-																				""
-																		  } & ${
-																				team2Players[1]
-																					?.name ||
-																				""
-																		  }`.trim();
-
-																const hasVideoUrl =
-																	!!match.video_url;
-
-																return (
-																	<Box
-																		key={
-																			match.id
-																		}
-																		onClick={() =>
-																			isAdmin &&
-																			handleOpenVideoDrawer(
-																				match
-																			)
-																		}
-																		className={cn(
-																			"bg-card rounded-[20px] p-5 border border-border/50 shadow-sm relative",
-																			isAdmin &&
-																				"cursor-pointer hover:border-border active:scale-[0.99] transition-all"
-																		)}
-																	>
-																		{/* Video URL Indicator */}
-																		{hasVideoUrl && (
-																			<Box className="absolute top-3 right-3">
-																				<Icon
-																					icon="solar:play-circle-bold"
-																					className="size-5 text-chart-4"
-																				/>
-																			</Box>
-																		)}
-																		<Stack
-																			direction="row"
-																			alignItems="center"
-																			justifyContent="between"
-																			spacing={
-																				4
-																			}
-																		>
-																			{/* Team 1 */}
-																			<Stack
-																				direction="column"
-																				alignItems="center"
-																				spacing={
-																					2
-																				}
-																				className="flex-1"
-																			>
-																				{isSingles ? (
-																					<Avatar className="size-16 border-2 border-border shadow-md">
-																						<AvatarImage
-																							src={
-																								team1Players[0]
-																									?.avatar ||
-																								undefined
-																							}
-																							alt={
-																								team1Players[0]
-																									?.name
-																							}
-																						/>
-																						<AvatarFallback>
-																							{team1Players[0]?.name
-																								?.charAt(
-																									0
-																								)
-																								.toUpperCase() ||
-																								"?"}
-																						</AvatarFallback>
-																					</Avatar>
-																				) : (
-																					<Stack
-																						direction="row"
-																						spacing={
-																							-4
-																						}
-																					>
-																						{team1Players.map(
-																							(
-																								player
-																							) => (
-																								<Avatar
-																									key={
-																										player.id
-																									}
-																									className="size-14 border-2 border-background shadow-sm"
-																								>
-																									<AvatarImage
-																										src={
-																											player.avatar ||
-																											undefined
-																										}
-																										alt={
-																											player.name
-																										}
-																									/>
-																									<AvatarFallback>
-																										{player.name
-																											?.charAt(
-																												0
-																											)
-																											.toUpperCase() ||
-																											"?"}
-																									</AvatarFallback>
-																								</Avatar>
-																							)
-																						)}
-																					</Stack>
-																				)}
-																				<Box className="text-center">
-																					<p className="text-base font-bold leading-tight">
-																						{
-																							team1Name
-																						}
-																					</p>
-																				</Box>
-																			</Stack>
-
-																			{/* Scores */}
-																			<Stack
-																				direction="row"
-																				alignItems="center"
-																				spacing={
-																					3
-																				}
-																				className="shrink-0"
-																			>
-																				<Box className="text-center">
-																					<p className="text-3xl font-black">
-																						{match.team1_score ??
-																							"-"}
-																					</p>
-																				</Box>
-																				<Box className="px-1">
-																					<span className="text-xs font-black text-muted-foreground">
-																						VS
-																					</span>
-																				</Box>
-																				<Box className="text-center">
-																					<p className="text-3xl font-black">
-																						{match.team2_score ??
-																							"-"}
-																					</p>
-																				</Box>
-																			</Stack>
-
-																			{/* Team 2 */}
-																			<Stack
-																				direction="column"
-																				alignItems="center"
-																				spacing={
-																					2
-																				}
-																				className="flex-1"
-																			>
-																				{isSingles ? (
-																					<Avatar className="size-16 border-2 border-border shadow-md">
-																						<AvatarImage
-																							src={
-																								team2Players[0]
-																									?.avatar ||
-																								undefined
-																							}
-																							alt={
-																								team2Players[0]
-																									?.name
-																							}
-																						/>
-																						<AvatarFallback>
-																							{team2Players[0]?.name
-																								?.charAt(
-																									0
-																								)
-																								.toUpperCase() ||
-																								"?"}
-																						</AvatarFallback>
-																					</Avatar>
-																				) : (
-																					<Stack
-																						direction="row"
-																						spacing={
-																							-4
-																						}
-																					>
-																						{team2Players.map(
-																							(
-																								player
-																							) => (
-																								<Avatar
-																									key={
-																										player.id
-																									}
-																									className="size-14 border-2 border-background shadow-sm"
-																								>
-																									<AvatarImage
-																										src={
-																											player.avatar ||
-																											undefined
-																										}
-																										alt={
-																											player.name
-																										}
-																									/>
-																									<AvatarFallback>
-																										{player.name
-																											?.charAt(
-																												0
-																											)
-																											.toUpperCase() ||
-																											"?"}
-																									</AvatarFallback>
-																								</Avatar>
-																							)
-																						)}
-																					</Stack>
-																				)}
-																				<Box className="text-center">
-																					<p className="text-base font-bold leading-tight">
-																						{
-																							team2Name
-																						}
-																					</p>
-																				</Box>
-																			</Stack>
-																		</Stack>
-																	</Box>
-																);
-															}
-														)}
-													</Stack>
-												</Box>
-											);
-										})}
-									</Stack>
+													);
+												}
+											)}
+										</Stack>
+									</Box>
 								</div>
 							</div>
 						</div>
@@ -2187,7 +1971,7 @@ function SessionPageContent() {
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title={t.sessions.session.title} />
+					<SiteHeader title={formattedSessionDate} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">

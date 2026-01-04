@@ -113,6 +113,12 @@ export const sr = {
 			avg: "Avg",
 			completed: "Završeno",
 			unknown: "Nepoznato",
+			performanceOverview: "Tabela termina",
+			sortedByWins: "Po pobedama",
+			matchHistory: "Mečevi",
+			date: "Datum",
+			matches: "Mečeva",
+			duration: "Trajanje",
 			forceClose: {
 				title: "Forsiraj zatvaranje termina",
 				description:

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { Loading } from "@/components/ui/loading";
 import { SummaryCards } from "./summary-cards";
 import { EntriesTable } from "./entries-table";
 import { t } from "@/lib/i18n";
@@ -93,8 +94,8 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 
 	if (loading) {
 		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-muted-foreground">{t.ispale.loading}</p>
+			<div className="py-12">
+				<Loading inline label={t.ispale.loading} />
 			</div>
 		);
 	}
