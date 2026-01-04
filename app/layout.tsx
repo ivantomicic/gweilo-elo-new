@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
+import { MobileNav } from "@/components/mobile-nav";
 
 const spaceGrotesk = Space_Grotesk({
 	subsets: ["latin"],
@@ -33,7 +34,10 @@ export default function RootLayout({
 			lang="sr"
 			className={`dark ${spaceGrotesk.variable} ${manrope.variable}`}
 		>
-			<body>{children}</body>
+			<body>
+				{children}
+				<MobileNav />
+			</body>
 		</html>
 	);
 }

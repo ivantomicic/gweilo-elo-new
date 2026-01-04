@@ -1,6 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { replaySessionMatches } from "@/lib/elo/session-baseline";
-import { getSessionBaseline } from "@/lib/elo/session-baseline";
 
 /**
  * Get the latest two completed sessions
@@ -111,42 +109,31 @@ export async function computeRankMovements(
 		return movements;
 	}
 
-	// Get previous session rankings from latest session's snapshot
-	// (snapshot at start of Session N = state after Session N-1 completes)
+	// Get previous session rankings from snapshots
+	// Try latest session snapshot first (snapshot at start of Session N = state after Session N-1 completes)
+	// If missing, try previous session snapshot as fallback
 	let previousRankings = await getRankingFromSession(
 		latestSessionId,
 		entityType
 	);
 
-	// If no snapshots found for latest session, fallback: replay previous session
-	// to get its final state (state after previous session completes)
+	// If no snapshots found for latest session, try previous session snapshot
 	if (previousRankings.size === 0 && previousSessionId) {
-		console.log("[RANK] No snapshots for latest session, replaying previous session to get final state");
-		
-		// Get baseline before previous session
-		const baselineBeforePrevious = await getSessionBaseline(previousSessionId);
-		
-		// Replay previous session to get final state
-		const finalStateAfterPrevious = await replaySessionMatches(
+		previousRankings = await getRankingFromSession(
 			previousSessionId,
-			baselineBeforePrevious
+			entityType
 		);
-		
-		// Convert to rankings (sort by Elo descending)
-		const sortedPlayers = Array.from(finalStateAfterPrevious.entries())
-			.map(([playerId, state]) => ({ playerId, elo: state.elo }))
-			.sort((a, b) => b.elo - a.elo);
-		
-		previousRankings = new Map<string, number>();
-		sortedPlayers.forEach((player, index) => {
-			previousRankings.set(player.playerId, index + 1);
+	}
+
+	// If still no snapshots found, return zero movements for all entities
+	// Statistics page is read-only and must never replay matches
+	if (previousRankings.size === 0) {
+		console.log("[RANK] No snapshots found for rank movements, returning zero movements for all entities");
+		// Return zero movements for all current entities
+		currentPlayerIds.forEach((playerId) => {
+			movements.set(playerId, 0);
 		});
-		
-		console.log("[RANK] Rankings computed from replay:", {
-			previousSessionId,
-			rankingCount: previousRankings.size,
-			rankings: Array.from(previousRankings.entries()).slice(0, 5),
-		});
+		return movements;
 	}
 	
 	console.log("[RANK] Computing movements:", {
