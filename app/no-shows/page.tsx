@@ -10,7 +10,6 @@ import {
 } from "@/components/vendor/shadcn/sidebar";
 import { NoShowsView } from "./_components/no-shows-view";
 import { AddNoShowDrawer } from "./_components/add-no-show-drawer";
-import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { getUserRole } from "@/lib/auth/getUserRole";
 
@@ -36,13 +35,9 @@ function NoShowsPageContent() {
 			<SidebarInset>
 				<SiteHeader
 					title={t.ispale.title}
-					actions={
-						isAdmin ? (
-							<Button size="xs" onClick={() => setDrawerOpen(true)}>
-								{t.ispale.addNoShow}
-							</Button>
-						) : undefined
-					}
+					actionLabel={isAdmin ? t.ispale.addNoShow : undefined}
+					actionOnClick={isAdmin ? () => setDrawerOpen(true) : undefined}
+					actionIcon="solar:add-circle-bold"
 				/>
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2">

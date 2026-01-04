@@ -15,7 +15,6 @@ import { Icon } from "@/components/ui/icon";
 import { InfiniteScroll } from "@/components/ui/infinite-scroll";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
-import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -487,23 +486,20 @@ function SessionsPageContent() {
 																							icon="solar:star-bold"
 																							className="size-3.5 text-yellow-400"
 																						/>
-																						<span className="text-foreground font-medium">
-																							Best:{" "}
-																							<span className="font-semibold">
-																								{session
-																									.best_worst_player
-																									.best_player_display_name ||
-																									"Unknown"}
-																							</span>
+																						<span className="text-foreground font-semibold">
+																							{session
+																								.best_worst_player
+																								.best_player_display_name ||
+																								"Unknown"}
 																						</span>
 																						<span className="text-emerald-400 font-semibold ml-1">
 																							(+
-																							{Number(
-																								session
-																									.best_worst_player
-																									.best_player_delta
-																							).toFixed(
-																								2
+																							{Math.round(
+																								Number(
+																									session
+																										.best_worst_player
+																										.best_player_delta
+																								)
 																							)}
 
 																							)
@@ -519,23 +515,20 @@ function SessionsPageContent() {
 																							icon="solar:arrow-down-bold"
 																							className="size-3.5 text-red-400"
 																						/>
-																						<span className="text-foreground font-medium">
-																							Worst:{" "}
-																							<span className="font-semibold">
-																								{session
-																									.best_worst_player
-																									.worst_player_display_name ||
-																									"Unknown"}
-																							</span>
+																						<span className="text-foreground font-semibold">
+																							{session
+																								.best_worst_player
+																								.worst_player_display_name ||
+																								"Unknown"}
 																						</span>
 																						<span className="text-red-400 font-semibold ml-1">
 																							(
-																							{Number(
-																								session
-																									.best_worst_player
-																									.worst_player_delta
-																							).toFixed(
-																								2
+																							{Math.round(
+																								Number(
+																									session
+																										.best_worst_player
+																										.worst_player_delta
+																								)
 																							)}
 
 																							)
@@ -547,31 +540,11 @@ function SessionsPageContent() {
 																</Stack>
 															</Box>
 
-															{/* Right: Status & Actions */}
-															<Stack
-																direction="column"
-																alignItems="end"
-																spacing={2}
-															>
-																<Box
-																	className={cn(
-																		"text-[10px] font-bold px-2 py-1 rounded-full border",
-																		session.status ===
-																			"completed"
-																			? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
-																			: "bg-chart-2/10 text-chart-2 border-chart-2/20"
-																	)}
-																>
-																	{session.status ===
-																	"active"
-																		? "ACTIVE"
-																		: "COMPLETED"}
-																</Box>
-																<Icon
-																	icon="solar:alt-arrow-right-linear"
-																	className="size-4 text-muted-foreground/50"
-																/>
-															</Stack>
+															{/* Right: Actions */}
+															<Icon
+																icon="solar:alt-arrow-right-linear"
+																className="size-4 text-muted-foreground/50"
+															/>
 														</Stack>
 													</Box>
 												);
