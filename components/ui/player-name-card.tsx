@@ -10,6 +10,7 @@ type PlayerNameCardProps = {
 	size?: "sm" | "md" | "lg";
 	variant?: "horizontal" | "vertical";
 	avatarBorder?: "none" | "primary" | "transparent";
+	reverse?: boolean;
 	className?: string;
 };
 
@@ -32,6 +33,7 @@ export function PlayerNameCard({
 	size = "md",
 	variant = "horizontal",
 	avatarBorder = "none",
+	reverse = false,
 	className,
 }: PlayerNameCardProps) {
 	const avatarSize = sizeClasses[size];
@@ -42,8 +44,8 @@ export function PlayerNameCard({
 			avatarBorder === "primary"
 				? "border-2 border-primary"
 				: avatarBorder === "transparent"
-					? "border-2 border-transparent"
-					: "";
+				? "border-2 border-transparent"
+				: "";
 		const avatarWrapperClass = borderClass ? "rounded-full p-0.5" : "";
 
 		return (
@@ -52,7 +54,9 @@ export function PlayerNameCard({
 					<div className={cn(avatarWrapperClass, borderClass)}>
 						<Avatar className={avatarSize}>
 							<AvatarImage src={avatar || undefined} alt={name} />
-							<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
+							<AvatarFallback
+								className={size === "lg" ? "text-lg" : ""}
+							>
 								{name.charAt(0).toUpperCase()}
 							</AvatarFallback>
 						</Avatar>
@@ -60,7 +64,9 @@ export function PlayerNameCard({
 				) : (
 					<Avatar className={avatarSize}>
 						<AvatarImage src={avatar || undefined} alt={name} />
-						<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
+						<AvatarFallback
+							className={size === "lg" ? "text-lg" : ""}
+						>
 							{name.charAt(0).toUpperCase()}
 						</AvatarFallback>
 					</Avatar>
@@ -71,7 +77,13 @@ export function PlayerNameCard({
 	}
 
 	return (
-		<div className={cn("flex items-center gap-3", className)}>
+		<div
+			className={cn(
+				"flex items-center gap-3",
+				reverse && "flex-row-reverse",
+				className
+			)}
+		>
 			<Avatar className={avatarSize}>
 				<AvatarImage src={avatar || undefined} alt={name} />
 				<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
@@ -82,4 +94,3 @@ export function PlayerNameCard({
 		</div>
 	);
 }
-

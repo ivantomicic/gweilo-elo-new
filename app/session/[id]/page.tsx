@@ -37,6 +37,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import { t } from "@/lib/i18n";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -192,7 +193,7 @@ function SessionPageContent() {
 				} = await supabase.auth.getSession();
 
 				if (!session) {
-					setError("Not authenticated");
+					setError(t.sessions.session.error.notAuthenticated);
 					return;
 				}
 
@@ -457,7 +458,10 @@ function SessionPageContent() {
 			setIsAdmin(role === "admin");
 
 			// Check if session is deletable (only for admins and completed sessions)
-			if (role === "admin" && sessionData?.session.status === "completed") {
+			if (
+				role === "admin" &&
+				sessionData?.session.status === "completed"
+			) {
 				try {
 					const {
 						data: { session },
@@ -479,7 +483,10 @@ function SessionPageContent() {
 						setIsDeletable(data.deletable || false);
 					}
 				} catch (error) {
-					console.error("Error checking if session is deletable:", error);
+					console.error(
+						"Error checking if session is deletable:",
+						error
+					);
 					setIsDeletable(false);
 				}
 			} else {
@@ -615,7 +622,7 @@ function SessionPageContent() {
 			} = await supabase.auth.getSession();
 
 			if (!session) {
-				setError("Not authenticated");
+				setError(t.sessions.session.error.notAuthenticated);
 				return;
 			}
 
@@ -633,7 +640,9 @@ function SessionPageContent() {
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.error || "Failed to submit round");
+				throw new Error(
+					errorData.error || t.sessions.session.error.submitFailed
+				);
 			}
 
 			// Refetch players to get updated Elo ratings after round submission
@@ -717,7 +726,13 @@ function SessionPageContent() {
 			// Can't submit - just go to next if allowed
 			goToNextRound();
 		}
-	}, [isCurrentRoundCompleted, canSubmitRound, goToNextRound, submitting, handleSubmitRound]);
+	}, [
+		isCurrentRoundCompleted,
+		canSubmitRound,
+		goToNextRound,
+		submitting,
+		handleSubmitRound,
+	]);
 
 	// Delete session handler
 	const handleDeleteSession = useCallback(async () => {
@@ -730,7 +745,7 @@ function SessionPageContent() {
 			} = await supabase.auth.getSession();
 
 			if (!session) {
-				setError("Not authenticated");
+				setError(t.sessions.session.error.notAuthenticated);
 				return;
 			}
 
@@ -743,7 +758,9 @@ function SessionPageContent() {
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
-				throw new Error(errorData.error || "Failed to delete session");
+				throw new Error(
+					errorData.error || t.sessions.session.error.deleteFailed
+				);
 			}
 
 			// Redirect to sessions list after successful deletion
@@ -769,7 +786,7 @@ function SessionPageContent() {
 			} = await supabase.auth.getSession();
 
 			if (!session) {
-				setError("Not authenticated");
+				setError(t.sessions.session.error.notAuthenticated);
 				return;
 			}
 
@@ -787,7 +804,7 @@ function SessionPageContent() {
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				throw new Error(
-					errorData.error || "Failed to force close session"
+					errorData.error || t.sessions.session.error.forceCloseFailed
 				);
 			}
 
@@ -997,7 +1014,7 @@ function SessionPageContent() {
 			} = await supabase.auth.getSession();
 
 			if (!session) {
-				setError("Not authenticated");
+				setError(t.sessions.session.error.notAuthenticated);
 				return;
 			}
 
@@ -1100,13 +1117,13 @@ function SessionPageContent() {
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title="Session" />
+					<SiteHeader title={t.sessions.session.title} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Box>
 									<p className="text-muted-foreground">
-										Loading session...
+										{t.sessions.session.loading}
 									</p>
 								</Box>
 							</div>
@@ -1122,13 +1139,14 @@ function SessionPageContent() {
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title="Session" />
+					<SiteHeader title={t.sessions.session.title} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 								<Box>
 									<p className="text-destructive">
-										{error || "Failed to load session"}
+										{error ||
+											t.sessions.session.loadingFailed}
 									</p>
 								</Box>
 							</div>
@@ -1150,7 +1168,7 @@ function SessionPageContent() {
 				<SidebarProvider>
 					<AppSidebar variant="inset" />
 					<SidebarInset>
-						<SiteHeader title="Session" />
+						<SiteHeader title={t.sessions.session.title} />
 						<div className="flex flex-1 flex-col">
 							<div className="@container/main flex flex-1 flex-col gap-2">
 								<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -1158,16 +1176,19 @@ function SessionPageContent() {
 									<Box className="flex justify-between items-end">
 										<Box>
 											<h1 className="text-3xl font-bold font-heading tracking-tight">
-												Session Results
+												{t.sessions.session.results}
 											</h1>
 											<p className="text-sm text-muted-foreground mt-1">
-												Completed on{" "}
+												{t.sessions.session.completedOn}{" "}
 												{sessionData.session
 													.completed_at
 													? new Date(
 															sessionData.session.completed_at
-													  ).toLocaleDateString()
-													: "Unknown"}
+													  ).toLocaleDateString(
+															"sr-Latn-RS"
+													  )
+													: t.sessions.session
+															.unknown}
 											</p>
 										</Box>
 										{isAdmin && isDeletable && (
@@ -1177,12 +1198,17 @@ function SessionPageContent() {
 												onClick={(e) => {
 													e.preventDefault();
 													e.stopPropagation();
-													console.log("Delete button clicked, setting showDeleteModal to true");
+													console.log(
+														"Delete button clicked, setting showDeleteModal to true"
+													);
 													setShowDeleteModal(true);
 												}}
 												className="text-xs"
 											>
-												Delete Session
+												{
+													t.sessions.session.delete
+														.button
+												}
 											</Button>
 										)}
 									</Box>
@@ -1192,36 +1218,64 @@ function SessionPageContent() {
 										<Box className="mb-6 pb-4 border-b border-border/50">
 											<Tabs
 												value={
-													activeView === "doubles_player"
+													activeView ===
+													"doubles_player"
 														? "doubles-player"
-														: activeView === "doubles_team"
+														: activeView ===
+														  "doubles_team"
 														? "doubles-team"
 														: "singles"
 												}
 												onValueChange={(value) => {
 													if (value === "singles") {
-														handleViewChange("singles");
-													} else if (value === "doubles-player") {
-														handleViewChange("doubles_player");
-													} else if (value === "doubles-team") {
-														handleViewChange("doubles_team");
+														handleViewChange(
+															"singles"
+														);
+													} else if (
+														value ===
+														"doubles-player"
+													) {
+														handleViewChange(
+															"doubles_player"
+														);
+													} else if (
+														value === "doubles-team"
+													) {
+														handleViewChange(
+															"doubles_team"
+														);
 													}
 												}}
 											>
 												<TabsList>
 													{viewAvailability.hasSingles && (
 														<TabsTrigger value="singles">
-															Singles
+															{
+																t.sessions
+																	.session
+																	.tabs
+																	.singles
+															}
 														</TabsTrigger>
 													)}
 													{viewAvailability.hasDoublesPlayer && (
 														<TabsTrigger value="doubles-player">
-															Doubles – Player
+															{
+																t.sessions
+																	.session
+																	.tabs
+																	.doublesPlayer
+															}
 														</TabsTrigger>
 													)}
 													{viewAvailability.hasDoublesTeam && (
 														<TabsTrigger value="doubles-team">
-															Doubles – Team
+															{
+																t.sessions
+																	.session
+																	.tabs
+																	.doublesTeam
+															}
 														</TabsTrigger>
 													)}
 												</TabsList>
@@ -1232,13 +1286,15 @@ function SessionPageContent() {
 									{/* Session Summary Table */}
 									<Box className="mb-6">
 										<h2 className="text-xl font-bold font-heading mb-4">
-											Session Summary
+											{t.sessions.session.sessionSummary}
 										</h2>
 										<SessionSummaryTable
 											sessionId={sessionId}
 											activeView={activeView}
 											onViewChange={handleViewChange}
-											onViewAvailabilityChange={setViewAvailability}
+											onViewAvailabilityChange={
+												setViewAvailability
+											}
 										/>
 									</Box>
 
@@ -1251,16 +1307,26 @@ function SessionPageContent() {
 												] || [];
 
 											// Filter matches based on active view
-											const roundMatches = allRoundMatches.filter(
-												(match) => {
-													if (activeView === "singles") {
-														return match.match_type === "singles";
-													} else {
-														// doubles_player or doubles_team: show doubles matches
-														return match.match_type === "doubles";
+											const roundMatches =
+												allRoundMatches.filter(
+													(match) => {
+														if (
+															activeView ===
+															"singles"
+														) {
+															return (
+																match.match_type ===
+																"singles"
+															);
+														} else {
+															// doubles_player or doubles_team: show doubles matches
+															return (
+																match.match_type ===
+																"doubles"
+															);
+														}
 													}
-												}
-											);
+												);
 
 											// Don't render round if no matches after filtering
 											if (roundMatches.length === 0) {
@@ -1270,7 +1336,10 @@ function SessionPageContent() {
 											return (
 												<Box key={roundNumber}>
 													<h2 className="text-xl font-bold font-heading mb-4">
-														Round {roundNumber}
+														{t.sessions.session.round.replace(
+															"{number}",
+															roundNumber.toString()
+														)}
 													</h2>
 													<Stack
 														direction="column"
@@ -1612,12 +1681,12 @@ function SessionPageContent() {
 							<DrawerTitle>
 								{selectedMatchForVideo ? (
 									<>
-										Round{" "}
+										{t.sessions.session.roundNumber}{" "}
 										{selectedMatchForVideo.round_number} –{" "}
 										{selectedMatchForVideo.match_type ===
 										"singles"
-											? "Singles"
-											: "Doubles"}
+											? t.sessions.singles
+											: t.sessions.doubles}
 									</>
 								) : null}
 							</DrawerTitle>
@@ -1670,7 +1739,12 @@ function SessionPageContent() {
 												>
 													<Box>
 														<p className="text-sm font-semibold text-muted-foreground mb-2">
-															Players
+															{
+																t.sessions
+																	.session
+																	.video
+																	.players
+															}
 														</p>
 														<Stack
 															direction="row"
@@ -1695,7 +1769,11 @@ function SessionPageContent() {
 											{match.status === "completed" && (
 												<Box>
 													<label className="text-sm font-semibold text-foreground mb-2 block">
-														Match Result
+														{
+															t.sessions.session
+																.video
+																.matchResult
+														}
 													</label>
 													<Stack
 														direction="row"
@@ -1793,8 +1871,12 @@ function SessionPageContent() {
 													{recalcStatus ===
 														"running" && (
 														<p className="text-xs text-muted-foreground mt-2">
-															Recalculation in
-															progress...
+															{
+																t.sessions
+																	.session
+																	.video
+																	.recalculationInProgress
+															}
 														</p>
 													)}
 												</Box>
@@ -1803,7 +1885,10 @@ function SessionPageContent() {
 											{/* Video URL Input */}
 											<Box>
 												<label className="text-sm font-semibold text-foreground mb-2 block">
-													Video link
+													{
+														t.sessions.session.video
+															.title
+													}
 												</label>
 												<Input
 													type="url"
@@ -1813,7 +1898,10 @@ function SessionPageContent() {
 															e.target.value
 														)
 													}
-													placeholder="https://www.youtube.com/watch?v=..."
+													placeholder={
+														t.sessions.session.video
+															.placeholder
+													}
 													disabled={savingVideoUrl}
 													className="w-full"
 												/>
@@ -1861,20 +1949,26 @@ function SessionPageContent() {
 										isValidVideoUrl(videoUrlInput);
 
 									// Determine button text
-									let buttonText = "Save";
+									let buttonText: string =
+										t.sessions.session.video.save;
 									if (isEditingMatch || savingVideoUrl) {
 										buttonText = scoresChanged
-											? "Recalculating..."
-											: "Saving...";
+											? t.sessions.session.video
+													.recalculating
+											: t.sessions.session.video.saving;
 									} else if (
 										scoresChanged &&
 										videoUrlChanged
 									) {
-										buttonText = "Save Result & Video";
+										buttonText =
+											t.sessions.session.video
+												.saveResultAndVideo;
 									} else if (scoresChanged) {
-										buttonText = "Save Result";
+										buttonText =
+											t.sessions.session.video.saveResult;
 									} else if (videoUrlChanged) {
-										buttonText = "Save Video";
+										buttonText =
+											t.sessions.session.video.saveVideo;
 									}
 
 									return (
@@ -1892,7 +1986,7 @@ function SessionPageContent() {
 												}
 												className="flex-1"
 											>
-												Cancel
+												{t.common.cancel}
 											</Button>
 											<Button
 												onClick={handleSaveMatchDrawer}
@@ -1974,108 +2068,117 @@ function SessionPageContent() {
 				{/* Delete Session Confirmation Modal */}
 				{showDeleteModal && (
 					<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
-						<Stack direction="column" spacing={4}>
-							<Box>
-								<h2 className="text-2xl font-bold font-heading text-destructive">
-									Delete Session
-								</h2>
-								<p className="text-muted-foreground mt-2 text-sm">
-									This will permanently delete this session and
-									rebuild all Elo ratings from scratch. This action
-									cannot be undone.
-								</p>
-							</Box>
-							<Box>
-								<label className="flex items-start gap-3 cursor-pointer">
-									<input
-										type="checkbox"
-										checked={deleteConfirmationChecked}
-										onChange={(e) =>
-											setDeleteConfirmationChecked(e.target.checked)
-										}
-										disabled={deleting}
-										className="mt-1 size-4 rounded border-border"
-									/>
-									<span className="text-sm text-foreground">
-										I understand this cannot be undone
-									</span>
-								</label>
-							</Box>
-							{error && (
+						<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+							<Stack direction="column" spacing={4}>
 								<Box>
-									<p className="text-sm text-destructive">{error}</p>
+									<h2 className="text-2xl font-bold font-heading text-destructive">
+										{t.sessions.session.delete.title}
+									</h2>
+									<p className="text-muted-foreground mt-2 text-sm">
+										{t.sessions.session.delete.description}
+									</p>
 								</Box>
-							)}
-							<Stack direction="row" spacing={3}>
-								<Button
-									variant="outline"
-									onClick={() => {
-										setShowDeleteModal(false);
-										setDeleteConfirmationChecked(false);
-										setError(null);
-									}}
-									disabled={deleting}
-									className="flex-1"
-								>
-									Cancel
-								</Button>
-								<Button
-									variant="destructive"
-									onClick={handleDeleteSession}
-									disabled={deleting || !deleteConfirmationChecked}
-									className="flex-1"
-								>
-									{deleting ? "Deleting..." : "Delete Session"}
-								</Button>
+								<Box>
+									<label className="flex items-start gap-3 cursor-pointer">
+										<input
+											type="checkbox"
+											checked={deleteConfirmationChecked}
+											onChange={(e) =>
+												setDeleteConfirmationChecked(
+													e.target.checked
+												)
+											}
+											disabled={deleting}
+											className="mt-1 size-4 rounded border-border"
+										/>
+										<span className="text-sm text-foreground">
+											{t.sessions.session.delete.confirm}
+										</span>
+									</label>
+								</Box>
+								{error && (
+									<Box>
+										<p className="text-sm text-destructive">
+											{error}
+										</p>
+									</Box>
+								)}
+								<Stack direction="row" spacing={3}>
+									<Button
+										variant="outline"
+										onClick={() => {
+											setShowDeleteModal(false);
+											setDeleteConfirmationChecked(false);
+											setError(null);
+										}}
+										disabled={deleting}
+										className="flex-1"
+									>
+										{t.common.cancel}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={handleDeleteSession}
+										disabled={
+											deleting ||
+											!deleteConfirmationChecked
+										}
+										className="flex-1"
+									>
+										{deleting
+											? t.sessions.session.delete.deleting
+											: t.sessions.session.delete.button}
+									</Button>
+								</Stack>
 							</Stack>
-						</Stack>
+						</Box>
 					</Box>
-				</Box>
-			)}
-			{/* Force Close Confirmation Modal */}
-			{showForceCloseModal && (
-				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
-						<Stack direction="column" spacing={4}>
-							<Box>
-								<h2 className="text-2xl font-bold font-heading">
-									Force Close Session
-								</h2>
-								<p className="text-muted-foreground mt-2 text-sm">
-									This will mark the session as completed
-									without processing any remaining rounds.
-									This action cannot be undone. Only use this
-									if the session should already be completed.
-								</p>
-							</Box>
-							<Stack direction="row" spacing={3}>
-								<Button
-									variant="outline"
-									onClick={() =>
-										setShowForceCloseModal(false)
-									}
-									disabled={forceClosing}
-									className="flex-1"
-								>
-									Cancel
-								</Button>
-								<Button
-									variant="destructive"
-									onClick={handleForceClose}
-									disabled={forceClosing}
-									className="flex-1"
-								>
-									{forceClosing
-										? "Closing..."
-										: "Force Close"}
-								</Button>
+				)}
+				{/* Force Close Confirmation Modal */}
+				{showForceCloseModal && (
+					<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+						<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+							<Stack direction="column" spacing={4}>
+								<Box>
+									<h2 className="text-2xl font-bold font-heading">
+										{t.sessions.session.forceClose.title}
+									</h2>
+									<p className="text-muted-foreground mt-2 text-sm">
+										{
+											t.sessions.session.forceClose
+												.description
+										}
+									</p>
+								</Box>
+								<Stack direction="row" spacing={3}>
+									<Button
+										variant="outline"
+										onClick={() =>
+											setShowForceCloseModal(false)
+										}
+										disabled={forceClosing}
+										className="flex-1"
+									>
+										{t.common.cancel}
+									</Button>
+									<Button
+										variant="destructive"
+										onClick={handleForceClose}
+										disabled={forceClosing}
+										className="flex-1"
+									>
+										{forceClosing
+											? t.sessions.session.forceClose
+													.closing
+											: t.sessions.session.forceClose
+													.button}
+									</Button>
+								</Stack>
 							</Stack>
-						</Stack>
+						</Box>
 					</Box>
-				</Box>
-			)}
-		</>
+				)}
+			</>
 		);
 	}
 
@@ -2084,7 +2187,7 @@ function SessionPageContent() {
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
 				<SidebarInset>
-					<SiteHeader title="Session" />
+					<SiteHeader title={t.sessions.session.title} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2">
 							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -2110,12 +2213,15 @@ function SessionPageContent() {
 												}
 												className="text-xs"
 											>
-												Force Close Session
+												{
+													t.sessions.session
+														.forceClose.button
+												}
 											</Button>
 											<Box className="flex items-center gap-1 bg-chart-2/10 text-chart-2 px-2 py-1 rounded-lg border border-chart-2/20">
 												<Box className="size-2 rounded-full bg-chart-2 animate-pulse" />
 												<span className="text-[10px] font-black uppercase tracking-tight">
-													Live
+													{t.sessions.session.live}
 												</span>
 											</Box>
 										</Stack>
@@ -2303,17 +2409,39 @@ function SessionPageContent() {
 											  }`.trim();
 
 										// Calculate player doubles Elo values for doubles matches
-										const team1Player1DoublesElo = !isSingles ? (team1Players[0]?.doublesElo ?? 1500) : 0;
-										const team1Player2DoublesElo = !isSingles ? (team1Players[1]?.doublesElo ?? 1500) : 0;
-										const team1PlayerAverageDoublesElo = !isSingles 
-											? (team1Player1DoublesElo + team1Player2DoublesElo) / 2 
-											: 0;
-										
-										const team2Player1DoublesElo = !isSingles ? (team2Players[0]?.doublesElo ?? 1500) : 0;
-										const team2Player2DoublesElo = !isSingles ? (team2Players[1]?.doublesElo ?? 1500) : 0;
-										const team2PlayerAverageDoublesElo = !isSingles 
-											? (team2Player1DoublesElo + team2Player2DoublesElo) / 2 
-											: 0;
+										const team1Player1DoublesElo =
+											!isSingles
+												? team1Players[0]?.doublesElo ??
+												  1500
+												: 0;
+										const team1Player2DoublesElo =
+											!isSingles
+												? team1Players[1]?.doublesElo ??
+												  1500
+												: 0;
+										const team1PlayerAverageDoublesElo =
+											!isSingles
+												? (team1Player1DoublesElo +
+														team1Player2DoublesElo) /
+												  2
+												: 0;
+
+										const team2Player1DoublesElo =
+											!isSingles
+												? team2Players[0]?.doublesElo ??
+												  1500
+												: 0;
+										const team2Player2DoublesElo =
+											!isSingles
+												? team2Players[1]?.doublesElo ??
+												  1500
+												: 0;
+										const team2PlayerAverageDoublesElo =
+											!isSingles
+												? (team2Player1DoublesElo +
+														team2Player2DoublesElo) /
+												  2
+												: 0;
 
 										return (
 											<Box
@@ -2425,20 +2553,50 @@ function SessionPageContent() {
 															</p>
 															<p className="text-xs text-muted-foreground font-medium">
 																{isSingles
-																	? `Elo ${team1Elo}`
-																	: `Team Elo ${team1Elo}`}
+																	? `${t.sessions.session.elo} ${team1Elo}`
+																	: `${t.sessions.session.teamElo} ${team1Elo}`}
 															</p>
 															{!isSingles && (
 																<Box className="mt-1.5 pt-1.5 border-t border-border/30">
 																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
-																		Player doubles Elo
+																		{
+																			t
+																				.sessions
+																				.session
+																				.playerDoublesElo
+																		}
 																	</p>
 																	<p className="text-[10px] text-muted-foreground/80 leading-tight">
-																		{team1Players[0]?.name?.split(" ")[0] || "P1"}: {team1Player1DoublesElo.toFixed(1)}
+																		{team1Players[0]?.name?.split(
+																			" "
+																		)[0] ||
+																			"P1"}
+																		:{" "}
+																		{team1Player1DoublesElo.toFixed(
+																			1
+																		)}
 																		<br />
-																		{team1Players[1]?.name?.split(" ")[0] || "P2"}: {team1Player2DoublesElo.toFixed(1)}
+																		{team1Players[1]?.name?.split(
+																			" "
+																		)[0] ||
+																			"P2"}
+																		:{" "}
+																		{team1Player2DoublesElo.toFixed(
+																			1
+																		)}
 																		<br />
-																		<span className="font-semibold">Avg: {team1PlayerAverageDoublesElo.toFixed(1)}</span>
+																		<span className="font-semibold">
+																			{
+																				t
+																					.sessions
+																					.session
+																					.avg
+																			}
+																			:{" "}
+																			{team1PlayerAverageDoublesElo.toFixed(
+																				1
+																			)}
+																		</span>
 																	</p>
 																</Box>
 															)}
@@ -2503,7 +2661,11 @@ function SessionPageContent() {
 														/>
 														<Box className="px-1">
 															<span className="text-xs font-black text-muted-foreground">
-																VS
+																{
+																	t.sessions
+																		.session
+																		.vs
+																}
 															</span>
 														</Box>
 														<Input
@@ -2604,20 +2766,50 @@ function SessionPageContent() {
 															</p>
 															<p className="text-xs text-muted-foreground font-medium">
 																{isSingles
-																	? `Elo ${team2Elo}`
-																	: `Team Elo ${team2Elo}`}
+																	? `${t.sessions.session.elo} ${team2Elo}`
+																	: `${t.sessions.session.teamElo} ${team2Elo}`}
 															</p>
 															{!isSingles && (
 																<Box className="mt-1.5 pt-1.5 border-t border-border/30">
 																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
-																		Player doubles Elo
+																		{
+																			t
+																				.sessions
+																				.session
+																				.playerDoublesElo
+																		}
 																	</p>
 																	<p className="text-[10px] text-muted-foreground/80 leading-tight">
-																		{team2Players[0]?.name?.split(" ")[0] || "P1"}: {team2Player1DoublesElo.toFixed(1)}
+																		{team2Players[0]?.name?.split(
+																			" "
+																		)[0] ||
+																			"P1"}
+																		:{" "}
+																		{team2Player1DoublesElo.toFixed(
+																			1
+																		)}
 																		<br />
-																		{team2Players[1]?.name?.split(" ")[0] || "P2"}: {team2Player2DoublesElo.toFixed(1)}
+																		{team2Players[1]?.name?.split(
+																			" "
+																		)[0] ||
+																			"P2"}
+																		:{" "}
+																		{team2Player2DoublesElo.toFixed(
+																			1
+																		)}
 																		<br />
-																		<span className="font-semibold">Avg: {team2PlayerAverageDoublesElo.toFixed(1)}</span>
+																		<span className="font-semibold">
+																			{
+																				t
+																					.sessions
+																					.session
+																					.avg
+																			}
+																			:{" "}
+																			{team2PlayerAverageDoublesElo.toFixed(
+																				1
+																			)}
+																		</span>
 																	</p>
 																</Box>
 															)}
@@ -2702,7 +2894,12 @@ function SessionPageContent() {
 													icon="solar:arrow-left-linear"
 													className="size-5"
 												/>
-												<span>Previous</span>
+												<span>
+													{
+														t.sessions.session
+															.previous
+													}
+												</span>
 											</Stack>
 										</Button>
 										<Button
@@ -2714,8 +2911,8 @@ function SessionPageContent() {
 													roundNumbers[
 														roundNumbers.length - 1
 													] &&
-												!canSubmitRound &&
-												!isCurrentRoundCompleted)
+													!canSubmitRound &&
+													!isCurrentRoundCompleted)
 											}
 											className="flex-1 py-4 px-6 rounded-full font-bold text-base h-auto"
 										>
@@ -2731,11 +2928,23 @@ function SessionPageContent() {
 															icon="lucide:loader-circle"
 															className="size-5 animate-spin"
 														/>
-														<span>Submitting...</span>
+														<span>
+															{
+																t.sessions
+																	.session
+																	.submitting
+															}
+														</span>
 													</>
 												) : (
 													<>
-														<span>Next</span>
+														<span>
+															{
+																t.sessions
+																	.session
+																	.next
+															}
+														</span>
 														<Icon
 															icon="solar:arrow-right-linear"
 															className="size-5"

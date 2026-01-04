@@ -175,6 +175,28 @@ export async function GET(request: NextRequest) {
 						team2Players[1]?.display_name || ""
 				  }`.trim();
 
+			// Get avatars for each team
+			const team1Avatar = isSingles
+				? team1Players[0]?.avatar || null
+				: null; // For doubles, we'll use individual player avatars
+			const team2Avatar = isSingles
+				? team2Players[0]?.avatar || null
+				: null;
+
+			// For doubles, get individual player avatars
+			const team1Player1Avatar = isSingles
+				? null
+				: team1Players[0]?.avatar || null;
+			const team1Player2Avatar = isSingles
+				? null
+				: team1Players[1]?.avatar || null;
+			const team2Player1Avatar = isSingles
+				? null
+				: team2Players[0]?.avatar || null;
+			const team2Player2Avatar = isSingles
+				? null
+				: team2Players[1]?.avatar || null;
+
 			return {
 				matchId: match.id,
 				sessionId: match.session_id,
@@ -182,6 +204,12 @@ export async function GET(request: NextRequest) {
 				matchType: match.match_type,
 				team1Name,
 				team2Name,
+				team1Avatar,
+				team2Avatar,
+				team1Player1Avatar,
+				team1Player2Avatar,
+				team2Player1Avatar,
+				team2Player2Avatar,
 				team1Score: match.team1_score ?? null,
 				team2Score: match.team2_score ?? null,
 				videoUrl: match.video_url,
