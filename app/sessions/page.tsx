@@ -12,9 +12,11 @@ import {
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { getUserRole } from "@/lib/auth/getUserRole";
+import { cn } from "@/lib/utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -175,15 +177,23 @@ function SessionsPageContent() {
 		fetchSessions();
 	}, []);
 
-	// Format date helper
-	const formatSessionDate = (dateString: string) => {
+	// Format date helpers
+	const formatDateWeekday = (dateString: string) => {
+		const date = new Date(dateString);
+		return date.toLocaleDateString("en-US", { weekday: "short" });
+	};
+
+	const formatDateDay = (dateString: string) => {
 		const date = new Date(dateString);
 		return date.toLocaleDateString("en-US", {
-			weekday: "short",
-			year: "numeric",
 			month: "short",
 			day: "numeric",
 		});
+	};
+
+	const formatDateYear = (dateString: string) => {
+		const date = new Date(dateString);
+		return date.toLocaleDateString("en-US", { year: "numeric" });
 	};
 
 	// Handle delete session
@@ -301,91 +311,145 @@ function SessionsPageContent() {
 										</p>
 									</Box>
 								) : (
-									<Stack direction="column" spacing={2}>
-										{sessions.map((session) => (
-											<Box
-												key={session.id}
-												onClick={() =>
-													router.push(
-														`/session/${session.id}`
-													)
-												}
-												className="bg-card rounded-[16px] p-4 border border-border/50 hover:border-border cursor-pointer transition-colors active:scale-[0.99]"
-											>
-												<Stack
-													direction="row"
-													alignItems="center"
-													justifyContent="between"
-													spacing={4}
+									<Stack direction="column" spacing={4}>
+										{sessions.map((session, index) => {
+											const isLastSession = index === 0;
+											const showDelete =
+												isAdmin &&
+												session.status ===
+													"completed" &&
+												deletableSessions.has(
+													session.id
+												) &&
+												isLastSession;
+
+											return (
+												<Box
+													key={session.id}
+													onClick={() =>
+														router.push(
+															`/session/${session.id}`
+														)
+													}
+													className={cn(
+														"group relative bg-card rounded-[24px] border border-border/50 p-4 transition-all active:scale-[0.98] active:bg-accent/50 cursor-pointer shadow-sm hover:border-primary/30",
+														showDelete &&
+															"flex flex-col gap-3"
+													)}
 												>
-													<Stack
-														direction="column"
-														spacing={1}
-														className="flex-1 min-w-0"
-													>
-														<p className="text-base font-semibold truncate">
-															{formatSessionDate(
-																session.created_at
-															)}
-														</p>
-														<p className="text-sm text-muted-foreground">
-															{
-																session.player_count
-															}{" "}
-															player
-															{session.player_count !==
-															1
-																? "s"
-																: ""}
-														</p>
-													</Stack>
 													<Stack
 														direction="row"
 														alignItems="center"
-														spacing={3}
+														spacing={4}
 													>
-														<Box
-															className={`
-																px-2 py-1 rounded-md text-xs font-semibold whitespace-nowrap
-																${
-																	session.status ===
-																	"active"
-																		? "bg-chart-2/10 text-chart-2 border border-chart-2/20"
-																		: "bg-muted text-muted-foreground border border-border"
-																}
-															`}
-														>
-															{session.status ===
-															"active"
-																? "Active"
-																: "Completed"}
+														{/* Left: Date */}
+														<Box className="flex flex-col items-center justify-center min-w-[72px] border-r border-border/30 pr-4">
+															<span className="text-[10px] font-bold text-primary uppercase tracking-wider mb-0.5">
+																{formatDateWeekday(
+																	session.created_at
+																)}
+															</span>
+															<span className="text-xl font-bold font-heading">
+																{formatDateDay(
+																	session.created_at
+																)}
+															</span>
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={1}
+																className="mt-1 text-[10px] text-muted-foreground font-medium"
+															>
+																<Icon
+																	icon="solar:clock-circle-linear"
+																	className="size-3"
+																/>
+																<span>
+																	{formatDateYear(
+																		session.created_at
+																	)}
+																</span>
+															</Stack>
 														</Box>
-														{isAdmin &&
-															session.status ===
-																"completed" &&
-															deletableSessions.has(
-																session.id
-															) && (
-																<Button
-																	variant="destructive"
-																	size="sm"
-																	onClick={(
-																		e
-																	) =>
-																		handleDeleteClick(
-																			e,
-																			session.id
-																		)
-																	}
-																	className="text-xs"
-																>
-																	Delete
-																</Button>
-															)}
+
+														{/* Center: Stats */}
+														<Box className="flex-1 min-w-0 py-1">
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={1.5}
+															>
+																<Icon
+																	icon="solar:users-group-two-rounded-bold-duotone"
+																	className="size-4 text-muted-foreground"
+																/>
+																<span className="text-xs font-semibold">
+																	{
+																		session.player_count
+																	}{" "}
+																	<span className="text-muted-foreground font-normal">
+																		Players
+																	</span>
+																</span>
+															</Stack>
+														</Box>
+
+														{/* Right: Status & Actions */}
+														<Stack
+															direction="column"
+															alignItems="end"
+															spacing={2}
+														>
+															<Box
+																className={cn(
+																	"text-[10px] font-bold px-2 py-1 rounded-full border",
+																	session.status ===
+																		"completed"
+																		? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+																		: "bg-chart-2/10 text-chart-2 border-chart-2/20"
+																)}
+															>
+																{session.status ===
+																"active"
+																	? "ACTIVE"
+																	: "COMPLETED"}
+															</Box>
+															<Icon
+																icon="solar:alt-arrow-right-linear"
+																className="size-4 text-muted-foreground/50"
+															/>
+														</Stack>
 													</Stack>
-												</Stack>
-											</Box>
-										))}
+
+													{/* Delete Section (only for last session) */}
+													{showDelete && (
+														<Box className="pt-2 mt-2 border-t border-border/30 flex items-center justify-between">
+															<span className="text-[10px] text-muted-foreground italic">
+																Admin Action
+																Required?
+															</span>
+															<Button
+																variant="destructive"
+																size="sm"
+																onClick={(e) =>
+																	handleDeleteClick(
+																		e,
+																		session.id
+																	)
+																}
+																className="flex items-center gap-1.5 bg-destructive/10 text-destructive text-[11px] font-bold px-3 py-1.5 rounded-full border border-destructive/20 hover:bg-destructive hover:text-white transition-colors"
+															>
+																<Icon
+																	icon="solar:trash-bin-trash-bold"
+																	className="size-3.5"
+																/>
+																Delete Session
+															</Button>
+														</Box>
+													)}
+												</Box>
+											);
+										})}
 									</Stack>
 								)}
 							</div>
