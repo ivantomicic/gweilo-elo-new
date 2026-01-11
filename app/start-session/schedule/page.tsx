@@ -385,10 +385,23 @@ function SchedulePageContent() {
 	const [shuffledPlayers, setShuffledPlayers] =
 		useState<Player[]>(selectedPlayers);
 
-	// Update shuffled players when selected players change
+	// Store original schedule (before randomization) to preserve doubles rounds
+	const [originalSchedule, setOriginalSchedule] = useState<Round[]>(() => {
+		if (selectedPlayers.length === playerCount) {
+			return generateSchedule(selectedPlayers);
+		}
+		return [];
+	});
+
+	// Track if we're manually managing rounds (to prevent useEffect from overwriting)
+	const [isManuallyManagingRounds, setIsManuallyManagingRounds] = useState(false);
+
+	// Update shuffled players and original schedule when selected players change
 	useEffect(() => {
 		if (selectedPlayers.length === playerCount) {
 			setShuffledPlayers(selectedPlayers);
+			setOriginalSchedule(generateSchedule(selectedPlayers));
+			setIsManuallyManagingRounds(false);
 		}
 	}, [selectedPlayers, playerCount]);
 
@@ -400,13 +413,13 @@ function SchedulePageContent() {
 		return [];
 	});
 
-	// Update schedule when shuffled players change
+	// Update schedule when shuffled players change (only if not manually managing)
 	useEffect(() => {
-		if (shuffledPlayers.length === playerCount) {
+		if (shuffledPlayers.length === playerCount && !isManuallyManagingRounds) {
 			const newRounds = generateSchedule(shuffledPlayers);
 			setRounds(newRounds);
 		}
-	}, [shuffledPlayers, playerCount]);
+	}, [shuffledPlayers, playerCount, isManuallyManagingRounds]);
 
 	// Redirect if invalid playerCount or no players
 	useEffect(() => {
@@ -421,8 +434,60 @@ function SchedulePageContent() {
 	}, [playerCount, selectedPlayers.length, router]);
 
 	const handleRandomize = () => {
-		// Shuffle players and regenerate schedule
+		// For 4 players: preserve doubles rounds (4-6) from original schedule
+		// For 6 players: preserve mixed rounds (5-7) from original schedule
+		// For 3 and 5 players: all matches are singles, so randomize everything
+		
+		let doublesRoundsToPreserve: Round[] = [];
+		let mixedRoundsToPreserve: Round[] = [];
+		
+		if (playerCount === 4) {
+			// Rounds 4-6 are pure doubles - preserve from original schedule
+			doublesRoundsToPreserve = originalSchedule.filter(
+				(round) => round.roundNumber >= 4 && round.roundNumber <= 6
+			);
+		} else if (playerCount === 6) {
+			// Rounds 5-7 have doubles matches (mixed rounds) - preserve from original schedule
+			mixedRoundsToPreserve = originalSchedule.filter(
+				(round) => round.roundNumber >= 5 && round.roundNumber <= 7
+			);
+		}
+		
+		// Shuffle players for singles matches
 		const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
+		
+		// Generate new schedule with shuffled players
+		const newRounds = generateSchedule(shuffled);
+		
+		// Combine: use new singles rounds, keep original doubles/mixed rounds
+		let finalRounds: Round[] = [];
+		
+		if (playerCount === 4) {
+			// Use singles rounds (1-3) from new schedule, keep doubles rounds (4-6) from original
+			const newSinglesRounds = newRounds.filter(
+				(round) => round.roundNumber >= 1 && round.roundNumber <= 3
+			);
+			finalRounds = [...newSinglesRounds, ...doublesRoundsToPreserve];
+		} else if (playerCount === 6) {
+			// Use singles rounds (1-4) from new schedule, keep mixed rounds (5-7) from original
+			const newSinglesRounds = newRounds.filter(
+				(round) => round.roundNumber >= 1 && round.roundNumber <= 4
+			);
+			finalRounds = [...newSinglesRounds, ...mixedRoundsToPreserve];
+		} else {
+			// For 3 and 5 players, all matches are singles, so use the full new schedule
+			finalRounds = newRounds;
+			// No need to manually manage for these cases
+			setIsManuallyManagingRounds(false);
+			setShuffledPlayers(shuffled);
+			setRounds(finalRounds);
+			return;
+		}
+		
+		// Update rounds state directly (bypassing the useEffect)
+		setIsManuallyManagingRounds(true);
+		setRounds(finalRounds);
+		// Update shuffledPlayers for consistency, but useEffect won't overwrite because of the flag
 		setShuffledPlayers(shuffled);
 	};
 
