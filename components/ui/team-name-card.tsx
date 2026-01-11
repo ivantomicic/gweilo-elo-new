@@ -85,7 +85,13 @@ export function TeamNameCard({
 	}
 
 	return (
-		<div className={cn("flex items-center gap-3", className)}>
+		<div
+			className={cn(
+				"flex items-center gap-3",
+				reverse && "flex-row-reverse",
+				className
+			)}
+		>
 			{/* Stacked avatars */}
 			<div className="relative flex items-center">
 				<Avatar className={avatarSize}>
@@ -108,7 +114,7 @@ export function TeamNameCard({
 				</Avatar>
 			</div>
 			{/* Names */}
-			<div className="flex flex-col">
+			<div className={cn("flex flex-col", reverse && "items-end")}>
 				<span className={cn("font-medium", textSize)}>
 					{player1.name} & {player2.name}
 				</span>
