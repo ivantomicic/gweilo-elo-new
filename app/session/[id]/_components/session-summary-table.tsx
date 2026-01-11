@@ -259,7 +259,7 @@ export function SessionSummaryTable({
 							<TableHead className="text-center hidden md:table-cell">
 								{t.statistics.table.draws}
 							</TableHead>
-							<TableHead className="text-center" colSpan={2}>
+							<TableHead className="text-center">
 								{t.statistics.table.elo}
 							</TableHead>
 						</TableRow>
@@ -316,15 +316,11 @@ export function SessionSummaryTable({
 										{player.draws}
 									</TableCell>
 									<TableCell className="text-center font-mono">
-										{formatElo(player.elo_after)}
-									</TableCell>
-									<TableCell
-										className={cn(
-											"text-center font-mono",
-											eloChangeColor
-										)}
-									>
-										({eloChange})
+										{formatElo(player.elo_before)} /{" "}
+										<span className={eloChangeColor}>
+											{eloChange}
+										</span>{" "}
+										/ {formatElo(player.elo_after)}
 									</TableCell>
 								</TableRow>
 							);
@@ -409,14 +405,12 @@ export function SessionSummaryTable({
 									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
 										{player.draws}
 									</TableCell>
-									<TableCell
-										className={cn(
-											"text-center font-bold font-mono",
-											eloChangeColor
-										)}
-									>
-										{formatElo(player.elo_after)} (
-										{eloChange})
+									<TableCell className="text-center font-mono">
+										{formatElo(player.elo_before)} /{" "}
+										<span className={eloChangeColor}>
+											{eloChange}
+										</span>{" "}
+										/ {formatElo(player.elo_after)}
 									</TableCell>
 								</TableRow>
 							);
@@ -504,14 +498,12 @@ export function SessionSummaryTable({
 									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
 										{team.draws}
 									</TableCell>
-									<TableCell
-										className={cn(
-											"text-center font-bold font-mono",
-											eloChangeColor
-										)}
-									>
-										{formatElo(team.elo_after)} ({eloChange}
-										)
+									<TableCell className="text-center font-mono">
+										{formatElo(team.elo_before)} /{" "}
+										<span className={eloChangeColor}>
+											{eloChange}
+										</span>{" "}
+										/ {formatElo(team.elo_after)}
 									</TableCell>
 								</TableRow>
 							);

@@ -113,3 +113,5 @@
 -   **Uncertainty**: Actual database state (INTEGER vs NUMERIC) is unknown without verification query
 
 Source: `DECIMAL_PRECISION_FIX_COMPLETE.md`, `ELO_DECIMAL_PRECISION_AUDIT.md`, `lib/elo/calculation.ts`, `lib/elo/updates.ts`
+
+

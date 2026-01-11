@@ -268,7 +268,7 @@ export async function GET(
 		const { data: sessionMatches, error: matchesError } = await adminClient
 			.from("session_matches")
 			.select(
-				"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id"
+				"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order"
 			)
 			.eq("session_id", sessionId)
 			.eq("status", "completed");
@@ -295,12 +295,20 @@ export async function GET(
 		// Get previous session ID for snapshot loading
 		const previousSessionId = await getPreviousSessionId(sessionId);
 
-		// 1. SINGLES SUMMARY - Using snapshot + aggregation (NO REPLAY)
+		// 1. SINGLES SUMMARY - Using match_elo_history for elo_before and elo_after
 		if (!type || type === "singles") {
 			if (singlesMatches.length > 0) {
+				// Sort matches by round_number and match_order
+				const sortedSinglesMatches = [...singlesMatches].sort((a, b) => {
+					if (a.round_number !== b.round_number) {
+						return a.round_number - b.round_number;
+					}
+					return a.match_order - b.match_order;
+				});
+
 				// Collect all players who played singles matches
 				const singlesPlayerIds = new Set<string>();
-				for (const match of singlesMatches) {
+				for (const match of sortedSinglesMatches) {
 					const playerIds = (match.player_ids as string[]) || [];
 					if (playerIds.length >= 2) {
 						singlesPlayerIds.add(playerIds[0]);
@@ -308,15 +316,8 @@ export async function GET(
 					}
 				}
 
-				// Load baseline from Session N-1 snapshot
-				const baselineSnapshots = await loadSnapshots(
-					previousSessionId,
-					"player_singles",
-					Array.from(singlesPlayerIds)
-				);
-
-				// Get match Elo history for singles matches (for aggregation)
-				const singlesMatchIds = singlesMatches.map((m) => m.id);
+				// Get match Elo history for singles matches
+				const singlesMatchIds = sortedSinglesMatches.map((m) => m.id);
 				const { data: matchHistory, error: historyError } =
 					await adminClient
 						.from("match_elo_history")
@@ -332,7 +333,14 @@ export async function GET(
 					console.error("Error fetching match history:", historyError);
 				}
 
-				// Aggregate deltas per player
+				// Create a map of match_id -> history for quick lookup
+				const historyMap = new Map(
+					(matchHistory || []).map((h) => [h.match_id, h])
+				);
+
+				// Track elo_before and elo_after per player
+				const playerEloBeforeMap = new Map<string, number>();
+				const playerEloAfterMap = new Map<string, number>();
 				const playerDeltaMap = new Map<string, number>();
 				const playerStatsMap = new Map<
 					string,
@@ -349,95 +357,104 @@ export async function GET(
 					});
 				}
 
-				// Aggregate deltas and count stats from match_elo_history
-				for (const history of matchHistory || []) {
-					if (
-						(history.player1_id &&
-							singlesPlayerIds.has(history.player1_id)) ||
-						(history.player2_id &&
-							singlesPlayerIds.has(history.player2_id))
-					) {
-						const match = singlesMatches.find(
-							(m) => m.id === history.match_id
-						);
-						if (!match || match.team1_score === null || match.team2_score === null)
-							continue;
+				// Process matches in order to find first and last elo values
+				for (const match of sortedSinglesMatches) {
+					const playerIds = (match.player_ids as string[]) || [];
+					if (playerIds.length < 2 || match.team1_score === null || match.team2_score === null)
+						continue;
 
-						// Process player1
-						if (history.player1_id && singlesPlayerIds.has(history.player1_id)) {
-							const delta =
-								typeof history.player1_elo_delta === "string"
-									? parseFloat(history.player1_elo_delta)
-									: Number(history.player1_elo_delta ?? 0);
-							playerDeltaMap.set(
-								history.player1_id,
-								(playerDeltaMap.get(history.player1_id) ?? 0) + delta
-							);
+					const history = historyMap.get(match.id);
+					if (!history) continue;
 
-							const stats = playerStatsMap.get(history.player1_id)!;
-							stats.matchesPlayed += 1;
-							if (match.team1_score > match.team2_score) {
-								stats.wins += 1;
-							} else if (match.team1_score < match.team2_score) {
-								stats.losses += 1;
-							} else {
-								stats.draws += 1;
-							}
+					// Process player1
+					const player1Id = playerIds[0];
+					if (singlesPlayerIds.has(player1Id)) {
+						// Set elo_before from first match
+						if (!playerEloBeforeMap.has(player1Id)) {
+							const eloBefore =
+								typeof history.player1_elo_before === "string"
+									? parseFloat(history.player1_elo_before)
+									: Number(history.player1_elo_before ?? 1500);
+							playerEloBeforeMap.set(player1Id, eloBefore);
 						}
 
-						// Process player2
-						if (history.player2_id && singlesPlayerIds.has(history.player2_id)) {
-							const delta =
-								typeof history.player2_elo_delta === "string"
-									? parseFloat(history.player2_elo_delta)
-									: Number(history.player2_elo_delta ?? 0);
-							playerDeltaMap.set(
-								history.player2_id,
-								(playerDeltaMap.get(history.player2_id) ?? 0) + delta
-							);
+						// Always update elo_after (last match will be the final value)
+						const eloAfter =
+							typeof history.player1_elo_after === "string"
+								? parseFloat(history.player1_elo_after)
+								: Number(history.player1_elo_after ?? 1500);
+						playerEloAfterMap.set(player1Id, eloAfter);
 
-							const stats = playerStatsMap.get(history.player2_id)!;
-							stats.matchesPlayed += 1;
-							if (match.team2_score > match.team1_score) {
-								stats.wins += 1;
-							} else if (match.team2_score < match.team1_score) {
-								stats.losses += 1;
-							} else {
-								stats.draws += 1;
-							}
+						// Aggregate delta
+						const delta =
+							typeof history.player1_elo_delta === "string"
+								? parseFloat(history.player1_elo_delta)
+								: Number(history.player1_elo_delta ?? 0);
+						playerDeltaMap.set(
+							player1Id,
+							(playerDeltaMap.get(player1Id) ?? 0) + delta
+						);
+
+						// Update stats
+						const stats = playerStatsMap.get(player1Id)!;
+						stats.matchesPlayed += 1;
+						if (match.team1_score > match.team2_score) {
+							stats.wins += 1;
+						} else if (match.team1_score < match.team2_score) {
+							stats.losses += 1;
+						} else {
+							stats.draws += 1;
+						}
+					}
+
+					// Process player2
+					const player2Id = playerIds[1];
+					if (singlesPlayerIds.has(player2Id)) {
+						// Set elo_before from first match
+						if (!playerEloBeforeMap.has(player2Id)) {
+							const eloBefore =
+								typeof history.player2_elo_before === "string"
+									? parseFloat(history.player2_elo_before)
+									: Number(history.player2_elo_before ?? 1500);
+							playerEloBeforeMap.set(player2Id, eloBefore);
+						}
+
+						// Always update elo_after (last match will be the final value)
+						const eloAfter =
+							typeof history.player2_elo_after === "string"
+								? parseFloat(history.player2_elo_after)
+								: Number(history.player2_elo_after ?? 1500);
+						playerEloAfterMap.set(player2Id, eloAfter);
+
+						// Aggregate delta
+						const delta =
+							typeof history.player2_elo_delta === "string"
+								? parseFloat(history.player2_elo_delta)
+								: Number(history.player2_elo_delta ?? 0);
+						playerDeltaMap.set(
+							player2Id,
+							(playerDeltaMap.get(player2Id) ?? 0) + delta
+						);
+
+						// Update stats
+						const stats = playerStatsMap.get(player2Id)!;
+						stats.matchesPlayed += 1;
+						if (match.team2_score > match.team1_score) {
+							stats.wins += 1;
+						} else if (match.team2_score < match.team1_score) {
+							stats.losses += 1;
+						} else {
+							stats.draws += 1;
 						}
 					}
 				}
 
-				// Fetch current Elo from player_ratings table (actual current Elo)
-				const { data: currentSinglesRatings, error: currentSinglesError } =
-					await adminClient
-						.from("player_ratings")
-						.select("player_id, elo")
-						.in("player_id", singlesPlayerIds);
-
-				if (currentSinglesError) {
-					console.error(
-						"Error fetching current singles ratings:",
-						currentSinglesError
-					);
-				}
-
-				const currentSinglesEloMap = new Map(
-					(currentSinglesRatings || []).map((r) => [
-						r.player_id,
-						typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
-					])
-				);
-
-				// Build summary: elo_before from snapshot, elo_after from actual current Elo, elo_change from this session only
+				// Build summary using elo_before and elo_after from match_elo_history
 				const singlesSummary: SessionPlayerSummary[] = [];
 				for (const playerId of singlesPlayerIds) {
-					const baseline = baselineSnapshots.get(playerId);
-					const eloBefore = baseline?.elo ?? 1500;
-					const currentElo = currentSinglesEloMap.get(playerId) ?? eloBefore;
-					const totalDelta = playerDeltaMap.get(playerId) ?? 0;
-					const eloChange = totalDelta; // Change in this session only
+					const eloBefore = playerEloBeforeMap.get(playerId) ?? 1500;
+					const eloAfter = playerEloAfterMap.get(playerId) ?? eloBefore;
+					const eloChange = playerDeltaMap.get(playerId) ?? 0;
 
 					const stats = playerStatsMap.get(playerId)!;
 					const userInfo = userMap.get(playerId);
@@ -448,7 +465,7 @@ export async function GET(
 						display_name: userInfo.display_name,
 						avatar: userInfo.avatar,
 						elo_before: eloBefore,
-						elo_after: currentElo,
+						elo_after: eloAfter,
 						elo_change: eloChange,
 						matches_played: stats.matchesPlayed,
 						wins: stats.wins,
@@ -601,37 +618,16 @@ export async function GET(
 					}
 				}
 
-				// Fetch current Elo from player_double_ratings table (actual current Elo)
-				const {
-					data: currentDoublesRatings,
-					error: currentDoublesError,
-				} = await adminClient
-					.from("player_double_ratings")
-					.select("player_id, elo")
-					.in("player_id", doublesPlayerIds);
-
-				if (currentDoublesError) {
-					console.error(
-						"Error fetching current doubles ratings:",
-						currentDoublesError
-					);
-				}
-
-				const currentDoublesEloMap = new Map(
-					(currentDoublesRatings || []).map((r) => [
-						r.player_id,
-						typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
-					])
-				);
-
-				// Build summary: elo_before from snapshot, elo_after from actual current Elo, elo_change from this session only
+				// Build summary: elo_before from snapshot, elo_after calculated as elo_before + elo_change, elo_change from this session only
+				// Note: match_elo_history only stores team values for doubles, not individual player values
+				// So we use snapshots for elo_before and calculate elo_after as elo_before + elo_change
 				const doublesPlayerSummary: SessionPlayerSummary[] = [];
 				for (const playerId of doublesPlayerIds) {
 					const baseline = baselineSnapshots.get(playerId);
 					const eloBefore = baseline?.elo ?? 1500;
-					const currentElo = currentDoublesEloMap.get(playerId) ?? eloBefore;
 					const totalDelta = playerDeltaMap.get(playerId) ?? 0;
 					const eloChange = totalDelta; // Change in this session only
+					const eloAfter = eloBefore + eloChange; // Elo after this session
 
 					const stats = playerStatsMap.get(playerId)!;
 					const userInfo = userMap.get(playerId);
@@ -642,7 +638,7 @@ export async function GET(
 						display_name: userInfo.display_name,
 						avatar: userInfo.avatar,
 						elo_before: eloBefore,
-						elo_after: currentElo,
+						elo_after: eloAfter,
 						elo_change: eloChange,
 						matches_played: stats.matchesPlayed,
 						wins: stats.wins,
@@ -709,19 +705,20 @@ export async function GET(
 					}
 				}
 
-				// Load baseline from Session N-1 snapshot
-				const baselineSnapshots = await loadSnapshots(
-					previousSessionId,
-					"double_team",
-					Array.from(teamIds)
-				);
+				// Sort matches by round_number and match_order
+				const sortedDoublesMatches = [...doublesMatches].sort((a, b) => {
+					if (a.round_number !== b.round_number) {
+						return a.round_number - b.round_number;
+					}
+					return a.match_order - b.match_order;
+				});
 
 				// Get match Elo history for doubles matches
-				const doublesMatchIds = doublesMatches.map((m) => m.id);
+				const doublesMatchIds = sortedDoublesMatches.map((m) => m.id);
 				const { data: matchHistory, error: historyError } =
 					await adminClient
 						.from("match_elo_history")
-						.select("match_id, team1_id, team2_id, team1_elo_delta, team2_elo_delta")
+						.select("*")
 						.in(
 							"match_id",
 							doublesMatchIds.length > 0
@@ -733,12 +730,14 @@ export async function GET(
 					console.error("Error fetching match history:", historyError);
 				}
 
-				// Map match IDs to match data
-				const matchMap = new Map(
-					doublesMatches.map((m) => [m.id, m])
+				// Create a map of match_id -> history for quick lookup
+				const historyMap = new Map(
+					(matchHistory || []).map((h) => [h.match_id, h])
 				);
 
-				// Aggregate deltas per team
+				// Track elo_before and elo_after per team
+				const teamEloBeforeMap = new Map<string, number>();
+				const teamEloAfterMap = new Map<string, number>();
 				const teamDeltaMap = new Map<string, number>();
 				const teamStatsMap = new Map<
 					string,
@@ -755,11 +754,9 @@ export async function GET(
 					});
 				}
 
-				// Aggregate deltas and stats from match_elo_history
-				for (const history of matchHistory || []) {
-					const match = matchMap.get(history.match_id);
+				// Process matches in order to find first and last elo values
+				for (const match of sortedDoublesMatches) {
 					if (
-						!match ||
 						match.team1_score === null ||
 						match.team2_score === null ||
 						!match.team_1_id ||
@@ -767,17 +764,40 @@ export async function GET(
 					)
 						continue;
 
+					const history = historyMap.get(match.id);
+					if (!history) continue;
+
 					const team1Id = match.team_1_id;
 					const team2Id = match.team_2_id;
 
 					// Process team1
-					if (history.team1_elo_delta !== null && history.team1_elo_delta !== undefined) {
-						const delta =
-							typeof history.team1_elo_delta === "string"
-								? parseFloat(history.team1_elo_delta)
-								: Number(history.team1_elo_delta);
-						teamDeltaMap.set(team1Id, (teamDeltaMap.get(team1Id) ?? 0) + delta);
+					if (teamIds.has(team1Id)) {
+						// Set elo_before from first match
+						if (!teamEloBeforeMap.has(team1Id)) {
+							const eloBefore =
+								typeof history.team1_elo_before === "string"
+									? parseFloat(history.team1_elo_before)
+									: Number(history.team1_elo_before ?? 1500);
+							teamEloBeforeMap.set(team1Id, eloBefore);
+						}
 
+						// Always update elo_after (last match will be the final value)
+						const eloAfter =
+							typeof history.team1_elo_after === "string"
+								? parseFloat(history.team1_elo_after)
+								: Number(history.team1_elo_after ?? 1500);
+						teamEloAfterMap.set(team1Id, eloAfter);
+
+						// Aggregate delta
+						if (history.team1_elo_delta !== null && history.team1_elo_delta !== undefined) {
+							const delta =
+								typeof history.team1_elo_delta === "string"
+									? parseFloat(history.team1_elo_delta)
+									: Number(history.team1_elo_delta);
+							teamDeltaMap.set(team1Id, (teamDeltaMap.get(team1Id) ?? 0) + delta);
+						}
+
+						// Update stats
 						const stats = teamStatsMap.get(team1Id)!;
 						stats.matchesPlayed += 1;
 						if (match.team1_score > match.team2_score) {
@@ -790,13 +810,33 @@ export async function GET(
 					}
 
 					// Process team2
-					if (history.team2_elo_delta !== null && history.team2_elo_delta !== undefined) {
-						const delta =
-							typeof history.team2_elo_delta === "string"
-								? parseFloat(history.team2_elo_delta)
-								: Number(history.team2_elo_delta);
-						teamDeltaMap.set(team2Id, (teamDeltaMap.get(team2Id) ?? 0) + delta);
+					if (teamIds.has(team2Id)) {
+						// Set elo_before from first match
+						if (!teamEloBeforeMap.has(team2Id)) {
+							const eloBefore =
+								typeof history.team2_elo_before === "string"
+									? parseFloat(history.team2_elo_before)
+									: Number(history.team2_elo_before ?? 1500);
+							teamEloBeforeMap.set(team2Id, eloBefore);
+						}
 
+						// Always update elo_after (last match will be the final value)
+						const eloAfter =
+							typeof history.team2_elo_after === "string"
+								? parseFloat(history.team2_elo_after)
+								: Number(history.team2_elo_after ?? 1500);
+						teamEloAfterMap.set(team2Id, eloAfter);
+
+						// Aggregate delta
+						if (history.team2_elo_delta !== null && history.team2_elo_delta !== undefined) {
+							const delta =
+								typeof history.team2_elo_delta === "string"
+									? parseFloat(history.team2_elo_delta)
+									: Number(history.team2_elo_delta);
+							teamDeltaMap.set(team2Id, (teamDeltaMap.get(team2Id) ?? 0) + delta);
+						}
+
+						// Update stats
 						const stats = teamStatsMap.get(team2Id)!;
 						stats.matchesPlayed += 1;
 						if (match.team2_score > match.team1_score) {
@@ -809,35 +849,12 @@ export async function GET(
 					}
 				}
 
-				// Fetch current Elo from double_team_ratings table (actual current Elo)
-				const { data: currentTeamRatings, error: currentTeamError } =
-					await adminClient
-						.from("double_team_ratings")
-						.select("team_id, elo")
-						.in("team_id", teamIds);
-
-				if (currentTeamError) {
-					console.error(
-						"Error fetching current team ratings:",
-						currentTeamError
-					);
-				}
-
-				const currentTeamEloMap = new Map(
-					(currentTeamRatings || []).map((r) => [
-						r.team_id,
-						typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
-					])
-				);
-
-				// Build summary: elo_before from snapshot, elo_after from actual current Elo, elo_change from this session only
+				// Build summary using elo_before and elo_after from match_elo_history
 				const doublesTeamSummary: SessionTeamSummary[] = [];
 				for (const teamId of teamIds) {
-					const baseline = baselineSnapshots.get(teamId);
-					const eloBefore = baseline?.elo ?? 1500;
-					const currentElo = currentTeamEloMap.get(teamId) ?? eloBefore;
-					const totalDelta = teamDeltaMap.get(teamId) ?? 0;
-					const eloChange = totalDelta; // Change in this session only
+					const eloBefore = teamEloBeforeMap.get(teamId) ?? 1500;
+					const eloAfter = teamEloAfterMap.get(teamId) ?? eloBefore;
+					const eloChange = teamDeltaMap.get(teamId) ?? 0;
 
 					const stats = teamStatsMap.get(teamId)!;
 					const players = teamPlayerMap.get(teamId);
@@ -855,7 +872,7 @@ export async function GET(
 						player1_avatar: player1Info?.avatar || null,
 						player2_avatar: player2Info?.avatar || null,
 						elo_before: eloBefore,
-						elo_after: currentElo,
+						elo_after: eloAfter,
 						elo_change: eloChange,
 						matches_played: stats.matchesPlayed,
 						wins: stats.wins,
