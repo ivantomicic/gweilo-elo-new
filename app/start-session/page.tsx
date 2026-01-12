@@ -13,24 +13,82 @@ import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+	SheetTrigger,
+} from "@/components/ui/sheet";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
 function StartSessionPageContent() {
 	const router = useRouter();
 	const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
+	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+	const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
+		if (typeof window === "undefined") return null;
+		const stored = sessionStorage.getItem("sessionDateTime");
+		if (stored) {
+			try {
+				return new Date(stored);
+			} catch (e) {
+				return null;
+			}
+		}
+		return null;
+	});
 
-	// Format current date/time for display
+	// Format date/time for display
 	const formatSessionDateTime = () => {
+		const date = selectedDate || new Date();
 		const now = new Date();
-		const days = ["Ned", "Pon", "Uto", "Sre", "Čet", "Pet", "Sub"];
-		const dayName = days[now.getDay()];
-		const day = now.getDate();
-		const month = now.getMonth() + 1;
-		const hours = now.getHours().toString().padStart(2, "0");
-		const minutes = now.getMinutes().toString().padStart(2, "0");
+		const isToday =
+			date.getDate() === now.getDate() &&
+			date.getMonth() === now.getMonth() &&
+			date.getFullYear() === now.getFullYear();
 
-		return `Danas · ${dayName}, ${day}. ${month}. · ${hours}:${minutes}`;
+		const days = ["Ned", "Pon", "Uto", "Sre", "Čet", "Pet", "Sub"];
+		const dayName = days[date.getDay()];
+		const day = date.getDate();
+		const month = date.getMonth() + 1;
+		const hours = date.getHours().toString().padStart(2, "0");
+		const minutes = date.getMinutes().toString().padStart(2, "0");
+
+		if (isToday) {
+			return `Danas · ${dayName}, ${day}. ${month}. · ${hours}:${minutes}`;
+		}
+		return `${dayName}, ${day}. ${month}. · ${hours}:${minutes}`;
+	};
+
+	// Format date for input (YYYY-MM-DD)
+	const formatDateForInput = (date: Date) => {
+		const year = date.getFullYear();
+		const month = (date.getMonth() + 1).toString().padStart(2, "0");
+		const day = date.getDate().toString().padStart(2, "0");
+		return `${year}-${month}-${day}`;
+	};
+
+	// Format time for input (HH:MM)
+	const formatTimeForInput = (date: Date) => {
+		const hours = date.getHours().toString().padStart(2, "0");
+		const minutes = date.getMinutes().toString().padStart(2, "0");
+		return `${hours}:${minutes}`;
+	};
+
+	// Handle date/time change
+	const handleDateTimeChange = (dateValue: string, timeValue: string) => {
+		if (dateValue && timeValue) {
+			const [hours, minutes] = timeValue.split(":");
+			const newDate = new Date(dateValue);
+			newDate.setHours(parseInt(hours, 10));
+			newDate.setMinutes(parseInt(minutes, 10));
+			setSelectedDate(newDate);
+			sessionStorage.setItem("sessionDateTime", newDate.toISOString());
+		}
 	};
 
 	const playerOptions = [3, 4, 5, 6];
@@ -55,28 +113,83 @@ function StartSessionPageContent() {
 
 							{/* Session Time Section */}
 							<Box>
-								<Box className="bg-card rounded-[24px] p-5 border border-border/50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer">
-									<Stack direction="row" alignItems="center" spacing={4}>
-										<Box className="bg-primary/10 p-3 rounded-2xl text-primary">
+								<Sheet open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+									<SheetTrigger asChild>
+										<Box className="bg-card rounded-[24px] p-5 border border-border/50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer">
+											<Stack direction="row" alignItems="center" spacing={4}>
+												<Box className="bg-primary/10 p-3 rounded-2xl text-primary">
+													<Icon
+														icon="solar:calendar-date-bold"
+														className="size-6"
+													/>
+												</Box>
+												<Stack direction="column" spacing={0}>
+													<p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+														{t.startSession.sessionTime}
+													</p>
+													<p className="text-base font-semibold">
+														{formatSessionDateTime()}
+													</p>
+												</Stack>
+											</Stack>
 											<Icon
-												icon="solar:calendar-date-bold"
-												className="size-6"
+												icon="solar:pen-bold"
+												className="size-5 text-muted-foreground group-active:text-primary transition-colors"
 											/>
 										</Box>
-										<Stack direction="column" spacing={0}>
-											<p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-												{t.startSession.sessionTime}
-											</p>
-											<p className="text-base font-semibold">
-												{formatSessionDateTime()}
-											</p>
+									</SheetTrigger>
+									<SheetContent>
+										<SheetHeader>
+											<SheetTitle>{t.startSession.sessionTime}</SheetTitle>
+										</SheetHeader>
+										<Stack direction="column" spacing={6} className="mt-6">
+											<Box>
+												<Label htmlFor="session-date" className="mb-2 block">
+													Datum
+												</Label>
+												<Input
+													id="session-date"
+													type="date"
+													defaultValue={formatDateForInput(
+														selectedDate || new Date()
+													)}
+													onChange={(e) => {
+														const dateValue = e.target.value;
+														const currentDate = selectedDate || new Date();
+														const timeValue = formatTimeForInput(currentDate);
+														handleDateTimeChange(dateValue, timeValue);
+													}}
+													className="w-full"
+												/>
+											</Box>
+											<Box>
+												<Label htmlFor="session-time" className="mb-2 block">
+													Vreme
+												</Label>
+												<Input
+													id="session-time"
+													type="time"
+													defaultValue={formatTimeForInput(
+														selectedDate || new Date()
+													)}
+													onChange={(e) => {
+														const timeValue = e.target.value;
+														const currentDate = selectedDate || new Date();
+														const dateValue = formatDateForInput(currentDate);
+														handleDateTimeChange(dateValue, timeValue);
+													}}
+													className="w-full"
+												/>
+											</Box>
+											<Button
+												onClick={() => setIsDatePickerOpen(false)}
+												className="w-full"
+											>
+												Gotovo
+											</Button>
 										</Stack>
-									</Stack>
-									<Icon
-										icon="solar:pen-bold"
-										className="size-5 text-muted-foreground group-active:text-primary transition-colors"
-									/>
-								</Box>
+									</SheetContent>
+								</Sheet>
 							</Box>
 
 							{/* Number of Players Section */}

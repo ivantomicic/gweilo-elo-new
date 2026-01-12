@@ -441,6 +441,21 @@ function SchedulePageContent() {
 		let doublesRoundsToPreserve: Round[] = [];
 		let mixedRoundsToPreserve: Round[] = [];
 		
+		// Extract all singles matchups from preserved rounds to avoid duplicates
+		const getSinglesMatchups = (rounds: Round[]): Set<string> => {
+			const matchups = new Set<string>();
+			rounds.forEach((round) => {
+				round.matches.forEach((match) => {
+					if (match.type === "singles" && match.players.length === 2) {
+						// Create a normalized key (sorted IDs to handle both directions)
+						const [p1, p2] = match.players.map((p) => p.id).sort();
+						matchups.add(`${p1}-${p2}`);
+					}
+				});
+			});
+			return matchups;
+		};
+		
 		if (playerCount === 4) {
 			// Rounds 4-6 are pure doubles - preserve from original schedule
 			doublesRoundsToPreserve = originalSchedule.filter(
@@ -453,42 +468,92 @@ function SchedulePageContent() {
 			);
 		}
 		
-		// Shuffle players for singles matches
-		const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
+		// Get singles matchups from preserved rounds
+		const preservedSinglesMatchups = playerCount === 6 
+			? getSinglesMatchups(mixedRoundsToPreserve)
+			: new Set<string>();
 		
-		// Generate new schedule with shuffled players
-		const newRounds = generateSchedule(shuffled);
-		
-		// Combine: use new singles rounds, keep original doubles/mixed rounds
+		// Try to generate a valid schedule (max 10 attempts to avoid infinite loop)
 		let finalRounds: Round[] = [];
+		let attempts = 0;
+		const maxAttempts = 10;
 		
-		if (playerCount === 4) {
-			// Use singles rounds (1-3) from new schedule, keep doubles rounds (4-6) from original
-			const newSinglesRounds = newRounds.filter(
-				(round) => round.roundNumber >= 1 && round.roundNumber <= 3
-			);
-			finalRounds = [...newSinglesRounds, ...doublesRoundsToPreserve];
-		} else if (playerCount === 6) {
-			// Use singles rounds (1-4) from new schedule, keep mixed rounds (5-7) from original
-			const newSinglesRounds = newRounds.filter(
-				(round) => round.roundNumber >= 1 && round.roundNumber <= 4
-			);
-			finalRounds = [...newSinglesRounds, ...mixedRoundsToPreserve];
-		} else {
-			// For 3 and 5 players, all matches are singles, so use the full new schedule
-			finalRounds = newRounds;
-			// No need to manually manage for these cases
-			setIsManuallyManagingRounds(false);
+		while (attempts < maxAttempts) {
+			// Shuffle players for singles matches
+			const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
+			
+			// Generate new schedule with shuffled players
+			const newRounds = generateSchedule(shuffled);
+			
+			// Check for duplicates (only for 6 players where mixed rounds have singles)
+			if (playerCount === 6) {
+				const newSinglesRounds = newRounds.filter(
+					(round) => round.roundNumber >= 1 && round.roundNumber <= 4
+				);
+				const newSinglesMatchups = getSinglesMatchups(newSinglesRounds);
+				
+				// Check if any new singles matchups conflict with preserved ones
+				let hasConflict = false;
+				for (const matchup of newSinglesMatchups) {
+					if (preservedSinglesMatchups.has(matchup)) {
+						hasConflict = true;
+						break;
+					}
+				}
+				
+				if (hasConflict) {
+					attempts++;
+					continue; // Try again with different shuffle
+				}
+				
+				// No conflicts, use this schedule
+				finalRounds = [...newSinglesRounds, ...mixedRoundsToPreserve];
+				setShuffledPlayers(shuffled);
+				break;
+			} else if (playerCount === 4) {
+				// Use singles rounds (1-3) from new schedule, keep doubles rounds (4-6) from original
+				const newSinglesRounds = newRounds.filter(
+					(round) => round.roundNumber >= 1 && round.roundNumber <= 3
+				);
+				finalRounds = [...newSinglesRounds, ...doublesRoundsToPreserve];
+				setShuffledPlayers(shuffled);
+				break;
+			} else {
+				// For 3 and 5 players, all matches are singles, so use the full new schedule
+				finalRounds = newRounds;
+				setShuffledPlayers(shuffled);
+				break;
+			}
+		}
+		
+		// If we couldn't find a valid schedule after max attempts, use the last one anyway
+		// (shouldn't happen in practice, but prevents infinite loop)
+		if (finalRounds.length === 0) {
+			const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5);
+			const newRounds = generateSchedule(shuffled);
+			if (playerCount === 4) {
+				const newSinglesRounds = newRounds.filter(
+					(round) => round.roundNumber >= 1 && round.roundNumber <= 3
+				);
+				finalRounds = [...newSinglesRounds, ...doublesRoundsToPreserve];
+			} else if (playerCount === 6) {
+				const newSinglesRounds = newRounds.filter(
+					(round) => round.roundNumber >= 1 && round.roundNumber <= 4
+				);
+				finalRounds = [...newSinglesRounds, ...mixedRoundsToPreserve];
+			} else {
+				finalRounds = newRounds;
+			}
 			setShuffledPlayers(shuffled);
-			setRounds(finalRounds);
-			return;
 		}
 		
 		// Update rounds state directly (bypassing the useEffect)
-		setIsManuallyManagingRounds(true);
+		if (playerCount === 3 || playerCount === 5) {
+			setIsManuallyManagingRounds(false);
+		} else {
+			setIsManuallyManagingRounds(true);
+		}
 		setRounds(finalRounds);
-		// Update shuffledPlayers for consistency, but useEffect won't overwrite because of the flag
-		setShuffledPlayers(shuffled);
 	};
 
 	const [isStartingSession, setIsStartingSession] = useState(false);
