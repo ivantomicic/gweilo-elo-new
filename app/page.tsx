@@ -19,12 +19,124 @@ import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type ActiveSession = {
 	id: string;
 	player_count: number;
 	created_at: string;
 };
+
+type NoShowUser = {
+	id: string;
+	name: string;
+	avatar: string | null;
+	noShowCount: number;
+	lastNoShowDate: string;
+};
+
+function NoShowAlertWidget() {
+	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const fetchNoShowStats = async () => {
+			try {
+				setLoading(true);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+
+				if (!session) {
+					setWorstOffender(null);
+					return;
+				}
+
+				const response = await fetch("/api/no-shows", {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+					},
+				});
+
+				if (!response.ok) {
+					setWorstOffender(null);
+					return;
+				}
+
+				const data = await response.json();
+				const users = data.users || [];
+				// Worst offender is the first one (sorted by count descending)
+				setWorstOffender(users[0] || null);
+			} catch (error) {
+				console.error("Error fetching no-show stats:", error);
+				setWorstOffender(null);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchNoShowStats();
+	}, []);
+
+	if (loading || !worstOffender) {
+		return null;
+	}
+
+	return (
+		<Box className="bg-destructive/5 border border-destructive/20 rounded-[24px] p-6 relative overflow-hidden flex items-center justify-center">
+			{/* Diagonal pattern background */}
+			<Box
+				className="absolute inset-0 opacity-30"
+				style={{
+					backgroundImage:
+						"linear-gradient(45deg, transparent 25%, rgba(239,68,68,0.03) 25%, rgba(239,68,68,0.03) 50%, transparent 50%, transparent 75%, rgba(239,68,68,0.03) 75%, rgba(239,68,68,0.03) 100%)",
+					backgroundSize: "20px 20px",
+				}}
+			/>
+			<Stack
+				direction="column"
+				alignItems="center"
+				spacing={3}
+				className="relative z-10 w-full"
+			>
+				{/* Avatar with danger badge */}
+				<Box className="relative">
+					<Avatar className="size-16 border-2 border-destructive/30 grayscale">
+						<AvatarImage
+							src={worstOffender.avatar || undefined}
+							alt={worstOffender.name}
+						/>
+						<AvatarFallback>
+							{worstOffender.name.charAt(0).toUpperCase()}
+						</AvatarFallback>
+					</Avatar>
+					<Box className="absolute -bottom-1 -right-1 bg-destructive text-white size-5 rounded-full flex items-center justify-center border-2 border-card">
+						<Icon icon="solar:danger-bold" className="size-3" />
+					</Box>
+				</Box>
+
+				{/* Content */}
+				<Stack direction="column" alignItems="center" spacing={2} className="w-full">
+					<Box className="bg-destructive/10 px-2 py-1 rounded text-[10px] font-bold tracking-wide uppercase text-destructive-foreground">
+						{t.ispale.title}
+					</Box>
+					<p className="text-base font-semibold text-foreground text-center">
+						{worstOffender.name}
+					</p>
+					<Stack direction="column" alignItems="center" spacing={0.5}>
+						<span className="text-xs font-mono text-destructive font-bold">
+							{worstOffender.noShowCount}{" "}
+							{worstOffender.noShowCount === 1 ? "Miss" : "Misses"}
+						</span>
+						<p className="text-xs text-muted-foreground">
+							Last: {formatRelativeTime(worstOffender.lastNoShowDate)}
+						</p>
+					</Stack>
+				</Stack>
+			</Stack>
+		</Box>
+	);
+}
 
 function ActiveSessionBanner({ session }: { session: ActiveSession }) {
 	const router = useRouter();
@@ -149,9 +261,7 @@ export default function HomePage() {
 									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
 										{/* Widget Placeholder 1 */}
 									</Box>
-									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
-										{/* Widget Placeholder 2 */}
-									</Box>
+									<NoShowAlertWidget />
 									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
 										{/* Widget Placeholder 3 */}
 									</Box>

@@ -20,7 +20,7 @@ export function formatRelativeTime(date: Date | string): string {
 	} else if (diffDays < 7) {
 		return `pre ${diffDays} ${diffDays === 1 ? "dana" : "dana"}`;
 	} else {
-		return past.toLocaleDateString("sr-RS", {
+		return past.toLocaleDateString("sr-Latn-RS", {
 			day: "numeric",
 			month: "short",
 		});
