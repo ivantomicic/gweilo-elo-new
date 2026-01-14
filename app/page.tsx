@@ -141,6 +141,27 @@ export default function HomePage() {
 							{!loadingSession && activeSession && (
 								<ActiveSessionBanner session={activeSession} />
 							)}
+
+							{/* Widget Grid */}
+							<Stack direction="column" spacing={4}>
+								{/* First Row: 3 widgets */}
+								<Box className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
+										{/* Widget Placeholder 1 */}
+									</Box>
+									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
+										{/* Widget Placeholder 2 */}
+									</Box>
+									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
+										{/* Widget Placeholder 3 */}
+									</Box>
+								</Box>
+
+								{/* Second Row: 1 full-width widget */}
+								<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
+									{/* Widget Placeholder 4 */}
+								</Box>
+							</Stack>
 						</div>
 					</div>
 				</div>
