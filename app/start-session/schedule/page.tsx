@@ -381,6 +381,20 @@ function SchedulePageContent() {
 		return [];
 	});
 
+	// Get session date/time from sessionStorage
+	const sessionDateTime = (() => {
+		if (typeof window === "undefined") return null;
+		const stored = sessionStorage.getItem("sessionDateTime");
+		if (stored) {
+			try {
+				return new Date(stored);
+			} catch (e) {
+				return null;
+			}
+		}
+		return null;
+	})();
+
 	// State for shuffled players (for randomize functionality)
 	const [shuffledPlayers, setShuffledPlayers] =
 		useState<Player[]>(selectedPlayers);
@@ -585,6 +599,7 @@ function SchedulePageContent() {
 					playerCount,
 					players: shuffledPlayers,
 					rounds: rounds,
+					createdAt: sessionDateTime?.toISOString(),
 				}),
 			});
 

@@ -40,7 +40,8 @@ type Round = {
  * {
  *   playerCount: number,
  *   players: Player[],
- *   rounds: Round[]
+ *   rounds: Round[],
+ *   createdAt?: string (ISO 8601 timestamp, optional)
  * }
  */
 export async function POST(request: NextRequest) {
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
 
 		// Parse request body
 		const body = await request.json();
-		const { playerCount, players, rounds }: { playerCount: number; players: Player[]; rounds: Round[] } = body;
+		const { playerCount, players, rounds, createdAt }: { playerCount: number; players: Player[]; rounds: Round[]; createdAt?: string } = body;
 
 		// Validate required fields
 		if (!playerCount || !players || !rounds) {
@@ -114,12 +115,23 @@ export async function POST(request: NextRequest) {
 		};
 
 		// Step 1: Create session
+		const sessionData: {
+			player_count: number;
+			created_by: string;
+			created_at?: string;
+		} = {
+			player_count: playerCount,
+			created_by: user.id,
+		};
+
+		// If createdAt is provided, use it (otherwise database will use DEFAULT NOW())
+		if (createdAt) {
+			sessionData.created_at = createdAt;
+		}
+
 		const { data: session, error: sessionError } = await supabase
 			.from("sessions")
-			.insert({
-				player_count: playerCount,
-				created_by: user.id,
-			})
+			.insert(sessionData)
 			.select()
 			.single();
 

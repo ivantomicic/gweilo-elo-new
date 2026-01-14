@@ -109,23 +109,38 @@ function StartSessionPageContent() {
 							</Box>
 
 							{/* Subtitle */}
-							<p className="text-muted-foreground">{t.startSession.subtitle}</p>
+							<p className="text-muted-foreground">
+								{t.startSession.subtitle}
+							</p>
 
 							{/* Session Time Section */}
 							<Box>
-								<Sheet open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+								<Sheet
+									open={isDatePickerOpen}
+									onOpenChange={setIsDatePickerOpen}
+								>
 									<SheetTrigger asChild>
 										<Box className="bg-card rounded-[24px] p-5 border border-border/50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer">
-											<Stack direction="row" alignItems="center" spacing={4}>
+											<Stack
+												direction="row"
+												alignItems="center"
+												spacing={4}
+											>
 												<Box className="bg-primary/10 p-3 rounded-2xl text-primary">
 													<Icon
 														icon="solar:calendar-date-bold"
 														className="size-6"
 													/>
 												</Box>
-												<Stack direction="column" spacing={0}>
+												<Stack
+													direction="column"
+													spacing={0}
+												>
 													<p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-														{t.startSession.sessionTime}
+														{
+															t.startSession
+																.sessionTime
+														}
 													</p>
 													<p className="text-base font-semibold">
 														{formatSessionDateTime()}
@@ -140,49 +155,83 @@ function StartSessionPageContent() {
 									</SheetTrigger>
 									<SheetContent>
 										<SheetHeader>
-											<SheetTitle>{t.startSession.sessionTime}</SheetTitle>
+											<SheetTitle>
+												{t.startSession.sessionTime}
+											</SheetTitle>
 										</SheetHeader>
-										<Stack direction="column" spacing={6} className="mt-6">
+										<Stack
+											direction="column"
+											spacing={6}
+											className="mt-6"
+										>
 											<Box>
-												<Label htmlFor="session-date" className="mb-2 block">
+												<Label
+													htmlFor="session-date"
+													className="mb-2 block"
+												>
 													Datum
 												</Label>
 												<Input
 													id="session-date"
 													type="date"
 													defaultValue={formatDateForInput(
-														selectedDate || new Date()
+														selectedDate ||
+															new Date()
 													)}
 													onChange={(e) => {
-														const dateValue = e.target.value;
-														const currentDate = selectedDate || new Date();
-														const timeValue = formatTimeForInput(currentDate);
-														handleDateTimeChange(dateValue, timeValue);
+														const dateValue =
+															e.target.value;
+														const currentDate =
+															selectedDate ||
+															new Date();
+														const timeValue =
+															formatTimeForInput(
+																currentDate
+															);
+														handleDateTimeChange(
+															dateValue,
+															timeValue
+														);
 													}}
 													className="w-full"
 												/>
 											</Box>
 											<Box>
-												<Label htmlFor="session-time" className="mb-2 block">
+												<Label
+													htmlFor="session-time"
+													className="mb-2 block"
+												>
 													Vreme
 												</Label>
 												<Input
 													id="session-time"
 													type="time"
 													defaultValue={formatTimeForInput(
-														selectedDate || new Date()
+														selectedDate ||
+															new Date()
 													)}
 													onChange={(e) => {
-														const timeValue = e.target.value;
-														const currentDate = selectedDate || new Date();
-														const dateValue = formatDateForInput(currentDate);
-														handleDateTimeChange(dateValue, timeValue);
+														const timeValue =
+															e.target.value;
+														const currentDate =
+															selectedDate ||
+															new Date();
+														const dateValue =
+															formatDateForInput(
+																currentDate
+															);
+														handleDateTimeChange(
+															dateValue,
+															timeValue
+														);
 													}}
 													className="w-full"
 												/>
 											</Box>
 											<Button
-												onClick={() => setIsDatePickerOpen(false)}
+												onClick={() =>
+													setIsDatePickerOpen(false)
+												}
 												className="w-full"
 											>
 												Gotovo
@@ -199,12 +248,15 @@ function StartSessionPageContent() {
 								</h3>
 								<Box className="grid grid-cols-2 gap-4">
 									{playerOptions.map((num) => {
-										const isSelected = selectedPlayers === num;
+										const isSelected =
+											selectedPlayers === num;
 										return (
 											<Box
 												key={num}
 												component="button"
-												onClick={() => setSelectedPlayers(num)}
+												onClick={() =>
+													setSelectedPlayers(num)
+												}
 												className={cn(
 													"rounded-[24px] p-6 border flex flex-col items-center justify-center gap-2 relative overflow-hidden active:scale-95 transition-all cursor-pointer",
 													isSelected
@@ -245,7 +297,11 @@ function StartSessionPageContent() {
 									})}
 								</Box>
 								<Box className="mt-6 bg-secondary/30 rounded-2xl p-4 border border-border/30">
-									<Stack direction="row" alignItems="start" spacing={3}>
+									<Stack
+										direction="row"
+										alignItems="start"
+										spacing={3}
+									>
 										<Icon
 											icon="solar:info-circle-bold"
 											className="size-5 text-primary shrink-0 mt-0.5"
@@ -262,7 +318,9 @@ function StartSessionPageContent() {
 									disabled={selectedPlayers === null}
 									onClick={() => {
 										if (selectedPlayers !== null) {
-											router.push(`/start-session/players?count=${selectedPlayers}`);
+											router.push(
+												`/start-session/players?count=${selectedPlayers}`
+											);
 										}
 									}}
 									className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
@@ -274,7 +332,10 @@ function StartSessionPageContent() {
 										spacing={2}
 									>
 										<span>{t.startSession.continue}</span>
-										<Icon icon="solar:arrow-right-linear" className="size-5" />
+										<Icon
+											icon="solar:arrow-right-linear"
+											className="size-5"
+										/>
 									</Stack>
 								</Button>
 							</Box>
@@ -293,4 +354,3 @@ export default function StartSessionPage() {
 		</AuthGuard>
 	);
 }
-

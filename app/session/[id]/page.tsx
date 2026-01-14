@@ -155,6 +155,9 @@ function SessionPageContent() {
 			}
 		>
 	>({});
+	const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<
+		string | null
+	>(null);
 
 	// Reusable function to fetch players with updated Elo ratings
 	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
@@ -1425,6 +1428,14 @@ function SessionPageContent() {
 											onViewAvailabilityChange={
 												setViewAvailability
 											}
+											onPlayerClick={(playerId) => {
+												setSelectedPlayerFilter(
+													selectedPlayerFilter === playerId
+														? null
+														: playerId
+												);
+											}}
+											selectedPlayerFilter={selectedPlayerFilter}
 										/>
 									</Box>
 
@@ -1437,6 +1448,26 @@ function SessionPageContent() {
 														.matchHistory
 												}
 											</h3>
+											{selectedPlayerFilter && (
+												<Box
+													onClick={() =>
+														setSelectedPlayerFilter(
+															null
+														)
+													}
+													className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold cursor-pointer hover:bg-primary/20 transition-colors"
+												>
+													<span>
+														{getPlayer(
+															selectedPlayerFilter
+														)?.name || "Filtered"}
+													</span>
+													<Icon
+														icon="solar:close-circle-bold"
+														className="size-4"
+													/>
+												</Box>
+											)}
 										</Box>
 										<Stack direction="column" spacing={2.5}>
 											{roundNumbersList.flatMap(
@@ -1447,25 +1478,29 @@ function SessionPageContent() {
 															roundNumber
 														] || [];
 
-													// Filter matches based on active view
+													// Filter matches based on active view and selected player
 													const roundMatches =
 														allRoundMatches.filter(
 															(match) => {
-																if (
+																// Filter by match type (view)
+																const matchesView =
 																	activeView ===
 																	"singles"
-																) {
-																	return (
-																		match.match_type ===
-																		"singles"
-																	);
-																} else {
-																	// doubles_player or doubles_team: show doubles matches
-																	return (
-																		match.match_type ===
-																		"doubles"
+																		? match.match_type ===
+																		  "singles"
+																		: match.match_type ===
+																		  "doubles";
+																
+																if (!matchesView) return false;
+																
+																// Filter by selected player if applicable
+																if (selectedPlayerFilter) {
+																	return match.player_ids.includes(
+																		selectedPlayerFilter
 																	);
 																}
+																
+																return true;
 															}
 														);
 
@@ -2538,7 +2573,7 @@ function SessionPageContent() {
 																	false
 																)}
 															</span>
-															<span className="text-chart-4">
+															<span className="text-red-500">
 																{formatEloDelta(
 																	team1LoseChange,
 																	false
@@ -2751,7 +2786,7 @@ function SessionPageContent() {
 																	false
 																)}
 															</span>
-															<span className="text-chart-4">
+															<span className="text-red-500">
 																{formatEloDelta(
 																	team2LoseChange,
 																	false

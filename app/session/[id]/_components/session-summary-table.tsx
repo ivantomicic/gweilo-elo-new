@@ -53,6 +53,8 @@ type SessionSummaryTableProps = {
 	activeView: "singles" | "doubles_player" | "doubles_team";
 	onViewChange: (view: "singles" | "doubles_player" | "doubles_team") => void;
 	onViewAvailabilityChange?: (availability: SessionViewAvailability) => void;
+	onPlayerClick?: (playerId: string) => void;
+	selectedPlayerFilter?: string | null;
 };
 
 export type SessionViewAvailability = {
@@ -71,6 +73,8 @@ export function SessionSummaryTable({
 	activeView,
 	onViewChange,
 	onViewAvailabilityChange,
+	onPlayerClick,
+	selectedPlayerFilter,
 }: SessionSummaryTableProps) {
 	const [singlesSummary, setSinglesSummary] = useState<
 		SessionPlayerSummary[]
@@ -284,27 +288,38 @@ export function SessionSummaryTable({
 										{index + 1}
 									</TableCell>
 									<TableCell>
-										<PlayerNameCard
-											name={player.display_name}
-											avatar={player.avatar}
-											id={player.player_id}
-											size="sm"
-											addon={
-												<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-													<span className="text-emerald-500">
-														{player.wins}
+										<Box
+											onClick={() => onPlayerClick?.(player.player_id)}
+											className={cn(
+												onPlayerClick &&
+													"cursor-pointer hover:opacity-80 transition-opacity",
+												selectedPlayerFilter ===
+													player.player_id &&
+													"opacity-100"
+											)}
+										>
+											<PlayerNameCard
+												name={player.display_name}
+												avatar={player.avatar}
+												id={player.player_id}
+												size="sm"
+												addon={
+													<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+														<span className="text-emerald-500">
+															{player.wins}
+														</span>
+														{" / "}
+														<span className="text-red-500">
+															{player.losses}
+														</span>
+														{" / "}
+														<span className="text-muted-foreground">
+															{player.draws}
+														</span>
 													</span>
-													{" / "}
-													<span className="text-red-500">
-														{player.losses}
-													</span>
-													{" / "}
-													<span className="text-muted-foreground">
-														{player.draws}
-													</span>
-												</span>
-											}
-										/>
+												}
+											/>
+										</Box>
 									</TableCell>
 									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 										{player.wins}
@@ -374,27 +389,38 @@ export function SessionSummaryTable({
 										{index + 1}
 									</TableCell>
 									<TableCell>
-										<PlayerNameCard
-											name={player.display_name}
-											avatar={player.avatar}
-											id={player.player_id}
-											size="sm"
-											addon={
-												<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-													<span className="text-emerald-500">
-														{player.wins}
+										<Box
+											onClick={() => onPlayerClick?.(player.player_id)}
+											className={cn(
+												onPlayerClick &&
+													"cursor-pointer hover:opacity-80 transition-opacity",
+												selectedPlayerFilter ===
+													player.player_id &&
+													"opacity-100"
+											)}
+										>
+											<PlayerNameCard
+												name={player.display_name}
+												avatar={player.avatar}
+												id={player.player_id}
+												size="sm"
+												addon={
+													<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+														<span className="text-emerald-500">
+															{player.wins}
+														</span>
+														{" / "}
+														<span className="text-red-500">
+															{player.losses}
+														</span>
+														{" / "}
+														<span className="text-muted-foreground">
+															{player.draws}
+														</span>
 													</span>
-													{" / "}
-													<span className="text-red-500">
-														{player.losses}
-													</span>
-													{" / "}
-													<span className="text-muted-foreground">
-														{player.draws}
-													</span>
-												</span>
-											}
-										/>
+												}
+											/>
+										</Box>
 									</TableCell>
 									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 										{player.wins}

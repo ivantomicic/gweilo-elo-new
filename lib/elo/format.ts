@@ -59,7 +59,7 @@ export function formatEloDelta(delta: number | string | null | undefined, round:
 		return "0";
 	}
 
-	const sign = deltaNum >= 0 ? "+" : "";
+	const sign = deltaNum >= 0 ? "+" : "-";
 	const absDelta = Math.abs(deltaNum);
 
 	if (round) {
