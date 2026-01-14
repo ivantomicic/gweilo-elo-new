@@ -20,6 +20,7 @@ import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { formatElo } from "@/lib/elo/format";
 
 type ActiveSession = {
 	id: string;
@@ -34,6 +35,173 @@ type NoShowUser = {
 	noShowCount: number;
 	lastNoShowDate: string;
 };
+
+type PlayerStat = {
+	player_id: string;
+	display_name: string;
+	avatar: string | null;
+	elo: number;
+	matches_played: number;
+	wins: number;
+	losses: number;
+	draws: number;
+};
+
+function Top3PlayersWidget() {
+	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const fetchTopPlayers = async () => {
+			try {
+				setLoading(true);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+
+				if (!session) {
+					setTopPlayers([]);
+					return;
+				}
+
+				const response = await fetch("/api/statistics", {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+					},
+				});
+
+				if (!response.ok) {
+					setTopPlayers([]);
+					return;
+				}
+
+				const data = await response.json();
+				const singlesStats = data.singles || [];
+				// Top 3 players (already sorted by Elo descending)
+				setTopPlayers(singlesStats.slice(0, 3));
+			} catch (error) {
+				console.error("Error fetching top players:", error);
+				setTopPlayers([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchTopPlayers();
+	}, []);
+
+	if (loading || topPlayers.length === 0) {
+		return null;
+	}
+
+	const second = topPlayers[1];
+	const first = topPlayers[0];
+	const third = topPlayers[2];
+
+	return (
+		<Box className="bg-card rounded-[24px] border border-border/50 p-6 relative overflow-hidden flex items-center justify-center min-h-[250px]">
+			{/* Diagonal pattern background */}
+			<Box
+				className="absolute inset-0 opacity-30"
+				style={{
+					backgroundImage:
+						"linear-gradient(45deg, transparent 25%, rgba(34,197,94,0.03) 25%, rgba(34,197,94,0.03) 50%, transparent 50%, transparent 75%, rgba(34,197,94,0.03) 75%, rgba(34,197,94,0.03) 100%)",
+					backgroundSize: "20px 20px",
+				}}
+			/>
+
+			<Stack direction="row" alignItems="center" justifyContent="center" spacing={6} className="relative z-10">
+				{/* 2nd Place */}
+				{second && (
+					<Stack direction="column" alignItems="center" spacing={2} className="w-1/3">
+						<Box className="relative">
+							<Avatar className="size-16 border-2 border-[#C0C0C0]">
+								<AvatarImage
+									src={second.avatar || undefined}
+									alt={second.display_name}
+								/>
+								<AvatarFallback>
+									{second.display_name.charAt(0).toUpperCase()}
+								</AvatarFallback>
+							</Avatar>
+							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#C0C0C0] text-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm">
+								#2
+							</Box>
+						</Box>
+						<Stack direction="column" alignItems="center" spacing={0.5}>
+							<p className="text-sm font-semibold truncate w-full text-center">
+								{second.display_name}
+							</p>
+							<p className="text-xs text-muted-foreground font-mono">
+								{formatElo(second.elo, true)}
+							</p>
+						</Stack>
+					</Stack>
+				)}
+
+				{/* 1st Place */}
+				{first && (
+					<Stack direction="column" alignItems="center" spacing={2} className="w-1/3">
+						<Box className="relative">
+							<Icon
+								icon="solar:crown-bold"
+								className="absolute -top-6 left-1/2 -translate-x-1/2 text-yellow-400 size-6 drop-shadow-md"
+							/>
+							<Avatar className="size-20 border-4 border-[#FFD700]">
+								<AvatarImage
+									src={first.avatar || undefined}
+									alt={first.display_name}
+								/>
+								<AvatarFallback className="text-lg">
+									{first.display_name.charAt(0).toUpperCase()}
+								</AvatarFallback>
+							</Avatar>
+							<Box className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-[#FFD700] text-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-card shadow-sm">
+								#1
+							</Box>
+						</Box>
+						<Stack direction="column" alignItems="center" spacing={0.5}>
+							<p className="text-base font-bold truncate w-full text-center">
+								{first.display_name}
+							</p>
+							<p className="text-xs text-[#FFD700] font-mono font-bold">
+								{formatElo(first.elo, true)}
+							</p>
+						</Stack>
+					</Stack>
+				)}
+
+				{/* 3rd Place */}
+				{third && (
+					<Stack direction="column" alignItems="center" spacing={2} className="w-1/3">
+						<Box className="relative">
+							<Avatar className="size-16 border-2 border-[#CD7F32]">
+								<AvatarImage
+									src={third.avatar || undefined}
+									alt={third.display_name}
+								/>
+								<AvatarFallback>
+									{third.display_name.charAt(0).toUpperCase()}
+								</AvatarFallback>
+							</Avatar>
+							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#CD7F32] text-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm">
+								#3
+							</Box>
+						</Box>
+						<Stack direction="column" alignItems="center" spacing={0.5}>
+							<p className="text-sm font-semibold truncate w-full text-center">
+								{third.display_name}
+							</p>
+							<p className="text-xs text-muted-foreground font-mono">
+								{formatElo(third.elo, true)}
+							</p>
+						</Stack>
+					</Stack>
+				)}
+			</Stack>
+		</Box>
+	);
+}
 
 function NoShowAlertWidget() {
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
@@ -258,9 +426,7 @@ export default function HomePage() {
 							<Stack direction="column" spacing={4}>
 								{/* First Row: 3 widgets */}
 								<Box className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
-										{/* Widget Placeholder 1 */}
-									</Box>
+									<Top3PlayersWidget />
 									<NoShowAlertWidget />
 									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
 										{/* Widget Placeholder 3 */}
