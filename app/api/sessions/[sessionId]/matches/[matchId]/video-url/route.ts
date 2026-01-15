@@ -53,7 +53,7 @@ export async function POST(
 		const token = authHeader.replace("Bearer ", "");
 
 		// Create Supabase client
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: `Bearer ${token}`,

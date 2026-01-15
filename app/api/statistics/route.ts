@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 		const token = authHeader.replace("Bearer ", "");
 
 		// Create Supabase client with user's JWT token (so RLS works correctly)
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: `Bearer ${token}`,

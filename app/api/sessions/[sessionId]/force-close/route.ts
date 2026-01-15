@@ -47,7 +47,7 @@ export async function POST(
 			);
 		}
 
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: `Bearer ${token}`,

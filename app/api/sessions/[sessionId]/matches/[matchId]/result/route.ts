@@ -37,7 +37,7 @@ export async function POST(
 		const token = authHeader.replace("Bearer ", "");
 		const { sessionId, matchId } = params;
 
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: `Bearer ${token}`,

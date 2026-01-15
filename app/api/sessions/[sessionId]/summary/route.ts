@@ -186,7 +186,7 @@ export async function GET(
 		}
 
 		// Verify user is authenticated
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: `Bearer ${token}`,

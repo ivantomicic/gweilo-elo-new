@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 		}
 
 		const adminClient = createAdminClient();
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: authHeader || "",

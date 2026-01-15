@@ -35,7 +35,7 @@ export async function GET(
 		const token = authHeader.replace("Bearer ", "");
 		const sessionId = params.sessionId;
 
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
 			global: {
 				headers: {
 					Authorization: `Bearer ${token}`,
