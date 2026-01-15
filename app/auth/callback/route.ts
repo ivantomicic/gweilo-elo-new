@@ -13,7 +13,7 @@ export async function GET(request: Request) {
 	const code = requestUrl.searchParams.get("code");
 
 	if (code) {
-		const supabase = createClient(supabaseUrl, supabaseAnonKey);
+		const supabase = createClient(supabaseUrl!, supabaseAnonKey!);
 		await supabase.auth.exchangeCodeForSession(code);
 	}
 
