@@ -131,7 +131,11 @@ export async function GET(request: NextRequest) {
 
 		// Build video items with player details
 		const videos = matches.map((match) => {
-			const session = match.sessions as {
+			// Handle sessions as array (Supabase join returns array even for single relation)
+			const sessionsData = Array.isArray(match.sessions) 
+				? match.sessions[0] 
+				: match.sessions;
+			const session = sessionsData as {
 				id: string;
 				created_at: string;
 				completed_at: string | null;
