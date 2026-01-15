@@ -19,6 +19,7 @@ type User = {
 	email: string;
 	name: string;
 	avatar: string | null;
+	role: string;
 };
 
 type UserEditDrawerProps = {
@@ -98,7 +99,9 @@ export function UserEditDrawer({
 				if (uploadError.message.includes("Bucket not found")) {
 					setError(t.settings.error.bucketNotFound);
 				} else if (
-					uploadError.message.includes("new row violates row-level security")
+					uploadError.message.includes(
+						"new row violates row-level security"
+					)
 				) {
 					setError(t.settings.error.permissionDenied);
 				} else {
@@ -164,8 +167,11 @@ export function UserEditDrawer({
 
 			const data = await response.json();
 
-			// Call onSave callback with updated user
-			onSave(data.user);
+			// Call onSave callback with updated user (ensure role is included)
+			onSave({
+				...data.user,
+				role: data.user.role || user.role, // Preserve role from original user if not in response
+			});
 
 			// Close drawer
 			onClose();
@@ -207,7 +213,10 @@ export function UserEditDrawer({
 						</label>
 						<div className="flex items-center gap-4">
 							<Avatar className="h-16 w-16">
-								<AvatarImage src={avatarPreview || undefined} alt={name} />
+								<AvatarImage
+									src={avatarPreview || undefined}
+									alt={name}
+								/>
 								<AvatarFallback>
 									{name.charAt(0).toUpperCase()}
 								</AvatarFallback>
@@ -260,7 +269,10 @@ export function UserEditDrawer({
 					>
 						{t.common.cancel || "Otkaži"}
 					</Button>
-					<Button onClick={handleSave} disabled={saving || !hasChanges}>
+					<Button
+						onClick={handleSave}
+						disabled={saving || !hasChanges}
+					>
 						{saving ? t.settings.saving : t.settings.save}
 					</Button>
 				</SheetFooter>
@@ -268,4 +280,3 @@ export function UserEditDrawer({
 		</Sheet>
 	);
 }
-
