@@ -291,6 +291,7 @@ export async function GET(request: NextRequest) {
 			sets_won: number;
 			sets_lost: number;
 			elo: number;
+			rank_movement: number;
 		}>;
 		doublesTeamStats.sort((a, b) => b.elo - a.elo);
 
