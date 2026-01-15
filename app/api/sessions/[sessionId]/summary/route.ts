@@ -28,6 +28,8 @@ type SessionTeamSummary = {
 	player2_id: string;
 	player1_name: string;
 	player2_name: string;
+	player1_avatar: string | null;
+	player2_avatar: string | null;
 	elo_before: number;
 	elo_after: number;
 	elo_change: number;
