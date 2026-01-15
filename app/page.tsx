@@ -20,7 +20,16 @@ import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { formatElo } from "@/lib/elo/format";
+import { formatElo, formatEloDelta } from "@/lib/elo/format";
+import {
+	LineChart,
+	Line,
+	XAxis,
+	YAxis,
+	ResponsiveContainer,
+	Tooltip,
+	CartesianGrid,
+} from "recharts";
 
 type ActiveSession = {
 	id: string;
@@ -99,7 +108,7 @@ function Top3PlayersWidget() {
 	const third = topPlayers[2];
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 p-6 relative overflow-hidden flex items-center justify-center min-h-[250px]">
+		<Box className="bg-card rounded-[24px] border border-border/50 p-3 md:p-6 relative overflow-hidden flex items-center justify-center min-h-[200px] md:min-h-[250px]">
 			{/* Diagonal pattern background */}
 			<Box
 				className="absolute inset-0 opacity-30"
@@ -110,12 +119,12 @@ function Top3PlayersWidget() {
 				}}
 			/>
 
-			<Stack direction="row" alignItems="center" justifyContent="center" spacing={6} className="relative z-10">
+			<Stack direction="row" alignItems="center" justifyContent="center" spacing={3} className="relative z-10 md:gap-6">
 				{/* 2nd Place */}
 				{second && (
-					<Stack direction="column" alignItems="center" spacing={2} className="w-1/3">
+					<Stack direction="column" alignItems="center" spacing={1.5} className="w-1/3">
 						<Box className="relative">
-							<Avatar className="size-16 border-2 border-[#C0C0C0]">
+							<Avatar className="size-12 border-2 border-[#C0C0C0] md:size-16">
 								<AvatarImage
 									src={second.avatar || undefined}
 									alt={second.display_name}
@@ -124,15 +133,15 @@ function Top3PlayersWidget() {
 									{second.display_name.charAt(0).toUpperCase()}
 								</AvatarFallback>
 							</Avatar>
-							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#C0C0C0] text-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm">
+							<Box className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-[#C0C0C0] text-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-card shadow-sm md:-bottom-2 md:text-[10px] md:px-2">
 								#2
 							</Box>
 						</Box>
 						<Stack direction="column" alignItems="center" spacing={0.5}>
-							<p className="text-sm font-semibold truncate w-full text-center">
+							<p className="text-xs font-semibold truncate w-full text-center md:text-sm">
 								{second.display_name}
 							</p>
-							<p className="text-xs text-muted-foreground font-mono">
+							<p className="text-[10px] text-muted-foreground font-mono md:text-xs">
 								{formatElo(second.elo, true)}
 							</p>
 						</Stack>
@@ -141,30 +150,30 @@ function Top3PlayersWidget() {
 
 				{/* 1st Place */}
 				{first && (
-					<Stack direction="column" alignItems="center" spacing={2} className="w-1/3">
+					<Stack direction="column" alignItems="center" spacing={1.5} className="w-1/3">
 						<Box className="relative">
 							<Icon
 								icon="solar:crown-bold"
-								className="absolute -top-6 left-1/2 -translate-x-1/2 text-yellow-400 size-6 drop-shadow-md"
+								className="absolute -top-4 left-1/2 -translate-x-1/2 text-yellow-400 size-4 drop-shadow-md md:-top-6 md:size-6"
 							/>
-							<Avatar className="size-20 border-4 border-[#FFD700]">
+							<Avatar className="size-14 border-[3px] border-[#FFD700] md:size-20 md:border-4">
 								<AvatarImage
 									src={first.avatar || undefined}
 									alt={first.display_name}
 								/>
-								<AvatarFallback className="text-lg">
+								<AvatarFallback className="text-base md:text-lg">
 									{first.display_name.charAt(0).toUpperCase()}
 								</AvatarFallback>
 							</Avatar>
-							<Box className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-[#FFD700] text-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-card shadow-sm">
+							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FFD700] text-foreground text-[9px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm md:-bottom-2.5 md:text-[10px] md:px-2.5">
 								#1
 							</Box>
 						</Box>
 						<Stack direction="column" alignItems="center" spacing={0.5}>
-							<p className="text-base font-bold truncate w-full text-center">
+							<p className="text-sm font-bold truncate w-full text-center md:text-base">
 								{first.display_name}
 							</p>
-							<p className="text-xs text-[#FFD700] font-mono font-bold">
+							<p className="text-[10px] text-[#FFD700] font-mono font-bold md:text-xs">
 								{formatElo(first.elo, true)}
 							</p>
 						</Stack>
@@ -173,9 +182,9 @@ function Top3PlayersWidget() {
 
 				{/* 3rd Place */}
 				{third && (
-					<Stack direction="column" alignItems="center" spacing={2} className="w-1/3">
+					<Stack direction="column" alignItems="center" spacing={1.5} className="w-1/3">
 						<Box className="relative">
-							<Avatar className="size-16 border-2 border-[#CD7F32]">
+							<Avatar className="size-12 border-2 border-[#CD7F32] md:size-16">
 								<AvatarImage
 									src={third.avatar || undefined}
 									alt={third.display_name}
@@ -184,20 +193,248 @@ function Top3PlayersWidget() {
 									{third.display_name.charAt(0).toUpperCase()}
 								</AvatarFallback>
 							</Avatar>
-							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#CD7F32] text-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm">
+							<Box className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-[#CD7F32] text-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-card shadow-sm md:-bottom-2 md:text-[10px] md:px-2">
 								#3
 							</Box>
 						</Box>
 						<Stack direction="column" alignItems="center" spacing={0.5}>
-							<p className="text-sm font-semibold truncate w-full text-center">
+							<p className="text-xs font-semibold truncate w-full text-center md:text-sm">
 								{third.display_name}
 							</p>
-							<p className="text-xs text-muted-foreground font-mono">
+							<p className="text-[10px] text-muted-foreground font-mono md:text-xs">
 								{formatElo(third.elo, true)}
 							</p>
 						</Stack>
 					</Stack>
 				)}
+			</Stack>
+		</Box>
+	);
+}
+
+type EloHistoryDataPoint = {
+	match: number;
+	elo: number;
+	date: string;
+	opponent: string;
+	delta: number;
+};
+
+function EloChartWidget() {
+	const [eloHistory, setEloHistory] = useState<EloHistoryDataPoint[]>([]);
+	const [currentElo, setCurrentElo] = useState<number>(1500);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const fetchEloHistory = async () => {
+			try {
+				setLoading(true);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+
+				if (!session) {
+					setEloHistory([]);
+					return;
+				}
+
+				const response = await fetch("/api/player/elo-history", {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+					},
+				});
+
+				if (!response.ok) {
+					setEloHistory([]);
+					return;
+				}
+
+				const data = await response.json();
+				setEloHistory(data.data || []);
+				setCurrentElo(data.currentElo || 1500);
+			} catch (error) {
+				console.error("Error fetching Elo history:", error);
+				setEloHistory([]);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		fetchEloHistory();
+	}, []);
+
+	if (loading) {
+		return null;
+	}
+
+	// If no data or only one point, show placeholder
+	if (eloHistory.length === 0 || eloHistory.length === 1) {
+		return (
+			<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[300px] flex items-center justify-center">
+				<p className="text-muted-foreground text-center">
+					Not enough match data to display chart
+				</p>
+			</Box>
+		);
+	}
+
+	// Calculate Y-axis domain to match exact data range (no padding)
+	const eloValues = eloHistory.map((point) => point.elo);
+	const minElo = Math.min(...eloValues);
+	const maxElo = Math.max(...eloValues);
+	const yAxisDomain = [minElo, maxElo];
+
+	return (
+		<Box className="bg-card rounded-[24px] border border-border/50 p-6 relative overflow-hidden">
+			<Stack direction="column" spacing={4}>
+				{/* Header */}
+				<Stack direction="column" spacing={4}>
+					<p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+						Performance Trend
+					</p>
+					<Stack
+						direction="row"
+						alignItems="stretch"
+						spacing={3}
+						className="flex-wrap"
+					>
+						{/* Current Elo - Primary Stat */}
+						<Box className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
+							<Stack direction="column" spacing={1}>
+								<p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+									Current Elo
+								</p>
+								<p className="text-3xl font-bold font-heading text-primary">
+									{formatElo(currentElo, true)}
+								</p>
+							</Stack>
+						</Box>
+						{eloHistory.length > 0 && (
+							<>
+								{/* Max Elo */}
+								<Box className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 flex-1 min-w-[120px]">
+									<Stack direction="column" spacing={1}>
+										<Stack direction="row" alignItems="center" spacing={1.5}>
+											<Icon
+												icon="solar:graph-up-bold"
+												className="size-3 text-emerald-500"
+											/>
+											<p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+												Peak
+											</p>
+										</Stack>
+										<p className="text-2xl font-bold font-heading text-emerald-500">
+											{formatElo(maxElo, true)}
+										</p>
+									</Stack>
+								</Box>
+								{/* Min Elo */}
+								<Box className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex-1 min-w-[120px]">
+									<Stack direction="column" spacing={1}>
+										<Stack direction="row" alignItems="center" spacing={1.5}>
+											<Icon
+												icon="solar:graph-down-bold"
+												className="size-3 text-red-500"
+											/>
+											<p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
+												Lowest
+											</p>
+										</Stack>
+										<p className="text-2xl font-bold font-heading text-red-500">
+											{formatElo(minElo, true)}
+										</p>
+									</Stack>
+								</Box>
+							</>
+						)}
+					</Stack>
+				</Stack>
+
+				{/* Chart */}
+				<Box className="h-[300px] w-full">
+					<ResponsiveContainer width="100%" height="100%">
+						<LineChart
+							data={eloHistory}
+							margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+						>
+							<CartesianGrid
+								strokeDasharray="3 3"
+								stroke="hsl(var(--border))"
+								opacity={0.2}
+							/>
+							<XAxis
+								dataKey="match"
+								axisLine={false}
+								tickLine={false}
+								tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+							/>
+							<YAxis
+								domain={yAxisDomain}
+								axisLine={false}
+								tickLine={false}
+								tick={false}
+								width={0}
+							/>
+							<Tooltip
+								contentStyle={{
+									backgroundColor: "hsl(var(--card))",
+									border: "1px solid hsl(var(--border))",
+									borderRadius: "8px",
+								}}
+								labelFormatter={(value, payload) => {
+									if (payload && payload[0]?.payload) {
+										const dataPoint = payload[0].payload as EloHistoryDataPoint;
+										const date = new Date(dataPoint.date);
+										const formattedDate = date.toLocaleDateString("sr-Latn-RS", {
+											month: "short",
+											day: "numeric",
+											year: "numeric",
+										});
+										const opponent = dataPoint.opponent || "Unknown";
+										return `${formattedDate} • vs. ${opponent}`;
+									}
+									return "";
+								}}
+								formatter={(value: number, name: string, props: any) => {
+									const dataPoint = props.payload as EloHistoryDataPoint;
+									const delta = dataPoint?.delta ?? 0;
+									const deltaFormatted = formatEloDelta(delta, true);
+									const deltaColor = delta >= 0 ? "text-emerald-500" : "text-red-500";
+									return [
+										<span key="elo-delta">
+											{formatElo(value, true)}{" "}
+											<span className={deltaColor}>({deltaFormatted})</span>
+										</span>,
+										"Elo",
+									];
+								}}
+							/>
+							<Line
+								type="monotone"
+								dataKey="elo"
+								stroke="hsl(var(--primary))"
+								strokeWidth={2}
+								dot={(props: any) => {
+									const { cx, cy, payload } = props;
+									const dataPoint = payload as EloHistoryDataPoint;
+									const delta = dataPoint?.delta ?? 0;
+									const fillColor = delta >= 0 ? "#10b981" : "#ef4444"; // emerald-500 : red-500
+									return (
+										<circle
+											cx={cx}
+											cy={cy}
+											r={4}
+											fill={fillColor}
+											stroke="hsl(var(--card))"
+											strokeWidth={2}
+										/>
+									);
+								}}
+								activeDot={{ r: 5 }}
+							/>
+						</LineChart>
+					</ResponsiveContainer>
+				</Box>
 			</Stack>
 		</Box>
 	);
@@ -434,9 +671,7 @@ export default function HomePage() {
 								</Box>
 
 								{/* Second Row: 1 full-width widget */}
-								<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
-									{/* Widget Placeholder 4 */}
-								</Box>
+								<EloChartWidget />
 							</Stack>
 						</div>
 					</div>
