@@ -23,6 +23,7 @@ type RoundCardProps = {
 	matches: Match[];
 	restingPlayers?: Player[];
 	isActive?: boolean;
+	isDynamic?: boolean; // Indicates this round will be determined dynamically
 };
 
 export function RoundCard({
@@ -30,6 +31,7 @@ export function RoundCard({
 	matches,
 	restingPlayers,
 	isActive = false,
+	isDynamic = false,
 }: RoundCardProps) {
 	return (
 		<Stack direction="row" spacing={4} className="relative z-10">
@@ -52,11 +54,61 @@ export function RoundCard({
 
 			{/* Round card */}
 			<Box className="flex-1 bg-card rounded-[20px] p-4 border border-border/50">
+				{/* Dynamic indicator badge */}
+				{isDynamic && (
+					<Box className="mb-3 flex items-center gap-2">
+						<Box className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">
+							<svg
+								className="size-3"
+								fill="none"
+								viewBox="0 0 24 24"
+								stroke="currentColor"
+							>
+								<path
+									strokeLinecap="round"
+									strokeLinejoin="round"
+									strokeWidth={2}
+									d="M13 10V3L4 14h7v7l9-11h-7z"
+								/>
+							</svg>
+							<span className="text-[10px] font-bold uppercase tracking-wider">
+								Dynamic
+							</span>
+						</Box>
+					</Box>
+				)}
+
 				{/* Matches */}
 				<Stack direction="column" spacing={3}>
-					{matches.map((match, index) => (
-						<MatchRow key={index} type={match.type} players={match.players} />
-					))}
+					{isDynamic ? (
+						<>
+							<Box className="text-sm text-muted-foreground py-2 space-y-1">
+								<p className="font-medium text-foreground/80">
+									Schedule will be determined after Round {roundNumber - 1} is
+									completed.
+								</p>
+								<p className="text-xs">
+									Winners from Round {roundNumber - 1} doubles will stay in
+									doubles and play against players from Round {roundNumber - 1}{" "}
+									singles.
+								</p>
+							</Box>
+							{/* Show placeholder matches for reference */}
+							<Box className="opacity-50">
+								{matches.map((match, index) => (
+									<MatchRow
+										key={index}
+										type={match.type}
+										players={match.players}
+									/>
+								))}
+							</Box>
+						</>
+					) : (
+						matches.map((match, index) => (
+							<MatchRow key={index} type={match.type} players={match.players} />
+						))
+					)}
 				</Stack>
 			</Box>
 		</Stack>

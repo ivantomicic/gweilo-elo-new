@@ -779,44 +779,178 @@ function SessionPageContent() {
 			// Refetch players to get updated Elo ratings after round submission
 			const updatedPlayers = await fetchPlayers();
 
-			// Update local state to mark matches as completed
-			// Also check if this was the last round and update session status
-			setSessionData((prev) => {
-				if (!prev) return prev;
-				const updatedMatchesByRound = { ...prev.matchesByRound };
-				const currentMatches =
-					updatedMatchesByRound[currentRound] || [];
-				updatedMatchesByRound[currentRound] = currentMatches.map(
-					(match) => ({
-						...match,
-						status: "completed" as const,
-						team1_score: scores[match.id].team1!,
-						team2_score: scores[match.id].team2!,
-					})
-				);
+			// If this is Round 5 for a 6-player session, refetch matches to get updated Round 6
+			if (currentRound === 5 && sessionData.session.player_count === 6) {
+				const {
+					data: { session: authSession },
+				} = await supabase.auth.getSession();
 
-				// Check if this was the last round
-				const roundNumbersList = Object.keys(sessionData.matchesByRound)
-					.map(Number)
-					.sort((a, b) => a - b);
-				const maxRoundNumber = Math.max(...roundNumbersList);
-				const isLastRound = currentRound >= maxRoundNumber;
+				if (authSession) {
+					const supabaseClient = createClient(
+						supabaseUrl,
+						supabaseAnonKey,
+						{
+							global: {
+								headers: {
+									Authorization: `Bearer ${authSession.access_token}`,
+								},
+							},
+						}
+					);
 
-				return {
-					...prev,
-					players: updatedPlayers, // Update players with fresh Elo ratings
-					matchesByRound: updatedMatchesByRound,
-					session: {
-						...prev.session,
-						status: isLastRound
-							? ("completed" as const)
-							: prev.session.status,
-						completed_at: isLastRound
-							? new Date().toISOString()
-							: prev.session.completed_at,
-					},
-				};
-			});
+					// Refetch all matches to get updated Round 6
+					const { data: allMatches, error: matchesError } =
+						await supabaseClient
+							.from("session_matches")
+							.select("*")
+							.eq("session_id", sessionId)
+							.order("round_number", { ascending: true })
+							.order("match_order", { ascending: true });
+
+					if (!matchesError && allMatches) {
+						// Group matches by round_number
+						const matchesByRound = (allMatches || []).reduce(
+							(acc, match) => {
+								const roundNumber = match.round_number;
+								if (!acc[roundNumber]) {
+									acc[roundNumber] = [];
+								}
+								acc[roundNumber].push(match);
+								return acc;
+							},
+							{} as Record<number, Match[]>
+						);
+
+						// Update local state with refreshed matches
+						setSessionData((prev) => {
+							if (!prev) return prev;
+							const updatedMatchesByRound = { ...prev.matchesByRound };
+							const currentMatches =
+								updatedMatchesByRound[currentRound] || [];
+							updatedMatchesByRound[currentRound] = currentMatches.map(
+								(match) => ({
+									...match,
+									status: "completed" as const,
+									team1_score: scores[match.id].team1!,
+									team2_score: scores[match.id].team2!,
+								})
+							);
+
+							// Merge refreshed matches (this will update Round 6 with new player assignments)
+							Object.keys(matchesByRound).forEach((roundNum) => {
+								const roundNumber = parseInt(roundNum, 10);
+								// For Round 5, use our local state (with completed status)
+								// For other rounds, use refreshed data
+								if (roundNumber !== currentRound) {
+									updatedMatchesByRound[roundNumber] =
+										matchesByRound[roundNumber];
+								}
+							});
+
+							// Check if this was the last round
+							const roundNumbersList = Object.keys(
+								updatedMatchesByRound
+							)
+								.map(Number)
+								.sort((a, b) => a - b);
+							const maxRoundNumber = Math.max(...roundNumbersList);
+							const isLastRound = currentRound >= maxRoundNumber;
+
+							return {
+								...prev,
+								players: updatedPlayers,
+								matchesByRound: updatedMatchesByRound,
+								session: {
+									...prev.session,
+									status: isLastRound
+										? ("completed" as const)
+										: prev.session.status,
+									completed_at: isLastRound
+										? new Date().toISOString()
+										: prev.session.completed_at,
+								},
+							};
+						});
+					} else {
+						// Fallback to original logic if refetch fails
+						setSessionData((prev) => {
+							if (!prev) return prev;
+							const updatedMatchesByRound = { ...prev.matchesByRound };
+							const currentMatches =
+								updatedMatchesByRound[currentRound] || [];
+							updatedMatchesByRound[currentRound] = currentMatches.map(
+								(match) => ({
+									...match,
+									status: "completed" as const,
+									team1_score: scores[match.id].team1!,
+									team2_score: scores[match.id].team2!,
+								})
+							);
+
+							const roundNumbersList = Object.keys(
+								sessionData.matchesByRound
+							)
+								.map(Number)
+								.sort((a, b) => a - b);
+							const maxRoundNumber = Math.max(...roundNumbersList);
+							const isLastRound = currentRound >= maxRoundNumber;
+
+							return {
+								...prev,
+								players: updatedPlayers,
+								matchesByRound: updatedMatchesByRound,
+								session: {
+									...prev.session,
+									status: isLastRound
+										? ("completed" as const)
+										: prev.session.status,
+									completed_at: isLastRound
+										? new Date().toISOString()
+										: prev.session.completed_at,
+								},
+							};
+						});
+					}
+				}
+			} else {
+				// Update local state to mark matches as completed (for non-Round 5 or non-6-player sessions)
+				setSessionData((prev) => {
+					if (!prev) return prev;
+					const updatedMatchesByRound = { ...prev.matchesByRound };
+					const currentMatches =
+						updatedMatchesByRound[currentRound] || [];
+					updatedMatchesByRound[currentRound] = currentMatches.map(
+						(match) => ({
+							...match,
+							status: "completed" as const,
+							team1_score: scores[match.id].team1!,
+							team2_score: scores[match.id].team2!,
+						})
+					);
+
+					// Check if this was the last round
+					const roundNumbersList = Object.keys(sessionData.matchesByRound)
+						.map(Number)
+						.sort((a, b) => a - b);
+					const maxRoundNumber = Math.max(...roundNumbersList);
+					const isLastRound = currentRound >= maxRoundNumber;
+
+					return {
+						...prev,
+						players: updatedPlayers, // Update players with fresh Elo ratings
+						matchesByRound: updatedMatchesByRound,
+						session: {
+							...prev.session,
+							status: isLastRound
+								? ("completed" as const)
+								: prev.session.status,
+							completed_at: isLastRound
+								? new Date().toISOString()
+								: prev.session.completed_at,
+						},
+					};
+				});
+			}
 
 			// Advance to next round immediately (if not last round)
 			// Use the roundNumbers memo for consistency (it's computed from sessionData)
@@ -2187,6 +2321,30 @@ function SessionPageContent() {
 									spacing={4}
 									className="min-h-[400px]"
 								>
+									{/* Show message for Round 6 if Round 5 is not completed (6-player variant) */}
+									{currentRound === 6 &&
+										sessionData.session.player_count === 6 &&
+										(() => {
+											const round5Matches =
+												sessionData.matchesByRound[5] || [];
+											const isRound5Completed =
+												round5Matches.length > 0 &&
+												round5Matches.every(
+													(m) => m.status === "completed"
+												);
+											if (!isRound5Completed) {
+												return (
+													<Box className="bg-card border border-border/50 rounded-lg p-4 text-center">
+														<p className="text-muted-foreground text-sm">
+															Round 6 will be determined after Round 5 is
+															completed. Winners from Round 5 doubles will
+															play against players from Round 5 singles.
+														</p>
+													</Box>
+												);
+											}
+											return null;
+										})()}
 									{currentRoundMatches.map((match) => {
 										const matchScores = scores[
 											match.id

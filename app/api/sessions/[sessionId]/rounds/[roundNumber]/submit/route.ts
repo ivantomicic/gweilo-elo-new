@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
 import { createEloSnapshots } from "@/lib/elo/snapshots";
+import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -433,6 +434,109 @@ export async function POST(
 				console.error("Error inserting Elo history:", historyError);
 				// Non-fatal: log error but don't fail the request
 				// In production, you might want to rollback here
+			}
+		}
+
+		// Check if this is Round 5 for a 6-player session - if so, update Round 6 dynamically
+		if (roundNum === 5) {
+			// Check if this is a 6-player session
+			const { data: sessionData } = await adminClient
+				.from("sessions")
+				.select("player_count")
+				.eq("id", sessionId)
+				.single();
+
+			if (sessionData && sessionData.player_count === 6) {
+				// Find Round 5 matches to determine Round 6
+				const round5DoublesMatch = matches.find(
+					(m) => m.match_type === "doubles"
+				);
+				const round5SinglesMatch = matches.find(
+					(m) => m.match_type === "singles"
+				);
+
+				if (round5DoublesMatch && round5SinglesMatch) {
+					const doublesScore = matchScoresMap.get(round5DoublesMatch.id)!;
+					const singlesScore = matchScoresMap.get(round5SinglesMatch.id)!;
+
+					// Determine winners of Round 5 doubles
+					const doublesPlayerIds = round5DoublesMatch.player_ids as string[];
+					// Team 1: [0, 1], Team 2: [2, 3]
+					const doublesWinners =
+						doublesScore.team1Score > doublesScore.team2Score
+							? [doublesPlayerIds[0], doublesPlayerIds[1]]
+							: [doublesPlayerIds[2], doublesPlayerIds[3]];
+
+					// Get players from Round 5 singles
+					const singlesPlayerIds = round5SinglesMatch.player_ids as string[];
+
+					// Round 6 doubles: winners from Round 5 doubles vs players from Round 5 singles
+					// Round 6 singles: the remaining players (losers from Round 5 doubles)
+					const doublesLosers =
+						doublesScore.team1Score > doublesScore.team2Score
+							? [doublesPlayerIds[2], doublesPlayerIds[3]]
+							: [doublesPlayerIds[0], doublesPlayerIds[1]];
+
+					// Fetch Round 6 matches to update
+					const { data: round6Matches, error: round6Error } =
+						await adminClient
+							.from("session_matches")
+							.select("*")
+							.eq("session_id", sessionId)
+							.eq("round_number", 6)
+							.order("match_order", { ascending: true });
+
+					if (!round6Error && round6Matches && round6Matches.length > 0) {
+						// Update Round 6 doubles match
+						const round6DoublesMatch = round6Matches.find(
+							(m) => m.match_type === "doubles"
+						);
+						const round6SinglesMatch = round6Matches.find(
+							(m) => m.match_type === "singles"
+						);
+
+						if (round6DoublesMatch) {
+							// Update doubles match: winners from Round 5 doubles + players from Round 5 singles
+							const newDoublesPlayerIds = [
+								...doublesWinners,
+								...singlesPlayerIds,
+							];
+
+							// Get/create team IDs for the new doubles match
+							// Team 1: winners from Round 5 doubles
+							// Team 2: players from Round 5 singles
+							const team1Id = await getOrCreateDoubleTeam(
+								doublesWinners[0],
+								doublesWinners[1]
+							);
+							const team2Id = await getOrCreateDoubleTeam(
+								singlesPlayerIds[0],
+								singlesPlayerIds[1]
+							);
+
+							await adminClient
+								.from("session_matches")
+								.update({
+									player_ids: newDoublesPlayerIds,
+									team_1_id: team1Id,
+									team_2_id: team2Id,
+								})
+								.eq("id", round6DoublesMatch.id);
+						}
+
+						if (round6SinglesMatch) {
+							// Update singles match: losers from Round 5 doubles
+							await adminClient
+								.from("session_matches")
+								.update({
+									player_ids: doublesLosers,
+									team_1_id: null,
+									team_2_id: null,
+								})
+								.eq("id", round6SinglesMatch.id);
+						}
+					}
+				}
 			}
 		}
 
