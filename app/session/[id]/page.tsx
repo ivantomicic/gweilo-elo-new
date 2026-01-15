@@ -2557,7 +2557,7 @@ function SessionPageContent() {
 										return (
 											<Box
 												key={match.id}
-												className="bg-card rounded-[20px] p-5 border border-border/50 shadow-sm relative"
+												className="bg-card rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-border/50 shadow-sm relative"
 											>
 												{/* Edit button for completed matches */}
 												{isMatchCompleted && (
@@ -2586,10 +2586,326 @@ function SessionPageContent() {
 													</Button>
 												)}
 												<Stack
+													direction="column"
+													spacing={4}
+													className="md:hidden"
+												>
+													{/* Mobile: Vertical Layout */}
+													{/* Team 1 - Mobile */}
+													<Stack
+														direction="row"
+														alignItems="center"
+														justifyContent="between"
+														spacing={3}
+														className="w-full"
+													>
+														<Stack
+															direction="row"
+															alignItems="center"
+															spacing={2}
+															className="flex-1 min-w-0"
+														>
+															{isSingles ? (
+																<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
+																	<AvatarImage
+																		src={
+																			team1Players[0]
+																				?.avatar ||
+																			undefined
+																		}
+																		alt={
+																			team1Players[0]
+																				?.name
+																		}
+																	/>
+																	<AvatarFallback>
+																		{team1Players[0]?.name
+																			?.charAt(
+																				0
+																			)
+																			.toUpperCase() ||
+																			"?"}
+																	</AvatarFallback>
+																</Avatar>
+															) : (
+																<Stack
+																	direction="row"
+																	spacing={-2}
+																	className="shrink-0"
+																>
+																	{team1Players.map(
+																		(
+																			player
+																		) => (
+																			<Avatar
+																				key={
+																					player.id
+																				}
+																				className="size-10 border-2 border-background shadow-sm"
+																			>
+																				<AvatarImage
+																					src={
+																						player.avatar ||
+																						undefined
+																					}
+																					alt={
+																						player.name
+																					}
+																				/>
+																				<AvatarFallback>
+																					{player.name
+																						?.charAt(
+																							0
+																						)
+																						.toUpperCase() ||
+																						"?"}
+																				</AvatarFallback>
+																			</Avatar>
+																		)
+																	)}
+																</Stack>
+															)}
+															<Box className="min-w-0 flex-1">
+																<p className="text-sm font-bold leading-tight truncate">
+																	{team1Name}
+																</p>
+																<p className="text-[10px] text-muted-foreground font-medium">
+																	{isSingles
+																		? `Elo ${team1Elo}`
+																		: `Team ${team1Elo}`}
+																</p>
+															</Box>
+														</Stack>
+														<Input
+															type="number"
+															placeholder="0"
+															value={
+																matchScores.team1 ??
+																""
+															}
+															onChange={(e) =>
+																handleScoreChange(
+																	match.id,
+																	"team1",
+																	e.target
+																		.value
+																)
+															}
+															disabled={
+																isReadOnly
+															}
+															readOnly={
+																isReadOnly
+															}
+															className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+														/>
+													</Stack>
+
+													{/* VS Divider - Mobile */}
+													<Box className="flex items-center justify-center py-1">
+														<Box className="h-px bg-border flex-1" />
+														<Box className="px-3">
+															<span className="text-[10px] font-black text-muted-foreground uppercase">
+																{
+																	t.sessions
+																		.session
+																		.vs
+																}
+															</span>
+														</Box>
+														<Box className="h-px bg-border flex-1" />
+													</Box>
+
+													{/* Team 2 - Mobile */}
+													<Stack
+														direction="row"
+														alignItems="center"
+														justifyContent="between"
+														spacing={3}
+														className="w-full"
+													>
+														<Stack
+															direction="row"
+															alignItems="center"
+															spacing={2}
+															className="flex-1 min-w-0"
+														>
+															{isSingles ? (
+																<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
+																	<AvatarImage
+																		src={
+																			team2Players[0]
+																				?.avatar ||
+																			undefined
+																		}
+																		alt={
+																			team2Players[0]
+																				?.name
+																		}
+																	/>
+																	<AvatarFallback>
+																		{team2Players[0]?.name
+																			?.charAt(
+																				0
+																			)
+																			.toUpperCase() ||
+																			"?"}
+																	</AvatarFallback>
+																</Avatar>
+															) : (
+																<Stack
+																	direction="row"
+																	spacing={-2}
+																	className="shrink-0"
+																>
+																	{team2Players.map(
+																		(
+																			player
+																		) => (
+																			<Avatar
+																				key={
+																					player.id
+																				}
+																				className="size-10 border-2 border-background shadow-sm"
+																			>
+																				<AvatarImage
+																					src={
+																						player.avatar ||
+																						undefined
+																					}
+																					alt={
+																						player.name
+																					}
+																				/>
+																				<AvatarFallback>
+																					{player.name
+																						?.charAt(
+																							0
+																						)
+																						.toUpperCase() ||
+																						"?"}
+																				</AvatarFallback>
+																			</Avatar>
+																		)
+																	)}
+																</Stack>
+															)}
+															<Box className="min-w-0 flex-1">
+																<p className="text-sm font-bold leading-tight truncate">
+																	{team2Name}
+																</p>
+																<p className="text-[10px] text-muted-foreground font-medium">
+																	{isSingles
+																		? `Elo ${team2Elo}`
+																		: `Team ${team2Elo}`}
+																</p>
+															</Box>
+														</Stack>
+														<Input
+															type="number"
+															placeholder="0"
+															value={
+																matchScores.team2 ??
+																""
+															}
+															onChange={(e) =>
+																handleScoreChange(
+																	match.id,
+																	"team2",
+																	e.target
+																		.value
+																)
+															}
+															disabled={
+																isReadOnly
+															}
+															readOnly={
+																isReadOnly
+															}
+															className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+														/>
+													</Stack>
+
+													{/* Elo Change Previews - Mobile (Compact) */}
+													<Stack
+														direction="row"
+														alignItems="center"
+														justifyContent="between"
+														spacing={2}
+														className="pt-2 border-t border-border/30"
+													>
+														<Box className="flex-1 text-center">
+															<p className="text-[9px] text-muted-foreground mb-1">
+																{team1Name.split(" & ")[0]}
+															</p>
+															<Stack
+																direction="row"
+																alignItems="center"
+																justifyContent="center"
+																spacing={2}
+																className="text-[10px] font-bold"
+															>
+																<span className="text-chart-2">
+																	{formatEloDelta(
+																		team1WinChange,
+																		false
+																	)}
+																</span>
+																<span className="text-chart-3">
+																	{formatEloDelta(
+																		team1DrawChange,
+																		false
+																	)}
+																</span>
+																<span className="text-red-500">
+																	{formatEloDelta(
+																		team1LoseChange,
+																		false
+																	)}
+																</span>
+															</Stack>
+														</Box>
+														<Box className="flex-1 text-center">
+															<p className="text-[9px] text-muted-foreground mb-1">
+																{team2Name.split(" & ")[0]}
+															</p>
+															<Stack
+																direction="row"
+																alignItems="center"
+																justifyContent="center"
+																spacing={2}
+																className="text-[10px] font-bold"
+															>
+																<span className="text-chart-2">
+																	{formatEloDelta(
+																		team2WinChange,
+																		false
+																	)}
+																</span>
+																<span className="text-chart-3">
+																	{formatEloDelta(
+																		team2DrawChange,
+																		false
+																	)}
+																</span>
+																<span className="text-red-500">
+																	{formatEloDelta(
+																		team2LoseChange,
+																		false
+																	)}
+																</span>
+															</Stack>
+														</Box>
+													</Stack>
+												</Stack>
+
+												{/* Desktop: Original Horizontal Layout */}
+												<Stack
 													direction="row"
 													alignItems="center"
 													justifyContent="between"
 													spacing={4}
+													className="hidden md:flex"
 												>
 													{/* Team 1 */}
 													<Stack
@@ -2668,7 +2984,7 @@ function SessionPageContent() {
 																	: `${t.sessions.session.teamElo} ${team1Elo}`}
 															</p>
 															{!isSingles && (
-																<Box className="mt-1.5 pt-1.5 border-t border-border/30">
+																<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
 																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
 																		{
 																			t
@@ -2881,7 +3197,7 @@ function SessionPageContent() {
 																	: `${t.sessions.session.teamElo} ${team2Elo}`}
 															</p>
 															{!isSingles && (
-																<Box className="mt-1.5 pt-1.5 border-t border-border/30">
+																<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
 																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
 																		{
 																			t
