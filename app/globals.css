@@ -116,4 +116,13 @@
 	.pb-mobile-nav {
 		@apply pb-24 md:pb-0;
 	}
+
+	/* Hide scrollbars for horizontal scroll containers */
+	.scrollbar-hide::-webkit-scrollbar {
+		display: none;
+	}
+	.scrollbar-hide {
+		-ms-overflow-style: none;
+		scrollbar-width: none;
+	}
 }

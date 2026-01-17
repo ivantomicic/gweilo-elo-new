@@ -81,6 +81,18 @@ export const sr = {
 			fetchFailed: "Greška pri učitavanju statistike",
 		},
 	},
+	performanceTrend: {
+		title: "Istorija",
+		filters: {
+			all: "Svi termini",
+			last4: "Poslednja 4 termina",
+			last2: "Poslednja 2 termina",
+			last1: "Poslednji termin",
+		},
+		currentElo: "Trenutni Elo",
+		peak: "Najviši Elo",
+		lowest: "Najniži Elo",
+	},
 	sessions: {
 		title: "Termini",
 		loading: "Učitavanje termina...",
@@ -227,6 +239,10 @@ export const sr = {
 		addNoShow: "Dodaj ispalu",
 		loading: "Učitavanje ispala...",
 		noNoShows: "Nema ispala",
+		noShowAlert: "Najviše ispala",
+		last: "Poslednja",
+		miss: "Ispal",
+		misses: "ispala",
 		cards: {
 			worstOffender: "Najviše ispalih termina",
 			topOffenders: "Top 5 najgoreg",

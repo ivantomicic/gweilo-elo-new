@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/useAuth";
 import { AuthScreen } from "@/components/auth/auth-screen";
@@ -104,7 +104,7 @@ function Top3PlayersWidget() {
 	const third = topPlayers[2];
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden px-6 pt-6 pb-0 min-h-[200px] md:min-h-[250px] flex flex-col">
+		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden px-6 pt-4 pb-0 aspect-[7/5] flex flex-col">
 			{/* Blurred primary background circle */}
 			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/20 blur-[60px] rounded-full pointer-events-none" />
 
@@ -269,10 +269,17 @@ type EloHistoryDataPoint = {
 	delta: number;
 };
 
+type FilterType = "all" | "last4" | "last2" | "last1";
+
 function EloChartWidget() {
 	const [eloHistory, setEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [currentElo, setCurrentElo] = useState<number>(1500);
 	const [loading, setLoading] = useState(true);
+	const [filter, setFilter] = useState<FilterType>("all");
+	const [showLeftMask, setShowLeftMask] = useState(false);
+	const [showRightMask, setShowRightMask] = useState(true);
+	const scrollContainerRef = useRef<HTMLDivElement>(null);
+
 
 	useEffect(() => {
 		const fetchEloHistory = async () => {
@@ -312,6 +319,36 @@ function EloChartWidget() {
 		fetchEloHistory();
 	}, []);
 
+	// Check scroll position to show/hide fade masks
+	const checkScrollPosition = () => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+
+		const { scrollLeft, scrollWidth, clientWidth } = container;
+		const isAtStart = scrollLeft <= 1;
+		const isAtEnd = scrollLeft + clientWidth >= scrollWidth - 1;
+
+		setShowLeftMask(!isAtStart);
+		setShowRightMask(!isAtEnd);
+	};
+
+	useEffect(() => {
+		const container = scrollContainerRef.current;
+		if (!container) return;
+
+		// Check initial state after a brief delay to ensure DOM is ready
+		const timeoutId = setTimeout(() => {
+			checkScrollPosition();
+		}, 100);
+
+		// Add scroll listener
+		container.addEventListener("scroll", checkScrollPosition);
+		return () => {
+			clearTimeout(timeoutId);
+			container.removeEventListener("scroll", checkScrollPosition);
+		};
+	}, [filter, eloHistory.length]); // Use eloHistory.length instead of filteredHistory
+
 	if (loading) {
 		return null;
 	}
@@ -327,73 +364,153 @@ function EloChartWidget() {
 		);
 	}
 
+	// Filter by sessions: group by date (session date) and filter
+	const getFilteredHistory = () => {
+		if (filter === "all") {
+			return eloHistory;
+		}
+
+		// Group by session date (normalize date to just date part, ignoring time)
+		const sessionDates = new Set<string>();
+		const dateToPoints = new Map<string, EloHistoryDataPoint[]>();
+
+		for (const point of eloHistory) {
+			const date = new Date(point.date);
+			const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
+			sessionDates.add(dateKey);
+			if (!dateToPoints.has(dateKey)) {
+				dateToPoints.set(dateKey, []);
+			}
+			dateToPoints.get(dateKey)!.push(point);
+		}
+
+		// Get unique session dates sorted by date (most recent first)
+		const sortedSessionDates = Array.from(sessionDates).sort((a, b) => b.localeCompare(a));
+
+		// Get the last N sessions
+		let sessionsToInclude = 0;
+		if (filter === "last1") sessionsToInclude = 1;
+		else if (filter === "last2") sessionsToInclude = 2;
+		else if (filter === "last4") sessionsToInclude = 4;
+
+		const selectedDates = sortedSessionDates.slice(0, sessionsToInclude);
+		const filtered: EloHistoryDataPoint[] = [];
+
+		// Collect all points from selected sessions, maintaining original order
+		for (const point of eloHistory) {
+			const date = new Date(point.date);
+			const dateKey = date.toISOString().split("T")[0];
+			if (selectedDates.includes(dateKey)) {
+				filtered.push(point);
+			}
+		}
+
+		return filtered;
+	};
+
+	const filteredHistory = getFilteredHistory();
+
 	// Calculate Y-axis domain to match exact data range (no padding)
-	const eloValues = eloHistory.map((point) => point.elo);
-	const minElo = Math.min(...eloValues);
-	const maxElo = Math.max(...eloValues);
-	const yAxisDomain = [minElo, maxElo];
+	const eloValues = filteredHistory.map((point) => point.elo);
+	const minElo = eloHistory.length > 0 ? Math.min(...eloValues) : 0;
+	const maxElo = eloHistory.length > 0 ? Math.max(...eloValues) : 0;
+	const yAxisDomain = eloValues.length > 0 ? [minElo, maxElo] : [1500, 1500];
 
 	return (
 		<Box className="bg-card rounded-[24px] border border-border/50 p-6 relative overflow-hidden">
 			<Stack direction="column" spacing={4}>
 				{/* Header */}
-				<Stack direction="column" spacing={4}>
-					<p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-						Performance Trend
-					</p>
-					<Stack
-						direction="row"
-						alignItems="stretch"
-						spacing={3}
-						className="flex-wrap"
-					>
-						{/* Current Elo - Primary Stat */}
-						<Box className="bg-primary/10 border border-primary/20 rounded-xl px-4 py-3 flex-1 min-w-[140px]">
-							<Stack direction="column" spacing={1}>
-								<p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-									Current Elo
-								</p>
-								<p className="text-3xl font-bold font-heading text-primary">
-									{formatElo(currentElo, true)}
-								</p>
-							</Stack>
+				<Stack direction="column" spacing={3}>
+					<Stack direction="row" alignItems="center" justifyContent="space-between" className="flex-wrap gap-4">
+						<p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+							{t.performanceTrend.title}
+						</p>
+						{/* Filter buttons */}
+						<Box className="relative w-full md:w-auto mt-2 md:mt-0 md:ml-auto">
+							{/* Fade masks for mobile - positioned at viewport edges, outside scroll container */}
+							{showLeftMask && (
+								<Box className="absolute left-0 top-0 bottom-0 w-6 bg-gradient-to-r from-card via-card/80 to-transparent pointer-events-none z-10 md:hidden" />
+							)}
+							{showRightMask && (
+								<Box className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-card via-card/80 to-transparent pointer-events-none z-10 md:hidden" />
+							)}
+							{/* Scrollable container - scroll stays within content area */}
+							<Box ref={scrollContainerRef} className="overflow-x-auto md:overflow-visible scrollbar-hide relative">
+								<Stack direction="row" alignItems="center" spacing={1} className="flex-nowrap whitespace-nowrap min-w-max">
+									<button
+										onClick={() => setFilter("all")}
+										className={`px-3 py-1 rounded-md text-xs font-medium transition-colors shrink-0 ${
+											filter === "all"
+												? "bg-primary text-primary-foreground"
+												: "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+										}`}
+									>
+										{t.performanceTrend.filters.all}
+									</button>
+									<button
+										onClick={() => setFilter("last4")}
+										className={`px-3 py-1 rounded-md text-xs font-medium transition-colors shrink-0 ${
+											filter === "last4"
+												? "bg-primary text-primary-foreground"
+												: "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+										}`}
+									>
+										{t.performanceTrend.filters.last4}
+									</button>
+									<button
+										onClick={() => setFilter("last2")}
+										className={`px-3 py-1 rounded-md text-xs font-medium transition-colors shrink-0 ${
+											filter === "last2"
+												? "bg-primary text-primary-foreground"
+												: "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+										}`}
+									>
+										{t.performanceTrend.filters.last2}
+									</button>
+									<button
+										onClick={() => setFilter("last1")}
+										className={`px-3 py-1 rounded-md text-xs font-medium transition-colors shrink-0 ${
+											filter === "last1"
+												? "bg-primary text-primary-foreground"
+												: "bg-secondary/50 text-muted-foreground hover:bg-secondary"
+										}`}
+									>
+										{t.performanceTrend.filters.last1}
+									</button>
+								</Stack>
+							</Box>
 						</Box>
-						{eloHistory.length > 0 && (
+					</Stack>
+					<Stack direction="row" alignItems="baseline" spacing={6} className="flex-wrap">
+						{/* Current Elo - Main stat */}
+						<Stack direction="column" spacing={0.5}>
+							<p className="text-[11px] text-muted-foreground font-medium">{t.performanceTrend.currentElo}</p>
+							<p className="text-2xl font-bold font-heading text-foreground">
+								{formatElo(currentElo, true)}
+							</p>
+						</Stack>
+						{filteredHistory.length > 0 && (
 							<>
-								{/* Max Elo */}
-								<Box className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-3 flex-1 min-w-[120px]">
-									<Stack direction="column" spacing={1}>
-										<Stack direction="row" alignItems="center" spacing={1.5}>
-											<Icon
-												icon="solar:graph-up-bold"
-												className="size-3 text-emerald-500"
-											/>
-											<p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-												Peak
-											</p>
-										</Stack>
-										<p className="text-2xl font-bold font-heading text-emerald-500">
-											{formatElo(maxElo, true)}
-										</p>
+								{/* Peak Elo */}
+								<Stack direction="column" spacing={0.5}>
+									<Stack direction="row" alignItems="center" spacing={1.5}>
+										<Icon icon="solar:graph-up-bold" className="size-3 text-emerald-500" />
+										<p className="text-[11px] text-muted-foreground font-medium">{t.performanceTrend.peak}</p>
 									</Stack>
-								</Box>
-								{/* Min Elo */}
-								<Box className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex-1 min-w-[120px]">
-									<Stack direction="column" spacing={1}>
-										<Stack direction="row" alignItems="center" spacing={1.5}>
-											<Icon
-												icon="solar:graph-down-bold"
-												className="size-3 text-red-500"
-											/>
-											<p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-												Lowest
-											</p>
-										</Stack>
-										<p className="text-2xl font-bold font-heading text-red-500">
-											{formatElo(minElo, true)}
-										</p>
+									<p className="text-2xl font-bold font-heading text-emerald-500">
+										{formatElo(maxElo, true)}
+									</p>
+								</Stack>
+								{/* Lowest Elo */}
+								<Stack direction="column" spacing={0.5}>
+									<Stack direction="row" alignItems="center" spacing={1.5}>
+										<Icon icon="solar:graph-down-bold" className="size-3 text-red-500" />
+										<p className="text-[11px] text-muted-foreground font-medium">{t.performanceTrend.lowest}</p>
 									</Stack>
-								</Box>
+									<p className="text-2xl font-bold font-heading text-red-500">
+										{formatElo(minElo, true)}
+									</p>
+								</Stack>
 							</>
 						)}
 					</Stack>
@@ -403,7 +520,7 @@ function EloChartWidget() {
 				<Box className="h-[300px] w-full">
 					<ResponsiveContainer width="100%" height="100%">
 						<LineChart
-							data={eloHistory}
+							data={filteredHistory}
 							margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
 						>
 							<CartesianGrid
@@ -489,6 +606,69 @@ function EloChartWidget() {
 	);
 }
 
+function TableTennisGifWidget() {
+	const [gifUrl, setGifUrl] = useState<string | null>(null);
+	const [loading, setLoading] = useState(true);
+
+	useEffect(() => {
+		const fetchGif = async () => {
+			try {
+				setLoading(true);
+				// Using Giphy's random endpoint with table tennis tag
+				const apiKey = process.env.NEXT_PUBLIC_GIPHY_API_KEY || 'dc6zaTOxFJmzC'; // fallback to demo key
+				const response = await fetch(
+					`https://api.giphy.com/v1/gifs/random?api_key=${apiKey}&tag=table+tennis+ping+pong&rating=g`
+				);
+				
+				if (response.ok) {
+					const data = await response.json();
+					if (data?.data?.images?.downsized?.url) {
+						setGifUrl(data.data.images.downsized.url);
+						setLoading(false);
+						return;
+					}
+				}
+			} catch (error) {
+				console.error("Error fetching gif:", error);
+			}
+			
+			// Fallback: use curated table tennis gif URLs
+			const fallbackUrls = [
+				'https://media.giphy.com/media/3o7TKTnJYXYK8A0VQA/giphy.gif',
+				'https://media.giphy.com/media/l0MYB5UzpU9M2B8Na/giphy.gif',
+				'https://media.giphy.com/media/3o6Zt481isNVuQI1l6/giphy.gif',
+				'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif',
+				'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif',
+			];
+			const randomUrl = fallbackUrls[Math.floor(Math.random() * fallbackUrls.length)];
+			setGifUrl(randomUrl);
+			setLoading(false);
+		};
+
+		fetchGif();
+	}, []);
+
+	if (loading) {
+		return (
+			<Box className="bg-card rounded-[24px] border border-border/50 p-6 aspect-[7/5] flex flex-col items-center justify-center">
+				<Loading inline />
+			</Box>
+		);
+	}
+
+	return (
+		<Box className="bg-card rounded-[24px] border border-border/50 aspect-[7/5] overflow-hidden relative">
+			{gifUrl && (
+				<img
+					src={gifUrl}
+					alt="Table tennis"
+					className="absolute inset-0 w-full h-full object-cover"
+				/>
+			)}
+		</Box>
+	);
+}
+
 function NoShowAlertWidget() {
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -532,30 +712,64 @@ function NoShowAlertWidget() {
 		fetchNoShowStats();
 	}, []);
 
-	if (loading || !worstOffender) {
+		if (loading) {
+		return (
+			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
+				{/* Blurred destructive background circle */}
+				<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-destructive/20 blur-[60px] rounded-full pointer-events-none" />
+				<Box className="flex items-center justify-center mb-4 relative z-10">
+					<Box className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+						{t.ispale.noShowAlert}
+					</Box>
+				</Box>
+
+				<Stack
+					direction="column"
+					alignItems="center"
+					justifyContent="center"
+					spacing={4}
+					className="relative z-10 w-full flex-1"
+				>
+					{/* Avatar skeleton */}
+					<Box className="relative shrink-0">
+						<Box className="size-20 rounded-full bg-destructive/20 border-2 border-destructive/30 animate-pulse" />
+						<Box className="absolute -bottom-1 -right-1 bg-destructive/50 size-6 rounded-full border-2 border-card animate-pulse" />
+					</Box>
+
+					{/* Content skeleton */}
+					<Stack direction="column" spacing={1} alignItems="center" className="w-full">
+						<Box className="h-5 w-32 bg-muted-foreground/20 rounded animate-pulse" />
+						<Box className="h-3 w-24 bg-muted-foreground/20 rounded animate-pulse" />
+					</Stack>
+				</Stack>
+			</Box>
+		);
+	}
+
+	if (!worstOffender) {
 		return null;
 	}
 
 	return (
-		<Box className="bg-destructive/5 border border-destructive/20 rounded-[24px] p-6 relative overflow-hidden flex items-center justify-center">
-			{/* Diagonal pattern background */}
-			<Box
-				className="absolute inset-0 opacity-30"
-				style={{
-					backgroundImage:
-						"linear-gradient(45deg, transparent 25%, rgba(239,68,68,0.03) 25%, rgba(239,68,68,0.03) 50%, transparent 50%, transparent 75%, rgba(239,68,68,0.03) 75%, rgba(239,68,68,0.03) 100%)",
-					backgroundSize: "20px 20px",
-				}}
-			/>
+		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
+			{/* Blurred destructive background circle */}
+			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-destructive/20 blur-[60px] rounded-full pointer-events-none" />
+			<Box className="flex items-center justify-center mb-4 relative z-10">
+				<Box className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+					{t.ispale.noShowAlert}
+				</Box>
+			</Box>
+
 			<Stack
 				direction="column"
 				alignItems="center"
-				spacing={3}
-				className="relative z-10 w-full"
+				justifyContent="center"
+				spacing={4}
+				className="relative z-10 w-full flex-1"
 			>
 				{/* Avatar with danger badge */}
-				<Box className="relative">
-					<Avatar className="size-16 border-2 border-destructive/30 grayscale">
+				<Box className="relative shrink-0">
+					<Avatar className="size-20 border-2 border-destructive/30">
 						<AvatarImage
 							src={worstOffender.avatar || undefined}
 							alt={worstOffender.name}
@@ -564,28 +778,19 @@ function NoShowAlertWidget() {
 							{worstOffender.name.charAt(0).toUpperCase()}
 						</AvatarFallback>
 					</Avatar>
-					<Box className="absolute -bottom-1 -right-1 bg-destructive text-white size-5 rounded-full flex items-center justify-center border-2 border-card">
-						<Icon icon="solar:danger-bold" className="size-3" />
+					<Box className="absolute -bottom-1 -right-1 bg-destructive text-white size-6 rounded-full flex items-center justify-center text-xs border-2 border-card">
+						<Icon icon="solar:danger-bold" />
 					</Box>
 				</Box>
 
 				{/* Content */}
-				<Stack direction="column" alignItems="center" spacing={2} className="w-full">
-					<Box className="bg-destructive/10 px-2 py-1 rounded text-[10px] font-bold tracking-wide uppercase text-destructive-foreground">
-						{t.ispale.title}
-					</Box>
-					<p className="text-base font-semibold text-foreground text-center">
+				<Stack direction="column" spacing={1} alignItems="center" className="w-full">
+					<p className="text-lg font-bold text-center">
 						{worstOffender.name}
 					</p>
-					<Stack direction="column" alignItems="center" spacing={0.5}>
-						<span className="text-xs font-mono text-destructive font-bold">
-							{worstOffender.noShowCount}{" "}
-							{worstOffender.noShowCount === 1 ? "Miss" : "Misses"}
-						</span>
-						<p className="text-xs text-muted-foreground">
-							Last: {formatRelativeTime(worstOffender.lastNoShowDate)}
-						</p>
-					</Stack>
+					<p className="text-xs text-muted-foreground text-center">
+						{t.ispale.last}: {formatRelativeTime(worstOffender.lastNoShowDate)} • {worstOffender.noShowCount} {worstOffender.noShowCount === 1 ? t.ispale.miss : t.ispale.misses}
+					</p>
 				</Stack>
 			</Stack>
 		</Box>
@@ -714,8 +919,8 @@ export default function HomePage() {
 								<Box className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
 									<Top3PlayersWidget />
 									<NoShowAlertWidget />
-									<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[200px]">
-										{/* Widget Placeholder 3 */}
+									<Box className="hidden md:block">
+										<TableTennisGifWidget />
 									</Box>
 								</Box>
 
