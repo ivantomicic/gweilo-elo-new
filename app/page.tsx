@@ -108,103 +108,105 @@ function Top3PlayersWidget() {
 	const third = topPlayers[2];
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 p-3 md:p-6 relative overflow-hidden flex items-center justify-center min-h-[200px] md:min-h-[250px]">
-			{/* Diagonal pattern background */}
-			<Box
-				className="absolute inset-0 opacity-30"
-				style={{
-					backgroundImage:
-						"linear-gradient(45deg, transparent 25%, rgba(34,197,94,0.03) 25%, rgba(34,197,94,0.03) 50%, transparent 50%, transparent 75%, rgba(34,197,94,0.03) 75%, rgba(34,197,94,0.03) 100%)",
-					backgroundSize: "20px 20px",
-				}}
-			/>
+		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden px-6 pt-6 pb-0 min-h-[200px] md:min-h-[250px] flex flex-col">
+			{/* Blurred primary background circle */}
+			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/20 blur-[60px] rounded-full pointer-events-none" />
 
-			<Stack direction="row" alignItems="center" justifyContent="center" spacing={3} className="relative z-10 md:gap-6">
+			{/* Podium layout */}
+			<Stack direction="row" alignItems="end" justifyContent="center" spacing={3} className="flex-1 pt-4 pb-0 relative z-10 min-h-[192px]">
 				{/* 2nd Place */}
 				{second && (
-					<Stack direction="column" alignItems="center" spacing={1.5} className="w-1/3">
-						<Box className="relative">
-							<Avatar className="size-12 border-2 border-[#C0C0C0] md:size-16">
-								<AvatarImage
-									src={second.avatar || undefined}
-									alt={second.display_name}
-								/>
-								<AvatarFallback>
-									{second.display_name.charAt(0).toUpperCase()}
-								</AvatarFallback>
-							</Avatar>
-							<Box className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-[#C0C0C0] text-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-card shadow-sm md:-bottom-2 md:text-[10px] md:px-2">
+					<Stack direction="column" alignItems="center" justifyContent="end" className="w-1/3 h-full">
+						<Box className="relative mb-3 flex-shrink-0">
+							<Box className="w-[clamp(3rem,15%,4rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-zinc-500 to-zinc-300 shadow-lg mx-auto">
+								<Avatar className="size-full rounded-full border-2 border-card">
+									<AvatarImage
+										src={second.avatar || undefined}
+										alt={second.display_name}
+									/>
+									<AvatarFallback>
+										{second.display_name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+							</Box>
+							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-zinc-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm">
 								#2
 							</Box>
 						</Box>
-						<Stack direction="column" alignItems="center" spacing={0.5}>
-							<p className="text-xs font-semibold truncate w-full text-center md:text-sm">
+						<Stack direction="column" alignItems="center" className="text-center flex-shrink-0">
+							<p className="text-sm font-semibold truncate w-20 mx-auto">
 								{second.display_name}
 							</p>
-							<p className="text-[10px] text-muted-foreground font-mono md:text-xs">
+							<p className="text-xs text-muted-foreground font-mono">
 								{formatElo(second.elo, true)}
 							</p>
 						</Stack>
+						{/* Podium bar - flexible height based on available space */}
+						<Box className="flex-[0.85] min-h-[4rem] w-full bg-gradient-to-b from-zinc-600/70 to-zinc-800/50 mt-3 rounded-t-lg border-t border-zinc-400/30" />
 					</Stack>
 				)}
 
 				{/* 1st Place */}
 				{first && (
-					<Stack direction="column" alignItems="center" spacing={1.5} className="w-1/3">
-						<Box className="relative">
-							<Icon
-								icon="solar:crown-bold"
-								className="absolute -top-4 left-1/2 -translate-x-1/2 text-yellow-400 size-4 drop-shadow-md md:-top-6 md:size-6"
-							/>
-							<Avatar className="size-14 border-[3px] border-[#FFD700] md:size-20 md:border-4">
-								<AvatarImage
-									src={first.avatar || undefined}
-									alt={first.display_name}
-								/>
-								<AvatarFallback className="text-base md:text-lg">
-									{first.display_name.charAt(0).toUpperCase()}
-								</AvatarFallback>
-							</Avatar>
-							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#FFD700] text-foreground text-[9px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm md:-bottom-2.5 md:text-[10px] md:px-2.5">
+					<Stack direction="column" alignItems="center" justifyContent="end" className="w-1/3 -mt-4 z-20 h-full">
+						<Box className="relative mb-3 flex-shrink-0">
+							<Box className="w-[clamp(4rem,20%,5rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-yellow-500 via-amber-300 to-yellow-600 shadow-xl shadow-yellow-500/10 mx-auto">
+								<Avatar className="size-full rounded-full border-4 border-card">
+									<AvatarImage
+										src={first.avatar || undefined}
+										alt={first.display_name}
+									/>
+									<AvatarFallback className="text-lg">
+										{first.display_name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+							</Box>
+							<Box className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-card shadow-sm">
 								#1
 							</Box>
 						</Box>
-						<Stack direction="column" alignItems="center" spacing={0.5}>
-							<p className="text-sm font-bold truncate w-full text-center md:text-base">
+						<Stack direction="column" alignItems="center" className="text-center flex-shrink-0">
+							<p className="text-base font-bold truncate w-24 mx-auto">
 								{first.display_name}
 							</p>
-							<p className="text-[10px] text-[#FFD700] font-mono font-bold md:text-xs">
+							<p className="text-xs text-yellow-500 font-mono font-bold">
 								{formatElo(first.elo, true)}
 							</p>
 						</Stack>
+						{/* Podium bar - flexible height, tallest */}
+						<Box className="flex-[1] min-h-[6rem] w-full bg-gradient-to-b from-yellow-800/50 to-yellow-900/30 mt-3 rounded-t-lg border-t border-yellow-600/40" />
 					</Stack>
 				)}
 
 				{/* 3rd Place */}
 				{third && (
-					<Stack direction="column" alignItems="center" spacing={1.5} className="w-1/3">
-						<Box className="relative">
-							<Avatar className="size-12 border-2 border-[#CD7F32] md:size-16">
-								<AvatarImage
-									src={third.avatar || undefined}
-									alt={third.display_name}
-								/>
-								<AvatarFallback>
-									{third.display_name.charAt(0).toUpperCase()}
-								</AvatarFallback>
-							</Avatar>
-							<Box className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 bg-[#CD7F32] text-foreground text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-card shadow-sm md:-bottom-2 md:text-[10px] md:px-2">
+					<Stack direction="column" alignItems="center" justifyContent="end" className="w-1/3 z-10 h-full">
+						<Box className="relative mb-3 flex-shrink-0">
+							<Box className="w-[clamp(3rem,15%,4rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-orange-700 to-amber-700 shadow-lg mx-auto">
+								<Avatar className="size-full rounded-full border-2 border-card">
+									<AvatarImage
+										src={third.avatar || undefined}
+										alt={third.display_name}
+									/>
+									<AvatarFallback>
+										{third.display_name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+							</Box>
+							<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-800 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm">
 								#3
 							</Box>
 						</Box>
-						<Stack direction="column" alignItems="center" spacing={0.5}>
-							<p className="text-xs font-semibold truncate w-full text-center md:text-sm">
+						<Stack direction="column" alignItems="center" className="text-center flex-shrink-0">
+							<p className="text-sm font-semibold truncate w-20 mx-auto">
 								{third.display_name}
 							</p>
-							<p className="text-[10px] text-muted-foreground font-mono md:text-xs">
+							<p className="text-xs text-muted-foreground font-mono">
 								{formatElo(third.elo, true)}
 							</p>
 						</Stack>
+						{/* Podium bar - flexible height, shortest */}
+						<Box className="flex-[0.7] min-h-[3rem] w-full bg-gradient-to-b from-orange-800/60 to-orange-900/40 mt-3 rounded-t-lg border-t border-orange-700/40" />
 					</Stack>
 				)}
 			</Stack>
