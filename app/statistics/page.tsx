@@ -487,40 +487,49 @@ function StatisticsPageContent() {
 																	</TableCell>
 																	<TableCell>
 																		<div className="flex items-center gap-3">
-																			<PlayerNameCard
-																				name={
-																					player.display_name
+																			<Box
+																				onClick={() =>
+																					router.push(
+																						`/player/${player.player_id}`
+																					)
 																				}
-																				avatar={
-																					player.avatar
-																				}
-																				size="md"
-																				addon={
-																					<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-																						<span className="text-emerald-500">
+																				className="cursor-pointer hover:opacity-80 transition-opacity"
+																			>
+																				<PlayerNameCard
+																					name={
+																						player.display_name
+																					}
+																					avatar={
+																						player.avatar
+																					}
+																					size="md"
+																					addon={
+																						<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+																							<span className="text-emerald-500">
+																								{
+																									player.wins
+																								}
+																							</span>
 																							{
-																								player.wins
+																								" / "
 																							}
-																						</span>
-																						{
-																							" / "
-																						}
-																						<span className="text-red-500">
+																							<span className="text-red-500">
+																								{
+																									player.losses
+																								}
+																							</span>
 																							{
-																								player.losses
+																								" / "
 																							}
+																							<span className="text-muted-foreground">
+																								{
+																									player.draws
+																								}
+																							</span>
 																						</span>
-																						{
-																							" / "
-																						}
-																						<span className="text-muted-foreground">
-																							{
-																								player.draws
-																							}
-																						</span>
-																					</span>
-																				}
-																			/>
+																					}
+																				/>
+																			</Box>
 																			{player.rank_movement !==
 																				undefined &&
 																				player.rank_movement !==

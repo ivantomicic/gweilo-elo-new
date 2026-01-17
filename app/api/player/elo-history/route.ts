@@ -12,11 +12,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
 /**
  * GET /api/player/elo-history
  *
- * Fetch Elo history for the currently logged-in player
+ * Fetch Elo history for a player
+ *
+ * Query parameters:
+ * - playerId (optional): Player ID to fetch history for. If not provided, uses the authenticated user's ID.
  *
  * Security:
  * - Requires authentication
- * - Returns only the current user's Elo history
+ * - If playerId is provided, returns that player's Elo history
+ * - If playerId is not provided, returns the current user's Elo history
  */
 export async function GET(request: NextRequest) {
 	try {
@@ -53,7 +57,12 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const userId = user.id;
+		// Get optional playerId from query parameters
+		const { searchParams } = new URL(request.url);
+		const requestedPlayerId = searchParams.get("playerId");
+
+		// Use requested playerId if provided, otherwise use authenticated user's ID
+		const userId = requestedPlayerId || user.id;
 		const adminClient = createAdminClient();
 
 		// Fetch all match Elo history entries where the user is player1_id or player2_id
