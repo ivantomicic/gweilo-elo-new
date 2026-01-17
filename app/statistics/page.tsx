@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -102,69 +102,109 @@ function StatisticsPageContent() {
 		doublesPlayers: [],
 		doublesTeams: [],
 	});
-	const [loading, setLoading] = useState(true);
+	const [loading, setLoading] = useState<{
+		singles: boolean;
+		doublesPlayers: boolean;
+		doublesTeams: boolean;
+	}>({
+		singles: true,
+		doublesPlayers: false,
+		doublesTeams: false,
+	});
+	const [loaded, setLoaded] = useState<{
+		singles: boolean;
+		doublesPlayers: boolean;
+		doublesTeams: boolean;
+	}>({
+		singles: false,
+		doublesPlayers: false,
+		doublesTeams: false,
+	});
 	const [error, setError] = useState<string | null>(null);
 
-	// Load player statistics
-	useEffect(() => {
-		const fetchStatistics = async () => {
-			try {
-				setLoading(true);
-				setError(null);
+	// Fetch statistics for a specific view
+	const fetchStatistics = useCallback(async (
+		view: "singles" | "doubles_player" | "doubles_team"
+	) => {
+		// Check if already loaded
+		const viewKey =
+			view === "singles"
+				? "singles"
+				: view === "doubles_player"
+				? "doublesPlayers"
+				: "doublesTeams";
+		if (loaded[viewKey]) {
+			return; // Already loaded, skip
+		}
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
+		try {
+			setLoading((prev) => ({ ...prev, [viewKey]: true }));
+			setError(null);
 
-				if (!session) {
-					setError(t.statistics.error.notAuthenticated);
-					return;
-				}
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
 
-				// Fetch statistics from API route
-				const response = await fetch("/api/statistics", {
+			if (!session) {
+				setError(t.statistics.error.notAuthenticated);
+				return;
+			}
+
+			// Map view to API parameter
+			const apiView =
+				view === "singles"
+					? "singles"
+					: view === "doubles_player"
+					? "doubles_player"
+					: "doubles_team";
+
+			// Fetch statistics from API route with view parameter
+			const response = await fetch(
+				`/api/statistics?view=${encodeURIComponent(apiView)}`,
+				{
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
 					},
-				});
-
-				if (!response.ok) {
-					if (response.status === 401) {
-						setError(t.statistics.error.unauthorized);
-					} else {
-						const errorData = await response.json();
-						setError(
-							errorData.error || t.statistics.error.fetchFailed
-						);
-					}
-					return;
 				}
+			);
 
-				const data = await response.json();
-				// Debug: Log received data (remove in production)
-				console.log("[STATS] Received data:", {
-					singles: data.singles?.map((p: any) => ({
-						name: p.display_name,
-						movement: p.rank_movement,
-					})),
-				});
-				setStatistics({
-					singles: data.singles || [],
-					doublesPlayers: data.doublesPlayers || [],
-					doublesTeams: data.doublesTeams || [],
-				});
-			} catch (err) {
-				console.error("Error fetching statistics:", err);
-				setError(t.statistics.error.fetchFailed);
-			} finally {
-				setLoading(false);
+			if (!response.ok) {
+				if (response.status === 401) {
+					setError(t.statistics.error.unauthorized);
+				} else {
+					const errorData = await response.json();
+					setError(
+						errorData.error || t.statistics.error.fetchFailed
+					);
+				}
+				return;
 			}
-		};
 
-		fetchStatistics();
+			const data = await response.json();
+			setStatistics((prev) => ({
+				...prev,
+				singles: data.singles || prev.singles,
+				doublesPlayers: data.doublesPlayers || prev.doublesPlayers,
+				doublesTeams: data.doublesTeams || prev.doublesTeams,
+			}));
+			setLoaded((prev) => ({ ...prev, [viewKey]: true }));
+		} catch (err) {
+			console.error("Error fetching statistics:", err);
+			setError(t.statistics.error.fetchFailed);
+		} finally {
+			setLoading((prev) => ({ ...prev, [viewKey]: false }));
+		}
 	}, []);
 
-	if (loading) {
+	// Load initial statistics for active view
+	useEffect(() => {
+		fetchStatistics(activeView);
+	}, [activeView, fetchStatistics]);
+
+	const isLoading = loading.singles || loading.doublesPlayers || loading.doublesTeams;
+	const isInitialLoading = loading.singles && !loaded.singles;
+
+	if (isInitialLoading) {
 		return (
 			<SidebarProvider>
 				<AppSidebar variant="inset" />
@@ -248,6 +288,14 @@ function StatisticsPageContent() {
 							<Box>
 								{(() => {
 									// Determine current data and header label based on view
+									// Check if current view is loading
+									const currentViewLoading =
+										activeView === "singles"
+											? loading.singles
+											: activeView === "doubles_player"
+											? loading.doublesPlayers
+											: loading.doublesTeams;
+
 									const currentData: (
 										| PlayerStats
 										| TeamStats
@@ -257,6 +305,15 @@ function StatisticsPageContent() {
 											: activeView === "doubles_player"
 											? statistics.doublesPlayers
 											: statistics.doublesTeams;
+
+									// Show loading state for current view if data is not loaded yet
+									if (currentViewLoading && currentData.length === 0) {
+										return (
+											<Box className="bg-card rounded-lg border border-border/50 p-6">
+												<Loading label={t.statistics.loading} />
+											</Box>
+										);
+									}
 
 									const headerLabel =
 										activeView === "doubles_team"

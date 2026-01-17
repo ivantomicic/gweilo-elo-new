@@ -18,6 +18,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
  *
  * Fetch player statistics (singles, doubles players, doubles teams)
  *
+ * Query parameters:
+ * - view (optional): "singles" | "doubles_player" | "doubles_team" | "all"
+ *   If not provided or "all", returns all statistics.
+ *   If a specific view is provided, returns only that view's data.
+ *
  * Security:
  * - Requires authentication
  * - Returns all players/teams with ratings (public statistics)
@@ -57,14 +62,41 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
+		// Get view parameter from query string
+		const { searchParams } = new URL(request.url);
+		const view = searchParams.get("view") || "all";
+		const shouldFetchSingles = view === "all" || view === "singles";
+		const shouldFetchDoublesPlayer = view === "all" || view === "doubles_player";
+		const shouldFetchDoublesTeam = view === "all" || view === "doubles_team";
+
 		// Create admin client to fetch user details (needed to access auth.users)
 		const adminClient = createAdminClient();
 
-		// ========== 1. SINGLES STATISTICS ==========
-		const { data: singlesRatings, error: singlesError } = await supabase
-			.from("player_ratings")
-			.select("*")
-			.order("elo", { ascending: false });
+		// Fetch statistics in parallel for better performance
+		const [singlesResult, doublesPlayerResult, doublesTeamResult] = await Promise.all([
+			shouldFetchSingles
+				? supabase
+						.from("player_ratings")
+						.select("*")
+						.order("elo", { ascending: false })
+				: Promise.resolve({ data: null, error: null }),
+			shouldFetchDoublesPlayer
+				? supabase
+						.from("player_double_ratings")
+						.select("*")
+						.order("elo", { ascending: false })
+				: Promise.resolve({ data: null, error: null }),
+			shouldFetchDoublesTeam
+				? supabase
+						.from("double_team_ratings")
+						.select("*")
+						.order("elo", { ascending: false })
+				: Promise.resolve({ data: null, error: null }),
+		]);
+
+		const { data: singlesRatings, error: singlesError } = singlesResult;
+		const { data: doublesPlayerRatings, error: doublesPlayerError } = doublesPlayerResult;
+		const { data: doublesTeamRatings, error: doublesTeamRatingsError } = doublesTeamResult;
 
 		if (singlesError) {
 			console.error("Error fetching singles ratings:", singlesError);
@@ -74,13 +106,6 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// ========== 2. DOUBLES PLAYER STATISTICS ==========
-		const { data: doublesPlayerRatings, error: doublesPlayerError } =
-			await supabase
-				.from("player_double_ratings")
-				.select("*")
-				.order("elo", { ascending: false });
-
 		if (doublesPlayerError) {
 			console.error("Error fetching doubles player ratings:", doublesPlayerError);
 			return NextResponse.json(
@@ -88,13 +113,6 @@ export async function GET(request: NextRequest) {
 				{ status: 500 }
 			);
 		}
-
-		// ========== 3. DOUBLES TEAM STATISTICS ==========
-		const { data: doublesTeamRatings, error: doublesTeamRatingsError } =
-			await supabase
-				.from("double_team_ratings")
-				.select("*")
-				.order("elo", { ascending: false });
 
 		if (doublesTeamRatingsError) {
 			console.error("Error fetching doubles team ratings:", doublesTeamRatingsError);
@@ -133,14 +151,20 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
-		// Get all unique player IDs (singles + doubles players + team players)
+		// Get all unique player IDs (only for requested views)
 		const allPlayerIds = new Set<string>();
-		singlesRatings?.forEach((r) => allPlayerIds.add(r.player_id));
-		doublesPlayerRatings?.forEach((r) => allPlayerIds.add(r.player_id));
-		teamsMap.forEach((team) => {
-			allPlayerIds.add(team.player_1_id);
-			allPlayerIds.add(team.player_2_id);
-		});
+		if (shouldFetchSingles && singlesRatings) {
+			singlesRatings.forEach((r) => allPlayerIds.add(r.player_id));
+		}
+		if (shouldFetchDoublesPlayer && doublesPlayerRatings) {
+			doublesPlayerRatings.forEach((r) => allPlayerIds.add(r.player_id));
+		}
+		if (shouldFetchDoublesTeam) {
+			teamsMap.forEach((team) => {
+				allPlayerIds.add(team.player_1_id);
+				allPlayerIds.add(team.player_2_id);
+			});
+		}
 
 		// Fetch user details for all players
 		const usersMap = new Map<string, { display_name: string; avatar: string | null }>();
@@ -172,104 +196,33 @@ export async function GET(request: NextRequest) {
 				});
 		}
 
+		// Get latest sessions once for rank movements (if needed)
+		const [latestSessionId, previousSessionId] = shouldFetchSingles || shouldFetchDoublesPlayer || shouldFetchDoublesTeam
+			? await getLatestTwoCompletedSessions()
+			: [null, null];
+
 		// ========== BUILD SINGLES STATISTICS ==========
-		const singlesStats = (singlesRatings || []).map((rating) => {
-			const user = usersMap.get(rating.player_id);
-			return {
-				player_id: rating.player_id,
-				display_name: user?.display_name || "User",
-				avatar: user?.avatar || null,
-				matches_played: rating.matches_played ?? 0,
-				wins: rating.wins ?? 0,
-				losses: rating.losses ?? 0,
-				draws: rating.draws ?? 0,
-				sets_won: rating.sets_won ?? 0,
-				sets_lost: rating.sets_lost ?? 0,
-				elo: rating.elo ?? 1500,
-				rank_movement: 0, // Will be updated below
-			};
-		});
-		singlesStats.sort((a, b) => b.elo - a.elo);
+		let singlesStats: Array<{
+			player_id: string;
+			display_name: string;
+			avatar: string | null;
+			matches_played: number;
+			wins: number;
+			losses: number;
+			draws: number;
+			sets_won: number;
+			sets_lost: number;
+			elo: number;
+			rank_movement: number;
+		}> = [];
 
-		// ========== COMPUTE RANK MOVEMENTS FOR SINGLES ==========
-		// Note: We use latestSessionId because snapshots are stored at session start,
-		// which represents the state AFTER the previous session completes
-		const [latestSessionId, previousSessionId] =
-			await getLatestTwoCompletedSessions();
-		const singlesPlayerIds = singlesStats.map((s) => s.player_id);
-		const singlesRankMovements = await computeRankMovements(
-			singlesPlayerIds,
-			latestSessionId, // Use latest session snapshot (state after previous session)
-			"player_singles",
-			previousSessionId // Pass for fallback if snapshots don't exist
-		);
-		// Add rank_movement to each stat
-		singlesStats.forEach((stat) => {
-			const movement = singlesRankMovements.get(stat.player_id) ?? 0;
-			stat.rank_movement = movement;
-		});
-		
-		// Debug: Log rank movements (remove in production)
-		console.log("[STATS] Rank movements computed:", {
-			latestSessionId,
-			previousSessionId,
-			movements: Array.from(singlesRankMovements.entries()),
-		});
-
-		// ========== BUILD DOUBLES PLAYER STATISTICS ==========
-		const doublesPlayerStats = (doublesPlayerRatings || []).map((rating) => {
-			const user = usersMap.get(rating.player_id);
-			return {
-				player_id: rating.player_id,
-				display_name: user?.display_name || "User",
-				avatar: user?.avatar || null,
-				matches_played: rating.matches_played ?? 0,
-				wins: rating.wins ?? 0,
-				losses: rating.losses ?? 0,
-				draws: rating.draws ?? 0,
-				sets_won: rating.sets_won ?? 0,
-				sets_lost: rating.sets_lost ?? 0,
-				elo: rating.elo ?? 1500,
-				rank_movement: 0, // Will be updated below
-			};
-		});
-		doublesPlayerStats.sort((a, b) => b.elo - a.elo);
-
-		// ========== COMPUTE RANK MOVEMENTS FOR DOUBLES PLAYERS ==========
-		const doublesPlayerIds = doublesPlayerStats.map((s) => s.player_id);
-		const doublesPlayerRankMovements = await computeRankMovements(
-			doublesPlayerIds,
-			latestSessionId, // Use latest session snapshot (state after previous session)
-			"player_doubles",
-			previousSessionId // Pass for fallback if snapshots don't exist
-		);
-		// Add rank_movement to each stat
-		doublesPlayerStats.forEach((stat) => {
-			const movement = doublesPlayerRankMovements.get(stat.player_id) ?? 0;
-			stat.rank_movement = movement;
-		});
-
-		// ========== BUILD DOUBLES TEAM STATISTICS ==========
-		const doublesTeamStats = (doublesTeamRatings || [])
-			.map((rating) => {
-				const team = teamsMap.get(rating.team_id);
-				if (!team) return null;
-
-				const player1 = usersMap.get(team.player_1_id);
-				const player2 = usersMap.get(team.player_2_id);
-
+		if (shouldFetchSingles && singlesRatings) {
+			singlesStats = (singlesRatings || []).map((rating) => {
+				const user = usersMap.get(rating.player_id);
 				return {
-					team_id: rating.team_id,
-					player1: {
-						id: team.player_1_id,
-						display_name: player1?.display_name || "User",
-						avatar: player1?.avatar || null,
-					},
-					player2: {
-						id: team.player_2_id,
-						display_name: player2?.display_name || "User",
-						avatar: player2?.avatar || null,
-					},
+					player_id: rating.player_id,
+					display_name: user?.display_name || "User",
+					avatar: user?.avatar || null,
 					matches_played: rating.matches_played ?? 0,
 					wins: rating.wins ?? 0,
 					losses: rating.losses ?? 0,
@@ -279,8 +232,81 @@ export async function GET(request: NextRequest) {
 					elo: rating.elo ?? 1500,
 					rank_movement: 0, // Will be updated below
 				};
-			})
-			.filter((team) => team !== null) as Array<{
+			});
+			singlesStats.sort((a, b) => b.elo - a.elo);
+
+			// ========== COMPUTE RANK MOVEMENTS FOR SINGLES ==========
+			// Note: We use latestSessionId because snapshots are stored at session start,
+			// which represents the state AFTER the previous session completes
+			if (latestSessionId && previousSessionId) {
+				const singlesPlayerIds = singlesStats.map((s) => s.player_id);
+				const singlesRankMovements = await computeRankMovements(
+					singlesPlayerIds,
+					latestSessionId, // Use latest session snapshot (state after previous session)
+					"player_singles",
+					previousSessionId // Pass for fallback if snapshots don't exist
+				);
+				// Add rank_movement to each stat
+				singlesStats.forEach((stat) => {
+					const movement = singlesRankMovements.get(stat.player_id) ?? 0;
+					stat.rank_movement = movement;
+				});
+			}
+		}
+
+		// ========== BUILD DOUBLES PLAYER STATISTICS ==========
+		let doublesPlayerStats: Array<{
+			player_id: string;
+			display_name: string;
+			avatar: string | null;
+			matches_played: number;
+			wins: number;
+			losses: number;
+			draws: number;
+			sets_won: number;
+			sets_lost: number;
+			elo: number;
+			rank_movement: number;
+		}> = [];
+
+		if (shouldFetchDoublesPlayer && doublesPlayerRatings) {
+			doublesPlayerStats = (doublesPlayerRatings || []).map((rating) => {
+				const user = usersMap.get(rating.player_id);
+				return {
+					player_id: rating.player_id,
+					display_name: user?.display_name || "User",
+					avatar: user?.avatar || null,
+					matches_played: rating.matches_played ?? 0,
+					wins: rating.wins ?? 0,
+					losses: rating.losses ?? 0,
+					draws: rating.draws ?? 0,
+					sets_won: rating.sets_won ?? 0,
+					sets_lost: rating.sets_lost ?? 0,
+					elo: rating.elo ?? 1500,
+					rank_movement: 0, // Will be updated below
+				};
+			});
+			doublesPlayerStats.sort((a, b) => b.elo - a.elo);
+
+			// ========== COMPUTE RANK MOVEMENTS FOR DOUBLES PLAYERS ==========
+			if (latestSessionId && previousSessionId) {
+				const doublesPlayerIds = doublesPlayerStats.map((s) => s.player_id);
+				const doublesPlayerRankMovements = await computeRankMovements(
+					doublesPlayerIds,
+					latestSessionId, // Use latest session snapshot (state after previous session)
+					"player_doubles",
+					previousSessionId // Pass for fallback if snapshots don't exist
+				);
+				// Add rank_movement to each stat
+				doublesPlayerStats.forEach((stat) => {
+					const movement = doublesPlayerRankMovements.get(stat.player_id) ?? 0;
+					stat.rank_movement = movement;
+				});
+			}
+		}
+
+		// ========== BUILD DOUBLES TEAM STATISTICS ==========
+		let doublesTeamStats: Array<{
 			team_id: string;
 			player1: { id: string; display_name: string; avatar: string | null };
 			player2: { id: string; display_name: string; avatar: string | null };
@@ -292,22 +318,70 @@ export async function GET(request: NextRequest) {
 			sets_lost: number;
 			elo: number;
 			rank_movement: number;
-		}>;
-		doublesTeamStats.sort((a, b) => b.elo - a.elo);
+		}> = [];
 
-		// ========== COMPUTE RANK MOVEMENTS FOR DOUBLES TEAMS ==========
-		const doublesTeamIds = doublesTeamStats.map((s) => s.team_id);
-		const doublesTeamRankMovements = await computeRankMovements(
-			doublesTeamIds,
-			latestSessionId, // Use latest session snapshot (state after previous session)
-			"double_team",
-			previousSessionId // Pass for fallback if snapshots don't exist
-		);
-		// Add rank_movement to each stat
-		doublesTeamStats.forEach((stat) => {
-			const movement = doublesTeamRankMovements.get(stat.team_id) ?? 0;
-			stat.rank_movement = movement;
-		});
+		if (shouldFetchDoublesTeam && doublesTeamRatings) {
+			doublesTeamStats = (doublesTeamRatings || [])
+				.map((rating) => {
+					const team = teamsMap.get(rating.team_id);
+					if (!team) return null;
+
+					const player1 = usersMap.get(team.player_1_id);
+					const player2 = usersMap.get(team.player_2_id);
+
+					return {
+						team_id: rating.team_id,
+						player1: {
+							id: team.player_1_id,
+							display_name: player1?.display_name || "User",
+							avatar: player1?.avatar || null,
+						},
+						player2: {
+							id: team.player_2_id,
+							display_name: player2?.display_name || "User",
+							avatar: player2?.avatar || null,
+						},
+						matches_played: rating.matches_played ?? 0,
+						wins: rating.wins ?? 0,
+						losses: rating.losses ?? 0,
+						draws: rating.draws ?? 0,
+						sets_won: rating.sets_won ?? 0,
+						sets_lost: rating.sets_lost ?? 0,
+						elo: rating.elo ?? 1500,
+						rank_movement: 0, // Will be updated below
+					};
+				})
+				.filter((team) => team !== null) as Array<{
+				team_id: string;
+				player1: { id: string; display_name: string; avatar: string | null };
+				player2: { id: string; display_name: string; avatar: string | null };
+				matches_played: number;
+				wins: number;
+				losses: number;
+				draws: number;
+				sets_won: number;
+				sets_lost: number;
+				elo: number;
+				rank_movement: number;
+			}>;
+			doublesTeamStats.sort((a, b) => b.elo - a.elo);
+
+			// ========== COMPUTE RANK MOVEMENTS FOR DOUBLES TEAMS ==========
+			if (latestSessionId && previousSessionId) {
+				const doublesTeamIds = doublesTeamStats.map((s) => s.team_id);
+				const doublesTeamRankMovements = await computeRankMovements(
+					doublesTeamIds,
+					latestSessionId, // Use latest session snapshot (state after previous session)
+					"double_team",
+					previousSessionId // Pass for fallback if snapshots don't exist
+				);
+				// Add rank_movement to each stat
+				doublesTeamStats.forEach((stat) => {
+					const movement = doublesTeamRankMovements.get(stat.team_id) ?? 0;
+					stat.rank_movement = movement;
+				});
+			}
+		}
 
 		return NextResponse.json({
 			singles: singlesStats,
