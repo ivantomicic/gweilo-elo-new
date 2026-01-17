@@ -2674,6 +2674,32 @@ function SessionPageContent() {
 																		? `Elo ${team1Elo}`
 																		: `Team ${team1Elo}`}
 																</p>
+																{/* Elo predictions as addon */}
+																<Stack
+																	direction="row"
+																	alignItems="center"
+																	spacing={1.5}
+																	className="mt-0.5"
+																>
+																	<span className="text-[9px] font-bold text-chart-2">
+																		{formatEloDelta(
+																			team1WinChange,
+																			false
+																		)}
+																	</span>
+																	<span className="text-[9px] font-bold text-chart-3">
+																		{formatEloDelta(
+																			team1DrawChange,
+																			false
+																		)}
+																	</span>
+																	<span className="text-[9px] font-bold text-red-500">
+																		{formatEloDelta(
+																			team1LoseChange,
+																			false
+																		)}
+																	</span>
+																</Stack>
 															</Box>
 														</Stack>
 														<Input
@@ -2799,6 +2825,32 @@ function SessionPageContent() {
 																		? `Elo ${team2Elo}`
 																		: `Team ${team2Elo}`}
 																</p>
+																{/* Elo predictions as addon */}
+																<Stack
+																	direction="row"
+																	alignItems="center"
+																	spacing={1.5}
+																	className="mt-0.5"
+																>
+																	<span className="text-[9px] font-bold text-chart-2">
+																		{formatEloDelta(
+																			team2WinChange,
+																			false
+																		)}
+																	</span>
+																	<span className="text-[9px] font-bold text-chart-3">
+																		{formatEloDelta(
+																			team2DrawChange,
+																			false
+																		)}
+																	</span>
+																	<span className="text-[9px] font-bold text-red-500">
+																		{formatEloDelta(
+																			team2LoseChange,
+																			false
+																		)}
+																	</span>
+																</Stack>
 															</Box>
 														</Stack>
 														<Input
@@ -2826,77 +2878,6 @@ function SessionPageContent() {
 														/>
 													</Stack>
 
-													{/* Elo Change Previews - Mobile (Compact) */}
-													<Stack
-														direction="row"
-														alignItems="center"
-														justifyContent="between"
-														spacing={2}
-														className="pt-2 border-t border-border/30"
-													>
-														<Box className="flex-1 text-center">
-															<p className="text-[9px] text-muted-foreground mb-1">
-																{team1Name.split(" & ")[0]}
-															</p>
-															<Stack
-																direction="row"
-																alignItems="center"
-																justifyContent="center"
-																spacing={2}
-																className="text-[10px] font-bold"
-															>
-																<span className="text-chart-2">
-																	{formatEloDelta(
-																		team1WinChange,
-																		false
-																	)}
-																</span>
-																<span className="text-chart-3">
-																	{formatEloDelta(
-																		team1DrawChange,
-																		false
-																	)}
-																</span>
-																<span className="text-red-500">
-																	{formatEloDelta(
-																		team1LoseChange,
-																		false
-																	)}
-																</span>
-															</Stack>
-														</Box>
-														<Box className="flex-1 text-center">
-															<p className="text-[9px] text-muted-foreground mb-1">
-																{team2Name.split(" & ")[0]}
-															</p>
-															<Stack
-																direction="row"
-																alignItems="center"
-																justifyContent="center"
-																spacing={2}
-																className="text-[10px] font-bold"
-															>
-																<span className="text-chart-2">
-																	{formatEloDelta(
-																		team2WinChange,
-																		false
-																	)}
-																</span>
-																<span className="text-chart-3">
-																	{formatEloDelta(
-																		team2DrawChange,
-																		false
-																	)}
-																</span>
-																<span className="text-red-500">
-																	{formatEloDelta(
-																		team2LoseChange,
-																		false
-																	)}
-																</span>
-															</Stack>
-														</Box>
-													</Stack>
 												</Stack>
 
 												{/* Desktop: Original Horizontal Layout */}

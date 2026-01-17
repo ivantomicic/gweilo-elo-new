@@ -3,113 +3,117 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    /* Font tokens are set via next/font in layout.tsx as CSS variables */
+	:root {
+		/* Font tokens are set via next/font in layout.tsx as CSS variables */
 
-    /* Color tokens - dark mode only */
-    /* App background: #0A0A0A - very dark, almost black */
-    --background: 0 0% 3.9%;
-    
-    /* Card background: #1A1B23 - dark but lighter than app bg for visual separation */
-    /* rgb(26, 27, 35) converted to HSL */
-    --card: 233 15% 12%;
-    
-    /* Foreground text */
-    --foreground: 0 0% 98%;
-    --card-foreground: 0 0% 98%;
-    
-    /* Primary/Accent: #3B82F6 - blue accent for buttons, active states, highlights */
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-    
-    /* Popover (same as card for consistency) */
-    --popover: 218 19% 12%;
-    --popover-foreground: 0 0% 98%;
-    
-    /* Secondary elements */
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    
-    /* Muted text/elements */
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    
-    /* Accent (using primary blue) */
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 100%;
-    
-    /* Destructive actions */
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    
-    /* Borders and inputs */
-    --border: 0 0% 20%;
-    --input: 0 0% 20%;
-    --ring: 217 91% 60%;
-    
-    /* Chart colors (for future use) */
-    --chart-1: 217 91% 60%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    
-    /* Border radius */
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-  .dark {
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-  }
+		/* Color tokens - dark mode only */
+		/* App background: #0A0A0A - very dark, almost black */
+		--background: 0 0% 3.9%;
+
+		/* Card background: #1A1B23 - dark but lighter than app bg for visual separation */
+		/* rgb(26, 27, 35) converted to HSL */
+		--card: 233 15% 12%;
+
+		/* Foreground text */
+		--foreground: 0 0% 98%;
+		--card-foreground: 0 0% 98%;
+
+		/* Primary/Accent: #3B82F6 - blue accent for buttons, active states, highlights */
+		--primary: 217 91% 60%;
+		--primary-foreground: 0 0% 100%;
+
+		/* Popover (same as card for consistency) */
+		--popover: 218 19% 12%;
+		--popover-foreground: 0 0% 98%;
+
+		/* Secondary elements */
+		--secondary: 0 0% 14.9%;
+		--secondary-foreground: 0 0% 98%;
+
+		/* Muted text/elements */
+		--muted: 0 0% 14.9%;
+		--muted-foreground: 0 0% 63.9%;
+
+		/* Accent (using primary blue) */
+		--accent: 217 91% 60%;
+		--accent-foreground: 0 0% 100%;
+
+		/* Destructive actions */
+		--destructive: 0 62.8% 30.6%;
+		--destructive-foreground: 0 0% 98%;
+
+		/* Borders and inputs */
+		--border: 0 0% 20%;
+		--input: 0 0% 20%;
+		--ring: 217 91% 60%;
+
+		/* Chart colors (for future use) */
+		--chart-1: 217 91% 60%;
+		--chart-2: 160 60% 45%;
+		--chart-3: 30 80% 55%;
+		--chart-4: 280 65% 60%;
+		--chart-5: 340 75% 55%;
+
+		/* Border radius */
+		--radius: 0.5rem;
+		--sidebar-background: 0 0% 98%;
+		--sidebar-foreground: 240 5.3% 26.1%;
+		--sidebar-primary: 240 5.9% 10%;
+		--sidebar-primary-foreground: 0 0% 98%;
+		--sidebar-accent: 240 4.8% 95.9%;
+		--sidebar-accent-foreground: 240 5.9% 10%;
+		--sidebar-border: 220 13% 91%;
+		--sidebar-ring: 217.2 91.2% 59.8%;
+	}
+	.dark {
+		--sidebar-background: 240 5.9% 10%;
+		--sidebar-foreground: 240 4.8% 95.9%;
+		--sidebar-primary: 224.3 76.3% 48%;
+		--sidebar-primary-foreground: 0 0% 100%;
+		--sidebar-accent: 240 3.7% 15.9%;
+		--sidebar-accent-foreground: 240 4.8% 95.9%;
+		--sidebar-border: 240 3.7% 15.9%;
+		--sidebar-ring: 217.2 91.2% 59.8%;
+	}
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
-  
-  body {
-    @apply bg-background text-foreground;
-    font-family: var(--font-body);
-  }
-  
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-heading);
-  }
+	* {
+		@apply border-border;
+	}
+
+	body {
+		@apply bg-background text-foreground;
+		font-family: var(--font-body);
+	}
+
+	h1,
+	h2,
+	h3,
+	h4,
+	h5,
+	h6 {
+		font-family: var(--font-heading);
+	}
 }
 
 @layer utilities {
-  /* Prevent hover effects on touch devices and improve touch interactions */
-  .touch-safe {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  }
-  
-  /* Only apply hover effects on devices that support hover */
-  @media (hover: hover) {
-    .hover-only:hover {
-      @apply border-primary/30;
-    }
-  }
-  
-  /* Mobile bottom padding for floating navigation */
-  /* Mobile nav is ~96px tall (56px items + 16px padding + 24px bottom offset) */
-  .pb-mobile-nav {
-    @apply pb-24 md:pb-0;
-  }
-}
+	/* Prevent hover effects on touch devices and improve touch interactions */
+	.touch-safe {
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+	}
 
+	/* Only apply hover effects on devices that support hover */
+	@media (hover: hover) {
+		.hover-only:hover {
+			@apply border-primary/30;
+		}
+	}
+
+	/* Mobile bottom padding for floating navigation */
+	/* Mobile nav is ~96px tall (56px items + 16px padding + 24px bottom offset) */
+	.pb-mobile-nav {
+		@apply pb-24 md:pb-0;
+	}
+}
