@@ -60,10 +60,32 @@ function Top3PlayersWidget() {
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
 	const [loading, setLoading] = useState(true);
 
+	const CACHE_KEY = "top3players_cache";
+	const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 	useEffect(() => {
 		const fetchTopPlayers = async () => {
 			try {
 				setLoading(true);
+
+				// Check cache first
+				const cachedData = localStorage.getItem(CACHE_KEY);
+				if (cachedData) {
+					try {
+						const { data, timestamp } = JSON.parse(cachedData);
+						const now = Date.now();
+						if (now - timestamp < CACHE_DURATION) {
+							// Cache is still fresh
+							setTopPlayers(data);
+							setLoading(false);
+							return;
+						}
+					} catch (e) {
+						// Invalid cache, continue to fetch
+						console.warn("Invalid cache data, fetching fresh data");
+					}
+				}
+
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
@@ -73,7 +95,7 @@ function Top3PlayersWidget() {
 					return;
 				}
 
-				const response = await fetch("/api/statistics", {
+				const response = await fetch("/api/statistics/top3", {
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
 					},
@@ -85,9 +107,18 @@ function Top3PlayersWidget() {
 				}
 
 				const data = await response.json();
-				const singlesStats = data.singles || [];
-				// Top 3 players (already sorted by Elo descending)
-				setTopPlayers(singlesStats.slice(0, 3));
+				// Top 3 players (already sorted by Elo descending from API)
+				const top3 = data.data || [];
+				setTopPlayers(top3);
+
+				// Cache the data
+				localStorage.setItem(
+					CACHE_KEY,
+					JSON.stringify({
+						data: top3,
+						timestamp: Date.now(),
+					})
+				);
 			} catch (error) {
 				console.error("Error fetching top players:", error);
 				setTopPlayers([]);
@@ -673,10 +704,32 @@ function NoShowAlertWidget() {
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
 	const [loading, setLoading] = useState(true);
 
+	const CACHE_KEY = "noshow_alert_cache";
+	const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 	useEffect(() => {
 		const fetchNoShowStats = async () => {
 			try {
 				setLoading(true);
+
+				// Check cache first
+				const cachedData = localStorage.getItem(CACHE_KEY);
+				if (cachedData) {
+					try {
+						const { data, timestamp } = JSON.parse(cachedData);
+						const now = Date.now();
+						if (now - timestamp < CACHE_DURATION) {
+							// Cache is still fresh
+							setWorstOffender(data);
+							setLoading(false);
+							return;
+						}
+					} catch (e) {
+						// Invalid cache, continue to fetch
+						console.warn("Invalid cache data, fetching fresh data");
+					}
+				}
+
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
@@ -700,7 +753,17 @@ function NoShowAlertWidget() {
 				const data = await response.json();
 				const users = data.users || [];
 				// Worst offender is the first one (sorted by count descending)
-				setWorstOffender(users[0] || null);
+				const worst = users[0] || null;
+				setWorstOffender(worst);
+
+				// Cache the data
+				localStorage.setItem(
+					CACHE_KEY,
+					JSON.stringify({
+						data: worst,
+						timestamp: Date.now(),
+					})
+				);
 			} catch (error) {
 				console.error("Error fetching no-show stats:", error);
 				setWorstOffender(null);
