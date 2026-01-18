@@ -129,16 +129,6 @@ function PlayerPageContent() {
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							<Box>
-								<Stack direction="column" spacing={4}>
-									<PlayerNameCard
-										name={playerData.display_name}
-										avatar={playerData.avatar}
-										id={playerData.id}
-										size="lg"
-									/>
-								</Stack>
-							</Box>
 							<PerformanceTrend playerId={playerId} />
 						</div>
 					</div>
