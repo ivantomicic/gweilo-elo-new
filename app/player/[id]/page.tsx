@@ -27,6 +27,7 @@ function PlayerPageContent() {
 	const params = useParams();
 	const playerId = params.id as string;
 	const [playerData, setPlayerData] = useState<PlayerData | null>(null);
+	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -44,6 +45,9 @@ function PlayerPageContent() {
 					setError(t.statistics.error.notAuthenticated);
 					return;
 				}
+
+				// Get current user ID for comparison
+				setCurrentUserId(session.user.id);
 
 				const response = await fetch(`/api/player/${playerId}`, {
 					headers: {
@@ -129,7 +133,14 @@ function PlayerPageContent() {
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							<PerformanceTrend playerId={playerId} />
+							<PerformanceTrend
+								playerId={playerId}
+								secondaryPlayerId={
+									currentUserId && currentUserId !== playerId
+										? currentUserId
+										: undefined
+								}
+							/>
 						</div>
 					</div>
 				</div>

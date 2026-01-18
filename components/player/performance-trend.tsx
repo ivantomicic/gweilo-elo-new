@@ -29,11 +29,25 @@ type FilterType = "all" | "last4" | "last2" | "last1";
 
 type PerformanceTrendProps = {
 	playerId?: string;
+	secondaryPlayerId?: string;
 };
 
-export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
+type CombinedDataPoint = {
+	match: number;
+	elo?: number;
+	date: string;
+	opponent: string;
+	delta: number;
+	secondaryElo?: number;
+};
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+export function PerformanceTrend({ playerId, secondaryPlayerId }: PerformanceTrendProps) {
 	const [eloHistory, setEloHistory] = useState<EloHistoryDataPoint[]>([]);
+	const [secondaryEloHistory, setSecondaryEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [currentElo, setCurrentElo] = useState<number>(1500);
+	const [secondaryCurrentElo, setSecondaryCurrentElo] = useState<number>(1500);
 	const [loading, setLoading] = useState(true);
 	const [filter, setFilter] = useState<FilterType>("all");
 	const [showLeftMask, setShowLeftMask] = useState(false);
@@ -50,38 +64,177 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 
 				if (!session) {
 					setEloHistory([]);
+					setSecondaryEloHistory([]);
 					return;
 				}
 
-				// Build URL with optional playerId parameter
-				const url = playerId
-					? `/api/player/elo-history?playerId=${encodeURIComponent(playerId)}`
-					: "/api/player/elo-history";
+				// Cache keys based on player IDs
+				const primaryCacheKey = playerId
+					? `elo_history_${playerId}`
+					: `elo_history_${session.user.id}`;
+				const secondaryCacheKey = secondaryPlayerId
+					? `elo_history_${secondaryPlayerId}`
+					: null;
 
-				const response = await fetch(url, {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
-				});
+				// Try to get primary player data from cache
+				const primaryCachedData = localStorage.getItem(primaryCacheKey);
+				if (primaryCachedData) {
+					try {
+						const { data, currentElo: cachedElo, timestamp } = JSON.parse(primaryCachedData);
+						const now = Date.now();
+						if (now - timestamp < CACHE_DURATION) {
+							// Cache is still fresh
+							setEloHistory(data || []);
+							setCurrentElo(cachedElo || 1500);
+						} else {
+							// Cache expired, fetch fresh data
+							throw new Error("Cache expired");
+						}
+					} catch (e) {
+						// Invalid cache or expired, fetch fresh data
+						const primaryUrl = playerId
+							? `/api/player/elo-history?playerId=${encodeURIComponent(playerId)}`
+							: "/api/player/elo-history";
 
-				if (!response.ok) {
-					setEloHistory([]);
-					return;
+						const primaryResponse = await fetch(primaryUrl, {
+							headers: {
+								Authorization: `Bearer ${session.access_token}`,
+							},
+						});
+
+						if (primaryResponse.ok) {
+							const primaryData = await primaryResponse.json();
+							setEloHistory(primaryData.data || []);
+							setCurrentElo(primaryData.currentElo || 1500);
+
+							// Cache the data
+							localStorage.setItem(
+								primaryCacheKey,
+								JSON.stringify({
+									data: primaryData.data || [],
+									currentElo: primaryData.currentElo || 1500,
+									timestamp: Date.now(),
+								})
+							);
+						} else {
+							setEloHistory([]);
+						}
+					}
+				} else {
+					// No cache, fetch fresh data
+					const primaryUrl = playerId
+						? `/api/player/elo-history?playerId=${encodeURIComponent(playerId)}`
+						: "/api/player/elo-history";
+
+					const primaryResponse = await fetch(primaryUrl, {
+						headers: {
+							Authorization: `Bearer ${session.access_token}`,
+						},
+					});
+
+					if (primaryResponse.ok) {
+						const primaryData = await primaryResponse.json();
+						setEloHistory(primaryData.data || []);
+						setCurrentElo(primaryData.currentElo || 1500);
+
+						// Cache the data
+						localStorage.setItem(
+							primaryCacheKey,
+							JSON.stringify({
+								data: primaryData.data || [],
+								currentElo: primaryData.currentElo || 1500,
+								timestamp: Date.now(),
+							})
+						);
+					} else {
+						setEloHistory([]);
+					}
 				}
 
-				const data = await response.json();
-				setEloHistory(data.data || []);
-				setCurrentElo(data.currentElo || 1500);
+				// Fetch secondary player history if provided
+				if (secondaryPlayerId && secondaryCacheKey) {
+					// Try to get secondary player data from cache
+					const secondaryCachedData = localStorage.getItem(secondaryCacheKey);
+					if (secondaryCachedData) {
+						try {
+							const { data, currentElo: cachedElo, timestamp } = JSON.parse(secondaryCachedData);
+							const now = Date.now();
+							if (now - timestamp < CACHE_DURATION) {
+								// Cache is still fresh
+								setSecondaryEloHistory(data || []);
+								setSecondaryCurrentElo(cachedElo || 1500);
+							} else {
+								// Cache expired, fetch fresh data
+								throw new Error("Cache expired");
+							}
+						} catch (e) {
+							// Invalid cache or expired, fetch fresh data
+							const secondaryUrl = `/api/player/elo-history?playerId=${encodeURIComponent(secondaryPlayerId)}`;
+							const secondaryResponse = await fetch(secondaryUrl, {
+								headers: {
+									Authorization: `Bearer ${session.access_token}`,
+								},
+							});
+
+							if (secondaryResponse.ok) {
+								const secondaryData = await secondaryResponse.json();
+								setSecondaryEloHistory(secondaryData.data || []);
+								setSecondaryCurrentElo(secondaryData.currentElo || 1500);
+
+								// Cache the data
+								localStorage.setItem(
+									secondaryCacheKey,
+									JSON.stringify({
+										data: secondaryData.data || [],
+										currentElo: secondaryData.currentElo || 1500,
+										timestamp: Date.now(),
+									})
+								);
+							} else {
+								setSecondaryEloHistory([]);
+							}
+						}
+					} else {
+						// No cache, fetch fresh data
+						const secondaryUrl = `/api/player/elo-history?playerId=${encodeURIComponent(secondaryPlayerId)}`;
+						const secondaryResponse = await fetch(secondaryUrl, {
+							headers: {
+								Authorization: `Bearer ${session.access_token}`,
+							},
+						});
+
+						if (secondaryResponse.ok) {
+							const secondaryData = await secondaryResponse.json();
+							setSecondaryEloHistory(secondaryData.data || []);
+							setSecondaryCurrentElo(secondaryData.currentElo || 1500);
+
+							// Cache the data
+							localStorage.setItem(
+								secondaryCacheKey,
+								JSON.stringify({
+									data: secondaryData.data || [],
+									currentElo: secondaryData.currentElo || 1500,
+									timestamp: Date.now(),
+								})
+							);
+						} else {
+							setSecondaryEloHistory([]);
+						}
+					}
+				} else {
+					setSecondaryEloHistory([]);
+				}
 			} catch (error) {
 				console.error("Error fetching Elo history:", error);
 				setEloHistory([]);
+				setSecondaryEloHistory([]);
 			} finally {
 				setLoading(false);
 			}
 		};
 
 		fetchEloHistory();
-	}, [playerId]);
+	}, [playerId, secondaryPlayerId]);
 
 	// Check scroll position to show/hide fade masks
 	const checkScrollPosition = () => {
@@ -129,16 +282,16 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 	}
 
 	// Filter by sessions: group by date (session date) and filter
-	const getFilteredHistory = () => {
+	const getFilteredHistory = (history: EloHistoryDataPoint[]) => {
 		if (filter === "all") {
-			return eloHistory;
+			return history;
 		}
 
 		// Group by session date (normalize date to just date part, ignoring time)
 		const sessionDates = new Set<string>();
 		const dateToPoints = new Map<string, EloHistoryDataPoint[]>();
 
-		for (const point of eloHistory) {
+		for (const point of history) {
 			const date = new Date(point.date);
 			const dateKey = date.toISOString().split("T")[0]; // YYYY-MM-DD
 			sessionDates.add(dateKey);
@@ -163,7 +316,7 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 		const filtered: EloHistoryDataPoint[] = [];
 
 		// Collect all points from selected sessions, maintaining original order
-		for (const point of eloHistory) {
+		for (const point of history) {
 			const date = new Date(point.date);
 			const dateKey = date.toISOString().split("T")[0];
 			if (selectedDates.includes(dateKey)) {
@@ -174,14 +327,62 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 		return filtered;
 	};
 
-	const filteredHistory = getFilteredHistory();
+	const filteredHistory = getFilteredHistory(eloHistory);
+	const filteredSecondaryHistory = getFilteredHistory(secondaryEloHistory);
 
-	// Calculate Y-axis domain to match exact data range (no padding)
-	const eloValues = filteredHistory.map((point) => point.elo);
-	const minElo = eloHistory.length > 0 ? Math.min(...eloValues) : 0;
-	const maxElo = eloHistory.length > 0 ? Math.max(...eloValues) : 0;
+	// Combine data for chart - normalize secondary player to primary player's match progression
+	// Primary player determines the X-axis (match positions)
+	const combinedData: CombinedDataPoint[] = [];
+	
+	if (filteredHistory.length > 0 && secondaryPlayerId && filteredSecondaryHistory.length > 0) {
+		const primaryMatchCount = filteredHistory.length;
+		const secondaryMatchCount = filteredSecondaryHistory.length;
+		
+		// Normalize secondary player's data to match primary player's progression
+		filteredHistory.forEach((primaryPoint, primaryIndex) => {
+			const combined: CombinedDataPoint = {
+				match: primaryPoint.match,
+				elo: primaryPoint.elo,
+				date: primaryPoint.date,
+				opponent: primaryPoint.opponent,
+				delta: primaryPoint.delta,
+			};
+			
+			// Calculate normalized position (0 to 1) in primary's progression
+			const primaryProgress = primaryMatchCount > 1 
+				? primaryIndex / (primaryMatchCount - 1) 
+				: 0;
+			
+			// Map to secondary player's corresponding match index
+			const secondaryIndex = Math.round(primaryProgress * (secondaryMatchCount - 1));
+			const secondaryPoint = filteredSecondaryHistory[secondaryIndex];
+			
+			if (secondaryPoint) {
+				combined.secondaryElo = secondaryPoint.elo;
+			}
+			
+			combinedData.push(combined);
+		});
+	} else {
+		// No secondary player or no secondary data - just use primary data
+		combinedData.push(...filteredHistory.map((point) => ({
+			match: point.match,
+			elo: point.elo,
+			date: point.date,
+			opponent: point.opponent,
+			delta: point.delta,
+		})));
+	}
+
+	// Calculate Y-axis domain to include both players' data
+	const allEloValues = [
+		...filteredHistory.map((p) => p.elo),
+		...filteredSecondaryHistory.map((p) => p.elo),
+	];
+	const minElo = allEloValues.length > 0 ? Math.min(...allEloValues) : 1500;
+	const maxElo = allEloValues.length > 0 ? Math.max(...allEloValues) : 1500;
 	const yAxisDomain =
-		eloValues.length > 0 ? [minElo, maxElo] : [1500, 1500];
+		allEloValues.length > 0 ? [minElo, maxElo] : [1500, 1500];
 
 	return (
 		<Box className="bg-card rounded-[24px] border border-border/50 p-6 relative overflow-hidden">
@@ -325,7 +526,7 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 				<Box className="h-[300px] w-full">
 					<ResponsiveContainer width="100%" height="100%">
 						<LineChart
-							data={filteredHistory}
+							data={combinedData}
 							margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
 						>
 							<CartesianGrid
@@ -337,10 +538,7 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 								dataKey="match"
 								axisLine={false}
 								tickLine={false}
-								tick={{
-									fill: "hsl(var(--muted-foreground))",
-									fontSize: 12,
-								}}
+								tick={false}
 							/>
 							<YAxis
 								domain={yAxisDomain}
@@ -415,6 +613,17 @@ export function PerformanceTrend({ playerId }: PerformanceTrendProps) {
 								}}
 								activeDot={{ r: 5 }}
 							/>
+							{secondaryPlayerId && (
+								<Line
+									type="monotone"
+									dataKey="secondaryElo"
+									stroke="hsl(var(--muted-foreground))"
+									strokeWidth={2}
+									strokeOpacity={0.5}
+									dot={false}
+									activeDot={{ r: 5 }}
+								/>
+							)}
 						</LineChart>
 					</ResponsiveContainer>
 				</Box>
