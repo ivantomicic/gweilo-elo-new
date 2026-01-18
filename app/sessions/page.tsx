@@ -164,76 +164,81 @@ function SessionsPageContent() {
 					});
 				}
 
-				// Merge match counts into sessions
-				const sessionsWithCounts = newSessions.map((session) => {
+				// Merge match counts and best/worst player data into sessions
+				const sessionsWithCounts = newSessions.map((session: any) => {
 					const counts = countsMap.get(session.id) || {
 						singles: 0,
 						doubles: 0,
 					};
+					
+					// Map best/worst player data from database columns (if available)
+					// Fallback to null if not in database (will calculate dynamically)
+					const bestWorstPlayer =
+						session.best_player_id ||
+						session.worst_player_id
+							? {
+									best_player_id: session.best_player_id || null,
+									best_player_display_name:
+										session.best_player_display_name || null,
+									best_player_delta: session.best_player_delta || null,
+									worst_player_id: session.worst_player_id || null,
+									worst_player_display_name:
+										session.worst_player_display_name || null,
+									worst_player_delta: session.worst_player_delta || null,
+							  }
+							: null;
+
 					return {
 						...session,
 						singles_match_count: counts.singles,
 						doubles_match_count: counts.doubles,
+						best_worst_player: bestWorstPlayer,
 					};
 				});
 
-				// Fetch best/worst player data for completed sessions
-				const completedSessions = sessionsWithCounts.filter(
-					(s) => s.status === "completed"
-				);
-
-				// Batch fetch best/worst player data in parallel
-				const bestWorstPromises = completedSessions.map(
-					async (session) => {
-						try {
-							const response = await fetch(
-								`/api/sessions/${session.id}/best-worst-player`,
-								{
-									headers: {
-										Authorization: `Bearer ${authSession.access_token}`,
-									},
-								}
-							);
-
-							if (!response.ok) {
-								console.error(
-									`Failed to fetch best/worst for session ${session.id}`
-								);
-								return { sessionId: session.id, data: null };
-							}
-
-							const data = await response.json();
-							return { sessionId: session.id, data };
-						} catch (err) {
-							console.error(
-								`Error fetching best/worst for session ${session.id}:`,
-								err
-							);
-							return { sessionId: session.id, data: null };
-						}
-					}
-				);
-
-				const bestWorstResults = await Promise.all(bestWorstPromises);
-
-				// Create map of sessionId -> best/worst data
-				const bestWorstMap = new Map<string, BestWorstPlayer | null>();
-				bestWorstResults.forEach((result) => {
-					bestWorstMap.set(result.sessionId, result.data);
-				});
-
-				// Merge best/worst player data into sessions
-				const sessionsWithAllData = sessionsWithCounts.map(
-					(session) => ({
-						...session,
-						best_worst_player: bestWorstMap.get(session.id) || null,
-					})
-				);
-
+				// Show sessions immediately (best/worst data from database if available)
 				if (append) {
-					setSessions((prev) => [...prev, ...sessionsWithAllData]);
+					setSessions((prev) => [...prev, ...sessionsWithCounts]);
 				} else {
-					setSessions(sessionsWithAllData);
+					setSessions(sessionsWithCounts);
+				}
+
+				// Fallback: Calculate best/worst dynamically for completed sessions without stored data
+				const completedSessionsNeedingCalc = sessionsWithCounts.filter(
+					(s) => s.status === "completed" && !s.best_worst_player
+				);
+
+				if (completedSessionsNeedingCalc.length > 0) {
+					// Load best/worst data dynamically - update each session individually as data arrives
+					completedSessionsNeedingCalc.forEach((session) => {
+						fetch(`/api/sessions/${session.id}/best-worst-player`, {
+							headers: {
+								Authorization: `Bearer ${authSession.access_token}`,
+							},
+						})
+							.then((response) => {
+								if (!response.ok) {
+									return null;
+								}
+								return response.json();
+							})
+							.then((data) => {
+								// Update this specific session immediately when data arrives
+								setSessions((prev) =>
+									prev.map((s) =>
+										s.id === session.id
+											? { ...s, best_worst_player: data }
+											: s
+									)
+								);
+							})
+							.catch((err) => {
+								console.error(
+									`Error fetching best/worst for session ${session.id}:`,
+									err
+								);
+							});
+					});
 				}
 
 				// Check if there are more items to load

@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
 import { createEloSnapshots } from "@/lib/elo/snapshots";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -553,12 +554,20 @@ export async function POST(
 		if (!maxRoundError && maxRoundData) {
 			const maxRoundNumber = maxRoundData.round_number;
 			if (roundNum >= maxRoundNumber) {
-				// This is the last round - mark session as completed
+				// This is the last round - calculate best/worst player and mark session as completed
+				const bestWorst = await calculateBestWorstPlayer(sessionId);
+
 				const { error: updateSessionError } = await adminClient
 					.from("sessions")
 					.update({
 						status: "completed",
 						completed_at: new Date().toISOString(),
+						best_player_id: bestWorst.best_player_id,
+						best_player_display_name: bestWorst.best_player_display_name,
+						best_player_delta: bestWorst.best_player_delta,
+						worst_player_id: bestWorst.worst_player_id,
+						worst_player_display_name: bestWorst.worst_player_display_name,
+						worst_player_delta: bestWorst.worst_player_delta,
 					})
 					.eq("id", sessionId);
 
