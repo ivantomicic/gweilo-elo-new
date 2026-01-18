@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
+import { clearAllCaches } from "@/lib/utils/clear-cache";
 import { Stack } from "@/components/ui/stack";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -35,6 +36,9 @@ export function DashboardView() {
 	}, []);
 
 	const handleLogout = async () => {
+		// Clear all caches (localStorage + sessionStorage)
+		clearAllCaches();
+		// Sign out from Supabase
 		await supabase.auth.signOut();
 		// On logout, parent component will detect auth change and render auth screen
 	};

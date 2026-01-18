@@ -31,6 +31,7 @@ import {
 } from "@/components/vendor/shadcn/sidebar"
 import { t } from "@/lib/i18n"
 import { supabase } from "@/lib/supabase/client"
+import { clearAllCaches } from "@/lib/utils/clear-cache"
 
 export function NavUser({
   user,
@@ -45,6 +46,9 @@ export function NavUser({
   const router = useRouter()
 
   const handleLogout = async () => {
+    // Clear all caches (localStorage + sessionStorage)
+    clearAllCaches();
+    // Sign out from Supabase
     await supabase.auth.signOut()
     // Redirect to home page which will show login screen via useAuth hook
     router.push("/")

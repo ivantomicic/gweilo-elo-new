@@ -83,6 +83,7 @@ export const sr = {
 	},
 	performanceTrend: {
 		title: "Istorija",
+		loading: "Učitavanje...",
 		filters: {
 			all: "Svi termini",
 			last4: "Poslednja 4 termina",

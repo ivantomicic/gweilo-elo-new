@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
+import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase/client";
 import { formatElo, formatEloDelta } from "@/lib/elo/format";
 import { t } from "@/lib/i18n";
@@ -299,7 +300,11 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 	}, [filter, eloHistory.length]);
 
 	if (loading) {
-		return null;
+		return (
+			<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[300px]">
+				<Loading label={t.performanceTrend.loading} inline />
+			</Box>
+		);
 	}
 
 	// If no data or only one point, show placeholder
