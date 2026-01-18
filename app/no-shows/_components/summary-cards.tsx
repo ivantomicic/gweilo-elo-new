@@ -2,7 +2,7 @@
 
 import { NoShowAlertWidget } from "@/components/dashboard/no-show-alert-widget";
 import { NoShowDistributionWidget } from "@/components/dashboard/no-show-distribution-widget";
-import { Card, CardContent } from "@/components/ui/card";
+import { TableTennisGifWidget } from "@/components/dashboard/table-tennis-gif-widget";
 
 export function SummaryCards() {
 	return (
@@ -10,15 +10,11 @@ export function SummaryCards() {
 			{/* Card 1: Worst Offender - Using NoShowAlertWidget */}
 			<NoShowAlertWidget />
 
-			{/* Card 2: Distribution Pie Chart - Using NoShowDistributionWidget */}
-			<NoShowDistributionWidget />
+		{/* Card 2: Distribution Pie Chart - Using NoShowDistributionWidget */}
+		<NoShowDistributionWidget />
 
-			{/* Card 3: Placeholder - Blank for now */}
-			<Card>
-				<CardContent className="pt-6">
-					{/* Empty placeholder */}
-				</CardContent>
-			</Card>
+		{/* Card 3: Table Tennis GIF Widget */}
+		<TableTennisGifWidget />
 		</div>
 	);
 }

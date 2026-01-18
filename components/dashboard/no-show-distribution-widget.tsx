@@ -123,19 +123,14 @@ export function NoShowDistributionWidget() {
 		topFive.forEach((user, index) => {
 			// Create a safe key from player name
 			const key = user.name.toLowerCase().replace(/\s+/g, "");
-			// Calculate percentage for legend
-			const percent =
-				totalNoShows > 0
-					? ((user.noShowCount / totalNoShows) * 100).toFixed(1)
-					: "0";
 			config[key] = {
-				label: `${user.name} (${percent}%)`,
+				label: user.name,
 				color: `hsl(${blueShades[index % blueShades.length]})`,
 			};
 		});
 
 		return config;
-	}, [topFive, totalNoShows]);
+	}, [topFive]);
 
 	const chartData = useMemo(() => {
 		return topFive.map((user) => {
