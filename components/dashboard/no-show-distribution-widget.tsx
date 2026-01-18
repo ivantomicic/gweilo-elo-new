@@ -195,12 +195,14 @@ export function NoShowDistributionWidget() {
 								content={
 									<ChartTooltipContent
 										hideLabel
-										formatter={(value: number, name: string) => {
+										formatter={(value: any, name: any, item: any, index: any, payload: any) => {
+											const numValue = typeof value === 'number' ? value : Number(value);
+											const playerKey = typeof name === 'string' ? name : String(name);
 											const dataEntry = chartData.find(
-												(d) => d.player === name
+												(d) => d.player === playerKey
 											);
-											const playerName = dataEntry?.name || name;
-											return `${playerName}: ${value} ${value === 1 ? t.ispale.miss : t.ispale.misses}`;
+											const playerName = dataEntry?.name || playerKey;
+											return `${playerName}: ${numValue} ${numValue === 1 ? t.ispale.miss : t.ispale.misses}`;
 										}}
 									/>
 								}
