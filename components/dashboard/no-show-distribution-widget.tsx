@@ -123,14 +123,19 @@ export function NoShowDistributionWidget() {
 		topFive.forEach((user, index) => {
 			// Create a safe key from player name
 			const key = user.name.toLowerCase().replace(/\s+/g, "");
+			// Calculate percentage for legend
+			const percent =
+				totalNoShows > 0
+					? ((user.noShowCount / totalNoShows) * 100).toFixed(1)
+					: "0";
 			config[key] = {
-				label: user.name,
+				label: `${user.name} (${percent}%)`,
 				color: `hsl(${blueShades[index % blueShades.length]})`,
 			};
 		});
 
 		return config;
-	}, [topFive]);
+	}, [topFive, totalNoShows]);
 
 	const chartData = useMemo(() => {
 		return topFive.map((user) => {
@@ -214,22 +219,7 @@ export function NoShowDistributionWidget() {
 								stroke="0"
 							/>
 							<ChartLegend
-								content={
-									<ChartLegendContent
-										nameKey="player"
-										formatter={(value: string) => {
-											const dataEntry = chartData.find(
-												(d) => d.player === value
-											);
-											if (!dataEntry) return value;
-											const percent =
-												totalNoShows > 0
-													? ((dataEntry.value / totalNoShows) * 100).toFixed(1)
-													: "0";
-											return `${dataEntry.name} (${percent}%)`;
-										}}
-									/>
-								}
+								content={<ChartLegendContent nameKey="player" />}
 							/>
 						</PieChart>
 					</ChartContainer>
