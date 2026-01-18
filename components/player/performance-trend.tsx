@@ -30,6 +30,7 @@ type FilterType = "all" | "last4" | "last2" | "last1";
 type PerformanceTrendProps = {
 	playerId?: string;
 	secondaryPlayerId?: string;
+	primaryPlayerName?: string;
 };
 
 type CombinedDataPoint = {
@@ -43,11 +44,12 @@ type CombinedDataPoint = {
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-export function PerformanceTrend({ playerId, secondaryPlayerId }: PerformanceTrendProps) {
+export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerName: primaryPlayerNameProp }: PerformanceTrendProps) {
 	const [eloHistory, setEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [secondaryEloHistory, setSecondaryEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [currentElo, setCurrentElo] = useState<number>(1500);
 	const [secondaryCurrentElo, setSecondaryCurrentElo] = useState<number>(1500);
+	const [primaryPlayerName, setPrimaryPlayerName] = useState<string>(primaryPlayerNameProp || "");
 	const [loading, setLoading] = useState(true);
 	const [filter, setFilter] = useState<FilterType>("all");
 	const [showLeftMask, setShowLeftMask] = useState(false);
@@ -66,6 +68,36 @@ export function PerformanceTrend({ playerId, secondaryPlayerId }: PerformanceTre
 					setEloHistory([]);
 					setSecondaryEloHistory([]);
 					return;
+				}
+
+				// Get primary player name (use prop if available, otherwise fetch)
+				if (!primaryPlayerNameProp) {
+					if (playerId) {
+						// Fetch player name from API
+						try {
+							const playerResponse = await fetch(`/api/player/${playerId}`, {
+								headers: {
+									Authorization: `Bearer ${session.access_token}`,
+								},
+							});
+							if (playerResponse.ok) {
+								const playerData = await playerResponse.json();
+								setPrimaryPlayerName(playerData.display_name || "");
+							}
+						} catch (e) {
+							console.error("Error fetching player name:", e);
+						}
+					} else {
+						// Use current user's name from session
+						const userName =
+							session.user.user_metadata?.name ||
+							session.user.user_metadata?.display_name ||
+							session.user.email?.split("@")[0] ||
+							"You";
+						setPrimaryPlayerName(userName);
+					}
+				} else {
+					setPrimaryPlayerName(primaryPlayerNameProp);
 				}
 
 				// Cache keys based on player IDs
@@ -548,45 +580,115 @@ export function PerformanceTrend({ playerId, secondaryPlayerId }: PerformanceTre
 								width={0}
 							/>
 							<Tooltip
-								contentStyle={{
-									backgroundColor: "hsl(var(--card))",
-									border: "1px solid hsl(var(--border))",
-									borderRadius: "8px",
-								}}
-								labelFormatter={(value, payload) => {
-									if (payload && payload[0]?.payload) {
-										const dataPoint =
-											payload[0].payload as EloHistoryDataPoint;
-										const date = new Date(dataPoint.date);
-										const formattedDate = date.toLocaleDateString(
-											"sr-Latn-RS",
-											{
-												month: "short",
-												day: "numeric",
-												year: "numeric",
-											}
-										);
-										const opponent = dataPoint.opponent || "Unknown";
-										return `${formattedDate} • vs. ${opponent}`;
+								content={({ active, payload }) => {
+									if (!active || !payload || payload.length === 0) {
+										return null;
 									}
-									return "";
-								}}
-								formatter={(value: number, name: string, props: any) => {
-									const dataPoint =
-										props.payload as EloHistoryDataPoint;
-									const delta = dataPoint?.delta ?? 0;
+
+									const dataPoint = payload[0].payload as EloHistoryDataPoint;
+									if (!dataPoint) return null;
+
+									const date = new Date(dataPoint.date);
+									const formattedDate = date.toLocaleDateString("sr-Latn-RS", {
+										month: "short",
+										day: "numeric",
+										year: "numeric",
+									});
+									const formattedTime = date.toLocaleTimeString("sr-Latn-RS", {
+										hour: "2-digit",
+										minute: "2-digit",
+									});
+
+									const opponent = dataPoint.opponent || "Unknown";
+									const elo = dataPoint.elo ?? (payload[0].value as number);
+									const delta = dataPoint.delta ?? 0;
 									const deltaFormatted = formatEloDelta(delta, true);
-									const deltaColor =
-										delta >= 0 ? "text-emerald-500" : "text-red-500";
-									return [
-										<span key="elo-delta">
-											{formatElo(value, true)}{" "}
-											<span className={deltaColor}>
-												({deltaFormatted})
-											</span>
-										</span>,
-										"Elo",
-									];
+
+									// Determine result from delta
+									let result: "Win" | "Loss" | "Draw";
+									let resultColor: string;
+									let resultIcon: string;
+									if (delta > 0) {
+										result = "Win";
+										resultColor = "text-emerald-500";
+										resultIcon = "solar:medal-ribbons-star-bold";
+									} else if (delta < 0) {
+										result = "Loss";
+										resultColor = "text-red-500";
+										resultIcon = "solar:close-circle-bold";
+									} else {
+										result = "Draw";
+										resultColor = "text-muted-foreground";
+										resultIcon = "solar:minus-circle-bold";
+									}
+
+									const deltaColor = delta >= 0 ? "text-emerald-500" : delta < 0 ? "text-red-500" : "text-muted-foreground";
+
+									return (
+										<Box className="bg-card border border-border rounded-lg shadow-lg p-4 min-w-[220px]">
+											<Stack direction="column" spacing={3}>
+												{/* Header: Date */}
+												<Stack direction="column" spacing={0.5}>
+													<p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+														{formattedDate}
+													</p>
+													<p className="text-[10px] text-muted-foreground">
+														{formattedTime}
+													</p>
+												</Stack>
+
+												{/* Match Info: Player vs Opponent */}
+												<Stack direction="column" spacing={1}>
+													<p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+														Match #{dataPoint.match}
+													</p>
+													<Stack direction="row" alignItems="center" spacing={2} className="flex-wrap">
+														<p className="text-sm font-medium text-foreground">
+															{primaryPlayerName}
+														</p>
+														<p className="text-sm text-muted-foreground">vs</p>
+														<p className="text-sm font-medium text-foreground">
+															{opponent}
+														</p>
+													</Stack>
+												</Stack>
+
+												{/* Result Badge */}
+												<Stack direction="row" alignItems="center" spacing={1.5}>
+													<Icon icon={resultIcon} className={`size-4 ${resultColor}`} />
+													<p className={`text-sm font-semibold ${resultColor}`}>
+														{result}
+													</p>
+												</Stack>
+
+												{/* Elo Stats */}
+												<Stack direction="column" spacing={2} className="pt-1 border-t border-border/50">
+													<Stack direction="row" alignItems="baseline" justifyContent="between" spacing={3}>
+														<p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+															Elo
+														</p>
+														<p className="text-base font-bold font-heading text-foreground">
+															{formatElo(elo, true)}
+														</p>
+													</Stack>
+													<Stack direction="row" alignItems="baseline" justifyContent="between" spacing={3}>
+														<p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+															Change
+														</p>
+														<Stack direction="row" alignItems="center" spacing={1}>
+															<Icon
+																icon={delta >= 0 ? "solar:arrow-up-bold" : "solar:arrow-down-bold"}
+																className={`size-3 ${deltaColor}`}
+															/>
+															<p className={`text-base font-bold font-heading ${deltaColor}`}>
+																{deltaFormatted}
+															</p>
+														</Stack>
+													</Stack>
+												</Stack>
+											</Stack>
+										</Box>
+									);
 								}}
 							/>
 							<Line
