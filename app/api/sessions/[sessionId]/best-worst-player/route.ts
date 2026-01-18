@@ -308,8 +308,8 @@ export async function GET(
 					.filter((u) => playerIdsToFetch.has(u.id))
 					.forEach((user) => {
 						const displayName =
-							user.user_metadata?.name ||
 							user.user_metadata?.display_name ||
+							user.user_metadata?.name ||
 							user.email?.split("@")[0] ||
 							"User";
 						usersMap.set(user.id, displayName);

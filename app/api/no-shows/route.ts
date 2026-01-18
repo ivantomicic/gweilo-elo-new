@@ -97,6 +97,7 @@ export async function GET(request: NextRequest) {
 				return {
 					id: user.id,
 					name:
+						user.user_metadata?.display_name ||
 						user.user_metadata?.name ||
 						user.user_metadata?.full_name ||
 						user.email?.split('@')[0] ||

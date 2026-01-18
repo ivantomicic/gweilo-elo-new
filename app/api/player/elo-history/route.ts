@@ -116,8 +116,8 @@ export async function GET(request: NextRequest) {
 					.filter((u) => allPlayerIds.has(u.id))
 					.forEach((user) => {
 						const displayName =
-							user.user_metadata?.name ||
 							user.user_metadata?.display_name ||
+							user.user_metadata?.name ||
 							user.email?.split("@")[0] ||
 							"User";
 						usersMap.set(user.id, displayName);

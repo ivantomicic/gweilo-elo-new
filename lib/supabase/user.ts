@@ -2,6 +2,7 @@ import { supabase } from "./client";
 
 /**
  * Update user display name in metadata
+ * Uses display_name field to avoid OAuth provider overwrites
  */
 export async function updateDisplayName(name: string) {
 	const {
@@ -9,7 +10,7 @@ export async function updateDisplayName(name: string) {
 		error,
 	} = await supabase.auth.updateUser({
 		data: {
-			name: name,
+			display_name: name,
 		},
 	});
 

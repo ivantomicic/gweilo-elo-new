@@ -14,6 +14,7 @@ import { Loading } from "@/components/ui/loading";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { Stack } from "@/components/ui/stack";
 import { PerformanceTrend } from "@/components/player/performance-trend";
+import { PlayerComparison } from "@/components/player/player-comparison";
 import { supabase } from "@/lib/supabase/client";
 import { t } from "@/lib/i18n";
 
@@ -133,6 +134,12 @@ function PlayerPageContent() {
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+							{currentUserId && currentUserId !== playerId && (
+								<PlayerComparison
+									viewedPlayerId={playerId}
+									currentUserId={currentUserId}
+								/>
+							)}
 							<PerformanceTrend
 								playerId={playerId}
 								primaryPlayerName={playerData.display_name}

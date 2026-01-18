@@ -90,8 +90,8 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 					} else {
 						// Use current user's name from session
 						const userName =
-							session.user.user_metadata?.name ||
 							session.user.user_metadata?.display_name ||
+							session.user.user_metadata?.name ||
 							session.user.email?.split("@")[0] ||
 							"You";
 						setPrimaryPlayerName(userName);

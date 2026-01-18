@@ -23,8 +23,11 @@ export function DashboardView() {
 				data: { session },
 			} = await supabase.auth.getSession();
 			if (session?.user) {
-				// Get name from user metadata (full_name from registration)
-				const fullName = session.user.user_metadata?.full_name;
+				// Get name from user metadata (prefer display_name over full_name to avoid OAuth overwrites)
+				const fullName =
+					session.user.user_metadata?.display_name ||
+					session.user.user_metadata?.full_name ||
+					session.user.user_metadata?.name;
 				setUserName(fullName || session.user.email?.split("@")[0] || null);
 			}
 		};

@@ -73,7 +73,8 @@ export async function PATCH(
 			};
 
 			if (name !== undefined) {
-				updateData.user_metadata.name = name;
+				// Use display_name to avoid OAuth provider overwrites
+				updateData.user_metadata.display_name = name;
 			}
 
 			if (avatar !== undefined) {
@@ -105,6 +106,7 @@ export async function PATCH(
 			id: data.user.id,
 			email: data.user.email || '',
 			name:
+				data.user.user_metadata?.display_name ||
 				data.user.user_metadata?.name ||
 				data.user.user_metadata?.full_name ||
 				data.user.email?.split('@')[0] ||

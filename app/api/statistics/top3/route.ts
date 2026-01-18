@@ -98,8 +98,8 @@ export async function GET(request: NextRequest) {
 				if (user) {
 					usersMap.set(user.id, {
 						display_name:
-							user.user_metadata?.name ||
 							user.user_metadata?.display_name ||
+							user.user_metadata?.name ||
 							user.email?.split("@")[0] ||
 							"User",
 						avatar: user.user_metadata?.avatar_url || null,

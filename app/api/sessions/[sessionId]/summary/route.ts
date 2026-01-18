@@ -257,8 +257,8 @@ export async function GET(
 				u.id,
 				{
 					display_name:
-						u.user_metadata?.name ||
 						u.user_metadata?.display_name ||
+						u.user_metadata?.name ||
 						u.email?.split("@")[0] ||
 						"Unknown",
 					avatar: u.user_metadata?.avatar_url || null,

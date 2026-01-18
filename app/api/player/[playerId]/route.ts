@@ -75,8 +75,8 @@ export async function GET(
 
 		// Extract display name and avatar from user_metadata
 		const displayName =
-			player.user_metadata?.name ||
 			player.user_metadata?.display_name ||
+			player.user_metadata?.name ||
 			player.user_metadata?.full_name ||
 			player.email?.split("@")[0] ||
 			"Unknown";

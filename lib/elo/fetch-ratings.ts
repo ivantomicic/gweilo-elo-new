@@ -89,6 +89,7 @@ export async function fetchPlayersWithRatings(
 	// Combine user data with ratings
 	const playersWithRatings: PlayerWithRatings[] = requestedUsers.map((user) => {
 		const displayName =
+			user.user_metadata?.display_name ||
 			user.user_metadata?.name ||
 			user.user_metadata?.full_name ||
 			user.email?.split("@")[0] ||

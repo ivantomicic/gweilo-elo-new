@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
 			id: user.id,
 			email: user.email || '',
 			name:
+				user.user_metadata?.display_name ||
 				user.user_metadata?.name ||
 				user.user_metadata?.full_name ||
 				user.email?.split('@')[0] ||
