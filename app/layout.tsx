@@ -23,6 +23,18 @@ export const metadata: Metadata = {
 	icons: {
 		icon: "/favicon.png",
 	},
+	openGraph: {
+		title: sr.meta.title,
+		description: sr.meta.description,
+		images: [
+			{
+				url: "/og.png",
+				width: 1200,
+				height: 630,
+				alt: sr.meta.title,
+			},
+		],
+	},
 };
 
 export default function RootLayout({
