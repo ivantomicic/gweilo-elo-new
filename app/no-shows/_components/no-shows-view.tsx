@@ -111,7 +111,7 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 	return (
 		<div className="space-y-6 px-4 lg:px-6">
 			{/* Summary Cards */}
-			<SummaryCards users={users} />
+			<SummaryCards />
 
 			{/* Entries Table */}
 			<EntriesTable

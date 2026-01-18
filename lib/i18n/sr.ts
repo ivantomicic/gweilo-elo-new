@@ -246,6 +246,7 @@ export const sr = {
 		cards: {
 			worstOffender: "Najviše ispalih termina",
 			topOffenders: "Top 5 najgoreg",
+			noShows: "Ispala",
 		},
 		table: {
 			player: "Igrač",
