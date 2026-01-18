@@ -244,7 +244,7 @@ export function PlayerComparison({
 				<Stack
 					direction="row"
 					alignItems="center"
-					justifyContent="space-between"
+					justifyContent="between"
 					spacing={4}
 					className="hidden md:flex w-full"
 				>
