@@ -37,28 +37,23 @@ type SessionsStateProps = {
 };
 
 export function SessionsState({ message, variant = "empty" }: SessionsStateProps) {
+	// Don't wrap in SessionsLayout - parent component already wraps
 	if (variant === "loading") {
-		return (
-			<SessionsLayout>
-				<Loading label={message} />
-			</SessionsLayout>
-		);
+		return <Loading label={message} />;
 	}
 
 	return (
-		<SessionsLayout>
-			<Box>
-				<p
-					className={
-						variant === "error"
-							? "text-destructive"
-							: "text-muted-foreground"
-					}
-				>
-					{message}
-				</p>
-			</Box>
-		</SessionsLayout>
+		<Box>
+			<p
+				className={
+					variant === "error"
+						? "text-destructive"
+						: "text-muted-foreground"
+				}
+			>
+				{message}
+			</p>
+		</Box>
 	);
 }
 

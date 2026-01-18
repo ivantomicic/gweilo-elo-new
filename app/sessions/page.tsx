@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { useAuth } from "@/lib/auth/useAuth";
 import { Stack } from "@/components/ui/stack";
 import { InfiniteScroll } from "@/components/ui/infinite-scroll";
 import { supabase } from "@/lib/supabase/client";
@@ -37,6 +38,7 @@ type Session = {
 const PAGE_SIZE = 5;
 
 function SessionsPageContent() {
+	const { session: authSession } = useAuth();
 	const [sessions, setSessions] = useState<Session[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [loadingMore, setLoadingMore] = useState(false);
@@ -84,25 +86,28 @@ function SessionsPageContent() {
 					return;
 				}
 
-				// Fetch paginated sessions
+				// Fetch paginated sessions (all sessions, not filtered by user)
 				const { data: sessionsData, error: sessionsError } =
 					await supabaseClient
 						.from("sessions")
 						.select("*")
-						.eq("created_by", currentUser.id)
 						.order("created_at", { ascending: false })
 						.range(offset, offset + PAGE_SIZE - 1);
 
 				if (sessionsError) {
 					console.error("Error fetching sessions:", sessionsError);
+					console.error("User ID:", currentUser.id);
 					setError(t.sessions.error.fetchFailed);
 					return;
 				}
 
 				const newSessions = sessionsData || [];
 
+				console.log(`[Sessions] Fetched ${newSessions.length} sessions for user ${currentUser.id}`);
+
 				// If no sessions, skip match count fetching
 				if (newSessions.length === 0) {
+					console.log(`[Sessions] No sessions found for user ${currentUser.id}`);
 					if (append) {
 						setSessions((prev) => [...prev, ...newSessions]);
 					} else {
@@ -244,10 +249,17 @@ function SessionsPageContent() {
 		[]
 	);
 
-	// Initial load
+	// Initial load and refetch when user changes
 	useEffect(() => {
-		fetchSessions(0, false);
-	}, [fetchSessions]);
+		if (authSession?.user?.id) {
+			// Reset state when user changes
+			setSessions([]);
+			setError(null);
+			setHasMore(true);
+			// Fetch sessions for new user
+			fetchSessions(0, false);
+		}
+	}, [authSession?.user?.id, fetchSessions]);
 
 	// Load more handler
 	const handleLoadMore = useCallback(() => {
@@ -277,11 +289,19 @@ function SessionsPageContent() {
 	}, []);
 
 	if (loading) {
-		return <SessionsState message={t.sessions.loading} variant="loading" />;
+		return (
+			<SessionsLayout>
+				<SessionsState message={t.sessions.loading} variant="loading" />
+			</SessionsLayout>
+		);
 	}
 
 	if (error) {
-		return <SessionsState message={error} variant="error" />;
+		return (
+			<SessionsLayout>
+				<SessionsState message={error} variant="error" />
+			</SessionsLayout>
+		);
 	}
 
 	return (

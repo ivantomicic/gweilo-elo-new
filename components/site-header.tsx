@@ -1,10 +1,12 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Separator } from "@/components/vendor/shadcn/separator";
 import { SidebarTrigger } from "@/components/vendor/shadcn/sidebar";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { t } from "@/lib/i18n";
 
 /**
@@ -41,9 +43,23 @@ export function SiteHeader({
 		| "ghost"
 		| "link";
 }) {
+	const [isAdmin, setIsAdmin] = useState(false);
+
+	// Check if user is admin
+	useEffect(() => {
+		const checkAdmin = async () => {
+			const user = await getCurrentUser();
+			setIsAdmin(user?.role === "admin");
+		};
+		checkAdmin();
+	}, []);
+
 	// Determine which action to show
 	const hasCustomAction = actionLabel && (actionHref || actionOnClick);
-	const showDefaultAction = !hasCustomAction;
+	// Only show default "Start Session" button for admins
+	const showDefaultAction = !hasCustomAction && isAdmin;
+	// Only show button area if there's something to show
+	const showActionButton = hasCustomAction || showDefaultAction;
 
 	return (
 		<header className="group-has-data-[collapsible=icon]/sidebar-wrapper:h-16 flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear">
@@ -56,48 +72,50 @@ export function SiteHeader({
 				<h1 className="text-xl font-heading font-semibold md:text-base md:font-medium">
 					{title}
 				</h1>
-				<div className="ml-auto flex items-center gap-2">
-					{showDefaultAction ? (
-						<Button asChild size="sm">
-							<Link href="/start-session">
-								<Icon
-									icon="solar:add-circle-bold"
-									className="size-4 mr-1.5"
-								/>
-								{t.startSession.title}
-							</Link>
-						</Button>
-					) : (
-						<Button
-							size="sm"
-							variant={actionVariant || "default"}
-							asChild={!!actionHref}
-							onClick={actionOnClick}
-						>
-							{actionHref ? (
-								<Link href={actionHref}>
-									{actionIcon && (
-										<Icon
-											icon={actionIcon}
-											className="size-4 mr-1.5"
-										/>
-									)}
-									{actionLabel}
+				{showActionButton && (
+					<div className="ml-auto flex items-center gap-2">
+						{showDefaultAction ? (
+							<Button asChild size="sm">
+								<Link href="/start-session">
+									<Icon
+										icon="solar:add-circle-bold"
+										className="size-4 mr-1.5"
+									/>
+									{t.startSession.title}
 								</Link>
-							) : (
-								<>
-									{actionIcon && (
-										<Icon
-											icon={actionIcon}
-											className="size-4 mr-1.5"
-										/>
-									)}
-									{actionLabel}
-								</>
-							)}
-						</Button>
-					)}
-				</div>
+							</Button>
+						) : (
+							<Button
+								size="sm"
+								variant={actionVariant || "default"}
+								asChild={!!actionHref}
+								onClick={actionOnClick}
+							>
+								{actionHref ? (
+									<Link href={actionHref}>
+										{actionIcon && (
+											<Icon
+												icon={actionIcon}
+												className="size-4 mr-1.5"
+											/>
+										)}
+										{actionLabel}
+									</Link>
+								) : (
+									<>
+										{actionIcon && (
+											<Icon
+												icon={actionIcon}
+												className="size-4 mr-1.5"
+											/>
+										)}
+										{actionLabel}
+									</>
+								)}
+							</Button>
+						)}
+					</div>
+				)}
 			</div>
 		</header>
 	);

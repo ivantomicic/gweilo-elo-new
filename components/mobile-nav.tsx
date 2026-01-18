@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/icon";
+import { useAuth } from "@/lib/auth/useAuth";
 
 type NavItem = {
 	title: string;
@@ -77,10 +78,12 @@ const mainNavItems = navItems.slice(0, 4);
  */
 export function MobileNav() {
 	const pathname = usePathname();
+	const { isAuthenticated } = useAuth();
 	const [isIOSSafari26, setIsIOSSafari26] = useState(false);
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
 
+	// All hooks must be called before any conditional returns
 	useEffect(() => {
 		if (typeof window !== "undefined") {
 			const userAgent = window.navigator.userAgent;
@@ -131,6 +134,17 @@ export function MobileNav() {
 	useEffect(() => {
 		setIsMoreOpen(false);
 	}, [pathname]);
+
+	// Don't render navigation if not authenticated
+	if (isAuthenticated === null) {
+		// Loading state - don't render nav yet
+		return null;
+	}
+
+	if (!isAuthenticated) {
+		// Not authenticated - don't show navigation
+		return null;
+	}
 
 	const hasActiveInMore = moreNavItems.some((item) => pathname === item.url);
 

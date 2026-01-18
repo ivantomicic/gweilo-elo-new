@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import {
   BellIcon,
   LogOutIcon,
@@ -41,9 +42,12 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const router = useRouter()
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    // Redirect to home page which will show login screen via useAuth hook
+    router.push("/")
   }
 
   return (
