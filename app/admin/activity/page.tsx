@@ -208,20 +208,23 @@ function AdminActivityPageContent() {
 
 						if (usersResponse.ok) {
 							const { users } = await usersResponse.json();
-							const userMap = new Map(users.map((u: any) => [u.id, u]));
+							const userMap = new Map<string, UserOption>(
+								users.map((u: UserOption) => [u.id, u])
+							);
 
 							setEvents((prev) =>
-								prev.map((event) => ({
-									...event,
-									user: event.user_id
-										? {
-												email: userMap.get(event.user_id)?.email || "",
-												name:
-													userMap.get(event.user_id)?.name ||
-													"Unknown",
-										  }
-										: null,
-								}))
+								prev.map((event) => {
+									const mappedUser = event.user_id ? userMap.get(event.user_id) : null;
+									return {
+										...event,
+										user: mappedUser
+											? {
+													email: mappedUser.email || "",
+													name: mappedUser.name || "Unknown",
+											  }
+											: null,
+									};
+								})
 							);
 						}
 					}
