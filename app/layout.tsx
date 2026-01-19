@@ -22,7 +22,9 @@ export const metadata: Metadata = {
 	description: sr.meta.description,
 	icons: {
 		icon: "/favicon.png",
+		apple: "/favicon.png",
 	},
+	manifest: "/manifest.json",
 	openGraph: {
 		title: sr.meta.title,
 		description: sr.meta.description,
