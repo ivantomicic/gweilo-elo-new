@@ -23,12 +23,24 @@ export function AppTracker() {
 		});
 	}, []); // Only on mount
 
-	// Track page_viewed on route change
+	// Track page_viewed or player_viewed on route change
 	useEffect(() => {
 		if (pathname) {
-			trackEvent("page_viewed", { page: pathname }).catch((err) => {
-				console.error("[Analytics] Failed to track page_viewed", err);
-			});
+			// Check if this is a player page
+			const playerPageMatch = pathname.match(/^\/player\/([a-f0-9-]+)$/i);
+			
+			if (playerPageMatch) {
+				// Track as player_viewed with player ID
+				const playerId = playerPageMatch[1];
+				trackEvent("player_viewed", { player_id: playerId }).catch((err) => {
+					console.error("[Analytics] Failed to track player_viewed", err);
+				});
+			} else {
+				// Track as regular page_viewed
+				trackEvent("page_viewed", { page: pathname }).catch((err) => {
+					console.error("[Analytics] Failed to track page_viewed", err);
+				});
+			}
 		}
 	}, [pathname]);
 

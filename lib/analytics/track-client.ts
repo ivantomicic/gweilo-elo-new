@@ -9,14 +9,15 @@ import { supabase } from "@/lib/supabase/client";
  * 
  * Usage:
  *   trackEvent('page_viewed', { page: '/dashboard' });
+ *   trackEvent('player_viewed', { player_id: 'uuid-here' });
  *   trackEvent('app_loaded');
  * 
- * @param eventName - Event name ('user_logged_in', 'app_loaded', 'page_viewed')
- * @param properties - Optional properties (page, etc.)
+ * @param eventName - Event name ('user_logged_in', 'app_loaded', 'page_viewed', 'player_viewed')
+ * @param properties - Optional properties (page, player_id, etc.)
  */
 export async function trackEvent(
 	eventName: string,
-	properties?: { page?: string }
+	properties?: { page?: string; player_id?: string }
 ): Promise<void> {
 	try {
 		// Get current user ID (if authenticated)
@@ -26,11 +27,17 @@ export async function trackEvent(
 
 		const userId = session?.user?.id || null;
 
+		// For player_viewed events, store player_id in the page field
+		// This allows us to extract it later for display
+		const pageValue = properties?.player_id 
+			? `/player/${properties.player_id}` 
+			: properties?.page || null;
+
 		// Insert event (fire-and-forget, non-blocking)
 		await supabase.from("analytics_events").insert({
 			user_id: userId,
 			event_name: eventName,
-			page: properties?.page || null,
+			page: pageValue,
 			created_at: new Date().toISOString(),
 		});
 	} catch (error) {

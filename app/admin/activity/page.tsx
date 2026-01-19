@@ -24,6 +24,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Icon } from "@/components/ui/icon";
 import { supabase } from "@/lib/supabase/client";
 import { t } from "@/lib/i18n";
 
@@ -35,6 +36,10 @@ type AnalyticsEvent = {
 	created_at: string;
 	user?: {
 		email: string;
+		name: string;
+	} | null;
+	player?: {
+		id: string;
 		name: string;
 	} | null;
 };
@@ -193,13 +198,25 @@ function AdminActivityPageContent() {
 				setEvents(data || []);
 				setTotalCount(count || 0);
 
-				// Fetch user data for events (if user_id exists)
+				// Fetch user data and player data for events
 				if (data && data.length > 0) {
 					const userIds = [...new Set(data.map((e) => e.user_id).filter(Boolean))] as string[];
 					
+					// Extract player IDs from player_viewed events
+					const playerIds = [
+						...new Set(
+							data
+								.filter((e) => e.event_name === "player_viewed" && e.page)
+								.map((e) => {
+									const match = e.page?.match(/^\/player\/([a-f0-9-]+)$/i);
+									return match ? match[1] : null;
+								})
+								.filter(Boolean)
+						),
+					] as string[];
+
+					// Fetch users (for event user_id)
 					if (userIds.length > 0) {
-						// Fetch users from auth.users (we'll use a simple approach: fetch from API)
-						// Note: Supabase client can't directly query auth.users, so we use the admin API
 						const usersResponse = await fetch("/api/admin/users", {
 							headers: {
 								Authorization: `Bearer ${session.access_token}`,
@@ -227,6 +244,52 @@ function AdminActivityPageContent() {
 								})
 							);
 						}
+					}
+
+					// Fetch player names (for player_viewed events)
+					if (playerIds.length > 0) {
+						// Fetch player data in parallel
+						const playerPromises = playerIds.map(async (playerId) => {
+							try {
+								const playerResponse = await fetch(`/api/player/${playerId}`, {
+									headers: {
+										Authorization: `Bearer ${session.access_token}`,
+									},
+								});
+								if (playerResponse.ok) {
+									const playerData = await playerResponse.json();
+									return {
+										id: playerId,
+										name: playerData.display_name || "Unknown",
+									};
+								}
+								return { id: playerId, name: "Unknown" };
+							} catch (err) {
+								console.error(`Error fetching player ${playerId}:`, err);
+								return { id: playerId, name: "Unknown" };
+							}
+						});
+
+						const playerData = await Promise.all(playerPromises);
+						const playerMap = new Map(
+							playerData.map((p) => [p.id, p])
+						);
+
+						// Update events with player names
+						setEvents((prev) =>
+							prev.map((event) => {
+								if (event.event_name === "player_viewed" && event.page) {
+									const match = event.page.match(/^\/player\/([a-f0-9-]+)$/i);
+									const playerId = match ? match[1] : null;
+									const player = playerId ? playerMap.get(playerId) : null;
+									return {
+										...event,
+										player: player || null,
+									};
+								}
+								return event;
+							})
+						);
 					}
 				}
 			} catch (error) {
@@ -258,6 +321,24 @@ function AdminActivityPageContent() {
 	};
 
 	const totalPages = Math.ceil(totalCount / pageSize);
+
+	// Format date: DD.MM.YYYY
+	const formatDate = (dateString: string): string => {
+		const date = new Date(dateString);
+		const day = String(date.getDate()).padStart(2, "0");
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const year = date.getFullYear();
+		return `${day}.${month}.${year}`;
+	};
+
+	// Format time: HH:MM:SS
+	const formatTime = (dateString: string): string => {
+		const date = new Date(dateString);
+		const hours = String(date.getHours()).padStart(2, "0");
+		const minutes = String(date.getMinutes()).padStart(2, "0");
+		const seconds = String(date.getSeconds()).padStart(2, "0");
+		return `${hours}:${minutes}:${seconds}`;
+	};
 
 	return (
 		<SidebarProvider>
@@ -370,7 +451,23 @@ function AdminActivityPageContent() {
 														<TableHead>User</TableHead>
 														<TableHead>Event</TableHead>
 														<TableHead>Page</TableHead>
-														<TableHead>Timestamp</TableHead>
+														<TableHead>
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={1.5}
+															>
+																<Icon
+																	icon="solar:calendar-bold"
+																	className="size-4 text-muted-foreground"
+																/>
+																<Icon
+																	icon="solar:clock-circle-bold"
+																	className="size-4 text-muted-foreground"
+																/>
+																<span>Timestamp</span>
+															</Stack>
+														</TableHead>
 													</TableRow>
 												</TableHeader>
 												<TableBody>
@@ -385,14 +482,9 @@ function AdminActivityPageContent() {
 															<TableRow key={event.id}>
 																<TableCell>
 																	{event.user ? (
-																		<div>
-																			<div className="font-medium">
-																				{event.user.name}
-																			</div>
-																			<div className="text-sm text-muted-foreground">
-																				{event.user.email}
-																			</div>
-																		</div>
+																		<span className="font-medium">
+																			{event.user.name}
+																		</span>
 																	) : event.user_id ? (
 																		<span className="text-muted-foreground">
 																			{event.user_id.slice(0, 8)}...
@@ -407,14 +499,55 @@ function AdminActivityPageContent() {
 																	<code className="text-sm">{event.event_name}</code>
 																</TableCell>
 																<TableCell>
-																	{event.page ? (
+																	{event.event_name === "player_viewed" && event.player ? (
+																		<Stack
+																			direction="row"
+																			alignItems="center"
+																			spacing={2}
+																		>
+																			<Icon
+																				icon="solar:user-bold"
+																				className="size-4 text-muted-foreground"
+																			/>
+																			<span className="font-medium">{event.player.name}</span>
+																			<span className="text-xs text-muted-foreground">
+																				({event.player.id.slice(0, 8)}...)
+																			</span>
+																		</Stack>
+																	) : event.page ? (
 																		<code className="text-sm">{event.page}</code>
 																	) : (
 																		<span className="text-muted-foreground">—</span>
 																	)}
 																</TableCell>
 																<TableCell>
-																	{new Date(event.created_at).toLocaleString()}
+																	<Stack
+																		direction="column"
+																		spacing={1.5}
+																	>
+																		<Stack
+																			direction="row"
+																			alignItems="center"
+																			spacing={2}
+																		>
+																			<Icon
+																				icon="solar:calendar-bold"
+																				className="size-4 text-muted-foreground"
+																			/>
+																			<span>{formatDate(event.created_at)}</span>
+																		</Stack>
+																		<Stack
+																			direction="row"
+																			alignItems="center"
+																			spacing={2}
+																		>
+																			<Icon
+																				icon="solar:clock-circle-bold"
+																				className="size-4 text-muted-foreground"
+																			/>
+																			<span>{formatTime(event.created_at)}</span>
+																		</Stack>
+																	</Stack>
 																</TableCell>
 															</TableRow>
 														))
