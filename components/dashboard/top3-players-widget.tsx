@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -19,6 +20,7 @@ type PlayerStat = {
 };
 
 export function Top3PlayersWidget() {
+	const router = useRouter();
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
 	const [loading, setLoading] = useState(true);
 
@@ -182,7 +184,8 @@ export function Top3PlayersWidget() {
 								direction="column"
 								alignItems="center"
 								justifyContent="end"
-								className="w-1/3 h-full"
+								className="w-1/3 h-full cursor-pointer hover:opacity-80 transition-opacity"
+								onClick={() => router.push(`/player/${second.player_id}`)}
 							>
 								<Box className="relative mb-3 flex-shrink-0">
 									<Box className="w-[clamp(3rem,15%,4rem)] h-[clamp(3rem,15%,4rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-zinc-500 to-zinc-300 shadow-lg mx-auto">
@@ -218,7 +221,8 @@ export function Top3PlayersWidget() {
 								direction="column"
 								alignItems="center"
 								justifyContent="end"
-								className="w-1/3 -mt-4 z-20 h-full"
+								className="w-1/3 -mt-4 z-20 h-full cursor-pointer hover:opacity-80 transition-opacity"
+								onClick={() => router.push(`/player/${first.player_id}`)}
 							>
 								<Box className="relative mb-3 flex-shrink-0">
 									<Box className="w-[clamp(4rem,20%,5rem)] h-[clamp(4rem,20%,5rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-yellow-500 via-amber-300 to-yellow-600 shadow-xl shadow-yellow-500/10 mx-auto">
@@ -254,7 +258,8 @@ export function Top3PlayersWidget() {
 								direction="column"
 								alignItems="center"
 								justifyContent="end"
-								className="w-1/3 z-10 h-full"
+								className="w-1/3 z-10 h-full cursor-pointer hover:opacity-80 transition-opacity"
+								onClick={() => router.push(`/player/${third.player_id}`)}
 							>
 								<Box className="relative mb-3 flex-shrink-0">
 									<Box className="w-[clamp(3rem,15%,4rem)] h-[clamp(3rem,15%,4rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-orange-700 to-amber-700 shadow-lg mx-auto">
