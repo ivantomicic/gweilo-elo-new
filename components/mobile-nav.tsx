@@ -157,10 +157,10 @@ export function MobileNav() {
 			<div
 				className="fixed left-0 right-0 bottom-0 z-40 md:hidden pointer-events-none"
 				style={{
-					height: isIOSSafari26 ? "160px" : "176px",
+					height: isIOSSafari26 ? "200px" : "216px",
 				}}
 			>
-				<div className="h-full w-full bg-gradient-to-t from-background/75 via-background/60 to-transparent" />
+				<div className="h-full w-full bg-gradient-to-t from-background via-background/50 to-transparent" />
 			</div>
 
 			<nav
