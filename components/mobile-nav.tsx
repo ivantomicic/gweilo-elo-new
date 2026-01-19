@@ -42,16 +42,12 @@ const navItems: NavItem[] = [
 ];
 
 // Additional items to show in "more" popup
+// Note: Order is reversed when rendering (Podešavanja appears first from bottom)
 const moreNavItems: NavItem[] = [
 	{
 		title: "Video",
 		url: "/videos",
 		icon: "solar:play-bold",
-	},
-	{
-		title: "Podešavanja",
-		url: "/settings",
-		icon: "solar:settings-bold",
 	},
 	{
 		title: "Pravila igre",
@@ -64,6 +60,13 @@ const moreNavItems: NavItem[] = [
 		icon: "solar:document-bold",
 	},
 ];
+
+// Settings item (separated, appears first from bottom)
+const settingsItem: NavItem = {
+	title: "Podešavanja",
+	url: "/settings",
+	icon: "solar:settings-bold",
+};
 
 // Show first 4 items in main nav
 const mainNavItems = navItems.slice(0, 4);
@@ -146,14 +149,25 @@ export function MobileNav() {
 		return null;
 	}
 
-	const hasActiveInMore = moreNavItems.some((item) => pathname === item.url);
+	const hasActiveInMore = moreNavItems.some((item) => pathname === item.url) || pathname === settingsItem.url;
 
 	return (
-		<nav
-			className="fixed left-0 right-0 z-50 flex justify-center px-4 md:hidden"
-			style={{ bottom: isIOSSafari26 ? "8px" : "24px" }}
-		>
-			<div className="relative w-full max-w-[450px]">
+		<>
+			{/* Dark overlay gradient between content and navigation */}
+			<div
+				className="fixed left-0 right-0 bottom-0 z-40 md:hidden pointer-events-none"
+				style={{
+					height: isIOSSafari26 ? "160px" : "176px",
+				}}
+			>
+				<div className="h-full w-full bg-gradient-to-t from-background/75 via-background/60 to-transparent" />
+			</div>
+
+			<nav
+				className="fixed left-0 right-0 z-50 flex justify-center px-4 md:hidden"
+				style={{ bottom: isIOSSafari26 ? "8px" : "24px" }}
+			>
+				<div className="relative w-full max-w-[450px]">
 				{/* More popup */}
 				<AnimatePresence>
 					{isMoreOpen && (
@@ -165,6 +179,7 @@ export function MobileNav() {
 							transition={{ duration: 0.2 }}
 							className="absolute bottom-full right-0 mb-3 bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] p-2 min-w-[140px]"
 						>
+							{/* Regular items */}
 							{moreNavItems.map((item) => {
 								const isActive = pathname === item.url;
 								return (
@@ -194,6 +209,39 @@ export function MobileNav() {
 									</Link>
 								);
 							})}
+							
+							{/* Separator */}
+							<div className="h-px bg-border/50 mx-2 my-1" />
+							
+							{/* Settings (first from bottom, separated) */}
+							{(() => {
+								const isActive = pathname === settingsItem.url;
+								return (
+									<Link
+										href={settingsItem.url}
+										className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group"
+										onClick={() => setIsMoreOpen(false)}
+									>
+										<Icon
+											icon={settingsItem.icon}
+											className={`size-5 transition-colors duration-200 ${
+												isActive
+													? "text-primary"
+													: "text-muted-foreground group-hover:text-foreground"
+											}`}
+										/>
+										<span
+											className={`text-sm transition-colors duration-200 ${
+												isActive
+													? "font-bold text-primary"
+													: "font-medium text-muted-foreground group-hover:text-foreground"
+											}`}
+										>
+											{settingsItem.title}
+										</span>
+									</Link>
+								);
+							})()}
 						</motion.div>
 					)}
 				</AnimatePresence>
@@ -282,5 +330,6 @@ export function MobileNav() {
 				</div>
 			</div>
 		</nav>
+		</>
 	);
 }
