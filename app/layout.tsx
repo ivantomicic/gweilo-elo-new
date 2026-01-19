@@ -25,6 +25,11 @@ export const metadata: Metadata = {
 		apple: "/favicon.png",
 	},
 	manifest: "/manifest.json",
+	appleWebApp: {
+		capable: true,
+		statusBarStyle: "black-translucent",
+		title: "Gweilo",
+	},
 	openGraph: {
 		title: sr.meta.title,
 		description: sr.meta.description,
