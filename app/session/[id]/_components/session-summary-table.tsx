@@ -331,7 +331,6 @@ export function SessionSummaryTable({
 										{player.draws}
 									</TableCell>
 									<TableCell className="text-center font-mono">
-										{formatElo(player.elo_before)} /{" "}
 										<span className={eloChangeColor}>
 											{eloChange}
 										</span>{" "}
@@ -432,7 +431,6 @@ export function SessionSummaryTable({
 										{player.draws}
 									</TableCell>
 									<TableCell className="text-center font-mono">
-										{formatElo(player.elo_before)} /{" "}
 										<span className={eloChangeColor}>
 											{eloChange}
 										</span>{" "}
@@ -525,7 +523,6 @@ export function SessionSummaryTable({
 										{team.draws}
 									</TableCell>
 									<TableCell className="text-center font-mono">
-										{formatElo(team.elo_before)} /{" "}
 										<span className={eloChangeColor}>
 											{eloChange}
 										</span>{" "}
