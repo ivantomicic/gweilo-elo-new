@@ -89,6 +89,17 @@ export function MobileNav() {
 	// All hooks must be called before any conditional returns
 	useEffect(() => {
 		if (typeof window !== "undefined") {
+			// Check if running in standalone web app mode
+			const isStandalone =
+				(window.navigator as any).standalone === true ||
+				window.matchMedia("(display-mode: standalone)").matches;
+
+			// If in standalone mode, use normal positioning (24px)
+			if (isStandalone) {
+				setIsIOSSafari26(false);
+				return;
+			}
+
 			const userAgent = window.navigator.userAgent;
 			// Check for iOS Safari - looking for Safari version 17/18 (iOS 17/18) or version 26
 			// User agent contains "Version/17" or "Version/18" for Safari 17/18, or "Version/26" for Safari 26
