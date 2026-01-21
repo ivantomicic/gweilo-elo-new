@@ -8,6 +8,7 @@ import { PollCard, type Poll, type PollOption } from "@/components/polls/poll-ca
 import { t } from "@/lib/i18n";
 import { getUserRole } from "@/lib/auth/getUserRole";
 import { EditPollDrawer } from "./edit-poll-drawer";
+import { toast } from "sonner";
 
 type PollsViewProps = {
 	onRefetchReady?: (refetch: () => void) => void;
@@ -201,15 +202,21 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 
 				if (!response.ok) {
 					const data = await response.json();
-					setError(data.error || t.polls.error.deleteFailed);
+					const errorMessage = data.error || t.polls.error.deleteFailed;
+					console.error("Failed to delete poll:", data);
+					setError(errorMessage);
+					toast.error(errorMessage);
 					return;
 				}
 
 				// Refetch polls after deletion
 				await fetchPolls();
+				toast.success(t.polls.deleteSuccess || "Poll deleted successfully");
 			} catch (err) {
 				console.error("Error deleting poll:", err);
-				setError(t.polls.error.deleteFailed);
+				const errorMessage = err instanceof Error ? err.message : t.polls.error.deleteFailed;
+				setError(errorMessage);
+				toast.error(errorMessage);
 			}
 		},
 		[fetchPolls]

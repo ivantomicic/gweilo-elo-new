@@ -49,6 +49,11 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [deleting, setDeleting] = useState(false);
 
+	// Debug: Log when delete confirm state changes
+	useEffect(() => {
+		console.log('[PollCard] showDeleteConfirm changed:', showDeleteConfirm, 'for poll:', poll.id);
+	}, [showDeleteConfirm, poll.id]);
+
 	const handleOptionClick = (optionId: string) => {
 		setSelectedOption(optionId);
 		setShowConfirmDialog(true);
@@ -182,22 +187,27 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 	}, [autoOpenOptionId, poll.id, poll.isActive, poll.hasUserAnswered, poll.options]);
 
 	const handleDelete = async () => {
-		if (!onDelete) return;
+		console.log('[PollCard] handleDelete called for poll:', poll.id, 'onDelete exists:', !!onDelete);
+		if (!onDelete) {
+			console.warn('[PollCard] onDelete handler is not provided');
+			return;
+		}
 		
 		setDeleting(true);
 		try {
 			await onDelete(poll.id);
+			setShowDeleteConfirm(false);
 		} catch (err) {
 			console.error("Error deleting poll:", err);
 		} finally {
 			setDeleting(false);
-			setShowDeleteConfirm(false);
 		}
 	};
 
 	// If user already answered, show results
 	if (poll.hasUserAnswered) {
 		return (
+			<>
 			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 relative overflow-hidden">
 				<div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
 				<div className="flex items-center justify-between mb-4 relative z-10 gap-2 flex-wrap">
@@ -233,7 +243,12 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								<Button
 									variant="ghost"
 									size="icon"
-									onClick={() => setShowDeleteConfirm(true)}
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										console.log('[PollCard] Delete button clicked for poll:', poll.id);
+										setShowDeleteConfirm(true);
+									}}
 									className="size-8 text-destructive hover:text-destructive shrink-0"
 								>
 									<Icon icon="solar:trash-bin-trash-bold" className="size-4" />
@@ -337,12 +352,64 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						})}
 				</div>
 			</Box>
+			{/* Delete Confirmation Dialog */}
+			{showDeleteConfirm && (
+				<div 
+					className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+					onClick={(e) => {
+						if (e.target === e.currentTarget) {
+							setShowDeleteConfirm(false);
+						}
+					}}
+				>
+					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4 shadow-2xl">
+						<Stack direction="column" spacing={4}>
+							<Box>
+								<h2 className="text-2xl font-bold font-heading text-destructive">
+									{t.polls.delete.title}
+								</h2>
+								<p className="text-muted-foreground mt-2 text-sm">
+									{t.polls.delete.description}
+								</p>
+							</Box>
+							<Stack direction="row" spacing={3}>
+								<Button
+									variant="outline"
+									onClick={() => {
+										console.log('[PollCard] Cancel delete clicked');
+										setShowDeleteConfirm(false);
+									}}
+									disabled={deleting}
+									className="flex-1"
+								>
+									{t.common.cancel}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										console.log('[PollCard] Confirm delete clicked');
+										handleDelete();
+									}}
+									disabled={deleting}
+									className="flex-1"
+								>
+									{deleting ? t.polls.delete.deleting : t.polls.delete.confirm}
+								</Button>
+							</Stack>
+						</Stack>
+					</Box>
+				</div>
+			)}
+		</>
 		);
 	}
 
 	// If poll is closed, show message
 	if (!poll.isActive) {
 		return (
+			<>
 			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 relative overflow-hidden opacity-80">
 				<div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
 					<span className="bg-secondary px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase text-muted-foreground shrink-0">
@@ -367,7 +434,12 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								<Button
 									variant="ghost"
 									size="icon"
-									onClick={() => setShowDeleteConfirm(true)}
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										console.log('[PollCard] Delete button clicked for poll:', poll.id);
+										setShowDeleteConfirm(true);
+									}}
 									className="size-8 text-destructive hover:text-destructive shrink-0"
 								>
 									<Icon icon="solar:trash-bin-trash-bold" className="size-4" />
@@ -442,6 +514,57 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						})}
 				</div>
 			</Box>
+			{/* Delete Confirmation Dialog */}
+			{showDeleteConfirm && (
+				<div 
+					className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+					onClick={(e) => {
+						if (e.target === e.currentTarget) {
+							setShowDeleteConfirm(false);
+						}
+					}}
+				>
+					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4 shadow-2xl">
+						<Stack direction="column" spacing={4}>
+							<Box>
+								<h2 className="text-2xl font-bold font-heading text-destructive">
+									{t.polls.delete.title}
+								</h2>
+								<p className="text-muted-foreground mt-2 text-sm">
+									{t.polls.delete.description}
+								</p>
+							</Box>
+							<Stack direction="row" spacing={3}>
+								<Button
+									variant="outline"
+									onClick={() => {
+										console.log('[PollCard] Cancel delete clicked');
+										setShowDeleteConfirm(false);
+									}}
+									disabled={deleting}
+									className="flex-1"
+								>
+									{t.common.cancel}
+								</Button>
+								<Button
+									variant="destructive"
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										console.log('[PollCard] Confirm delete clicked');
+										handleDelete();
+									}}
+									disabled={deleting}
+									className="flex-1"
+								>
+									{deleting ? t.polls.delete.deleting : t.polls.delete.confirm}
+								</Button>
+							</Stack>
+						</Stack>
+					</Box>
+				</div>
+			)}
+		</>
 		);
 	}
 
@@ -478,7 +601,12 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								<Button
 									variant="ghost"
 									size="icon"
-									onClick={() => setShowDeleteConfirm(true)}
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										console.log('[PollCard] Delete button clicked for poll:', poll.id);
+										setShowDeleteConfirm(true);
+									}}
 									className="size-8 text-destructive hover:text-destructive shrink-0"
 								>
 									<Icon icon="solar:trash-bin-trash-bold" className="size-4" />
@@ -573,8 +701,15 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 
 			{/* Delete Confirmation Dialog */}
 			{showDeleteConfirm && (
-				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+				<div 
+					className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+					onClick={(e) => {
+						if (e.target === e.currentTarget) {
+							setShowDeleteConfirm(false);
+						}
+					}}
+				>
+					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4 shadow-2xl">
 						<Stack direction="column" spacing={4}>
 							<Box>
 								<h2 className="text-2xl font-bold font-heading text-destructive">
@@ -587,7 +722,10 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 							<Stack direction="row" spacing={3}>
 								<Button
 									variant="outline"
-									onClick={() => setShowDeleteConfirm(false)}
+									onClick={() => {
+										console.log('[PollCard] Cancel delete clicked');
+										setShowDeleteConfirm(false);
+									}}
 									disabled={deleting}
 									className="flex-1"
 								>
@@ -595,7 +733,12 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								</Button>
 								<Button
 									variant="destructive"
-									onClick={handleDelete}
+									onClick={(e) => {
+										e.preventDefault();
+										e.stopPropagation();
+										console.log('[PollCard] Confirm delete clicked');
+										handleDelete();
+									}}
 									disabled={deleting}
 									className="flex-1"
 								>
@@ -604,7 +747,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 							</Stack>
 						</Stack>
 					</Box>
-				</Box>
+				</div>
 			)}
 		</>
 	);

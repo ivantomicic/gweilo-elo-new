@@ -365,22 +365,44 @@ export async function DELETE(
 		}
 
 		// Delete poll (cascade will delete options and answers)
-		const { error: deleteError } = await supabase
+		const { error: deleteError, data: deleteData } = await supabase
 			.from('polls')
 			.delete()
-			.eq('id', pollId);
+			.eq('id', pollId)
+			.select();
 
 		if (deleteError) {
 			console.error('Error deleting poll:', deleteError);
+			console.error('Delete error details:', {
+				code: deleteError.code,
+				message: deleteError.message,
+				details: deleteError.details,
+				hint: deleteError.hint,
+			});
+			
 			if (deleteError.code === '42501' || deleteError.message.includes('permission')) {
 				return NextResponse.json(
 					{ error: 'Unauthorized. Admin access required.' },
 					{ status: 403 }
 				);
 			}
+			
+			// Return more detailed error message
 			return NextResponse.json(
-				{ error: 'Failed to delete poll' },
+				{ 
+					error: deleteError.message || 'Failed to delete poll',
+					code: deleteError.code,
+				},
 				{ status: 500 }
+			);
+		}
+
+		// Check if poll was actually deleted (RLS might silently fail)
+		if (!deleteData || deleteData.length === 0) {
+			console.warn('Poll deletion returned no data - possible RLS issue');
+			return NextResponse.json(
+				{ error: 'Poll could not be deleted. It may not exist or you may not have permission.' },
+				{ status: 403 }
 			);
 		}
 

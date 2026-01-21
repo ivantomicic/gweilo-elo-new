@@ -267,7 +267,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 		};
 
 		fetchEloHistory();
-	}, [playerId, secondaryPlayerId]);
+	}, [playerId, secondaryPlayerId, primaryPlayerNameProp]);
 
 	// Check scroll position to show/hide fade masks
 	const checkScrollPosition = () => {
