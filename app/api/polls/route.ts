@@ -10,6 +10,7 @@ async function sendPollCreatedEmails(poll: {
 	id: string;
 	question: string;
 	description: string | null;
+	endDate: string | null;
 	options: Array<{ id: string; text: string }>;
 }) {
 	console.log('[sendPollCreatedEmails] ============================================');
