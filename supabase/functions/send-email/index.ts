@@ -21,6 +21,7 @@ interface TestEmailProps {
 	logoUrl?: string;
 	pollQuestion?: string;
 	pollDescription?: string;
+	pollEndDate?: string; // ISO date string for poll end date
 	pollOptions?: Array<{ id: string; text: string }>;
 	platformUrl?: string;
 	pollId?: string;
@@ -39,11 +40,33 @@ function renderTestEmail(props: TestEmailProps): string {
 		logoUrl = "https://yourdomain.com/logo.png",
 		pollQuestion,
 		pollDescription,
+		pollEndDate,
 		pollOptions = [],
 		platformUrl = "https://yourdomain.com/polls",
 		pollId,
 		userId,
 	} = props;
+
+	// Format end date for display (if provided)
+	let formattedEndDate: string | undefined;
+	if (pollEndDate) {
+		try {
+			const date = new Date(pollEndDate);
+			const formattedDate = date.toLocaleDateString("sr-Latn-RS", {
+				day: "numeric",
+				month: "short",
+				year: "numeric",
+			});
+			const formattedTime = date.toLocaleTimeString("sr-Latn-RS", {
+				hour: "2-digit",
+				minute: "2-digit",
+			});
+			formattedEndDate = `${formattedDate} u ${formattedTime}`;
+		} catch (e) {
+			// Invalid date, ignore
+			console.warn("Invalid poll end date:", pollEndDate);
+		}
+	}
 
 	const html = `
 <!DOCTYPE html>
@@ -165,6 +188,11 @@ function renderTestEmail(props: TestEmailProps): string {
 										${pollDescription ? `
 										<p class="poll-description" style="margin: 0 0 20px 0; font-size: 14px; line-height: 1.5; color: #9CA3AF;">
 											${escapeHtml(pollDescription).replace(/\n/g, '<br>')}
+										</p>
+										` : ''}
+										${formattedEndDate ? `
+										<p class="poll-end-date" style="margin: 0 0 20px 0; font-size: 13px; line-height: 1.4; color: #6B7280; font-weight: 500;">
+											Odgovore poslati do: ${escapeHtml(formattedEndDate)}
 										</p>
 										` : ''}
 										
@@ -392,6 +420,7 @@ Deno.serve(async (req) => {
 			const payload = body.payload || {};
 			const pollQuestion = (payload.question as string) || "Nova anketa";
 			const pollDescription = payload.description as string | undefined;
+			const pollEndDate = payload.endDate as string | undefined; // Poll end date (ISO string)
 			const pollId = payload.pollId as string | undefined;
 			const userId = payload.userId as string | undefined; // User ID for auto-submit
 			
@@ -422,6 +451,7 @@ Deno.serve(async (req) => {
 				logoUrl,
 				pollQuestion,
 				pollDescription,
+				pollEndDate, // Pass end date to template
 				pollOptions: formattedOptions,
 				platformUrl: pollsUrl,
 				pollId,
@@ -432,6 +462,26 @@ Deno.serve(async (req) => {
 			let textContent = `${title}\n\n${message}\n\n${pollQuestion}`;
 			if (pollDescription) {
 				textContent += `\n${pollDescription}`;
+			}
+			// Format end date for plain text
+			let formattedEndDateText: string | undefined;
+			if (pollEndDate) {
+				try {
+					const date = new Date(pollEndDate);
+					const formattedDate = date.toLocaleDateString("sr-Latn-RS", {
+						day: "numeric",
+						month: "short",
+						year: "numeric",
+					});
+					const formattedTime = date.toLocaleTimeString("sr-Latn-RS", {
+						hour: "2-digit",
+						minute: "2-digit",
+					});
+					formattedEndDateText = `${formattedDate} u ${formattedTime}`;
+					textContent += `\n\nOdgovore poslati do: ${formattedEndDateText}`;
+				} catch (e) {
+					// Invalid date, ignore
+				}
 			}
 			if (formattedOptions.length > 0) {
 				textContent += `\n\nOpcije:\n${formattedOptions.map((opt, i) => {

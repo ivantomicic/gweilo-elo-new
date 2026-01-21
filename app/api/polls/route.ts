@@ -80,6 +80,7 @@ async function sendPollCreatedEmails(poll: {
 						payload: {
 							question: poll.question,
 							description: poll.description || undefined,
+							endDate: poll.endDate || undefined, // Include end date if set
 							options: poll.options.map((opt) => ({
 								id: opt.id,
 								text: opt.text,

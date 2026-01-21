@@ -47,7 +47,7 @@ function PollAnswerPageContent() {
 				}
 
 				setStatus("success");
-				setMessage("Vaš odgovor je uspešno poslat!");
+				setMessage("Odgovor je uspešno sačuvan!");
 				toast.success("Odgovor je uspešno poslat!");
 
 				// Redirect to polls page after 2 seconds
