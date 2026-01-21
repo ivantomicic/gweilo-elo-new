@@ -181,10 +181,10 @@ export async function PUT(
 		);
 
 		// Options to update (exist in both)
-		const optionsToUpdate = validOptions.filter((opt: any) => opt.id !== null);
+		const optionsToUpdate = validOptions.filter((opt: any): opt is { id: string; text: string; order: number } => opt.id !== null);
 
 		// Options to create (new, no ID)
-		const optionsToCreate = validOptions.filter((opt: any) => opt.id === null);
+		const optionsToCreate = validOptions.filter((opt: any): opt is { id: null; text: string; order: number } => opt.id === null);
 
 		// Delete removed options
 		if (optionsToDelete.length > 0) {
@@ -205,6 +205,8 @@ export async function PUT(
 
 		// Update existing options
 		for (const option of optionsToUpdate) {
+			if (!option || !option.id) continue;
+			
 			const { error: updateOptError } = await supabase
 				.from('poll_options')
 				.update({
