@@ -19,6 +19,9 @@ Set the required secrets in your Supabase project:
 # Using Supabase CLI
 supabase secrets set RESEND_API_KEY=re_your_api_key_here
 supabase secrets set RESEND_FROM_EMAIL=your-email@yourdomain.com
+supabase secrets set PLATFORM_URL=https://yourdomain.com
+# Optional: Custom logo URL (defaults to {PLATFORM_URL}/logo.png)
+supabase secrets set EMAIL_LOGO_URL=https://yourdomain.com/logo.png
 ```
 
 **Or via Supabase Dashboard:**
@@ -27,8 +30,12 @@ supabase secrets set RESEND_FROM_EMAIL=your-email@yourdomain.com
 3. Add:
    - `RESEND_API_KEY`: Your Resend API key
    - `RESEND_FROM_EMAIL`: Your verified sender email (optional, defaults to `onboarding@resend.dev`)
+   - `PLATFORM_URL`: Your app's public URL (e.g., `https://yourdomain.com`) - used for logo and poll links
+   - `EMAIL_LOGO_URL`: Custom logo URL (optional, defaults to `{PLATFORM_URL}/logo.png`)
 
-**Note:** For testing, you can use `onboarding@resend.dev` as the from address (Resend's default test sender). For production, you'll need to verify your own domain in Resend.
+**Note:** 
+- For testing, you can use `onboarding@resend.dev` as the from address (Resend's default test sender). For production, you'll need to verify your own domain in Resend.
+- The logo will be loaded from `{PLATFORM_URL}/logo.png` by default. Make sure your logo is accessible at that URL.
 
 ### 3. Deploy the Edge Function
 
