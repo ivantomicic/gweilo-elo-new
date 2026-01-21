@@ -63,57 +63,78 @@ async function sendPollCreatedEmails(poll: {
 
 		console.log(`[sendPollCreatedEmails] Sending emails to ${playersWithEmail.length} player(s):`, playersWithEmail.map(u => u.email));
 
-		// Send emails to all players (in parallel, fire-and-forget)
+		// Send emails to all players with rate limiting (max 2 per second to avoid rate limit errors)
 		// Each email gets personalized with the recipient's user ID
-		const emailPromises = playersWithEmail.map(async (player) => {
-			try {
-				const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
-				const response = await fetch(functionUrl, {
-					method: 'POST',
-					headers: {
-						'Authorization': `Bearer ${supabaseAnonKey}`,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({
-						to: player.email!,
-						type: 'poll_created',
-						payload: {
-							question: poll.question,
-							description: poll.description || undefined,
-							endDate: poll.endDate || undefined, // Include end date if set
-							options: poll.options.map((opt) => ({
-								id: opt.id,
-								text: opt.text,
-							})),
-							pollId: poll.id,
-							userId: player.id, // Include user ID for auto-submit
+		const RATE_LIMIT_PER_SECOND = 2;
+		const DELAY_BETWEEN_BATCHES_MS = 1000;
+		
+		let successCount = 0;
+		let failureCount = 0;
+		
+		// Process emails in batches to respect rate limits
+		for (let i = 0; i < playersWithEmail.length; i += RATE_LIMIT_PER_SECOND) {
+			const batch = playersWithEmail.slice(i, i + RATE_LIMIT_PER_SECOND);
+			
+			const batchPromises = batch.map(async (player) => {
+				try {
+					const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
+					const response = await fetch(functionUrl, {
+						method: 'POST',
+						headers: {
+							'Authorization': `Bearer ${supabaseAnonKey}`,
+							'Content-Type': 'application/json',
 						},
-					}),
-				});
+						body: JSON.stringify({
+							to: player.email!,
+							type: 'poll_created',
+							payload: {
+								question: poll.question,
+								description: poll.description || undefined,
+								endDate: poll.endDate || undefined, // Include end date if set
+								options: poll.options.map((opt) => ({
+									id: opt.id,
+									text: opt.text,
+								})),
+								pollId: poll.id,
+								userId: player.id, // Include user ID for auto-submit
+							},
+						}),
+					});
 
-				if (!response.ok) {
-					const errorText = await response.text();
+					if (!response.ok) {
+						const errorText = await response.text();
+						console.error(
+							`[sendPollCreatedEmails] Failed to send email to ${player.email}:`,
+							`Status: ${response.status}`,
+							errorText
+						);
+						failureCount++;
+						return { success: false, email: player.email };
+					} else {
+						const result = await response.json();
+						console.log(`[sendPollCreatedEmails] Email sent to ${player.email}`, result);
+						successCount++;
+						return { success: true, email: player.email };
+					}
+				} catch (error) {
 					console.error(
-						`[sendPollCreatedEmails] Failed to send email to ${player.email}:`,
-						`Status: ${response.status}`,
-						errorText
+						`[sendPollCreatedEmails] Error sending email to ${player.email}:`,
+						error
 					);
-				} else {
-					const result = await response.json();
-					console.log(`[sendPollCreatedEmails] Email sent to ${player.email}`, result);
+					failureCount++;
+					return { success: false, email: player.email };
 				}
-			} catch (error) {
-				console.error(
-					`[sendPollCreatedEmails] Error sending email to ${player.email}:`,
-					error
-				);
-			}
-		});
+			});
 
-		// Wait for all emails to be sent (but don't throw on individual failures)
-		const results = await Promise.allSettled(emailPromises);
-		const successCount = results.filter(r => r.status === 'fulfilled').length;
-		const failureCount = results.filter(r => r.status === 'rejected').length;
+			// Wait for current batch to complete
+			await Promise.allSettled(batchPromises);
+			
+			// Wait before next batch (except for the last batch)
+			if (i + RATE_LIMIT_PER_SECOND < playersWithEmail.length) {
+				await new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_BATCHES_MS));
+			}
+		}
+
 		console.log(`[sendPollCreatedEmails] Email sending completed: ${successCount} succeeded, ${failureCount} failed`);
 	} catch (error) {
 		// Log error but don't throw - this should never block poll creation
