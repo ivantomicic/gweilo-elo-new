@@ -286,6 +286,88 @@ export const sr = {
 			createFailed: "Greška pri dodavanju ispala",
 		},
 	},
+	polls: {
+		title: "Ankete",
+		newPoll: "Nova anketa",
+		loading: "Učitavanje anketa...",
+		noPolls: "Nema anketa",
+		tabs: {
+			active: "Aktivne",
+			completed: "Završene",
+		},
+		drawer: {
+			title: "Kreiraj anketu",
+			editTitle: "Uredi anketu",
+			question: "Pitanje",
+			questionPlaceholder: "Unesite pitanje ankete",
+			description: "Opis (opciono)",
+			descriptionPlaceholder: "Objasnite šta anketa pita ili zašto je važna...",
+			addOption: "Dodaj opciju",
+			removeOption: "Ukloni",
+			optionPlaceholder: (n: number) => `Opcija ${n}`,
+			endDate: "Datum završetka (opciono)",
+			endDatePlaceholder: "Izaberi datum i vreme",
+			save: "Sačuvaj",
+			cancel: "Otkaži",
+		},
+		delete: {
+			title: "Obriši anketu",
+			description: "Da li ste sigurni da želite da obrišete ovu anketu? Ova akcija je nepovratna.",
+			confirm: "Obriši",
+			deleting: "Brisanje...",
+		},
+		confirm: {
+			title: "Potvrdi odgovor",
+			description: "Da li ste sigurni da želite da pošaljete ovaj odgovor?",
+			submit: "Pošalji",
+		},
+		card: {
+			ends: "Završava se",
+			endsIn: "Završava se za",
+			ended: "Završeno",
+			submit: "Pošalji glas",
+			submitting: "Slanje...",
+			alreadyAnswered: "Već ste odgovorili",
+			pollEnded: "Anketa je završena",
+			votes: "glasova",
+			vote: "glas",
+			noVotes: "Nema glasova",
+			newPoll: "Nova anketa",
+			completed: "Završeno",
+			answered: "Odgovoreno",
+			yourChoice: "Vaš izbor",
+			total: "Ukupno",
+		},
+		banner: {
+			title: "Aktivne ankete",
+			description: (count: number) => {
+				if (count === 1) {
+					return "1 anketa čeka vaš odgovor";
+				} else if (count >= 2 && count <= 4) {
+					return `${count} ankete čekaju vaš odgovor`;
+				} else {
+					return `${count} anketa čeka vaš odgovor`;
+				}
+			},
+			view: "Pogledaj ankete",
+		},
+		success: {
+			created: "Anketa je uspešno kreirana",
+			answered: "Odgovor je uspešno poslat",
+		},
+		error: {
+			notAuthenticated: "Niste prijavljeni",
+			unauthorized: "Nemate dozvolu za pristup",
+			fetchFailed: "Greška pri učitavanju anketa",
+			createFailed: "Greška pri kreiranju ankete",
+			updateFailed: "Greška pri ažuriranju ankete",
+			deleteFailed: "Greška pri brisanju ankete",
+			answerFailed: "Greška pri slanju odgovora",
+			pollEnded: "Anketa je završena",
+			alreadyAnswered: "Već ste odgovorili na ovu anketu",
+			invalidOption: "Neispravna opcija",
+		},
+	},
 	startSession: {
 		title: "Pokreni termin",
 		subtitle: "Podesi današnji termin",

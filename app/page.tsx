@@ -23,6 +23,8 @@ import { PerformanceTrend } from "@/components/player/performance-trend";
 import { Top3PlayersWidget } from "@/components/dashboard/top3-players-widget";
 import { NoShowAlertWidget } from "@/components/dashboard/no-show-alert-widget";
 import { TableTennisGifWidget } from "@/components/dashboard/table-tennis-gif-widget";
+import { PollCard, type Poll } from "@/components/polls/poll-card";
+import { getUserRole } from "@/lib/auth/getUserRole";
 
 type ActiveSession = {
 	id: string;
@@ -62,6 +64,37 @@ function ActiveSessionBanner({ session }: { session: ActiveSession }) {
 	);
 }
 
+function UnansweredPollsBanner({ count }: { count: number }) {
+	const router = useRouter();
+
+	return (
+		<Card className="border-primary/20 bg-card">
+			<CardContent className="p-4 !pt-4">
+				<Stack direction="row" alignItems="center" justifyContent="between" spacing={4}>
+					<Stack direction="column" spacing={1} className="flex-1 min-w-0">
+						<Stack direction="row" alignItems="center" spacing={2}>
+							<Box className="size-2 rounded-full bg-primary animate-pulse shrink-0" />
+							<p className="font-bold text-sm">{t.polls.banner.title}</p>
+						</Stack>
+						<p className="text-xs text-muted-foreground">
+							{t.polls.banner.description(count)}
+						</p>
+					</Stack>
+					<Button
+						onClick={() => router.push("/polls")}
+						className="shrink-0"
+					>
+						<Stack direction="row" alignItems="center" spacing={2}>
+							<span>{t.polls.banner.view}</span>
+							<Icon icon="solar:arrow-right-linear" className="size-4" />
+						</Stack>
+					</Button>
+				</Stack>
+			</CardContent>
+		</Card>
+	);
+}
+
 /**
  * Root route handler
  *
@@ -72,6 +105,9 @@ export default function HomePage() {
 	const { isAuthenticated } = useAuth();
 	const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
 	const [loadingSession, setLoadingSession] = useState(true);
+	const [unansweredPolls, setUnansweredPolls] = useState<Poll[]>([]);
+	const [loadingPolls, setLoadingPolls] = useState(true);
+	const [isAdmin, setIsAdmin] = useState(false);
 
 	// Fetch active session
 	useEffect(() => {
@@ -118,6 +154,96 @@ export default function HomePage() {
 		fetchActiveSession();
 	}, [isAuthenticated]);
 
+	// Fetch unanswered polls
+	useEffect(() => {
+		const fetchUnansweredPolls = async () => {
+			if (!isAuthenticated) {
+				setUnansweredPolls([]);
+				setLoadingPolls(false);
+				return;
+			}
+
+			try {
+				setLoadingPolls(true);
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+
+				if (!session) {
+					setUnansweredPolls([]);
+					return;
+				}
+
+				const response = await fetch("/api/polls/unanswered", {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+					},
+				});
+
+				if (!response.ok) {
+					console.error("Failed to fetch unanswered polls");
+					setUnansweredPolls([]);
+					return;
+				}
+
+				const data = await response.json();
+				setUnansweredPolls(data.polls || []);
+			} catch (error) {
+				console.error("Error fetching unanswered polls:", error);
+				setUnansweredPolls([]);
+			} finally {
+				setLoadingPolls(false);
+			}
+		};
+
+		fetchUnansweredPolls();
+	}, [isAuthenticated]);
+
+	// Check if user is admin
+	useEffect(() => {
+		const checkAdmin = async () => {
+			if (!isAuthenticated) {
+				setIsAdmin(false);
+				return;
+			}
+			const role = await getUserRole();
+			setIsAdmin(role === "admin");
+		};
+		checkAdmin();
+	}, [isAuthenticated]);
+
+	// Handle poll answer submission
+	const handlePollAnswer = async (pollId: string, optionId: string) => {
+		try {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				return;
+			}
+
+			const response = await fetch(`/api/polls/${pollId}/answer`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${session.access_token}`,
+				},
+				body: JSON.stringify({ optionId }),
+			});
+
+			if (!response.ok) {
+				console.error("Failed to submit answer");
+				return;
+			}
+
+			// Remove answered poll from list
+			setUnansweredPolls((prev) => prev.filter((p) => p.id !== pollId));
+		} catch (err) {
+			console.error("Error submitting answer:", err);
+		}
+	};
+
 	// Show loading state briefly to prevent flicker
 	if (isAuthenticated === null) {
 		return (
@@ -144,6 +270,20 @@ export default function HomePage() {
 							{/* Active Session Banner */}
 							{!loadingSession && activeSession && (
 								<ActiveSessionBanner session={activeSession} />
+							)}
+
+							{/* Unanswered Polls */}
+							{!loadingPolls && unansweredPolls.length === 1 && (
+								<PollCard
+									poll={unansweredPolls[0]}
+									onAnswer={handlePollAnswer}
+									isAdmin={isAdmin}
+								/>
+							)}
+
+							{/* Unanswered Polls Banner (if more than 1) */}
+							{!loadingPolls && unansweredPolls.length > 1 && (
+								<UnansweredPollsBanner count={unansweredPolls.length} />
 							)}
 
 							{/* Widget Grid */}
