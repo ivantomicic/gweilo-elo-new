@@ -19,13 +19,13 @@ type PlayerStat = {
 	draws: number;
 };
 
+const CACHE_KEY = "top3players_cache";
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 export function Top3PlayersWidget() {
 	const router = useRouter();
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
 	const [loading, setLoading] = useState(true);
-
-	const CACHE_KEY = "top3players_cache";
-	const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 	useEffect(() => {
 		const fetchTopPlayers = async () => {

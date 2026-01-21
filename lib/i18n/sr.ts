@@ -374,6 +374,7 @@ export const sr = {
 		success: {
 			created: "Anketa je uspešno kreirana",
 			answered: "Odgovor je uspešno poslat",
+			deleteSuccess: "Anketa je uspešno obrisana",
 		},
 		error: {
 			notAuthenticated: "Niste prijavljeni",

@@ -211,7 +211,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 
 				// Refetch polls after deletion
 				await fetchPolls();
-				toast.success(t.polls.deleteSuccess || "Poll deleted successfully");
+				toast.success(t.polls.success.deleteSuccess);
 			} catch (err) {
 				console.error("Error deleting poll:", err);
 				const errorMessage = err instanceof Error ? err.message : t.polls.error.deleteFailed;
