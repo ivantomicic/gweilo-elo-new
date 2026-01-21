@@ -38,9 +38,10 @@ type PollCardProps = {
 	isAdmin?: boolean;
 	onEdit?: (poll: Poll) => void;
 	onDelete?: (pollId: string) => void;
+	autoOpenOptionId?: string; // Option ID to auto-open confirmation dialog for (from email deep link)
 };
 
-export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete }: PollCardProps) {
+export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, autoOpenOptionId }: PollCardProps) {
 	const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 	const [selectedOption, setSelectedOption] = useState<string | null>(null);
 	const [submitting, setSubmitting] = useState(false);
@@ -141,6 +142,44 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete }: 
 
 		return () => clearInterval(interval);
 	}, [poll.endDate, poll.isActive]);
+
+	// Auto-open confirmation dialog if option ID is provided (from email deep link)
+	useEffect(() => {
+		if (!autoOpenOptionId) return;
+		
+		console.log('[PollCard] Auto-open check:', {
+			autoOpenOptionId,
+			pollId: poll.id,
+			isActive: poll.isActive,
+			hasUserAnswered: poll.hasUserAnswered,
+			optionsCount: poll.options.length,
+			optionIds: poll.options.map(opt => opt.id),
+		});
+
+		if (poll.isActive && !poll.hasUserAnswered && poll.options.length > 0) {
+			// Verify the option exists in this poll
+			const optionExists = poll.options.some(opt => opt.id === autoOpenOptionId);
+			console.log('[PollCard] Option exists check:', { optionExists, autoOpenOptionId });
+			
+			if (optionExists) {
+				// Small delay to ensure UI is ready
+				const timer = setTimeout(() => {
+					console.log('[PollCard] Opening confirmation dialog for option:', autoOpenOptionId);
+					setSelectedOption(autoOpenOptionId);
+					setShowConfirmDialog(true);
+				}, 300); // Increased delay to ensure polls are fully rendered
+				return () => clearTimeout(timer);
+			} else {
+				console.warn('[PollCard] Option ID not found in poll options:', autoOpenOptionId);
+			}
+		} else {
+			console.log('[PollCard] Cannot auto-open:', {
+				isActive: poll.isActive,
+				hasUserAnswered: poll.hasUserAnswered,
+				optionsCount: poll.options.length,
+			});
+		}
+	}, [autoOpenOptionId, poll.id, poll.isActive, poll.hasUserAnswered, poll.options]);
 
 	const handleDelete = async () => {
 		if (!onDelete) return;

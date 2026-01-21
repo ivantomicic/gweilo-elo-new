@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -15,12 +16,27 @@ import { t } from "@/lib/i18n";
 import { getUserRole } from "@/lib/auth/getUserRole";
 
 function PollsPageContent() {
+	const searchParams = useSearchParams();
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [loadingAdmin, setLoadingAdmin] = useState(true);
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [refetchPolls, setRefetchPolls] = useState<(() => void) | null>(
 		null
 	);
+	
+	// Get URL parameters for deep linking from email
+	const pollIdFromUrl = searchParams.get('pollId');
+	const optionIdFromUrl = searchParams.get('optionId');
+	
+	// Debug logging
+	useEffect(() => {
+		if (pollIdFromUrl || optionIdFromUrl) {
+			console.log('[PollsPage] URL parameters detected:', {
+				pollId: pollIdFromUrl,
+				optionId: optionIdFromUrl,
+			});
+		}
+	}, [pollIdFromUrl, optionIdFromUrl]);
 
 	// Check if user is admin
 	useEffect(() => {
@@ -68,9 +84,13 @@ function PollsPageContent() {
 					actionIcon="solar:add-circle-bold"
 				/>
 				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-							<PollsView onRefetchReady={handleRefetchReady} />
+							<PollsView 
+								onRefetchReady={handleRefetchReady}
+								initialPollId={pollIdFromUrl || undefined}
+								initialOptionId={optionIdFromUrl || undefined}
+							/>
 						</div>
 					</div>
 				</div>
@@ -94,7 +114,23 @@ function PollsPageContent() {
 export default function PollsPage() {
 	return (
 		<AuthGuard>
-			<PollsPageContent />
+			<Suspense fallback={
+				<SidebarProvider>
+					<AppSidebar variant="inset" />
+					<SidebarInset>
+						<SiteHeader title={t.pages.polls} />
+						<div className="flex flex-1 flex-col">
+							<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
+								<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+									<Loading />
+								</div>
+							</div>
+						</div>
+					</SidebarInset>
+				</SidebarProvider>
+			}>
+				<PollsPageContent />
+			</Suspense>
 		</AuthGuard>
 	);
 }

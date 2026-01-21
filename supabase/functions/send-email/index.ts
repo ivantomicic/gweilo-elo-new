@@ -23,6 +23,8 @@ interface TestEmailProps {
 	pollDescription?: string;
 	pollOptions?: Array<{ id: string; text: string }>;
 	platformUrl?: string;
+	pollId?: string;
+	userId?: string; // User ID for auto-submit links
 }
 
 /**
@@ -39,6 +41,8 @@ function renderTestEmail(props: TestEmailProps): string {
 		pollDescription,
 		pollOptions = [],
 		platformUrl = "https://yourdomain.com/polls",
+		pollId,
+		userId,
 	} = props;
 
 	const html = `
@@ -166,15 +170,30 @@ function renderTestEmail(props: TestEmailProps): string {
 										
 										<!-- Poll Options -->
 										<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="margin-top: 20px; width: 100%;">
-											${pollOptions.map((option, index) => `
+											${pollOptions.map((option, index) => {
+												// Build URL with poll ID, option ID, and user ID for auto-submit
+												// Format: /polls/answer?pollId=xxx&optionId=yyy&userId=zzz
+												let optionUrl = platformUrl;
+												if (pollId && option.id) {
+													const params = new URLSearchParams({
+														pollId: pollId,
+														optionId: option.id,
+													});
+													if (userId) {
+														params.append('userId', userId);
+													}
+													optionUrl = `${platformUrl}/answer?${params.toString()}`;
+												}
+												return `
 											<tr>
 												<td style="padding-bottom: 12px;">
-													<a href="${platformUrl}" class="poll-button" style="display: block; padding: 14px 20px; background-color: #3B82F6; color: #FFFFFF; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 500; text-align: center; width: 100%; box-sizing: border-box;">
+													<a href="${optionUrl}" class="poll-button" style="display: block; padding: 14px 20px; background-color: #3B82F6; color: #FFFFFF; text-decoration: none; border-radius: 6px; font-size: 15px; font-weight: 500; text-align: center; width: 100%; box-sizing: border-box;">
 														${escapeHtml(option.text)}
 													</a>
 												</td>
 											</tr>
-											`).join('')}
+											`;
+											}).join('')}
 										</table>
 									</td>
 								</tr>
@@ -208,7 +227,7 @@ function renderTestEmail(props: TestEmailProps): string {
 					<tr>
 						<td class="email-footer" style="padding: 30px 20px;">
 							<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #9CA3AF; text-align: center;">
-								This is a test email from Gweilo Elo
+								Ukoliko više ne želite da primate ove mejlove 🖕
 							</p>
 						</td>
 					</tr>
@@ -307,7 +326,11 @@ Deno.serve(async (req) => {
 		}
 
 		// Get from email address (configurable via secret, with fallback)
-		const fromEmail = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+		const fromEmailRaw = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
+		// Format: "Randy Daytona <email@domain.com>"
+		const fromEmail = fromEmailRaw.includes('<') 
+			? fromEmailRaw 
+			: `Randy Daytona <${fromEmailRaw}>`;
 
 		// Get platform URL from secrets (for poll links and logo)
 		const platformUrl = Deno.env.get("PLATFORM_URL") || "https://yourdomain.com";
@@ -358,10 +381,74 @@ Deno.serve(async (req) => {
 				}
 				if (pollOptions.length > 0) {
 					textContent += `\n\nOpcije:\n${pollOptions.map((opt, i) => `${i + 1}. ${opt.text}`).join('\n')}`;
-					textContent += `\n\nOdgovori ovde: ${platformUrl}`;
+					textContent += `\n\nOdgovori ovde: ${pollsUrl}`;
 				}
 			} else if (ctaLabel) {
-				textContent += `\n\n${ctaLabel}: ${platformUrl}`;
+				textContent += `\n\n${ctaLabel}: ${pollsUrl}`;
+			}
+			emailText = textContent;
+		} else if (body.type === "poll_created") {
+			// Poll created notification email
+			const payload = body.payload || {};
+			const pollQuestion = (payload.question as string) || "Nova anketa";
+			const pollDescription = payload.description as string | undefined;
+			const pollId = payload.pollId as string | undefined;
+			const userId = payload.userId as string | undefined; // User ID for auto-submit
+			
+			// Options can be either array of strings (legacy) or array of {id, text} objects
+			const rawOptions = payload.options as (string[] | Array<{ id: string; text: string }>) || [];
+			const formattedOptions = rawOptions.map((opt, index) => {
+				if (typeof opt === 'string') {
+					// Legacy format: just text
+					return { id: `opt-${index}`, text: opt };
+				} else {
+					// New format: { id, text }
+					return { id: opt.id, text: opt.text };
+				}
+			});
+
+			// Email content
+			const title = "Nova anketa je dostupna";
+			const message = "Imamo novu anketu za vas! Kliknite na opciju ispod da glasate.";
+
+			// Construct full platform URL for polls page
+			const pollsUrl = platformUrl.endsWith('/polls') ? platformUrl : `${platformUrl}/polls`;
+
+			// Email subject includes poll question
+			emailSubject = `Nova anketa: ${pollQuestion}`;
+			emailHtml = renderTestEmail({
+				title,
+				message,
+				logoUrl,
+				pollQuestion,
+				pollDescription,
+				pollOptions: formattedOptions,
+				platformUrl: pollsUrl,
+				pollId,
+				userId, // Pass userId to template for links
+			});
+
+			// Plain text version
+			let textContent = `${title}\n\n${message}\n\n${pollQuestion}`;
+			if (pollDescription) {
+				textContent += `\n${pollDescription}`;
+			}
+			if (formattedOptions.length > 0) {
+				textContent += `\n\nOpcije:\n${formattedOptions.map((opt, i) => {
+					let optionUrl = pollsUrl;
+					if (pollId && opt.id) {
+						const params = new URLSearchParams({
+							pollId: pollId,
+							optionId: opt.id,
+						});
+						if (userId) {
+							params.append('userId', userId);
+						}
+						optionUrl = `${pollsUrl}/answer?${params.toString()}`;
+					}
+					return `${i + 1}. ${opt.text} - ${optionUrl}`;
+				}).join('\n')}`;
+				textContent += `\n\nIli odgovori ovde: ${pollsUrl}`;
 			}
 			emailText = textContent;
 		} else {

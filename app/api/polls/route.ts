@@ -2,6 +2,124 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createAdminClient, verifyAdmin } from '@/lib/supabase/admin';
 
+/**
+ * Send email notifications to all admin users when a poll is created
+ * This is fire-and-forget - errors are logged but don't affect poll creation
+ */
+async function sendPollCreatedEmails(poll: {
+	id: string;
+	question: string;
+	description: string | null;
+	options: Array<{ id: string; text: string }>;
+}) {
+	console.log('[sendPollCreatedEmails] ============================================');
+	console.log('[sendPollCreatedEmails] Function called with poll:', {
+		id: poll.id,
+		question: poll.question,
+		optionsCount: poll.options.length,
+	});
+	console.log('[sendPollCreatedEmails] ============================================');
+	
+	try {
+		const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+		const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+		if (!supabaseUrl || !supabaseAnonKey) {
+			console.error('[sendPollCreatedEmails] Missing Supabase environment variables');
+			return;
+		}
+
+		// Get admin client to fetch all admin users
+		const adminClient = createAdminClient();
+
+		// List all users
+		const { data, error: usersError } = await adminClient.auth.admin.listUsers();
+
+		if (usersError || !data) {
+			console.error('[sendPollCreatedEmails] Failed to fetch users:', usersError);
+			return;
+		}
+
+		// The listUsers() API returns { users: User[] } structure
+		const users = data.users || [];
+		console.log(`[sendPollCreatedEmails] Fetched ${users.length} users from Supabase`);
+
+		// Filter to only admin users with email addresses
+		const adminUsers = users.filter(
+			(user) => user.user_metadata?.role === 'admin' && user.email
+		);
+
+		console.log(`[sendPollCreatedEmails] Found ${users.length} total users, ${adminUsers.length} admin users with emails`);
+
+		if (adminUsers.length === 0) {
+			console.log('[sendPollCreatedEmails] No admin users found to notify');
+			console.log('[sendPollCreatedEmails] All users:', users.map(u => ({
+				email: u.email,
+				role: u.user_metadata?.role,
+			})));
+			return;
+		}
+
+		console.log(`[sendPollCreatedEmails] Sending emails to ${adminUsers.length} admin(s):`, adminUsers.map(u => u.email));
+
+		// Send emails to all admins (in parallel, fire-and-forget)
+		// Each email gets personalized with the recipient's user ID
+		// Each email gets personalized with the recipient's user ID
+		const emailPromises = adminUsers.map(async (adminUser) => {
+			try {
+				const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
+				const response = await fetch(functionUrl, {
+					method: 'POST',
+					headers: {
+						'Authorization': `Bearer ${supabaseAnonKey}`,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						to: adminUser.email!,
+						type: 'poll_created',
+						payload: {
+							question: poll.question,
+							description: poll.description || undefined,
+							options: poll.options.map((opt) => ({
+								id: opt.id,
+								text: opt.text,
+							})),
+							pollId: poll.id,
+							userId: adminUser.id, // Include user ID for auto-submit
+						},
+					}),
+				});
+
+				if (!response.ok) {
+					const errorText = await response.text();
+					console.error(
+						`[sendPollCreatedEmails] Failed to send email to ${adminUser.email}:`,
+						`Status: ${response.status}`,
+						errorText
+					);
+				} else {
+					const result = await response.json();
+					console.log(`[sendPollCreatedEmails] Email sent to ${adminUser.email}`, result);
+				}
+			} catch (error) {
+				console.error(
+					`[sendPollCreatedEmails] Error sending email to ${adminUser.email}:`,
+					error
+				);
+			}
+		});
+
+		// Wait for all emails to be sent (but don't throw on individual failures)
+		const results = await Promise.allSettled(emailPromises);
+		const successCount = results.filter(r => r.status === 'fulfilled').length;
+		const failureCount = results.filter(r => r.status === 'rejected').length;
+		console.log(`[sendPollCreatedEmails] Email sending completed: ${successCount} succeeded, ${failureCount} failed`);
+	} catch (error) {
+		// Log error but don't throw - this should never block poll creation
+		console.error('[sendPollCreatedEmails] Unexpected error:', error);
+	}
+}
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -406,6 +524,28 @@ export async function POST(request: NextRequest) {
 			hasUserAnswered: false,
 			totalAnswers: 0,
 		};
+
+		// Send email notifications to admins (fire and forget - don't block response)
+		console.log('[POST /api/polls] ============================================');
+		console.log('[POST /api/polls] Poll created successfully!');
+		console.log('[POST /api/polls] Poll ID:', formattedPoll.id);
+		console.log('[POST /api/polls] Poll question:', formattedPoll.question);
+		console.log('[POST /api/polls] Triggering email notifications...');
+		console.log('[POST /api/polls] ============================================');
+		
+		// Call the email function (don't await - fire and forget)
+		sendPollCreatedEmails(formattedPoll)
+			.then(() => {
+				console.log('[POST /api/polls] ✅ Email notification process completed');
+			})
+			.catch((error) => {
+				// Log error but don't fail the poll creation
+				console.error('[POST /api/polls] ❌ Failed to send poll created emails:', error);
+				if (error instanceof Error) {
+					console.error('[POST /api/polls] Error message:', error.message);
+					console.error('[POST /api/polls] Error stack:', error.stack);
+				}
+			});
 
 		return NextResponse.json(
 			{ poll: formattedPoll },

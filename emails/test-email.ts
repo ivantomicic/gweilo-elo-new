@@ -73,7 +73,7 @@ export function renderTestEmail(props: TestEmailProps): string {
 					<tr>
 						<td style="padding: 30px 40px; border-top: 1px solid #2A2B33;">
 							<p style="margin: 0; font-size: 14px; line-height: 1.5; color: #9CA3AF; text-align: center;">
-								This is a test email from Gweilo Elo
+								Ukoliko više ne želite da primate ove mejlove - 🖕
 							</p>
 						</td>
 					</tr>

@@ -11,9 +11,11 @@ import { EditPollDrawer } from "./edit-poll-drawer";
 
 type PollsViewProps = {
 	onRefetchReady?: (refetch: () => void) => void;
+	initialPollId?: string;
+	initialOptionId?: string;
 };
 
-export function PollsView({ onRefetchReady }: PollsViewProps) {
+export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: PollsViewProps) {
 	const [isAdmin, setIsAdmin] = useState(false);
 	const [editDrawerOpen, setEditDrawerOpen] = useState(false);
 	const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
@@ -74,6 +76,22 @@ export function PollsView({ onRefetchReady }: PollsViewProps) {
 				// Then sort by created_at desc
 				return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 			});
+			
+			// Debug: Log if we're looking for a specific poll
+			if (initialPollId) {
+				const foundPoll = allPolls.find(p => p.id === initialPollId);
+				console.log('[PollsView] Poll lookup after fetch:', {
+					lookingFor: initialPollId,
+					found: !!foundPoll,
+					foundPoll: foundPoll ? {
+						id: foundPoll.id,
+						isActive: foundPoll.isActive,
+						hasUserAnswered: foundPoll.hasUserAnswered,
+						optionsCount: foundPoll.options.length,
+					} : null,
+					totalPolls: allPolls.length,
+				});
+			}
 			
 			setPolls(allPolls);
 		} catch (err) {
@@ -239,16 +257,33 @@ export function PollsView({ onRefetchReady }: PollsViewProps) {
 							"repeat(auto-fill, minmax(min(100%, 400px), 1fr))",
 					}}
 				>
-					{polls.map((poll) => (
-						<PollCard
-							key={poll.id}
-							poll={poll}
-							onAnswer={handleAnswer}
-							isAdmin={isAdmin}
-							onEdit={handleEdit}
-							onDelete={handleDelete}
-						/>
-					))}
+					{polls.map((poll) => {
+						// Check if this poll should auto-open confirmation dialog
+						const shouldAutoOpen = initialPollId === poll.id && initialOptionId;
+						const autoOpenOptionId = shouldAutoOpen ? initialOptionId : undefined;
+						
+						if (shouldAutoOpen) {
+							console.log('[PollsView] Found matching poll for auto-open:', {
+								pollId: poll.id,
+								initialPollId,
+								optionId: initialOptionId,
+								isActive: poll.isActive,
+								hasUserAnswered: poll.hasUserAnswered,
+							});
+						}
+						
+						return (
+							<PollCard
+								key={poll.id}
+								poll={poll}
+								onAnswer={handleAnswer}
+								isAdmin={isAdmin}
+								onEdit={handleEdit}
+								onDelete={handleDelete}
+								autoOpenOptionId={autoOpenOptionId}
+							/>
+						);
+					})}
 				</div>
 			)}
 
