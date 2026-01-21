@@ -26,8 +26,8 @@ function AdminEmailTestPageContent() {
 	const [loading, setLoading] = useState(false);
 	const [formData, setFormData] = useState({
 		recipient: "",
-		title: "Nova anketa je dostupna",
-		message: "Imamo novu anketu za vas! Kliknite na opciju ispod da glasate.",
+		title: "Nova anketa, gweilo...",
+		message: "Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.",
 		ctaLabel: "",
 		pollQuestion: "Koji dan vam najviše odgovara za termin?",
 		pollDescription: "Molimo vas da izaberete dan koji vam najviše odgovara za naredni termin.",
@@ -121,8 +121,8 @@ function AdminEmailTestPageContent() {
 			// Reset form (keep defaults for poll fields)
 			setFormData({
 				recipient: "",
-				title: "Nova anketa je dostupna",
-				message: "Imamo novu anketu za vas! Kliknite na opciju ispod da glasate.",
+				title: "Nova anketa, gweilo...",
+				message: "Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.",
 				ctaLabel: "",
 				pollQuestion: "Koji dan vam najviše odgovara za termin?",
 				pollDescription: "Molimo vas da izaberete dan koji vam najviše odgovara za naredni termin.",

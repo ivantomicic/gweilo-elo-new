@@ -437,8 +437,8 @@ Deno.serve(async (req) => {
 			});
 
 			// Email content
-			const title = "Nova anketa je dostupna";
-			const message = "Imamo novu anketu za vas! Kliknite na opciju ispod da glasate.";
+			const title = "Nova anketa, gweilo...";
+			const message = "Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.";
 
 			// Construct full platform URL for polls page
 			const pollsUrl = platformUrl.endsWith('/polls') ? platformUrl : `${platformUrl}/polls`;

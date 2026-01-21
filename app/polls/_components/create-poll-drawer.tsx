@@ -116,7 +116,7 @@ export function CreatePollDrawer({
 
 			const pollData = await response.json();
 			console.log('[CreatePoll] Poll created successfully:', pollData);
-			console.log('[CreatePoll] Email notifications should be sent to admins (check server logs)');
+			console.log('[CreatePoll] Email notifications should be sent to all players (check server logs)');
 
 			// Success - close drawer and trigger refetch
 			onClose();

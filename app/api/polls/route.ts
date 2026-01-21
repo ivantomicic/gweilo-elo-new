@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createAdminClient, verifyAdmin } from '@/lib/supabase/admin';
 
 /**
- * Send email notifications to all admin users when a poll is created
+ * Send email notifications to all players when a poll is created
  * This is fire-and-forget - errors are logged but don't affect poll creation
  */
 async function sendPollCreatedEmails(poll: {
@@ -30,7 +30,7 @@ async function sendPollCreatedEmails(poll: {
 			return;
 		}
 
-		// Get admin client to fetch all admin users
+		// Get admin client to fetch all users
 		const adminClient = createAdminClient();
 
 		// List all users
@@ -45,15 +45,15 @@ async function sendPollCreatedEmails(poll: {
 		const users = data.users || [];
 		console.log(`[sendPollCreatedEmails] Fetched ${users.length} users from Supabase`);
 
-		// Filter to only admin users with email addresses
-		const adminUsers = users.filter(
-			(user) => user.user_metadata?.role === 'admin' && user.email
+		// Filter to all users with email addresses
+		const playersWithEmail = users.filter(
+			(user) => user.email
 		);
 
-		console.log(`[sendPollCreatedEmails] Found ${users.length} total users, ${adminUsers.length} admin users with emails`);
+		console.log(`[sendPollCreatedEmails] Found ${users.length} total users, ${playersWithEmail.length} players with emails`);
 
-		if (adminUsers.length === 0) {
-			console.log('[sendPollCreatedEmails] No admin users found to notify');
+		if (playersWithEmail.length === 0) {
+			console.log('[sendPollCreatedEmails] No players with emails found to notify');
 			console.log('[sendPollCreatedEmails] All users:', users.map(u => ({
 				email: u.email,
 				role: u.user_metadata?.role,
@@ -61,12 +61,11 @@ async function sendPollCreatedEmails(poll: {
 			return;
 		}
 
-		console.log(`[sendPollCreatedEmails] Sending emails to ${adminUsers.length} admin(s):`, adminUsers.map(u => u.email));
+		console.log(`[sendPollCreatedEmails] Sending emails to ${playersWithEmail.length} player(s):`, playersWithEmail.map(u => u.email));
 
-		// Send emails to all admins (in parallel, fire-and-forget)
+		// Send emails to all players (in parallel, fire-and-forget)
 		// Each email gets personalized with the recipient's user ID
-		// Each email gets personalized with the recipient's user ID
-		const emailPromises = adminUsers.map(async (adminUser) => {
+		const emailPromises = playersWithEmail.map(async (player) => {
 			try {
 				const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
 				const response = await fetch(functionUrl, {
@@ -76,7 +75,7 @@ async function sendPollCreatedEmails(poll: {
 						'Content-Type': 'application/json',
 					},
 					body: JSON.stringify({
-						to: adminUser.email!,
+						to: player.email!,
 						type: 'poll_created',
 						payload: {
 							question: poll.question,
@@ -87,7 +86,7 @@ async function sendPollCreatedEmails(poll: {
 								text: opt.text,
 							})),
 							pollId: poll.id,
-							userId: adminUser.id, // Include user ID for auto-submit
+							userId: player.id, // Include user ID for auto-submit
 						},
 					}),
 				});
@@ -95,17 +94,17 @@ async function sendPollCreatedEmails(poll: {
 				if (!response.ok) {
 					const errorText = await response.text();
 					console.error(
-						`[sendPollCreatedEmails] Failed to send email to ${adminUser.email}:`,
+						`[sendPollCreatedEmails] Failed to send email to ${player.email}:`,
 						`Status: ${response.status}`,
 						errorText
 					);
 				} else {
 					const result = await response.json();
-					console.log(`[sendPollCreatedEmails] Email sent to ${adminUser.email}`, result);
+					console.log(`[sendPollCreatedEmails] Email sent to ${player.email}`, result);
 				}
 			} catch (error) {
 				console.error(
-					`[sendPollCreatedEmails] Error sending email to ${adminUser.email}:`,
+					`[sendPollCreatedEmails] Error sending email to ${player.email}:`,
 					error
 				);
 			}
@@ -527,7 +526,7 @@ export async function POST(request: NextRequest) {
 			totalAnswers: 0,
 		};
 
-		// Send email notifications to admins (fire and forget - don't block response)
+		// Send email notifications to all players (fire and forget - don't block response)
 		console.log('[POST /api/polls] ============================================');
 		console.log('[POST /api/polls] Poll created successfully!');
 		console.log('[POST /api/polls] Poll ID:', formattedPoll.id);
