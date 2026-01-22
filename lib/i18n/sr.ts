@@ -357,6 +357,7 @@ export const sr = {
 			answered: "Odgovoreno",
 			yourChoice: "Vaš izbor",
 			total: "Ukupno",
+			voters: "Glasači",
 		},
 		banner: {
 			title: "Aktivne ankete",

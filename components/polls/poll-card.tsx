@@ -9,6 +9,7 @@ import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 export type PollOption = {
 	id: string;
@@ -48,6 +49,8 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 	const [timeRemaining, setTimeRemaining] = useState<string>("");
 	const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [showAvatarsSheet, setShowAvatarsSheet] = useState(false);
+	const [selectedOptionForAvatars, setSelectedOptionForAvatars] = useState<PollOption | null>(null);
 
 	// Debug: Log when delete confirm state changes
 	useEffect(() => {
@@ -320,11 +323,19 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 														</Avatar>
 													))}
 													{option.users.length > 5 && (
-														<div className="size-5 rounded-full bg-muted border border-background/50 flex items-center justify-center">
+														<button
+															onClick={(e) => {
+																e.preventDefault();
+																e.stopPropagation();
+																setSelectedOptionForAvatars(option);
+																setShowAvatarsSheet(true);
+															}}
+															className="size-5 rounded-full bg-muted border border-background/50 flex items-center justify-center hover:bg-muted/80 transition-colors cursor-pointer"
+														>
 															<span className="text-[8px] font-semibold text-muted-foreground">
 																+{option.users.length - 5}
 															</span>
-														</div>
+														</button>
 													)}
 												</div>
 											)}
@@ -352,6 +363,29 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						})}
 				</div>
 			</Box>
+			{/* Avatars Sheet */}
+			<Sheet open={showAvatarsSheet} onOpenChange={setShowAvatarsSheet}>
+				<SheetContent side="bottom" className="max-h-[80vh] bg-card">
+					<SheetHeader>
+						<SheetTitle>
+							{selectedOptionForAvatars?.text}
+						</SheetTitle>
+					</SheetHeader>
+					<div className="mt-6 space-y-3 overflow-y-auto">
+						{selectedOptionForAvatars?.users?.map((user) => (
+							<div key={user.id} className="flex items-center gap-3">
+								<Avatar className="size-10 border border-border/50">
+									<AvatarImage src={user.avatar || undefined} alt={user.name} />
+									<AvatarFallback>
+										{user.name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+								<span className="text-sm font-medium">{user.name}</span>
+							</div>
+						))}
+					</div>
+				</SheetContent>
+			</Sheet>
 			{/* Delete Confirmation Dialog */}
 			{showDeleteConfirm && (
 				<div 
@@ -514,6 +548,29 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						})}
 				</div>
 			</Box>
+			{/* Avatars Sheet */}
+			<Sheet open={showAvatarsSheet} onOpenChange={setShowAvatarsSheet}>
+				<SheetContent side="bottom" className="max-h-[80vh] bg-card">
+					<SheetHeader>
+						<SheetTitle>
+							{selectedOptionForAvatars?.text}
+						</SheetTitle>
+					</SheetHeader>
+					<div className="mt-6 space-y-3 overflow-y-auto">
+						{selectedOptionForAvatars?.users?.map((user) => (
+							<div key={user.id} className="flex items-center gap-3">
+								<Avatar className="size-10 border border-border/50">
+									<AvatarImage src={user.avatar || undefined} alt={user.name} />
+									<AvatarFallback>
+										{user.name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+								<span className="text-sm font-medium">{user.name}</span>
+							</div>
+						))}
+					</div>
+				</SheetContent>
+			</Sheet>
 			{/* Delete Confirmation Dialog */}
 			{showDeleteConfirm && (
 				<div 
@@ -698,6 +755,30 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 					</Box>
 				</Box>
 			)}
+
+			{/* Avatars Sheet */}
+			<Sheet open={showAvatarsSheet} onOpenChange={setShowAvatarsSheet}>
+				<SheetContent side="bottom" className="max-h-[80vh] bg-card">
+					<SheetHeader>
+						<SheetTitle>
+							{selectedOptionForAvatars?.text}
+						</SheetTitle>
+					</SheetHeader>
+					<div className="mt-6 space-y-3 overflow-y-auto">
+						{selectedOptionForAvatars?.users?.map((user) => (
+							<div key={user.id} className="flex items-center gap-3">
+								<Avatar className="size-10 border border-border/50">
+									<AvatarImage src={user.avatar || undefined} alt={user.name} />
+									<AvatarFallback>
+										{user.name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+								<span className="text-sm font-medium">{user.name}</span>
+							</div>
+						))}
+					</div>
+				</SheetContent>
+			</Sheet>
 
 			{/* Delete Confirmation Dialog */}
 			{showDeleteConfirm && (
