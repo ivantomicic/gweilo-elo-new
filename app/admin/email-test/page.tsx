@@ -15,7 +15,13 @@ import { Stack } from "@/components/ui/stack";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
@@ -27,10 +33,12 @@ function AdminEmailTestPageContent() {
 	const [formData, setFormData] = useState({
 		recipient: "",
 		title: "Nova anketa, gweilo...",
-		message: "Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.",
+		message:
+			"Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.",
 		ctaLabel: "",
 		pollQuestion: "Koji dan vam najviše odgovara za termin?",
-		pollDescription: "Molimo vas da izaberete dan koji vam najviše odgovara za naredni termin.",
+		pollDescription:
+			"Molimo vas da izaberete dan koji vam najviše odgovara za naredni termin.",
 		pollOptions: [
 			{ id: "1", text: "Ponedeljak" },
 			{ id: "2", text: "Sreda" },
@@ -40,13 +48,14 @@ function AdminEmailTestPageContent() {
 	});
 
 	// Determine active tab based on current route
-	const activeTab = pathname === "/admin/activity" 
-		? "activity" 
-		: pathname === "/admin/email-test"
-		? "email-test"
-		: pathname === "/admin/settings"
-		? "settings"
-		: "users";
+	const activeTab =
+		pathname === "/admin/activity"
+			? "activity"
+			: pathname === "/admin/email-test"
+				? "email-test"
+				: pathname === "/admin/settings"
+					? "settings"
+					: "users";
 
 	const handleTabChange = (value: string) => {
 		if (value === "activity") {
@@ -62,7 +71,7 @@ function AdminEmailTestPageContent() {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		
+
 		// Validate email
 		if (!formData.recipient || !formData.recipient.includes("@")) {
 			toast.error(t.admin.emailTest.error.invalidEmail);
@@ -87,7 +96,9 @@ function AdminEmailTestPageContent() {
 			}
 
 			// Get session for auth token
-			const { data: { session } } = await supabase.auth.getSession();
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
 			if (!session) {
 				throw new Error("Not authenticated");
 			}
@@ -97,7 +108,7 @@ function AdminEmailTestPageContent() {
 			const response = await fetch(functionUrl, {
 				method: "POST",
 				headers: {
-					"Authorization": `Bearer ${supabaseAnonKey}`,
+					Authorization: `Bearer ${supabaseAnonKey}`,
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
@@ -117,19 +128,23 @@ function AdminEmailTestPageContent() {
 			const result = await response.json();
 
 			if (!response.ok) {
-				throw new Error(result.error || t.admin.emailTest.error.sendFailed);
+				throw new Error(
+					result.error || t.admin.emailTest.error.sendFailed,
+				);
 			}
 
 			toast.success(t.admin.emailTest.success);
-			
+
 			// Reset form (keep defaults for poll fields)
 			setFormData({
 				recipient: "",
 				title: "Nova anketa, gweilo...",
-				message: "Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.",
+				message:
+					"Klikni na odgovor ispod da glasaš...! Kliknite na opciju ispod da glasate.",
 				ctaLabel: "",
 				pollQuestion: "Koji dan vam najviše odgovara za termin?",
-				pollDescription: "Molimo vas da izaberete dan koji vam najviše odgovara za naredni termin.",
+				pollDescription:
+					"Molimo vas da izaberete dan koji vam najviše odgovara za naredni termin.",
 				pollOptions: [
 					{ id: "1", text: "Ponedeljak" },
 					{ id: "2", text: "Sreda" },
@@ -140,9 +155,9 @@ function AdminEmailTestPageContent() {
 		} catch (error) {
 			console.error("Failed to send test email:", error);
 			toast.error(
-				error instanceof Error 
-					? error.message 
-					: t.admin.emailTest.error.generic
+				error instanceof Error
+					? error.message
+					: t.admin.emailTest.error.generic,
 			);
 		} finally {
 			setLoading(false);
@@ -159,12 +174,23 @@ function AdminEmailTestPageContent() {
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 							{/* Admin Navigation Tabs */}
 							<Box className="mb-4">
-								<Tabs value={activeTab} onValueChange={handleTabChange}>
+								<Tabs
+									value={activeTab}
+									onValueChange={handleTabChange}
+								>
 									<TabsList>
-										<TabsTrigger value="users">Users</TabsTrigger>
-										<TabsTrigger value="activity">Activity Log</TabsTrigger>
-										<TabsTrigger value="email-test">Email Test</TabsTrigger>
-										<TabsTrigger value="settings">Settings</TabsTrigger>
+										<TabsTrigger value="users">
+											Users
+										</TabsTrigger>
+										<TabsTrigger value="activity">
+											Activity Log
+										</TabsTrigger>
+										<TabsTrigger value="email-test">
+											Email Test
+										</TabsTrigger>
+										<TabsTrigger value="settings">
+											Settings
+										</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>
@@ -172,7 +198,9 @@ function AdminEmailTestPageContent() {
 							{/* Email Test Form */}
 							<Card>
 								<CardHeader>
-									<CardTitle>{t.admin.emailTest.title}</CardTitle>
+									<CardTitle>
+										{t.admin.emailTest.title}
+									</CardTitle>
 									<CardDescription>
 										{t.admin.emailTest.description}
 									</CardDescription>
@@ -181,17 +209,30 @@ function AdminEmailTestPageContent() {
 									<form onSubmit={handleSubmit}>
 										<Stack direction="column" spacing={6}>
 											{/* Recipient Email */}
-											<Stack direction="column" spacing={2}>
+											<Stack
+												direction="column"
+												spacing={2}
+											>
 												<Label htmlFor="recipient">
-													{t.admin.emailTest.recipient}
+													{
+														t.admin.emailTest
+															.recipient
+													}
 												</Label>
 												<Input
 													id="recipient"
 													type="email"
-													placeholder={t.admin.emailTest.recipientPlaceholder}
+													placeholder={
+														t.admin.emailTest
+															.recipientPlaceholder
+													}
 													value={formData.recipient}
 													onChange={(e) =>
-														setFormData({ ...formData, recipient: e.target.value })
+														setFormData({
+															...formData,
+															recipient:
+																e.target.value,
+														})
 													}
 													required
 													disabled={loading}
@@ -199,17 +240,30 @@ function AdminEmailTestPageContent() {
 											</Stack>
 
 											{/* Email Title */}
-											<Stack direction="column" spacing={2}>
+											<Stack
+												direction="column"
+												spacing={2}
+											>
 												<Label htmlFor="title">
-													{t.admin.emailTest.emailTitle}
+													{
+														t.admin.emailTest
+															.emailTitle
+													}
 												</Label>
 												<Input
 													id="title"
 													type="text"
-													placeholder={t.admin.emailTest.emailTitlePlaceholder}
+													placeholder={
+														t.admin.emailTest
+															.emailTitlePlaceholder
+													}
 													value={formData.title}
 													onChange={(e) =>
-														setFormData({ ...formData, title: e.target.value })
+														setFormData({
+															...formData,
+															title: e.target
+																.value,
+														})
 													}
 													required
 													disabled={loading}
@@ -217,16 +271,26 @@ function AdminEmailTestPageContent() {
 											</Stack>
 
 											{/* Message */}
-											<Stack direction="column" spacing={2}>
+											<Stack
+												direction="column"
+												spacing={2}
+											>
 												<Label htmlFor="message">
 													{t.admin.emailTest.message}
 												</Label>
 												<textarea
 													id="message"
-													placeholder={t.admin.emailTest.messagePlaceholder}
+													placeholder={
+														t.admin.emailTest
+															.messagePlaceholder
+													}
 													value={formData.message}
 													onChange={(e) =>
-														setFormData({ ...formData, message: e.target.value })
+														setFormData({
+															...formData,
+															message:
+																e.target.value,
+														})
 													}
 													required
 													disabled={loading}
@@ -236,33 +300,53 @@ function AdminEmailTestPageContent() {
 											</Stack>
 
 											{/* Poll Question */}
-											<Stack direction="column" spacing={2}>
+											<Stack
+												direction="column"
+												spacing={2}
+											>
 												<Label htmlFor="pollQuestion">
-													Poll Question (Anketa pitanje)
+													Poll Question (Anketa
+													pitanje)
 												</Label>
 												<Input
 													id="pollQuestion"
 													type="text"
 													placeholder="Unesite pitanje ankete"
-													value={formData.pollQuestion}
+													value={
+														formData.pollQuestion
+													}
 													onChange={(e) =>
-														setFormData({ ...formData, pollQuestion: e.target.value })
+														setFormData({
+															...formData,
+															pollQuestion:
+																e.target.value,
+														})
 													}
 													disabled={loading}
 												/>
 											</Stack>
 
 											{/* Poll Description */}
-											<Stack direction="column" spacing={2}>
+											<Stack
+												direction="column"
+												spacing={2}
+											>
 												<Label htmlFor="pollDescription">
-													Poll Description (Opis ankete)
+													Poll Description (Opis
+													ankete)
 												</Label>
 												<textarea
 													id="pollDescription"
 													placeholder="Opis ankete (opciono)"
-													value={formData.pollDescription}
+													value={
+														formData.pollDescription
+													}
 													onChange={(e) =>
-														setFormData({ ...formData, pollDescription: e.target.value })
+														setFormData({
+															...formData,
+															pollDescription:
+																e.target.value,
+														})
 													}
 													disabled={loading}
 													rows={3}
@@ -271,44 +355,82 @@ function AdminEmailTestPageContent() {
 											</Stack>
 
 											{/* Poll Options */}
-											<Stack direction="column" spacing={2}>
-												<Label>Poll Options (Opcije ankete)</Label>
-												{formData.pollOptions.map((option, index) => (
-													<Input
-														key={option.id}
-														type="text"
-														placeholder={`Opcija ${index + 1}`}
-														value={option.text}
-														onChange={(e) => {
-															const newOptions = [...formData.pollOptions];
-															newOptions[index] = { ...newOptions[index], text: e.target.value };
-															setFormData({ ...formData, pollOptions: newOptions });
-														}}
-														disabled={loading}
-													/>
-												))}
+											<Stack
+												direction="column"
+												spacing={2}
+											>
+												<Label>
+													Poll Options (Opcije ankete)
+												</Label>
+												{formData.pollOptions.map(
+													(option, index) => (
+														<Input
+															key={option.id}
+															type="text"
+															placeholder={`Opcija ${index + 1}`}
+															value={option.text}
+															onChange={(e) => {
+																const newOptions =
+																	[
+																		...formData.pollOptions,
+																	];
+																newOptions[
+																	index
+																] = {
+																	...newOptions[
+																		index
+																	],
+																	text: e
+																		.target
+																		.value,
+																};
+																setFormData({
+																	...formData,
+																	pollOptions:
+																		newOptions,
+																});
+															}}
+															disabled={loading}
+														/>
+													),
+												)}
 											</Stack>
 
 											{/* CTA Label (Optional) */}
-											<Stack direction="column" spacing={2}>
+											<Stack
+												direction="column"
+												spacing={2}
+											>
 												<Label htmlFor="ctaLabel">
 													{t.admin.emailTest.ctaLabel}
 												</Label>
 												<Input
 													id="ctaLabel"
 													type="text"
-													placeholder={t.admin.emailTest.ctaLabelPlaceholder}
+													placeholder={
+														t.admin.emailTest
+															.ctaLabelPlaceholder
+													}
 													value={formData.ctaLabel}
 													onChange={(e) =>
-														setFormData({ ...formData, ctaLabel: e.target.value })
+														setFormData({
+															...formData,
+															ctaLabel:
+																e.target.value,
+														})
 													}
 													disabled={loading}
 												/>
 											</Stack>
 
 											{/* Submit Button */}
-											<Button type="submit" disabled={loading}>
-												{loading ? t.admin.emailTest.sending : t.admin.emailTest.send}
+											<Button
+												type="submit"
+												disabled={loading}
+											>
+												{loading
+													? t.admin.emailTest.sending
+													: t.admin.emailTest.send}
 											</Button>
 										</Stack>
 									</form>

@@ -17,13 +17,14 @@ function AdminSettingsPageContent() {
 	const router = useRouter();
 
 	// Determine active tab based on current route
-	const activeTab = pathname === "/admin/activity" 
-		? "activity" 
-		: pathname === "/admin/email-test"
-		? "email-test"
-		: pathname === "/admin/settings"
-		? "settings"
-		: "users";
+	const activeTab =
+		pathname === "/admin/activity"
+			? "activity"
+			: pathname === "/admin/email-test"
+				? "email-test"
+				: pathname === "/admin/settings"
+					? "settings"
+					: "users";
 
 	const handleTabChange = (value: string) => {
 		if (value === "activity") {
@@ -47,12 +48,23 @@ function AdminSettingsPageContent() {
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 							{/* Admin Navigation Tabs */}
 							<Box className="mb-4">
-								<Tabs value={activeTab} onValueChange={handleTabChange}>
+								<Tabs
+									value={activeTab}
+									onValueChange={handleTabChange}
+								>
 									<TabsList>
-										<TabsTrigger value="users">Users</TabsTrigger>
-										<TabsTrigger value="activity">Activity Log</TabsTrigger>
-										<TabsTrigger value="email-test">Email Test</TabsTrigger>
-										<TabsTrigger value="settings">Settings</TabsTrigger>
+										<TabsTrigger value="users">
+											Users
+										</TabsTrigger>
+										<TabsTrigger value="activity">
+											Activity Log
+										</TabsTrigger>
+										<TabsTrigger value="email-test">
+											Email Test
+										</TabsTrigger>
+										<TabsTrigger value="settings">
+											Settings
+										</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>

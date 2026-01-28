@@ -7,7 +7,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/maintenance
- * 
+ *
  * Returns the current maintenance mode status.
  * This endpoint is public - anyone can check if maintenance mode is enabled.
  */
@@ -46,10 +46,10 @@ export async function GET() {
 
 /**
  * POST /api/maintenance
- * 
+ *
  * Updates the maintenance mode status.
  * Only admins can update this setting.
- * 
+ *
  * Body: { enabled: boolean, message?: string }
  */
 export async function POST(request: Request) {
@@ -61,7 +61,7 @@ export async function POST(request: Request) {
 		if (!adminUserId) {
 			return NextResponse.json(
 				{ error: "Unauthorized - admin access required" },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -71,22 +71,20 @@ export async function POST(request: Request) {
 		if (typeof enabled !== "boolean") {
 			return NextResponse.json(
 				{ error: "Invalid request - enabled must be a boolean" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		const adminClient = createAdminClient();
 
-		const { error } = await adminClient
-			.from("app_config")
-			.upsert({
-				key: "maintenance_mode",
-				value: {
-					enabled,
-					message: message || null,
-				},
-				updated_by: adminUserId,
-			});
+		const { error } = await adminClient.from("app_config").upsert({
+			key: "maintenance_mode",
+			value: {
+				enabled,
+				message: message || null,
+			},
+			updated_by: adminUserId,
+		});
 
 		if (error) {
 			throw error;
@@ -101,7 +99,7 @@ export async function POST(request: Request) {
 		console.error("Error updating maintenance mode:", error);
 		return NextResponse.json(
 			{ error: "Failed to update maintenance mode" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

@@ -16,7 +16,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
 import {
 	Select,
 	SelectContent,
@@ -69,13 +76,14 @@ function AdminActivityPageContent() {
 	const pageSize = 50;
 
 	// Determine active tab based on current route
-	const activeTab = pathname === "/admin/activity" 
-		? "activity" 
-		: pathname === "/admin/email-test"
-		? "email-test"
-		: pathname === "/admin/settings"
-		? "settings"
-		: "users";
+	const activeTab =
+		pathname === "/admin/activity"
+			? "activity"
+			: pathname === "/admin/email-test"
+				? "email-test"
+				: pathname === "/admin/settings"
+					? "settings"
+					: "users";
 
 	const handleTabChange = (value: string) => {
 		if (value === "activity") {
@@ -104,19 +112,25 @@ function AdminActivityPageContent() {
 				}
 
 				// Get unique user IDs from analytics_events
-				const { data: uniqueUserIds, error: uniqueError } = await supabase
-					.from("analytics_events")
-					.select("user_id")
-					.not("user_id", "is", null);
+				const { data: uniqueUserIds, error: uniqueError } =
+					await supabase
+						.from("analytics_events")
+						.select("user_id")
+						.not("user_id", "is", null);
 
 				if (uniqueError) {
-					console.error("Error fetching unique user IDs:", uniqueError);
+					console.error(
+						"Error fetching unique user IDs:",
+						uniqueError,
+					);
 					return;
 				}
 
 				const userIds = [
 					...new Set(
-						(uniqueUserIds || []).map((e) => e.user_id).filter(Boolean)
+						(uniqueUserIds || [])
+							.map((e) => e.user_id)
+							.filter(Boolean),
 					),
 				] as string[];
 
@@ -143,7 +157,7 @@ function AdminActivityPageContent() {
 							name: u.name,
 						}))
 						.sort((a: UserOption, b: UserOption) =>
-							a.name.localeCompare(b.name)
+							a.name.localeCompare(b.name),
 						);
 
 					setUsers(usersWithEvents);
@@ -190,38 +204,57 @@ function AdminActivityPageContent() {
 					query = query.gte("created_at", filters.dateFrom);
 				}
 				if (filters.dateTo) {
-					query = query.lte("created_at", filters.dateTo + "T23:59:59");
+					query = query.lte(
+						"created_at",
+						filters.dateTo + "T23:59:59",
+					);
 				}
 
 				const { data, error, count } = await query;
 
 				if (error) {
 					console.error("Error fetching events:", error);
-					console.error("Error details:", JSON.stringify(error, null, 2));
+					console.error(
+						"Error details:",
+						JSON.stringify(error, null, 2),
+					);
 					setEvents([]);
 					setTotalCount(0);
 					return;
 				}
 
-				console.log("Fetched events:", data?.length || 0, "Total count:", count);
+				console.log(
+					"Fetched events:",
+					data?.length || 0,
+					"Total count:",
+					count,
+				);
 
 				setEvents(data || []);
 				setTotalCount(count || 0);
 
 				// Fetch user data and player data for events
 				if (data && data.length > 0) {
-					const userIds = [...new Set(data.map((e) => e.user_id).filter(Boolean))] as string[];
-					
+					const userIds = [
+						...new Set(data.map((e) => e.user_id).filter(Boolean)),
+					] as string[];
+
 					// Extract player IDs from player_viewed events
 					const playerIds = [
 						...new Set(
 							data
-								.filter((e) => e.event_name === "player_viewed" && e.page)
+								.filter(
+									(e) =>
+										e.event_name === "player_viewed" &&
+										e.page,
+								)
 								.map((e) => {
-									const match = e.page?.match(/^\/player\/([a-f0-9-]+)$/i);
+									const match = e.page?.match(
+										/^\/player\/([a-f0-9-]+)$/i,
+									);
 									return match ? match[1] : null;
 								})
-								.filter(Boolean)
+								.filter(Boolean),
 						),
 					] as string[];
 
@@ -236,22 +269,27 @@ function AdminActivityPageContent() {
 						if (usersResponse.ok) {
 							const { users } = await usersResponse.json();
 							const userMap = new Map<string, UserOption>(
-								users.map((u: UserOption) => [u.id, u])
+								users.map((u: UserOption) => [u.id, u]),
 							);
 
 							setEvents((prev) =>
 								prev.map((event) => {
-									const mappedUser = event.user_id ? userMap.get(event.user_id) : null;
+									const mappedUser = event.user_id
+										? userMap.get(event.user_id)
+										: null;
 									return {
 										...event,
 										user: mappedUser
 											? {
-													email: mappedUser.email || "",
-													name: mappedUser.name || "Unknown",
-											  }
+													email:
+														mappedUser.email || "",
+													name:
+														mappedUser.name ||
+														"Unknown",
+												}
 											: null,
 									};
-								})
+								}),
 							);
 						}
 					}
@@ -259,52 +297,73 @@ function AdminActivityPageContent() {
 					// Fetch player names (for player_viewed events)
 					if (playerIds.length > 0) {
 						// Fetch player data in parallel
-						const playerPromises = playerIds.map(async (playerId) => {
-							try {
-								const playerResponse = await fetch(`/api/player/${playerId}`, {
-									headers: {
-										Authorization: `Bearer ${session.access_token}`,
-									},
-								});
-								if (playerResponse.ok) {
-									const playerData = await playerResponse.json();
-									return {
-										id: playerId,
-										name: playerData.display_name || "Unknown",
-									};
+						const playerPromises = playerIds.map(
+							async (playerId) => {
+								try {
+									const playerResponse = await fetch(
+										`/api/player/${playerId}`,
+										{
+											headers: {
+												Authorization: `Bearer ${session.access_token}`,
+											},
+										},
+									);
+									if (playerResponse.ok) {
+										const playerData =
+											await playerResponse.json();
+										return {
+											id: playerId,
+											name:
+												playerData.display_name ||
+												"Unknown",
+										};
+									}
+									return { id: playerId, name: "Unknown" };
+								} catch (err) {
+									console.error(
+										`Error fetching player ${playerId}:`,
+										err,
+									);
+									return { id: playerId, name: "Unknown" };
 								}
-								return { id: playerId, name: "Unknown" };
-							} catch (err) {
-								console.error(`Error fetching player ${playerId}:`, err);
-								return { id: playerId, name: "Unknown" };
-							}
-						});
+							},
+						);
 
 						const playerData = await Promise.all(playerPromises);
 						const playerMap = new Map(
-							playerData.map((p) => [p.id, p])
+							playerData.map((p) => [p.id, p]),
 						);
 
 						// Update events with player names
 						setEvents((prev) =>
 							prev.map((event) => {
-								if (event.event_name === "player_viewed" && event.page) {
-									const match = event.page.match(/^\/player\/([a-f0-9-]+)$/i);
+								if (
+									event.event_name === "player_viewed" &&
+									event.page
+								) {
+									const match = event.page.match(
+										/^\/player\/([a-f0-9-]+)$/i,
+									);
 									const playerId = match ? match[1] : null;
-									const player = playerId ? playerMap.get(playerId) : null;
+									const player = playerId
+										? playerMap.get(playerId)
+										: null;
 									return {
 										...event,
 										player: player || null,
 									};
 								}
 								return event;
-							})
+							}),
 						);
 					}
 				}
 			} catch (error) {
 				console.error("Error fetching events:", error);
-				console.error("Error stack:", error instanceof Error ? error.stack : String(error));
+				console.error(
+					"Error stack:",
+					error instanceof Error ? error.stack : String(error),
+				);
 				setEvents([]);
 				setTotalCount(0);
 			} finally {
@@ -313,7 +372,13 @@ function AdminActivityPageContent() {
 		};
 
 		fetchEvents();
-	}, [page, filters.userId, filters.eventName, filters.dateFrom, filters.dateTo]);
+	}, [
+		page,
+		filters.userId,
+		filters.eventName,
+		filters.dateFrom,
+		filters.dateTo,
+	]);
 
 	const handleFilterChange = (key: string, value: string) => {
 		setFilters((prev) => ({ ...prev, [key]: value }));
@@ -360,12 +425,23 @@ function AdminActivityPageContent() {
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 							{/* Admin Navigation Tabs */}
 							<Box className="mb-4">
-								<Tabs value={activeTab} onValueChange={handleTabChange}>
+								<Tabs
+									value={activeTab}
+									onValueChange={handleTabChange}
+								>
 									<TabsList>
-										<TabsTrigger value="users">Users</TabsTrigger>
-										<TabsTrigger value="activity">Activity Log</TabsTrigger>
-										<TabsTrigger value="email-test">Email Test</TabsTrigger>
-										<TabsTrigger value="settings">Settings</TabsTrigger>
+										<TabsTrigger value="users">
+											Users
+										</TabsTrigger>
+										<TabsTrigger value="activity">
+											Activity Log
+										</TabsTrigger>
+										<TabsTrigger value="email-test">
+											Email Test
+										</TabsTrigger>
+										<TabsTrigger value="settings">
+											Settings
+										</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>
@@ -375,26 +451,42 @@ function AdminActivityPageContent() {
 								<Stack direction="column" spacing={4}>
 									<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 										<div>
-											<Label htmlFor="filter-user">User</Label>
+											<Label htmlFor="filter-user">
+												User
+											</Label>
 											<Select
-												value={filters.userId || "__all__"}
+												value={
+													filters.userId || "__all__"
+												}
 												onValueChange={(value) =>
-													handleFilterChange("userId", value)
+													handleFilterChange(
+														"userId",
+														value,
+													)
 												}
 											>
 												<SelectTrigger id="filter-user">
 													<SelectValue placeholder="All users" />
 												</SelectTrigger>
 												<SelectContent>
-													<SelectItem value="__all__">All users</SelectItem>
+													<SelectItem value="__all__">
+														All users
+													</SelectItem>
 													{loadingUsers ? (
-														<SelectItem value="__loading__" disabled>
+														<SelectItem
+															value="__loading__"
+															disabled
+														>
 															Loading users...
 														</SelectItem>
 													) : (
 														users.map((user) => (
-															<SelectItem key={user.id} value={user.id}>
-																{user.name} ({user.email})
+															<SelectItem
+																key={user.id}
+																value={user.id}
+															>
+																{user.name} (
+																{user.email})
 															</SelectItem>
 														))
 													)}
@@ -402,36 +494,51 @@ function AdminActivityPageContent() {
 											</Select>
 										</div>
 										<div>
-											<Label htmlFor="filter-event">Event Type</Label>
+											<Label htmlFor="filter-event">
+												Event Type
+											</Label>
 											<Input
 												id="filter-event"
 												type="text"
 												placeholder="user_logged_in, app_loaded, page_viewed"
 												value={filters.eventName}
 												onChange={(e) =>
-													handleFilterChange("eventName", e.target.value)
+													handleFilterChange(
+														"eventName",
+														e.target.value,
+													)
 												}
 											/>
 										</div>
 										<div>
-											<Label htmlFor="filter-date-from">From Date</Label>
+											<Label htmlFor="filter-date-from">
+												From Date
+											</Label>
 											<Input
 												id="filter-date-from"
 												type="date"
 												value={filters.dateFrom}
 												onChange={(e) =>
-													handleFilterChange("dateFrom", e.target.value)
+													handleFilterChange(
+														"dateFrom",
+														e.target.value,
+													)
 												}
 											/>
 										</div>
 										<div>
-											<Label htmlFor="filter-date-to">To Date</Label>
+											<Label htmlFor="filter-date-to">
+												To Date
+											</Label>
 											<Input
 												id="filter-date-to"
 												type="date"
 												value={filters.dateTo}
 												onChange={(e) =>
-													handleFilterChange("dateTo", e.target.value)
+													handleFilterChange(
+														"dateTo",
+														e.target.value,
+													)
 												}
 											/>
 										</div>
@@ -460,9 +567,15 @@ function AdminActivityPageContent() {
 											<Table>
 												<TableHeader>
 													<TableRow>
-														<TableHead>User</TableHead>
-														<TableHead>Event</TableHead>
-														<TableHead>Page</TableHead>
+														<TableHead>
+															User
+														</TableHead>
+														<TableHead>
+															Event
+														</TableHead>
+														<TableHead>
+															Page
+														</TableHead>
 														<TableHead>
 															<Stack
 																direction="row"
@@ -477,7 +590,9 @@ function AdminActivityPageContent() {
 																	icon="solar:clock-circle-bold"
 																	className="size-4 text-muted-foreground"
 																/>
-																<span>Timestamp</span>
+																<span>
+																	Timestamp
+																</span>
 															</Stack>
 														</TableHead>
 													</TableRow>
@@ -485,21 +600,34 @@ function AdminActivityPageContent() {
 												<TableBody>
 													{events.length === 0 ? (
 														<TableRow>
-															<TableCell colSpan={4} className="text-center">
+															<TableCell
+																colSpan={4}
+																className="text-center"
+															>
 																No events found
 															</TableCell>
 														</TableRow>
 													) : (
 														events.map((event) => (
-															<TableRow key={event.id}>
+															<TableRow
+																key={event.id}
+															>
 																<TableCell>
 																	{event.user ? (
 																		<span className="font-medium">
-																			{event.user.name}
+																			{
+																				event
+																					.user
+																					.name
+																			}
 																		</span>
 																	) : event.user_id ? (
 																		<span className="text-muted-foreground">
-																			{event.user_id.slice(0, 8)}...
+																			{event.user_id.slice(
+																				0,
+																				8,
+																			)}
+																			...
 																		</span>
 																	) : (
 																		<span className="text-muted-foreground">
@@ -508,56 +636,95 @@ function AdminActivityPageContent() {
 																	)}
 																</TableCell>
 																<TableCell>
-																	<code className="text-sm">{event.event_name}</code>
+																	<code className="text-sm">
+																		{
+																			event.event_name
+																		}
+																	</code>
 																</TableCell>
 																<TableCell>
-																	{event.event_name === "player_viewed" && event.player ? (
+																	{event.event_name ===
+																		"player_viewed" &&
+																	event.player ? (
 																		<Stack
 																			direction="row"
 																			alignItems="center"
-																			spacing={2}
+																			spacing={
+																				2
+																			}
 																		>
 																			<Icon
 																				icon="solar:user-bold"
 																				className="size-4 text-muted-foreground"
 																			/>
-																			<span className="font-medium">{event.player.name}</span>
+																			<span className="font-medium">
+																				{
+																					event
+																						.player
+																						.name
+																				}
+																			</span>
 																			<span className="text-xs text-muted-foreground">
-																				({event.player.id.slice(0, 8)}...)
+																				(
+																				{event.player.id.slice(
+																					0,
+																					8,
+																				)}
+																				...)
 																			</span>
 																		</Stack>
 																	) : event.page ? (
-																		<code className="text-sm">{event.page}</code>
+																		<code className="text-sm">
+																			{
+																				event.page
+																			}
+																		</code>
 																	) : (
-																		<span className="text-muted-foreground">—</span>
+																		<span className="text-muted-foreground">
+																			—
+																		</span>
 																	)}
 																</TableCell>
 																<TableCell>
 																	<Stack
 																		direction="column"
-																		spacing={1.5}
+																		spacing={
+																			1.5
+																		}
 																	>
 																		<Stack
 																			direction="row"
 																			alignItems="center"
-																			spacing={2}
+																			spacing={
+																				2
+																			}
 																		>
 																			<Icon
 																				icon="solar:calendar-bold"
 																				className="size-4 text-muted-foreground"
 																			/>
-																			<span>{formatDate(event.created_at)}</span>
+																			<span>
+																				{formatDate(
+																					event.created_at,
+																				)}
+																			</span>
 																		</Stack>
 																		<Stack
 																			direction="row"
 																			alignItems="center"
-																			spacing={2}
+																			spacing={
+																				2
+																			}
 																		>
 																			<Icon
 																				icon="solar:clock-circle-bold"
 																				className="size-4 text-muted-foreground"
 																			/>
-																			<span>{formatTime(event.created_at)}</span>
+																			<span>
+																				{formatTime(
+																					event.created_at,
+																				)}
+																			</span>
 																		</Stack>
 																	</Stack>
 																</TableCell>
@@ -573,7 +740,11 @@ function AdminActivityPageContent() {
 											<div className="mt-4 flex items-center justify-between">
 												<Button
 													variant="outline"
-													onClick={() => setPage((p) => Math.max(1, p - 1))}
+													onClick={() =>
+														setPage((p) =>
+															Math.max(1, p - 1),
+														)
+													}
 													disabled={page === 1}
 												>
 													Previous
@@ -584,9 +755,16 @@ function AdminActivityPageContent() {
 												<Button
 													variant="outline"
 													onClick={() =>
-														setPage((p) => Math.min(totalPages, p + 1))
+														setPage((p) =>
+															Math.min(
+																totalPages,
+																p + 1,
+															),
+														)
 													}
-													disabled={page === totalPages}
+													disabled={
+														page === totalPages
+													}
 												>
 													Next
 												</Button>

@@ -55,13 +55,13 @@ export default function RootLayout({
 			lang="sr"
 			className={`dark ${spaceGrotesk.variable} ${manrope.variable}`}
 		>
-		<body>
-			<AppTracker />
-			<MaintenanceGuard>
-				{children}
-				<MobileNav />
-			</MaintenanceGuard>
-		</body>
+			<body>
+				<AppTracker />
+				<MaintenanceGuard>
+					{children}
+					<MobileNav />
+				</MaintenanceGuard>
+			</body>
 		</html>
 	);
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -36,6 +37,25 @@ function SelectPlayersPageContent() {
 	const [users, setUsers] = useState<User[]>([]);
 	const [loadingUsers, setLoadingUsers] = useState(true);
 	const [selectedPlayers, setSelectedPlayers] = useState<User[]>([]);
+	
+	// Scroll indicators state
+	const scrollRef = useRef<HTMLDivElement>(null);
+	const [canScrollLeft, setCanScrollLeft] = useState(false);
+	const [canScrollRight, setCanScrollRight] = useState(false);
+
+	const updateScrollIndicators = useCallback(() => {
+		const el = scrollRef.current;
+		if (!el) return;
+		
+		setCanScrollLeft(el.scrollLeft > 0);
+		setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
+	}, []);
+
+	useEffect(() => {
+		updateScrollIndicators();
+		window.addEventListener('resize', updateScrollIndicators);
+		return () => window.removeEventListener('resize', updateScrollIndicators);
+	}, [updateScrollIndicators, users, selectedPlayers]);
 
 	// Fetch users and their Elo ratings
 	useEffect(() => {
@@ -69,16 +89,25 @@ function SelectPlayersPageContent() {
 				}
 
 				const usersData = await usersResponse.json();
-				
+
 				// Create maps from player_ratings
-				const ratingsMap = new Map<string, { elo: number; matchesPlayed: number }>();
+				const ratingsMap = new Map<
+					string,
+					{ elo: number; matchesPlayed: number }
+				>();
 				if (ratingsResult.data) {
-					ratingsResult.data.forEach((rating: { player_id: string; elo: number; matches_played: number }) => {
-						ratingsMap.set(rating.player_id, {
-							elo: rating.elo,
-							matchesPlayed: rating.matches_played || 0,
-						});
-					});
+					ratingsResult.data.forEach(
+						(rating: {
+							player_id: string;
+							elo: number;
+							matches_played: number;
+						}) => {
+							ratingsMap.set(rating.player_id, {
+								elo: rating.elo,
+								matchesPlayed: rating.matches_played || 0,
+							});
+						},
+					);
 				}
 
 				// Merge ratings into users and sort by matches played (most first)
@@ -86,9 +115,13 @@ function SelectPlayersPageContent() {
 					.map((user: User) => ({
 						...user,
 						elo: ratingsMap.get(user.id)?.elo,
-						matchesPlayed: ratingsMap.get(user.id)?.matchesPlayed || 0,
+						matchesPlayed:
+							ratingsMap.get(user.id)?.matchesPlayed || 0,
 					}))
-					.sort((a: User, b: User) => (b.matchesPlayed || 0) - (a.matchesPlayed || 0));
+					.sort(
+						(a: User, b: User) =>
+							(b.matchesPlayed || 0) - (a.matchesPlayed || 0),
+					);
 
 				setUsers(usersWithRatings);
 			} catch (err) {
@@ -148,7 +181,7 @@ function SelectPlayersPageContent() {
 	return (
 		<SidebarProvider>
 			<AppSidebar variant="inset" />
-			<SidebarInset>
+			<SidebarInset className="overflow-x-hidden">
 				<SiteHeader title={t.startSession.selectPlayers.title} />
 				<div className="flex flex-1 flex-col min-w-0">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav min-w-0">
@@ -166,7 +199,7 @@ function SelectPlayersPageContent() {
 							</p>
 
 							{/* Player Picker Bar */}
-							<Box className="mb-8 -mx-4 lg:-mx-6 min-w-0">
+							<div className="mb-8 w-full max-w-full relative">
 								{loadingUsers ? (
 									<Box className="flex items-center justify-center py-8">
 										<p className="text-muted-foreground">
@@ -174,51 +207,75 @@ function SelectPlayersPageContent() {
 										</p>
 									</Box>
 								) : (
-									<Box className="flex overflow-x-auto gap-4 pb-4 px-4 lg:px-6 scrollbar-hide">
-										{users
-											.filter(
-												(user) => !isSelected(user.id)
-											)
-											.map((user) => {
-												const isDisabled =
-													selectedPlayers.length >=
-													maxSelections;
-												return (
-													<Box
-														key={user.id}
-														component="button"
-														onClick={() => {
-															if (!isDisabled) {
-																handlePlayerSelect(
-																	user
-																);
-															}
-														}}
-														className={cn(
-															"flex-shrink-0",
-															isDisabled &&
-																"opacity-50 cursor-not-allowed"
-														)}
-													>
-														<PlayerNameCard
-															name={user.name}
-															avatar={user.avatar}
-															id={user.id}
-															size="lg"
-															variant="vertical"
-															avatarBorder="transparent"
-															className="[&_span]:text-muted-foreground"
-														/>
-													</Box>
-												);
-											})}
-									</Box>
+									<>
+										{/* Left fade mask */}
+										<div 
+											className={cn(
+												"absolute left-0 top-0 bottom-4 w-16 bg-gradient-to-r from-background via-background/60 to-transparent z-10 pointer-events-none transition-opacity duration-200",
+												canScrollLeft ? "opacity-100" : "opacity-0"
+											)}
+										/>
+										{/* Right fade mask */}
+										<div 
+											className={cn(
+												"absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-background via-background/60 to-transparent z-10 pointer-events-none transition-opacity duration-200",
+												canScrollRight ? "opacity-100" : "opacity-0"
+											)}
+										/>
+										<div 
+											ref={scrollRef}
+											onScroll={updateScrollIndicators}
+											className="w-full overflow-x-auto scrollbar-hide"
+										>
+											<div className="flex gap-4 pb-4 w-max">
+												<AnimatePresence>
+													{users
+														.filter(
+															(user) => !isSelected(user.id)
+														)
+														.map((user) => {
+															const isDisabled =
+																selectedPlayers.length >= maxSelections;
+															return (
+																<motion.button
+																	key={user.id}
+																	initial={{ opacity: 0, scale: 0.8 }}
+																	animate={{ opacity: 1, scale: 1 }}
+																	exit={{ opacity: 0, scale: 0.8 }}
+																	transition={{ duration: 0.2 }}
+																	onClick={() => {
+																		if (!isDisabled) {
+																			handlePlayerSelect(user);
+																		}
+																	}}
+																	className={cn(
+																		"flex-shrink-0",
+																		isDisabled && "opacity-50 cursor-not-allowed"
+																	)}
+																	whileTap={{ scale: 0.95 }}
+																>
+																	<PlayerNameCard
+																		name={user.name}
+																		avatar={user.avatar}
+																		id={user.id}
+																		size="lg"
+																		variant="vertical"
+																		avatarBorder="transparent"
+																		className="[&_span]:text-muted-foreground"
+																	/>
+																</motion.button>
+															);
+														})}
+												</AnimatePresence>
+											</div>
+										</div>
+									</>
 								)}
-							</Box>
+							</div>
 
 							{/* Singles Mode */}
 							{!isDoubles && (
-								<Box>
+								<Box className="overflow-hidden">
 									<Stack
 										direction="row"
 										alignItems="center"
@@ -231,10 +288,15 @@ function SelectPlayersPageContent() {
 													.selectedPlayers
 											}
 										</h3>
-										<Box className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
+										<motion.div
+											key={selectedPlayers.length}
+											initial={{ scale: 1.2 }}
+											animate={{ scale: 1 }}
+											className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md"
+										>
 											{selectedPlayers.length} /{" "}
 											{maxSelections}
-										</Box>
+										</motion.div>
 									</Stack>
 									<Stack direction="column" spacing={3}>
 										{Array.from({
@@ -243,13 +305,28 @@ function SelectPlayersPageContent() {
 											const player =
 												selectedPlayers[index];
 											return (
-												<Box
+												<motion.div
 													key={index}
+													layout
+													initial={false}
+													animate={{
+														backgroundColor: player
+															? "hsl(var(--card))"
+															: "transparent",
+														borderStyle: player
+															? "solid"
+															: "dashed",
+														opacity: player
+															? 1
+															: 0.5,
+													}}
+													transition={{
+														type: "spring",
+														stiffness: 500,
+														damping: 30,
+													}}
 													className={cn(
-														"rounded-[20px] p-3 border flex items-center justify-between",
-														player
-															? "bg-card border-border/50"
-															: "border-dashed border-border opacity-50"
+														"rounded-[20px] p-3 border border-border/50 flex items-center justify-between",
 													)}
 												>
 													<Stack
@@ -257,93 +334,173 @@ function SelectPlayersPageContent() {
 														alignItems="center"
 														spacing={4}
 													>
-														<Box
-															className={cn(
-																"size-10 rounded-full flex items-center justify-center font-bold text-sm",
-																player
-																	? "bg-primary/10 text-primary"
-																	: "bg-muted text-muted-foreground border border-border"
-															)}
+														<motion.div
+															animate={{
+																backgroundColor:
+																	player
+																		? "hsl(var(--primary) / 0.1)"
+																		: "hsl(var(--muted))",
+																color: player
+																	? "hsl(var(--primary))"
+																	: "hsl(var(--muted-foreground))",
+															}}
+															transition={{
+																duration: 0.2,
+															}}
+															className="size-10 rounded-full flex items-center justify-center font-bold text-sm border border-transparent"
+															style={{
+																borderColor:
+																	player
+																		? "transparent"
+																		: "hsl(var(--border))",
+															}}
 														>
 															{index + 1}
-														</Box>
-														{player ? (
-															<Stack
-																direction="row"
-																alignItems="center"
-																spacing={3}
-															>
-																<Avatar className="size-10">
-																	<AvatarImage
-																		src={
-																			player.avatar ||
-																			undefined
-																		}
-																		alt={
-																			player.name
-																		}
-																	/>
-																	<AvatarFallback>
-																		{player.name
-																			.charAt(
-																				0
-																			)
-																			.toUpperCase()}
-																	</AvatarFallback>
-																</Avatar>
-																<Box>
-																	<p className="font-semibold text-sm">
-																		{
-																			player.name
-																		}
-																	</p>
-																	{player.elo && (
-																		<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-																			Elo {player.elo}
-																		</p>
-																	)}
-																</Box>
-															</Stack>
-														) : (
-															<Stack
-																direction="row"
-																alignItems="center"
-																spacing={3}
-															>
-																<Box className="size-10 rounded-full bg-muted border border-border flex items-center justify-center">
-																	<Icon
-																		icon="solar:user-bold"
-																		className="size-5 text-muted-foreground/50"
-																	/>
-																</Box>
-																<p className="text-sm font-medium text-muted-foreground">
-																	{
-																		t
-																			.startSession
-																			.selectPlayers
-																			.selectPlayer
+														</motion.div>
+														<AnimatePresence mode="wait">
+															{player ? (
+																<motion.div
+																	key={
+																		player.id
 																	}
-																</p>
-															</Stack>
-														)}
+																	initial={{
+																		opacity: 0,
+																		x: -20,
+																	}}
+																	animate={{
+																		opacity: 1,
+																		x: 0,
+																	}}
+																	exit={{
+																		opacity: 0,
+																		x: 20,
+																	}}
+																	transition={{
+																		type: "spring",
+																		stiffness: 500,
+																		damping: 30,
+																	}}
+																>
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={
+																			3
+																		}
+																	>
+																		<Avatar className="size-10">
+																			<AvatarImage
+																				src={
+																					player.avatar ||
+																					undefined
+																				}
+																				alt={
+																					player.name
+																				}
+																			/>
+																			<AvatarFallback>
+																				{player.name
+																					.charAt(
+																						0,
+																					)
+																					.toUpperCase()}
+																			</AvatarFallback>
+																		</Avatar>
+																		<Box>
+																			<p className="font-semibold text-sm">
+																				{
+																					player.name
+																				}
+																			</p>
+																			{player.elo && (
+																				<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+																					Elo{" "}
+																					{
+																						player.elo
+																					}
+																				</p>
+																			)}
+																		</Box>
+																	</Stack>
+																</motion.div>
+															) : (
+																<motion.div
+																	key="empty"
+																	initial={{
+																		opacity: 0,
+																	}}
+																	animate={{
+																		opacity: 1,
+																	}}
+																	exit={{
+																		opacity: 0,
+																	}}
+																	transition={{
+																		duration: 0.15,
+																	}}
+																>
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={
+																			3
+																		}
+																	>
+																		<Box className="size-10 rounded-full bg-muted border border-border flex items-center justify-center">
+																			<Icon
+																				icon="solar:user-bold"
+																				className="size-5 text-muted-foreground/50"
+																			/>
+																		</Box>
+																		<p className="text-sm font-medium text-muted-foreground">
+																			{
+																				t
+																					.startSession
+																					.selectPlayers
+																					.selectPlayer
+																			}
+																		</p>
+																	</Stack>
+																</motion.div>
+															)}
+														</AnimatePresence>
 													</Stack>
-													{player && (
-														<Box
-															component="button"
-															onClick={() =>
-																handlePlayerRemove(
-																	player.id
-																)
-															}
-															className="p-2 text-muted-foreground active:text-destructive"
-														>
-															<Icon
-																icon="solar:close-circle-bold"
-																className="size-5"
-															/>
-														</Box>
-													)}
-												</Box>
+													<AnimatePresence>
+														{player && (
+															<motion.button
+																initial={{
+																	opacity: 0,
+																	scale: 0.8,
+																}}
+																animate={{
+																	opacity: 1,
+																	scale: 1,
+																}}
+																exit={{
+																	opacity: 0,
+																	scale: 0.8,
+																}}
+																transition={{
+																	duration: 0.15,
+																}}
+																onClick={() =>
+																	handlePlayerRemove(
+																		player.id,
+																	)
+																}
+																className="p-2 text-muted-foreground active:text-destructive"
+																whileTap={{
+																	scale: 0.9,
+																}}
+															>
+																<Icon
+																	icon="solar:close-circle-bold"
+																	className="size-5"
+																/>
+															</motion.button>
+														)}
+													</AnimatePresence>
+												</motion.div>
 											);
 										})}
 									</Stack>
@@ -360,7 +517,7 @@ function SelectPlayersPageContent() {
 											<p className="text-sm text-muted-foreground leading-relaxed">
 												{t.startSession.selectPlayers.singlesInfo.replace(
 													"{count}",
-													playerCount.toString()
+													playerCount.toString(),
 												)}
 											</p>
 										</Stack>
@@ -426,7 +583,7 @@ function SelectPlayersPageContent() {
 																	"text-chart-2 bg-chart-2/10",
 																teamIndex ===
 																	2 &&
-																	"text-chart-3 bg-chart-3/10"
+																	"text-chart-3 bg-chart-3/10",
 															)}
 														>
 															{team.length} / 2
@@ -466,7 +623,7 @@ function SelectPlayersPageContent() {
 																					<AvatarFallback>
 																						{player.name
 																							.charAt(
-																								0
+																								0,
 																							)
 																							.toUpperCase()}
 																					</AvatarFallback>
@@ -479,7 +636,10 @@ function SelectPlayersPageContent() {
 																					</p>
 																					{player.elo && (
 																						<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-																							Elo {player.elo}
+																							Elo{" "}
+																							{
+																								player.elo
+																							}
 																						</p>
 																					)}
 																				</Box>
@@ -504,7 +664,7 @@ function SelectPlayersPageContent() {
 																		)}
 																	</Box>
 																);
-															}
+															},
 														)}
 													</Stack>
 												</Box>
@@ -533,8 +693,12 @@ function SelectPlayersPageContent() {
 							)}
 
 							{/* Back and Continue Buttons */}
-							<Box className="pt-4">
-								<Stack direction="row" spacing={3}>
+							<Box className="pt-4 overflow-hidden">
+								<Stack
+									direction="row"
+									spacing={3}
+									className="min-w-0"
+								>
 									<Button
 										variant="outline"
 										onClick={() =>
@@ -563,11 +727,11 @@ function SelectPlayersPageContent() {
 												sessionStorage.setItem(
 													"selectedPlayers",
 													JSON.stringify(
-														selectedPlayers
-													)
+														selectedPlayers,
+													),
 												);
 												router.push(
-													`/start-session/schedule?count=${playerCount}`
+													`/start-session/schedule?count=${playerCount}`,
 												);
 											}
 										}}

@@ -134,14 +134,15 @@ export function MobileNav() {
 			if (
 				moreButtonRef.current &&
 				!moreButtonRef.current.contains(event.target as Node) &&
-				!(event.target as HTMLElement).closest('[data-more-popup]')
+				!(event.target as HTMLElement).closest("[data-more-popup]")
 			) {
 				setIsMoreOpen(false);
 			}
 		};
 
 		document.addEventListener("mousedown", handleClickOutside);
-		return () => document.removeEventListener("mousedown", handleClickOutside);
+		return () =>
+			document.removeEventListener("mousedown", handleClickOutside);
 	}, [isMoreOpen]);
 
 	// Close popup when route changes
@@ -160,7 +161,9 @@ export function MobileNav() {
 		return null;
 	}
 
-	const hasActiveInMore = moreNavItems.some((item) => pathname === item.url) || pathname === settingsItem.url;
+	const hasActiveInMore =
+		moreNavItems.some((item) => pathname === item.url) ||
+		pathname === settingsItem.url;
 
 	return (
 		<>
@@ -175,172 +178,173 @@ export function MobileNav() {
 			</div>
 
 			<nav
-				className="fixed left-0 right-0 z-50 flex justify-center px-4 md:hidden"
+				className="fixed left-0 bottom-0 z-50 flex justify-center px-4 md:hidden w-full"
 				style={{ bottom: isIOSSafari26 ? "8px" : "24px" }}
 			>
 				<div className="relative w-full max-w-[450px]">
-				{/* More popup */}
-				<AnimatePresence>
-					{isMoreOpen && (
-						<motion.div
-							data-more-popup
-							initial={{ opacity: 0, y: 10, scale: 0.95 }}
-							animate={{ opacity: 1, y: 0, scale: 1 }}
-							exit={{ opacity: 0, y: 10, scale: 0.95 }}
-							transition={{ duration: 0.2 }}
-							className="absolute bottom-full right-0 mb-3 bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] p-2 min-w-[140px]"
-						>
-							{/* Regular items */}
-							{moreNavItems.map((item) => {
-								const isActive = pathname === item.url;
-								return (
-									<Link
-										key={item.url}
-										href={item.url}
-										className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group"
-										onClick={() => setIsMoreOpen(false)}
-									>
-										<Icon
-											icon={item.icon}
-											className={`size-5 transition-colors duration-200 ${
-												isActive
-													? "text-primary"
-													: "text-muted-foreground group-hover:text-foreground"
-											}`}
-										/>
-										<span
-											className={`text-sm transition-colors duration-200 ${
-												isActive
-													? "font-bold text-primary"
-													: "font-medium text-muted-foreground group-hover:text-foreground"
-											}`}
-										>
-											{item.title}
-										</span>
-									</Link>
-								);
-							})}
-							
-							{/* Separator */}
-							<div className="h-px bg-border/50 mx-2 my-1" />
-							
-							{/* Settings (first from bottom, separated) */}
-							{(() => {
-								const isActive = pathname === settingsItem.url;
-								return (
-									<Link
-										href={settingsItem.url}
-										className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group"
-										onClick={() => setIsMoreOpen(false)}
-									>
-										<Icon
-											icon={settingsItem.icon}
-											className={`size-5 transition-colors duration-200 ${
-												isActive
-													? "text-primary"
-													: "text-muted-foreground group-hover:text-foreground"
-											}`}
-										/>
-										<span
-											className={`text-sm transition-colors duration-200 ${
-												isActive
-													? "font-bold text-primary"
-													: "font-medium text-muted-foreground group-hover:text-foreground"
-											}`}
-										>
-											{settingsItem.title}
-										</span>
-									</Link>
-								);
-							})()}
-						</motion.div>
-					)}
-				</AnimatePresence>
-
-				{/* Main nav bar */}
-				<div className="bg-card/85 backdrop-blur-xl border border-border/50 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.5)] px-2 py-2 flex items-center gap-1 w-full max-w-[450px] justify-between relative">
-					{mainNavItems.map((item) => {
-						const isActive = pathname === item.url;
-						return (
-							<Link
-								key={item.url}
-								href={item.url}
-								className="flex flex-col items-center justify-center w-14 h-14 relative group cursor-pointer"
-							>
-								{isActive && (
-									<motion.div
-										layoutId="activeNavIndicator"
-										className="absolute inset-2 aspect-square bg-primary/10 rounded-2xl -z-10 blur-sm"
-										transition={{
-											type: "spring",
-											stiffness: 380,
-											damping: 30,
-										}}
-									/>
-								)}
-								<Icon
-									icon={item.icon}
-									className={`size-6 mb-0.5 transition-colors duration-200 ${
-										isActive
-											? "text-primary"
-											: "text-muted-foreground group-hover:text-foreground"
-									}`}
-								/>
-								<span
-									className={`text-[9px] transition-colors duration-200 ${
-										isActive
-											? "font-bold text-primary"
-											: "font-medium text-muted-foreground group-hover:text-foreground"
-									}`}
-								>
-									{item.title}
-								</span>
-							</Link>
-						);
-					})}
-
-					{/* More button */}
-					<button
-						ref={moreButtonRef}
-						onClick={() => setIsMoreOpen(!isMoreOpen)}
-						className={`flex flex-col items-center justify-center w-14 h-14 relative group cursor-pointer transition-colors duration-200 ${
-							hasActiveInMore || isMoreOpen
-								? "text-primary"
-								: "text-muted-foreground group-hover:text-foreground"
-						}`}
-					>
-						{(hasActiveInMore || isMoreOpen) && (
+					{/* More popup */}
+					<AnimatePresence>
+						{isMoreOpen && (
 							<motion.div
-								layoutId="activeNavIndicator"
-								className="absolute inset-2 aspect-square bg-primary/10 rounded-2xl -z-10 blur-sm"
-								transition={{
-									type: "spring",
-									stiffness: 380,
-									damping: 30,
-								}}
-							/>
+								data-more-popup
+								initial={{ opacity: 0, y: 10, scale: 0.95 }}
+								animate={{ opacity: 1, y: 0, scale: 1 }}
+								exit={{ opacity: 0, y: 10, scale: 0.95 }}
+								transition={{ duration: 0.2 }}
+								className="absolute bottom-full right-0 mb-3 bg-card/95 backdrop-blur-xl border border-border/50 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] p-2 min-w-[140px]"
+							>
+								{/* Regular items */}
+								{moreNavItems.map((item) => {
+									const isActive = pathname === item.url;
+									return (
+										<Link
+											key={item.url}
+											href={item.url}
+											className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group"
+											onClick={() => setIsMoreOpen(false)}
+										>
+											<Icon
+												icon={item.icon}
+												className={`size-5 transition-colors duration-200 ${
+													isActive
+														? "text-primary"
+														: "text-muted-foreground group-hover:text-foreground"
+												}`}
+											/>
+											<span
+												className={`text-sm transition-colors duration-200 ${
+													isActive
+														? "font-bold text-primary"
+														: "font-medium text-muted-foreground group-hover:text-foreground"
+												}`}
+											>
+												{item.title}
+											</span>
+										</Link>
+									);
+								})}
+
+								{/* Separator */}
+								<div className="h-px bg-border/50 mx-2 my-1" />
+
+								{/* Settings (first from bottom, separated) */}
+								{(() => {
+									const isActive =
+										pathname === settingsItem.url;
+									return (
+										<Link
+											href={settingsItem.url}
+											className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group"
+											onClick={() => setIsMoreOpen(false)}
+										>
+											<Icon
+												icon={settingsItem.icon}
+												className={`size-5 transition-colors duration-200 ${
+													isActive
+														? "text-primary"
+														: "text-muted-foreground group-hover:text-foreground"
+												}`}
+											/>
+											<span
+												className={`text-sm transition-colors duration-200 ${
+													isActive
+														? "font-bold text-primary"
+														: "font-medium text-muted-foreground group-hover:text-foreground"
+												}`}
+											>
+												{settingsItem.title}
+											</span>
+										</Link>
+									);
+								})()}
+							</motion.div>
 						)}
-						<Icon
-							icon="solar:menu-dots-bold"
-							className={`size-6 mb-0.5 transition-colors duration-200 ${
+					</AnimatePresence>
+
+					{/* Main nav bar */}
+					<div className="bg-card/85 backdrop-blur-xl border border-border/50 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.5)] px-2 py-2 flex items-center gap-1 w-full max-w-[450px] justify-between relative">
+						{mainNavItems.map((item) => {
+							const isActive = pathname === item.url;
+							return (
+								<Link
+									key={item.url}
+									href={item.url}
+									className="flex flex-col items-center justify-center w-14 h-14 relative group cursor-pointer"
+								>
+									{isActive && (
+										<motion.div
+											layoutId="activeNavIndicator"
+											className="absolute inset-2 aspect-square bg-primary/10 rounded-2xl -z-10 blur-sm"
+											transition={{
+												type: "spring",
+												stiffness: 380,
+												damping: 30,
+											}}
+										/>
+									)}
+									<Icon
+										icon={item.icon}
+										className={`size-6 mb-0.5 transition-colors duration-200 ${
+											isActive
+												? "text-primary"
+												: "text-muted-foreground group-hover:text-foreground"
+										}`}
+									/>
+									<span
+										className={`text-[9px] transition-colors duration-200 ${
+											isActive
+												? "font-bold text-primary"
+												: "font-medium text-muted-foreground group-hover:text-foreground"
+										}`}
+									>
+										{item.title}
+									</span>
+								</Link>
+							);
+						})}
+
+						{/* More button */}
+						<button
+							ref={moreButtonRef}
+							onClick={() => setIsMoreOpen(!isMoreOpen)}
+							className={`flex flex-col items-center justify-center w-14 h-14 relative group cursor-pointer transition-colors duration-200 ${
 								hasActiveInMore || isMoreOpen
 									? "text-primary"
 									: "text-muted-foreground group-hover:text-foreground"
 							}`}
-						/>
-						<span
-							className={`text-[9px] transition-colors duration-200 ${
-								hasActiveInMore || isMoreOpen
-									? "font-bold text-primary"
-									: "font-medium text-muted-foreground group-hover:text-foreground"
-							}`}
 						>
-							Više
-						</span>
-					</button>
+							{(hasActiveInMore || isMoreOpen) && (
+								<motion.div
+									layoutId="activeNavIndicator"
+									className="absolute inset-2 aspect-square bg-primary/10 rounded-2xl -z-10 blur-sm"
+									transition={{
+										type: "spring",
+										stiffness: 380,
+										damping: 30,
+									}}
+								/>
+							)}
+							<Icon
+								icon="solar:menu-dots-bold"
+								className={`size-6 mb-0.5 transition-colors duration-200 ${
+									hasActiveInMore || isMoreOpen
+										? "text-primary"
+										: "text-muted-foreground group-hover:text-foreground"
+								}`}
+							/>
+							<span
+								className={`text-[9px] transition-colors duration-200 ${
+									hasActiveInMore || isMoreOpen
+										? "font-bold text-primary"
+										: "font-medium text-muted-foreground group-hover:text-foreground"
+								}`}
+							>
+								Više
+							</span>
+						</button>
+					</div>
 				</div>
-			</div>
-		</nav>
+			</nav>
 		</>
 	);
 }
