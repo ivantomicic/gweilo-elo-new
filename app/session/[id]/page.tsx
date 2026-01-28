@@ -37,6 +37,11 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import { t } from "@/lib/i18n";
+import {
+	CalculationTerminal,
+	TerminalLine,
+	TerminalModal,
+} from "@/components/ui/calculation-terminal";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -158,6 +163,186 @@ function SessionPageContent() {
 	const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<
 		string | null
 	>(null);
+
+	// Terminal state for ELO calculation visualization
+	const [showCalculationTerminal, setShowCalculationTerminal] = useState(false);
+	const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
+	const [isTerminalComplete, setIsTerminalComplete] = useState(false);
+	const apiCallCompleteRef = useRef(false);
+
+	// Generate terminal lines for ELO calculation visualization
+	const generateTerminalLines = useCallback(
+		(matches: Match[], roundNumber: number): TerminalLine[] => {
+			const lines: TerminalLine[] = [];
+			const players = sessionData?.players || [];
+
+			// Get player name by ID
+			const getPlayerName = (playerId: string): string => {
+				const player = players.find((p) => p.id === playerId);
+				return player?.name || "Unknown";
+			};
+
+			// Starting message
+			lines.push({
+				text: t.terminal.initializing,
+				type: "dim",
+				delay: 0,
+			});
+			lines.push({
+				text: t.terminal.processingRound(roundNumber),
+				type: "info",
+				delay: 200,
+			});
+			lines.push({
+				text: t.terminal.foundMatches(matches.length),
+				type: "info",
+				delay: 100,
+			});
+
+			// Process each match
+			matches.forEach((match, index) => {
+				const isSingles = match.match_type === "singles";
+				const matchDelay = 300 + index * 600; // Stagger match processing
+
+				lines.push({
+					text: ``,
+					type: "dim",
+					delay: matchDelay,
+				});
+				lines.push({
+					text: t.terminal.processingMatch(index + 1, matches.length),
+					type: "highlight",
+					delay: 50,
+				});
+
+				if (isSingles) {
+					const player1 = getPlayerName(match.player_ids[0]);
+					const player2 = getPlayerName(match.player_ids[1]);
+					lines.push({
+						text: t.terminal.matchType.singles,
+						type: "dim",
+						delay: 80,
+					});
+					lines.push({
+						text: `${player1} vs ${player2}`,
+						type: "info",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.readingRatings,
+						type: "dim",
+						delay: 120,
+					});
+					lines.push({
+						text: t.terminal.calculatingExpected,
+						type: "dim",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.applyingKFactor,
+						type: "dim",
+						delay: 80,
+					});
+					lines.push({
+						text: t.terminal.updatingPlayerRatings,
+						type: "dim",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.matchComplete(index + 1),
+						type: "success",
+						delay: 150,
+					});
+				} else {
+					// Doubles
+					const team1Player1 = getPlayerName(match.player_ids[0]);
+					const team1Player2 = getPlayerName(match.player_ids[1]);
+					const team2Player1 = getPlayerName(match.player_ids[2]);
+					const team2Player2 = getPlayerName(match.player_ids[3]);
+					lines.push({
+						text: t.terminal.matchType.doubles,
+						type: "dim",
+						delay: 80,
+					});
+					lines.push({
+						text: `${team1Player1} & ${team1Player2} vs ${team2Player1} & ${team2Player2}`,
+						type: "info",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.readingTeamRatings,
+						type: "dim",
+						delay: 120,
+					});
+					lines.push({
+						text: t.terminal.readingPlayerDoublesRatings,
+						type: "dim",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.calculatingTeamExpected,
+						type: "dim",
+						delay: 80,
+					});
+					lines.push({
+						text: t.terminal.calculatingPlayerExpected,
+						type: "dim",
+						delay: 80,
+					});
+					lines.push({
+						text: t.terminal.updatingTeamRatings,
+						type: "dim",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.updatingPlayerDoublesRatings,
+						type: "dim",
+						delay: 100,
+					});
+					lines.push({
+						text: t.terminal.matchComplete(index + 1),
+						type: "success",
+						delay: 150,
+					});
+				}
+			});
+
+			// Final messages
+			lines.push({
+				text: ``,
+				type: "dim",
+				delay: 200,
+			});
+			lines.push({
+				text: t.terminal.creatingSnapshots,
+				type: "dim",
+				delay: 100,
+			});
+			lines.push({
+				text: t.terminal.recordingHistory,
+				type: "dim",
+				delay: 100,
+			});
+			lines.push({
+				text: t.terminal.updatingStatuses,
+				type: "dim",
+				delay: 100,
+			});
+			lines.push({
+				text: ``,
+				type: "dim",
+				delay: 100,
+			});
+			lines.push({
+				text: t.terminal.roundComplete(roundNumber),
+				type: "success",
+				delay: 200,
+			});
+
+			return lines;
+		},
+		[sessionData?.players]
+	);
 
 	// Refs for score inputs to enable auto-focus
 	const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -682,18 +867,36 @@ function SessionPageContent() {
 			// Auto-focus next input if a value was entered
 			if (value !== "") {
 				setTimeout(() => {
+					// Helper to get the visible input (mobile or desktop)
+					const getVisibleInput = (mobileKey: string, desktopKey: string) => {
+						const mobileRef = scoreInputRefs.current[mobileKey];
+						const desktopRef = scoreInputRefs.current[desktopKey];
+						// Check which one is visible (offsetParent is null for hidden elements)
+						if (desktopRef && desktopRef.offsetParent !== null) {
+							return desktopRef;
+						}
+						if (mobileRef && mobileRef.offsetParent !== null) {
+							return mobileRef;
+						}
+						return null;
+					};
+
 					if (side === "team1") {
-						// Focus team2 input of same match (try mobile first, then desktop)
-						const nextRef = scoreInputRefs.current[`${matchId}-team2`] 
-							|| scoreInputRefs.current[`${matchId}-team2-desktop`];
+						// Focus team2 input of same match
+						const nextRef = getVisibleInput(
+							`${matchId}-team2`,
+							`${matchId}-team2-desktop`
+						);
 						nextRef?.focus();
 					} else if (side === "team2" && matchIndex !== undefined) {
 						// Focus team1 input of next match
 						const currentMatches = sessionData?.matchesByRound[currentRound] || [];
 						if (matchIndex < currentMatches.length - 1) {
 							const nextMatch = currentMatches[matchIndex + 1];
-							const nextRef = scoreInputRefs.current[`${nextMatch.id}-team1`]
-								|| scoreInputRefs.current[`${nextMatch.id}-team1-desktop`];
+							const nextRef = getVisibleInput(
+								`${nextMatch.id}-team1`,
+								`${nextMatch.id}-team1-desktop`
+							);
 							nextRef?.focus();
 						}
 					}
@@ -759,7 +962,141 @@ function SessionPageContent() {
 		isValidScore,
 	]);
 
-	// Submit round results
+	// Refs to store API call results for terminal completion handler
+	const submitResultRef = useRef<{
+		success: boolean;
+		updatedPlayers?: Player[];
+		allMatches?: Match[];
+		error?: string;
+	} | null>(null);
+	const submitRoundRef = useRef(currentRound);
+
+	// Handle terminal animation complete - finalize the submission
+	const handleTerminalComplete = useCallback(() => {
+		const result = submitResultRef.current;
+		if (!result) return;
+
+		if (result.success && result.updatedPlayers) {
+			const roundToUpdate = submitRoundRef.current;
+
+			// If this is Round 5 for a 6-player session and we have refreshed matches
+			if (
+				roundToUpdate === 5 &&
+				sessionData?.session.player_count === 6 &&
+				result.allMatches
+			) {
+				// Group matches by round_number
+				const matchesByRound = result.allMatches.reduce(
+					(acc, match) => {
+						const roundNumber = match.round_number;
+						if (!acc[roundNumber]) {
+							acc[roundNumber] = [];
+						}
+						acc[roundNumber].push(match);
+						return acc;
+					},
+					{} as Record<number, Match[]>
+				);
+
+				// Update local state with refreshed matches
+				setSessionData((prev) => {
+					if (!prev) return prev;
+					const updatedMatchesByRound = { ...prev.matchesByRound };
+					const currentMatches = updatedMatchesByRound[roundToUpdate] || [];
+					updatedMatchesByRound[roundToUpdate] = currentMatches.map(
+						(match) => ({
+							...match,
+							status: "completed" as const,
+							team1_score: scores[match.id].team1!,
+							team2_score: scores[match.id].team2!,
+						})
+					);
+
+					// Merge refreshed matches (this will update Round 6 with new player assignments)
+					Object.keys(matchesByRound).forEach((roundNum) => {
+						const roundNumber = parseInt(roundNum, 10);
+						if (roundNumber !== roundToUpdate) {
+							updatedMatchesByRound[roundNumber] = matchesByRound[roundNumber];
+						}
+					});
+
+					const roundNumbersList = Object.keys(updatedMatchesByRound)
+						.map(Number)
+						.sort((a, b) => a - b);
+					const maxRoundNumber = Math.max(...roundNumbersList);
+					const isLastRound = roundToUpdate >= maxRoundNumber;
+
+					return {
+						...prev,
+						players: result.updatedPlayers!,
+						matchesByRound: updatedMatchesByRound,
+						session: {
+							...prev.session,
+							status: isLastRound ? ("completed" as const) : prev.session.status,
+							completed_at: isLastRound
+								? new Date().toISOString()
+								: prev.session.completed_at,
+						},
+					};
+				});
+			} else {
+				// Standard update for non-Round 5 or non-6-player sessions
+				setSessionData((prev) => {
+					if (!prev) return prev;
+					const updatedMatchesByRound = { ...prev.matchesByRound };
+					const currentMatches = updatedMatchesByRound[roundToUpdate] || [];
+					updatedMatchesByRound[roundToUpdate] = currentMatches.map(
+						(match) => ({
+							...match,
+							status: "completed" as const,
+							team1_score: scores[match.id].team1!,
+							team2_score: scores[match.id].team2!,
+						})
+					);
+
+					const roundNumbersList = Object.keys(prev.matchesByRound)
+						.map(Number)
+						.sort((a, b) => a - b);
+					const maxRoundNumber = Math.max(...roundNumbersList);
+					const isLastRound = roundToUpdate >= maxRoundNumber;
+
+					return {
+						...prev,
+						players: result.updatedPlayers!,
+						matchesByRound: updatedMatchesByRound,
+						session: {
+							...prev.session,
+							status: isLastRound ? ("completed" as const) : prev.session.status,
+							completed_at: isLastRound
+								? new Date().toISOString()
+								: prev.session.completed_at,
+						},
+					};
+				});
+			}
+
+			// Advance to next round (if not last round)
+			if (sessionData) {
+				const roundNumbersList = Object.keys(sessionData.matchesByRound)
+					.map(Number)
+					.sort((a, b) => a - b);
+				const currentIndex = roundNumbersList.indexOf(roundToUpdate);
+				if (currentIndex < roundNumbersList.length - 1) {
+					setCurrentRound(roundNumbersList[currentIndex + 1]);
+				}
+			}
+		} else if (result.error) {
+			setError(result.error);
+		}
+
+		// Clean up
+		setShowCalculationTerminal(false);
+		setIsTerminalComplete(false);
+		setSubmitting(false);
+		submitResultRef.current = null;
+	}, [sessionData, scores]);
+
+	// Submit round results with terminal visualization
 	const handleSubmitRound = useCallback(async () => {
 		if (!sessionData || !canSubmitRound || submitting) return;
 
@@ -770,14 +1107,28 @@ function SessionPageContent() {
 			team2Score: scores[match.id].team2!,
 		}));
 
+		// Store current round for the completion handler
+		submitRoundRef.current = currentRound;
+
+		// Generate terminal lines and show the terminal
+		const lines = generateTerminalLines(currentMatches, currentRound);
+		setTerminalLines(lines);
+		setIsTerminalComplete(false);
+		setShowCalculationTerminal(true);
 		setSubmitting(true);
+
+		// Start the API call in the background
 		try {
 			const {
 				data: { session },
 			} = await supabase.auth.getSession();
 
 			if (!session) {
-				setError(t.sessions.session.error.notAuthenticated);
+				submitResultRef.current = {
+					success: false,
+					error: t.sessions.session.error.notAuthenticated,
+				};
+				setIsTerminalComplete(true);
 				return;
 			}
 
@@ -795,203 +1146,62 @@ function SessionPageContent() {
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.error || t.sessions.session.error.submitFailed
-				);
+				submitResultRef.current = {
+					success: false,
+					error: errorData.error || t.sessions.session.error.submitFailed,
+				};
+				setIsTerminalComplete(true);
+				return;
 			}
 
-			// Refetch players to get updated Elo ratings after round submission
+			// Refetch players to get updated Elo ratings
 			const updatedPlayers = await fetchPlayers();
 
-			// If this is Round 5 for a 6-player session, refetch matches to get updated Round 6
+			// For Round 5 of 6-player sessions, also refetch matches
+			let allMatches: Match[] | undefined;
 			if (currentRound === 5 && sessionData.session.player_count === 6) {
 				const {
 					data: { session: authSession },
 				} = await supabase.auth.getSession();
 
 				if (authSession) {
-					const supabaseClient = createClient(
-						supabaseUrl,
-						supabaseAnonKey,
-						{
-							global: {
-								headers: {
-									Authorization: `Bearer ${authSession.access_token}`,
-								},
+					const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+						global: {
+							headers: {
+								Authorization: `Bearer ${authSession.access_token}`,
 							},
-						}
-					);
+						},
+					});
 
-					// Refetch all matches to get updated Round 6
-					const { data: allMatches, error: matchesError } =
-						await supabaseClient
-							.from("session_matches")
-							.select("*")
-							.eq("session_id", sessionId)
-							.order("round_number", { ascending: true })
-							.order("match_order", { ascending: true });
+					const { data: matchesData } = await supabaseClient
+						.from("session_matches")
+						.select("*")
+						.eq("session_id", sessionId)
+						.order("round_number", { ascending: true })
+						.order("match_order", { ascending: true });
 
-					if (!matchesError && allMatches) {
-						// Group matches by round_number
-						const matchesByRound = (allMatches || []).reduce(
-							(acc, match) => {
-								const roundNumber = match.round_number;
-								if (!acc[roundNumber]) {
-									acc[roundNumber] = [];
-								}
-								acc[roundNumber].push(match);
-								return acc;
-							},
-							{} as Record<number, Match[]>
-						);
-
-						// Update local state with refreshed matches
-						setSessionData((prev) => {
-							if (!prev) return prev;
-							const updatedMatchesByRound = { ...prev.matchesByRound };
-							const currentMatches =
-								updatedMatchesByRound[currentRound] || [];
-							updatedMatchesByRound[currentRound] = currentMatches.map(
-								(match) => ({
-									...match,
-									status: "completed" as const,
-									team1_score: scores[match.id].team1!,
-									team2_score: scores[match.id].team2!,
-								})
-							);
-
-							// Merge refreshed matches (this will update Round 6 with new player assignments)
-							Object.keys(matchesByRound).forEach((roundNum) => {
-								const roundNumber = parseInt(roundNum, 10);
-								// For Round 5, use our local state (with completed status)
-								// For other rounds, use refreshed data
-								if (roundNumber !== currentRound) {
-									updatedMatchesByRound[roundNumber] =
-										matchesByRound[roundNumber];
-								}
-							});
-
-							// Check if this was the last round
-							const roundNumbersList = Object.keys(
-								updatedMatchesByRound
-							)
-								.map(Number)
-								.sort((a, b) => a - b);
-							const maxRoundNumber = Math.max(...roundNumbersList);
-							const isLastRound = currentRound >= maxRoundNumber;
-
-							return {
-								...prev,
-								players: updatedPlayers,
-								matchesByRound: updatedMatchesByRound,
-								session: {
-									...prev.session,
-									status: isLastRound
-										? ("completed" as const)
-										: prev.session.status,
-									completed_at: isLastRound
-										? new Date().toISOString()
-										: prev.session.completed_at,
-								},
-							};
-						});
-					} else {
-						// Fallback to original logic if refetch fails
-						setSessionData((prev) => {
-							if (!prev) return prev;
-							const updatedMatchesByRound = { ...prev.matchesByRound };
-							const currentMatches =
-								updatedMatchesByRound[currentRound] || [];
-							updatedMatchesByRound[currentRound] = currentMatches.map(
-								(match) => ({
-									...match,
-									status: "completed" as const,
-									team1_score: scores[match.id].team1!,
-									team2_score: scores[match.id].team2!,
-								})
-							);
-
-							const roundNumbersList = Object.keys(
-								sessionData.matchesByRound
-							)
-								.map(Number)
-								.sort((a, b) => a - b);
-							const maxRoundNumber = Math.max(...roundNumbersList);
-							const isLastRound = currentRound >= maxRoundNumber;
-
-							return {
-								...prev,
-								players: updatedPlayers,
-								matchesByRound: updatedMatchesByRound,
-								session: {
-									...prev.session,
-									status: isLastRound
-										? ("completed" as const)
-										: prev.session.status,
-									completed_at: isLastRound
-										? new Date().toISOString()
-										: prev.session.completed_at,
-								},
-							};
-						});
+					if (matchesData) {
+						allMatches = matchesData as Match[];
 					}
 				}
-			} else {
-				// Update local state to mark matches as completed (for non-Round 5 or non-6-player sessions)
-				setSessionData((prev) => {
-					if (!prev) return prev;
-					const updatedMatchesByRound = { ...prev.matchesByRound };
-					const currentMatches =
-						updatedMatchesByRound[currentRound] || [];
-					updatedMatchesByRound[currentRound] = currentMatches.map(
-						(match) => ({
-							...match,
-							status: "completed" as const,
-							team1_score: scores[match.id].team1!,
-							team2_score: scores[match.id].team2!,
-						})
-					);
-
-					// Check if this was the last round
-					const roundNumbersList = Object.keys(sessionData.matchesByRound)
-						.map(Number)
-						.sort((a, b) => a - b);
-					const maxRoundNumber = Math.max(...roundNumbersList);
-					const isLastRound = currentRound >= maxRoundNumber;
-
-					return {
-						...prev,
-						players: updatedPlayers, // Update players with fresh Elo ratings
-						matchesByRound: updatedMatchesByRound,
-						session: {
-							...prev.session,
-							status: isLastRound
-								? ("completed" as const)
-								: prev.session.status,
-							completed_at: isLastRound
-								? new Date().toISOString()
-								: prev.session.completed_at,
-						},
-					};
-				});
 			}
 
-			// Advance to next round immediately (if not last round)
-			// Use the roundNumbers memo for consistency (it's computed from sessionData)
-			const roundNumbersList = Object.keys(sessionData.matchesByRound)
-				.map(Number)
-				.sort((a, b) => a - b);
-			const currentIndex = roundNumbersList.indexOf(currentRound);
-			if (currentIndex < roundNumbersList.length - 1) {
-				setCurrentRound(roundNumbersList[currentIndex + 1]);
-			}
+			// Store successful result
+			submitResultRef.current = {
+				success: true,
+				updatedPlayers,
+				allMatches,
+			};
+
+			// Mark terminal as complete - this will trigger onComplete callback
+			setIsTerminalComplete(true);
 		} catch (err) {
 			console.error("Error submitting round:", err);
-			setError(
-				err instanceof Error ? err.message : "Failed to submit round"
-			);
-		} finally {
-			setSubmitting(false);
+			submitResultRef.current = {
+				success: false,
+				error: err instanceof Error ? err.message : "Failed to submit round",
+			};
+			setIsTerminalComplete(true);
 		}
 	}, [
 		sessionData,
@@ -1001,6 +1211,7 @@ function SessionPageContent() {
 		submitting,
 		sessionId,
 		fetchPlayers,
+		generateTerminalLines,
 	]);
 
 	const handleNextClick = useCallback(async () => {
@@ -2289,6 +2500,15 @@ function SessionPageContent() {
 						</Box>
 					</Box>
 				)}
+
+				{/* ELO Calculation Terminal Modal */}
+				<TerminalModal isVisible={showCalculationTerminal}>
+					<CalculationTerminal
+						lines={terminalLines}
+						isComplete={isTerminalComplete}
+						onComplete={handleTerminalComplete}
+					/>
+				</TerminalModal>
 			</>
 		);
 	}
@@ -2343,7 +2563,6 @@ function SessionPageContent() {
 								<Stack
 									direction="column"
 									spacing={4}
-									className="min-h-[400px]"
 								>
 									{/* Show message for Round 6 if Round 5 is not completed (6-player variant) */}
 									{currentRound === 6 &&
@@ -3535,6 +3754,15 @@ function SessionPageContent() {
 					isSaving={isEditingMatch}
 				/>
 			)}
+
+			{/* ELO Calculation Terminal Modal */}
+			<TerminalModal isVisible={showCalculationTerminal}>
+				<CalculationTerminal
+					lines={terminalLines}
+					isComplete={isTerminalComplete}
+					onComplete={handleTerminalComplete}
+				/>
+			</TerminalModal>
 		</>
 	);
 }

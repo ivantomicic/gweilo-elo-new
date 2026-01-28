@@ -459,4 +459,32 @@ export const sr = {
 			},
 		},
 	},
+	terminal: {
+		initializing: "Pokrećem ELO kalkulator...",
+		processingRound: (round: number) => `Obrađujem rundu ${round}...`,
+		foundMatches: (count: number) =>
+			`Pronađeno ${count} ${count === 1 ? "meč" : count >= 2 && count <= 4 ? "meča" : "mečeva"} za obradu`,
+		processingMatch: (current: number, total: number) =>
+			`Obrađujem meč ${current}/${total}...`,
+		matchType: {
+			singles: "Tip meča: Singl",
+			doubles: "Tip meča: Dubl",
+		},
+		readingRatings: "Učitavam trenutne rejtinge...",
+		readingTeamRatings: "Učitavam timske rejtinge...",
+		readingPlayerDoublesRatings: "Učitavam doubles rejtinge igrača...",
+		calculatingExpected: "Računam očekivane rezultate...",
+		calculatingTeamExpected: "Računam timske očekivane rezultate...",
+		calculatingPlayerExpected: "Računam očekivane rezultate igrača...",
+		applyingKFactor: "Primenjujem K-faktor...",
+		updatingPlayerRatings: "Ažuriram player_ratings tabelu...",
+		updatingTeamRatings: "Ažuriram double_team_ratings tabelu...",
+		updatingPlayerDoublesRatings: "Ažuriram player_double_ratings tabelu...",
+		matchComplete: (num: number) => `Meč ${num} završen ✓`,
+		creatingSnapshots: "Kreiram ELO snapshots...",
+		recordingHistory: "Zapisujem istoriju mečeva...",
+		updatingStatuses: "Ažuriram statuse mečeva...",
+		roundComplete: (round: number) => `Runda ${round} uspešno završena!`,
+		running: "radi",
+	},
 } as const;
