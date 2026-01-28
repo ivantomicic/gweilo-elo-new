@@ -462,32 +462,24 @@ export const sr = {
 	},
 	terminal: {
 		initializing: "Pokrećem ELO kalkulator...",
-		processingRound: (round: number) => `Obrađujem rundu ${round}...`,
-		foundMatches: (count: number) =>
-			`Pronađeno ${count} ${count === 1 ? "meč" : count >= 2 && count <= 4 ? "meča" : "mečeva"} za obradu`,
-		processingMatch: (current: number, total: number) =>
-			`Obrađujem meč ${current}/${total}...`,
-		matchType: {
-			singles: "Tip meča: Singl",
-			doubles: "Tip meča: Dubl",
-		},
-		result: "Rezultat",
-		calculating: "Računam nove rejtinge...",
-		calculatingTeam: "Računam timske rejtinge...",
-		eloUpdate: (
-			name: string,
-			oldElo: number,
-			newElo: number,
-			delta: number,
-		) => {
+		loadingPlayers: "Učitavam podatke igrača...",
+		processingRound: (round: number, matchCount: number) =>
+			`Obrađujem rundu ${round} · ${matchCount} ${matchCount === 1 ? "meč" : matchCount >= 2 && matchCount <= 4 ? "meča" : "mečeva"}`,
+		matchHeader: (current: number, player1: string, player2: string, score1: number, score2: number) =>
+			`Meč ${current}: ${player1} vs ${player2}  [${score1}-${score2}]`,
+		doublesMatchHeader: (current: number, team1: string, team2: string, score1: number, score2: number) =>
+			`Meč ${current}: ${team1} vs ${team2}  [${score1}-${score2}]`,
+		calculating: "Računam rejtinge...",
+		eloChange: (name: string, delta: number) => {
 			const sign = delta >= 0 ? "+" : "";
-			return `  ${name}: ${oldElo.toFixed(0)} → ${newElo.toFixed(0)} (${sign}${delta.toFixed(1)})`;
+			return `  → ${name}: ${sign}${delta.toFixed(1)}`;
 		},
-		matchComplete: (num: number) => `Meč ${num} završen ✓`,
-		creatingSnapshots: "Kreiram ELO snapshots...",
-		recordingHistory: "Zapisujem istoriju mečeva...",
-		updatingStatuses: "Ažuriram statuse mečeva...",
-		roundComplete: (round: number) => `Runda ${round} uspešno završena!`,
+		matchDone: (num: number) => `Meč ${num} ✓`,
+		validating: "Validacija podataka...",
+		creatingSnapshots: "Kreiram ELO snapshot...",
+		updatingDatabase: "Ažuriram bazu podataka...",
+		saving: "Čuvam rezultate...",
+		done: (round: number) => `Runda ${round} uspešno završena!`,
 		running: "radi",
 	},
 } as const;

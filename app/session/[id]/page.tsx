@@ -114,13 +114,14 @@ function SessionPageContent() {
 			}
 			router.push(`?${params.toString()}`, { scroll: false });
 		},
-		[searchParams, router]
+		[searchParams, router],
 	);
 
 	const [sessionData, setSessionData] = useState<SessionData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [currentRound, setCurrentRound] = useState(1);
+	const [animateMatches, setAnimateMatches] = useState(false);
 	const [scores, setScores] = useState<Scores>({});
 	const [submitting, setSubmitting] = useState(false);
 	const [showForceCloseModal, setShowForceCloseModal] = useState(false);
@@ -165,7 +166,8 @@ function SessionPageContent() {
 	>(null);
 
 	// Terminal state for ELO calculation visualization
-	const [showCalculationTerminal, setShowCalculationTerminal] = useState(false);
+	const [showCalculationTerminal, setShowCalculationTerminal] =
+		useState(false);
 	const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
 	const [isTerminalComplete, setIsTerminalComplete] = useState(false);
 	const apiCallCompleteRef = useRef(false);
@@ -175,7 +177,10 @@ function SessionPageContent() {
 		(
 			matches: Match[],
 			roundNumber: number,
-			matchScores: Record<string, { team1: number | null; team2: number | null }>
+			matchScores: Record<
+				string,
+				{ team1: number | null; team2: number | null }
+			>,
 		): TerminalLine[] => {
 			const lines: TerminalLine[] = [];
 			const players = sessionData?.players || [];
@@ -194,48 +199,37 @@ function SessionPageContent() {
 			const getOutcome = (
 				team1Score: number,
 				team2Score: number,
-				isTeam1: boolean
+				isTeam1: boolean,
 			): "win" | "lose" | "draw" => {
 				if (team1Score === team2Score) return "draw";
 				if (isTeam1) return team1Score > team2Score ? "win" : "lose";
 				return team2Score > team1Score ? "win" : "lose";
 			};
 
-			// Starting message
+			// Intro
 			lines.push({
 				text: t.terminal.initializing,
 				type: "dim",
 				delay: 0,
 			});
 			lines.push({
-				text: t.terminal.processingRound(roundNumber),
-				type: "info",
+				text: t.terminal.loadingPlayers,
+				type: "dim",
 				delay: 200,
 			});
 			lines.push({
-				text: t.terminal.foundMatches(matches.length),
-				type: "info",
-				delay: 100,
+				text: t.terminal.processingRound(roundNumber, matches.length),
+				type: "highlight",
+				delay: 250,
 			});
 
 			// Process each match
 			matches.forEach((match, index) => {
 				const isSingles = match.match_type === "singles";
-				const matchDelay = 300 + index * 600; // Stagger match processing
+				const matchDelay = 300 + index * 400;
 				const matchScore = matchScores[match.id];
 				const team1Score = matchScore?.team1 ?? 0;
 				const team2Score = matchScore?.team2 ?? 0;
-
-				lines.push({
-					text: ``,
-					type: "dim",
-					delay: matchDelay,
-				});
-				lines.push({
-					text: t.terminal.processingMatch(index + 1, matches.length),
-					type: "highlight",
-					delay: 50,
-				});
 
 				if (isSingles) {
 					const player1 = getPlayer(match.player_ids[0]);
@@ -247,57 +241,35 @@ function SessionPageContent() {
 					const player1MatchCount = player1?.matchCount ?? 0;
 					const player2MatchCount = player2?.matchCount ?? 0;
 
-					// Calculate ELO changes
 					const player1Outcome = getOutcome(team1Score, team2Score, true);
 					const player2Outcome = getOutcome(team1Score, team2Score, false);
-					const player1Delta = calculateEloChange(
-						player1Elo,
-						player2Elo,
-						player1Outcome,
-						player1MatchCount
-					);
-					const player2Delta = calculateEloChange(
-						player2Elo,
-						player1Elo,
-						player2Outcome,
-						player2MatchCount
-					);
+					const player1Delta = calculateEloChange(player1Elo, player2Elo, player1Outcome, player1MatchCount);
+					const player2Delta = calculateEloChange(player2Elo, player1Elo, player2Outcome, player2MatchCount);
 
 					lines.push({
-						text: `${player1Name} vs ${player2Name}  [${team1Score} - ${team2Score}]`,
+						text: t.terminal.matchHeader(index + 1, player1Name, player2Name, team1Score, team2Score),
 						type: "info",
-						delay: 100,
+						delay: matchDelay,
 					});
 					lines.push({
 						text: t.terminal.calculating,
 						type: "dim",
-						delay: 120,
+						delay: 100,
 					});
-					// Show actual ELO changes
 					lines.push({
-						text: t.terminal.eloUpdate(
-							player1Name,
-							player1Elo,
-							player1Elo + player1Delta,
-							player1Delta
-						),
+						text: t.terminal.eloChange(player1Name, player1Delta),
 						type: player1Delta >= 0 ? "success" : "error",
 						delay: 80,
 					});
 					lines.push({
-						text: t.terminal.eloUpdate(
-							player2Name,
-							player2Elo,
-							player2Elo + player2Delta,
-							player2Delta
-						),
+						text: t.terminal.eloChange(player2Name, player2Delta),
 						type: player2Delta >= 0 ? "success" : "error",
 						delay: 80,
 					});
 					lines.push({
-						text: t.terminal.matchComplete(index + 1),
+						text: t.terminal.matchDone(index + 1),
 						type: "success",
-						delay: 150,
+						delay: 100,
 					});
 				} else {
 					// Doubles
@@ -311,7 +283,6 @@ function SessionPageContent() {
 					const team2Player1Name = team2Player1?.name || "Unknown";
 					const team2Player2Name = team2Player2?.name || "Unknown";
 
-					// Use doubles ELO for calculations
 					const team1Player1Elo = team1Player1?.doublesElo ?? 1500;
 					const team1Player2Elo = team1Player2?.doublesElo ?? 1500;
 					const team2Player1Elo = team2Player1?.doublesElo ?? 1500;
@@ -320,106 +291,75 @@ function SessionPageContent() {
 					const team1AvgElo = (team1Player1Elo + team1Player2Elo) / 2;
 					const team2AvgElo = (team2Player1Elo + team2Player2Elo) / 2;
 
-					// Calculate ELO changes for doubles (using average team ELO)
 					const team1Outcome = getOutcome(team1Score, team2Score, true);
 					const team2Outcome = getOutcome(team1Score, team2Score, false);
 					const team1Delta = calculateEloChange(team1AvgElo, team2AvgElo, team1Outcome);
 					const team2Delta = calculateEloChange(team2AvgElo, team1AvgElo, team2Outcome);
 
 					lines.push({
-						text: `${team1Player1Name} & ${team1Player2Name} vs ${team2Player1Name} & ${team2Player2Name}  [${team1Score} - ${team2Score}]`,
+						text: t.terminal.doublesMatchHeader(
+							index + 1,
+							`${team1Player1Name} & ${team1Player2Name}`,
+							`${team2Player1Name} & ${team2Player2Name}`,
+							team1Score,
+							team2Score
+						),
 						type: "info",
+						delay: matchDelay,
+					});
+					lines.push({
+						text: t.terminal.calculating,
+						type: "dim",
 						delay: 100,
 					});
 					lines.push({
-						text: t.terminal.calculatingTeam,
-						type: "dim",
-						delay: 120,
-					});
-					// Show actual ELO changes for each player
-					lines.push({
-						text: t.terminal.eloUpdate(
-							team1Player1Name,
-							team1Player1Elo,
-							team1Player1Elo + team1Delta,
-							team1Delta
-						),
+						text: t.terminal.eloChange(`${team1Player1Name}, ${team1Player2Name}`, team1Delta),
 						type: team1Delta >= 0 ? "success" : "error",
-						delay: 60,
+						delay: 80,
 					});
 					lines.push({
-						text: t.terminal.eloUpdate(
-							team1Player2Name,
-							team1Player2Elo,
-							team1Player2Elo + team1Delta,
-							team1Delta
-						),
-						type: team1Delta >= 0 ? "success" : "error",
-						delay: 60,
-					});
-					lines.push({
-						text: t.terminal.eloUpdate(
-							team2Player1Name,
-							team2Player1Elo,
-							team2Player1Elo + team2Delta,
-							team2Delta
-						),
+						text: t.terminal.eloChange(`${team2Player1Name}, ${team2Player2Name}`, team2Delta),
 						type: team2Delta >= 0 ? "success" : "error",
-						delay: 60,
+						delay: 80,
 					});
 					lines.push({
-						text: t.terminal.eloUpdate(
-							team2Player2Name,
-							team2Player2Elo,
-							team2Player2Elo + team2Delta,
-							team2Delta
-						),
-						type: team2Delta >= 0 ? "success" : "error",
-						delay: 60,
-					});
-					lines.push({
-						text: t.terminal.matchComplete(index + 1),
+						text: t.terminal.matchDone(index + 1),
 						type: "success",
-						delay: 150,
+						delay: 100,
 					});
 				}
 			});
 
 			// Final messages
 			lines.push({
-				text: ``,
+				text: t.terminal.validating,
 				type: "dim",
-				delay: 200,
+				delay: 300,
 			});
 			lines.push({
 				text: t.terminal.creatingSnapshots,
 				type: "dim",
-				delay: 100,
+				delay: 200,
 			});
 			lines.push({
-				text: t.terminal.recordingHistory,
+				text: t.terminal.updatingDatabase,
 				type: "dim",
-				delay: 100,
+				delay: 200,
 			});
 			lines.push({
-				text: t.terminal.updatingStatuses,
+				text: t.terminal.saving,
 				type: "dim",
-				delay: 100,
+				delay: 250,
 			});
 			lines.push({
-				text: ``,
-				type: "dim",
-				delay: 100,
-			});
-			lines.push({
-				text: t.terminal.roundComplete(roundNumber),
+				text: t.terminal.done(roundNumber),
 				type: "success",
 				delay: 200,
 			});
 
 			return lines;
 		},
-		[sessionData?.players]
+		[sessionData?.players],
 	);
 
 	// Refs for score inputs to enable auto-focus
@@ -441,7 +381,7 @@ function SessionPageContent() {
 				headers: {
 					Authorization: `Bearer ${session.access_token}`,
 				},
-			}
+			},
 		);
 
 		if (!playersResponse.ok) {
@@ -450,7 +390,7 @@ function SessionPageContent() {
 			throw new Error(
 				`Failed to load players: ${
 					errorData.error || playersResponse.statusText
-				}`
+				}`,
 			);
 		}
 
@@ -483,7 +423,7 @@ function SessionPageContent() {
 								Authorization: `Bearer ${session.access_token}`,
 							},
 						},
-					}
+					},
 				);
 
 				// Fetch session
@@ -499,7 +439,7 @@ function SessionPageContent() {
 					setError(
 						`Failed to load session: ${
 							sessionError.message || JSON.stringify(sessionError)
-						}`
+						}`,
 					);
 					setLoading(false);
 					return;
@@ -516,7 +456,7 @@ function SessionPageContent() {
 							playersError instanceof Error
 								? playersError.message
 								: String(playersError)
-						}`
+						}`,
 					);
 					setLoading(false);
 					return;
@@ -536,21 +476,24 @@ function SessionPageContent() {
 					setError(
 						`Failed to load matches: ${
 							matchesError.message || JSON.stringify(matchesError)
-						}`
+						}`,
 					);
 					setLoading(false);
 					return;
 				}
 
 				// Group matches by round_number
-				const matchesByRound = (matches || []).reduce((acc, match) => {
-					const roundNumber = match.round_number;
-					if (!acc[roundNumber]) {
-						acc[roundNumber] = [];
-					}
-					acc[roundNumber].push(match);
-					return acc;
-				}, {} as Record<number, Match[]>);
+				const matchesByRound = (matches || []).reduce(
+					(acc, match) => {
+						const roundNumber = match.round_number;
+						if (!acc[roundNumber]) {
+							acc[roundNumber] = [];
+						}
+						acc[roundNumber].push(match);
+						return acc;
+					},
+					{} as Record<number, Match[]>,
+				);
 
 				setSessionData({
 					session: sessionRecord,
@@ -588,11 +531,11 @@ function SessionPageContent() {
 
 							const pair1Key = normalizePair(
 								match.player_ids[0],
-								match.player_ids[1]
+								match.player_ids[1],
 							);
 							const pair2Key = normalizePair(
 								match.player_ids[2],
-								match.player_ids[3]
+								match.player_ids[3],
 							);
 
 							let team1Id = match.team_1_id;
@@ -602,13 +545,13 @@ function SessionPageContent() {
 								try {
 									team1Id = await getOrCreateDoubleTeam(
 										match.player_ids[0],
-										match.player_ids[1]
+										match.player_ids[1],
 									);
 									pairToTeamIdMap[pair1Key] = team1Id;
 								} catch (error) {
 									console.error(
 										"Error getting team 1 ID:",
-										error
+										error,
 									);
 								}
 							} else {
@@ -619,13 +562,13 @@ function SessionPageContent() {
 								try {
 									team2Id = await getOrCreateDoubleTeam(
 										match.player_ids[2],
-										match.player_ids[3]
+										match.player_ids[3],
 									);
 									pairToTeamIdMap[pair2Key] = team2Id;
 								} catch (error) {
 									console.error(
 										"Error getting team 2 ID:",
-										error
+										error,
 									);
 								}
 							} else {
@@ -701,7 +644,7 @@ function SessionPageContent() {
 									Authorization: `Bearer ${authSession.access_token}`,
 								},
 							},
-						}
+						},
 					);
 
 					const { data: eloHistory, error: eloHistoryError } =
@@ -713,7 +656,7 @@ function SessionPageContent() {
 					if (eloHistoryError) {
 						console.error(
 							"Error fetching match Elo history:",
-							eloHistoryError
+							eloHistoryError,
 						);
 						return;
 					}
@@ -825,9 +768,9 @@ function SessionPageContent() {
 						(roundNum) => {
 							const roundMatches = matchesByRound[roundNum] || [];
 							return roundMatches.some(
-								(m: Match) => m.status !== "completed"
+								(m: Match) => m.status !== "completed",
 							);
-						}
+						},
 					);
 					// If all rounds are complete, go to last round; otherwise go to first incomplete
 					const initialRound =
@@ -872,7 +815,7 @@ function SessionPageContent() {
 							headers: {
 								Authorization: `Bearer ${session.access_token}`,
 							},
-						}
+						},
 					);
 
 					if (response.ok) {
@@ -882,7 +825,7 @@ function SessionPageContent() {
 				} catch (error) {
 					console.error(
 						"Error checking if session is deletable:",
-						error
+						error,
 					);
 					setIsDeletable(false);
 				}
@@ -913,7 +856,7 @@ function SessionPageContent() {
 			if (!sessionData) return undefined;
 			return sessionData.players.find((p) => p.id === playerId);
 		},
-		[sessionData]
+		[sessionData],
 	);
 
 	// Helper function to validate if a score is valid (not null, undefined, or NaN)
@@ -921,12 +864,17 @@ function SessionPageContent() {
 		(score: number | null | undefined): boolean => {
 			return score !== null && score !== undefined && !isNaN(score);
 		},
-		[]
+		[],
 	);
 
 	// Handle score change with auto-focus to next input
 	const handleScoreChange = useCallback(
-		(matchId: string, side: "team1" | "team2", value: string, matchIndex?: number) => {
+		(
+			matchId: string,
+			side: "team1" | "team2",
+			value: string,
+			matchIndex?: number,
+		) => {
 			setScores((prev) => {
 				let parsedValue: number | null = null;
 				if (value !== "") {
@@ -946,7 +894,10 @@ function SessionPageContent() {
 			if (value !== "") {
 				setTimeout(() => {
 					// Helper to get the visible input (mobile or desktop)
-					const getVisibleInput = (mobileKey: string, desktopKey: string) => {
+					const getVisibleInput = (
+						mobileKey: string,
+						desktopKey: string,
+					) => {
 						const mobileRef = scoreInputRefs.current[mobileKey];
 						const desktopRef = scoreInputRefs.current[desktopKey];
 						// Check which one is visible (offsetParent is null for hidden elements)
@@ -963,24 +914,25 @@ function SessionPageContent() {
 						// Focus team2 input of same match
 						const nextRef = getVisibleInput(
 							`${matchId}-team2`,
-							`${matchId}-team2-desktop`
+							`${matchId}-team2-desktop`,
 						);
 						nextRef?.focus();
 					} else if (side === "team2" && matchIndex !== undefined) {
 						// Focus team1 input of next match
-						const currentMatches = sessionData?.matchesByRound[currentRound] || [];
+						const currentMatches =
+							sessionData?.matchesByRound[currentRound] || [];
 						if (matchIndex < currentMatches.length - 1) {
 							const nextMatch = currentMatches[matchIndex + 1];
 							const nextRef = getVisibleInput(
 								`${nextMatch.id}-team1`,
-								`${nextMatch.id}-team1-desktop`
+								`${nextMatch.id}-team1-desktop`,
 							);
 							nextRef?.focus();
 						} else {
 							// Last field - blur to dismiss keyboard on mobile
 							const currentRef = getVisibleInput(
 								`${matchId}-team2`,
-								`${matchId}-team2-desktop`
+								`${matchId}-team2-desktop`,
 							);
 							currentRef?.blur();
 						}
@@ -988,7 +940,7 @@ function SessionPageContent() {
 				}, 0);
 			}
 		},
-		[sessionData, currentRound]
+		[sessionData, currentRound],
 	);
 
 	// Navigate rounds
@@ -998,7 +950,7 @@ function SessionPageContent() {
 				setCurrentRound(round);
 			}
 		},
-		[roundNumbers]
+		[roundNumbers],
 	);
 
 	const goToPreviousRound = useCallback(() => {
@@ -1080,28 +1032,30 @@ function SessionPageContent() {
 						acc[roundNumber].push(match);
 						return acc;
 					},
-					{} as Record<number, Match[]>
+					{} as Record<number, Match[]>,
 				);
 
 				// Update local state with refreshed matches
 				setSessionData((prev) => {
 					if (!prev) return prev;
 					const updatedMatchesByRound = { ...prev.matchesByRound };
-					const currentMatches = updatedMatchesByRound[roundToUpdate] || [];
+					const currentMatches =
+						updatedMatchesByRound[roundToUpdate] || [];
 					updatedMatchesByRound[roundToUpdate] = currentMatches.map(
 						(match) => ({
 							...match,
 							status: "completed" as const,
 							team1_score: scores[match.id].team1!,
 							team2_score: scores[match.id].team2!,
-						})
+						}),
 					);
 
 					// Merge refreshed matches (this will update Round 6 with new player assignments)
 					Object.keys(matchesByRound).forEach((roundNum) => {
 						const roundNumber = parseInt(roundNum, 10);
 						if (roundNumber !== roundToUpdate) {
-							updatedMatchesByRound[roundNumber] = matchesByRound[roundNumber];
+							updatedMatchesByRound[roundNumber] =
+								matchesByRound[roundNumber];
 						}
 					});
 
@@ -1117,7 +1071,9 @@ function SessionPageContent() {
 						matchesByRound: updatedMatchesByRound,
 						session: {
 							...prev.session,
-							status: isLastRound ? ("completed" as const) : prev.session.status,
+							status: isLastRound
+								? ("completed" as const)
+								: prev.session.status,
 							completed_at: isLastRound
 								? new Date().toISOString()
 								: prev.session.completed_at,
@@ -1129,14 +1085,15 @@ function SessionPageContent() {
 				setSessionData((prev) => {
 					if (!prev) return prev;
 					const updatedMatchesByRound = { ...prev.matchesByRound };
-					const currentMatches = updatedMatchesByRound[roundToUpdate] || [];
+					const currentMatches =
+						updatedMatchesByRound[roundToUpdate] || [];
 					updatedMatchesByRound[roundToUpdate] = currentMatches.map(
 						(match) => ({
 							...match,
 							status: "completed" as const,
 							team1_score: scores[match.id].team1!,
 							team2_score: scores[match.id].team2!,
-						})
+						}),
 					);
 
 					const roundNumbersList = Object.keys(prev.matchesByRound)
@@ -1151,7 +1108,9 @@ function SessionPageContent() {
 						matchesByRound: updatedMatchesByRound,
 						session: {
 							...prev.session,
-							status: isLastRound ? ("completed" as const) : prev.session.status,
+							status: isLastRound
+								? ("completed" as const)
+								: prev.session.status,
 							completed_at: isLastRound
 								? new Date().toISOString()
 								: prev.session.completed_at,
@@ -1168,7 +1127,11 @@ function SessionPageContent() {
 				const currentIndex = roundNumbersList.indexOf(roundToUpdate);
 				if (currentIndex < roundNumbersList.length - 1) {
 					setCurrentRound(roundNumbersList[currentIndex + 1]);
+					// Trigger match entrance animation
+					setAnimateMatches(true);
+					setTimeout(() => setAnimateMatches(false), 1000);
 				}
+				// Last round completed - session is now done
 			}
 		} else if (result.error) {
 			setError(result.error);
@@ -1196,7 +1159,11 @@ function SessionPageContent() {
 		submitRoundRef.current = currentRound;
 
 		// Generate terminal lines and show the terminal
-		const lines = generateTerminalLines(currentMatches, currentRound, scores);
+		const lines = generateTerminalLines(
+			currentMatches,
+			currentRound,
+			scores,
+		);
 		setTerminalLines(lines);
 		setIsTerminalComplete(false);
 		setShowCalculationTerminal(true);
@@ -1226,14 +1193,16 @@ function SessionPageContent() {
 						Authorization: `Bearer ${session.access_token}`,
 					},
 					body: JSON.stringify({ matchScores }),
-				}
+				},
 			);
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				submitResultRef.current = {
 					success: false,
-					error: errorData.error || t.sessions.session.error.submitFailed,
+					error:
+						errorData.error ||
+						t.sessions.session.error.submitFailed,
 				};
 				setIsTerminalComplete(true);
 				return;
@@ -1250,13 +1219,17 @@ function SessionPageContent() {
 				} = await supabase.auth.getSession();
 
 				if (authSession) {
-					const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-						global: {
-							headers: {
-								Authorization: `Bearer ${authSession.access_token}`,
+					const supabaseClient = createClient(
+						supabaseUrl,
+						supabaseAnonKey,
+						{
+							global: {
+								headers: {
+									Authorization: `Bearer ${authSession.access_token}`,
+								},
 							},
 						},
-					});
+					);
 
 					const { data: matchesData } = await supabaseClient
 						.from("session_matches")
@@ -1284,7 +1257,10 @@ function SessionPageContent() {
 			console.error("Error submitting round:", err);
 			submitResultRef.current = {
 				success: false,
-				error: err instanceof Error ? err.message : "Failed to submit round",
+				error:
+					err instanceof Error
+						? err.message
+						: "Failed to submit round",
 			};
 			setIsTerminalComplete(true);
 		}
@@ -1344,7 +1320,7 @@ function SessionPageContent() {
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				throw new Error(
-					errorData.error || t.sessions.session.error.deleteFailed
+					errorData.error || t.sessions.session.error.deleteFailed,
 				);
 			}
 
@@ -1353,7 +1329,7 @@ function SessionPageContent() {
 		} catch (err) {
 			console.error("Error deleting session:", err);
 			setError(
-				err instanceof Error ? err.message : "Failed to delete session"
+				err instanceof Error ? err.message : "Failed to delete session",
 			);
 		} finally {
 			setDeleting(false);
@@ -1383,13 +1359,14 @@ function SessionPageContent() {
 						"Content-Type": "application/json",
 						Authorization: `Bearer ${session.access_token}`,
 					},
-				}
+				},
 			);
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
 				throw new Error(
-					errorData.error || t.sessions.session.error.forceCloseFailed
+					errorData.error ||
+						t.sessions.session.error.forceCloseFailed,
 				);
 			}
 
@@ -1410,7 +1387,7 @@ function SessionPageContent() {
 			setError(
 				err instanceof Error
 					? err.message
-					: "Failed to force close session"
+					: "Failed to force close session",
 			);
 		} finally {
 			setForceClosing(false);
@@ -1425,7 +1402,7 @@ function SessionPageContent() {
 			setSelectedMatchForVideo(match);
 			setVideoUrlInput(match.video_url || "");
 		},
-		[isAdmin]
+		[isAdmin],
 	);
 
 	// Handle closing video URL drawer
@@ -1477,7 +1454,7 @@ function SessionPageContent() {
 			team1Score: number,
 			team2Score: number,
 			reason?: string,
-			matchId?: string
+			matchId?: string,
 		) => {
 			// Use provided matchId, or fall back to selectedMatchForEdit
 			const targetMatchId = matchId || selectedMatchForEdit?.id;
@@ -1518,7 +1495,7 @@ function SessionPageContent() {
 							team2Score,
 							reason,
 						}),
-					}
+					},
 				);
 
 				if (!response.ok) {
@@ -1577,7 +1554,7 @@ function SessionPageContent() {
 				setIsEditingMatch(false);
 			}
 		},
-		[selectedMatchForEdit, sessionId, fetchRecalcStatus]
+		[selectedMatchForEdit, sessionId, fetchRecalcStatus],
 	);
 
 	// Unified save handler for match drawer
@@ -1626,7 +1603,7 @@ function SessionPageContent() {
 					selectedMatchForVideo.team1_score!,
 					selectedMatchForVideo.team2_score!,
 					undefined,
-					selectedMatchForVideo.id
+					selectedMatchForVideo.id,
 				);
 				// Don't close drawer yet - wait for video URL save if needed
 			}
@@ -1644,7 +1621,7 @@ function SessionPageContent() {
 						body: JSON.stringify({
 							video_url: videoUrlInput.trim() || null,
 						}),
-					}
+					},
 				);
 
 				if (!response.ok) {
@@ -1662,10 +1639,14 @@ function SessionPageContent() {
 					const roundMatches =
 						updatedMatchesByRound[roundNumber] || [];
 
-					updatedMatchesByRound[roundNumber] = roundMatches.map((m) =>
-						m.id === selectedMatchForVideo.id
-							? { ...m, video_url: videoUrlInput.trim() || null }
-							: m
+					updatedMatchesByRound[roundNumber] = roundMatches.map(
+						(m) =>
+							m.id === selectedMatchForVideo.id
+								? {
+										...m,
+										video_url: videoUrlInput.trim() || null,
+									}
+								: m,
 					);
 
 					return {
@@ -1759,7 +1740,7 @@ function SessionPageContent() {
 		const totalMatches = roundNumbersList.reduce(
 			(sum, roundNum) =>
 				sum + (sessionData.matchesByRound[roundNum]?.length || 0),
-			0
+			0,
 		);
 
 		return (
@@ -1800,30 +1781,30 @@ function SessionPageContent() {
 														"doubles_player"
 															? "doubles-player"
 															: activeView ===
-															  "doubles_team"
-															? "doubles-team"
-															: "singles"
+																  "doubles_team"
+																? "doubles-team"
+																: "singles"
 													}
 													onValueChange={(value) => {
 														if (
 															value === "singles"
 														) {
 															handleViewChange(
-																"singles"
+																"singles",
 															);
 														} else if (
 															value ===
 															"doubles-player"
 														) {
 															handleViewChange(
-																"doubles_player"
+																"doubles_player",
 															);
 														} else if (
 															value ===
 															"doubles-team"
 														) {
 															handleViewChange(
-																"doubles_team"
+																"doubles_team",
 															);
 														}
 													}}
@@ -1884,12 +1865,15 @@ function SessionPageContent() {
 											}
 											onPlayerClick={(playerId) => {
 												setSelectedPlayerFilter(
-													selectedPlayerFilter === playerId
+													selectedPlayerFilter ===
+														playerId
 														? null
-														: playerId
+														: playerId,
 												);
 											}}
-											selectedPlayerFilter={selectedPlayerFilter}
+											selectedPlayerFilter={
+												selectedPlayerFilter
+											}
 										/>
 									</Box>
 
@@ -1906,14 +1890,14 @@ function SessionPageContent() {
 												<Box
 													onClick={() =>
 														setSelectedPlayerFilter(
-															null
+															null,
 														)
 													}
 													className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold cursor-pointer hover:bg-primary/20 transition-colors"
 												>
 													<span>
 														{getPlayer(
-															selectedPlayerFilter
+															selectedPlayerFilter,
 														)?.name || "Filtered"}
 													</span>
 													<Icon
@@ -1941,21 +1925,26 @@ function SessionPageContent() {
 																	activeView ===
 																	"singles"
 																		? match.match_type ===
-																		  "singles"
+																			"singles"
 																		: match.match_type ===
-																		  "doubles";
-																
-																if (!matchesView) return false;
-																
+																			"doubles";
+
+																if (
+																	!matchesView
+																)
+																	return false;
+
 																// Filter by selected player if applicable
-																if (selectedPlayerFilter) {
+																if (
+																	selectedPlayerFilter
+																) {
 																	return match.player_ids.includes(
-																		selectedPlayerFilter
+																		selectedPlayerFilter,
 																	);
 																}
-																
+
 																return true;
-															}
+															},
 														);
 
 													return roundMatches.map(
@@ -1970,45 +1959,45 @@ function SessionPageContent() {
 																	? [
 																			match
 																				.player_ids[0],
-																	  ]
+																		]
 																	: [
 																			match
 																				.player_ids[0],
 																			match
 																				.player_ids[1],
-																	  ];
+																		];
 															const team2PlayerIds =
 																isSingles
 																	? [
 																			match
 																				.player_ids[1],
-																	  ]
+																		]
 																	: [
 																			match
 																				.player_ids[2],
 																			match
 																				.player_ids[3],
-																	  ];
+																		];
 
 															const team1Players =
 																team1PlayerIds
 																	.map((id) =>
 																		getPlayer(
-																			id
-																		)
+																			id,
+																		),
 																	)
 																	.filter(
-																		Boolean
+																		Boolean,
 																	) as Player[];
 															const team2Players =
 																team2PlayerIds
 																	.map((id) =>
 																		getPlayer(
-																			id
-																		)
+																			id,
+																		),
 																	)
 																	.filter(
-																		Boolean
+																		Boolean,
 																	) as Player[];
 
 															const eloHistory =
@@ -2025,21 +2014,21 @@ function SessionPageContent() {
 																	}
 																	team1Players={team1Players.map(
 																		(
-																			p
+																			p,
 																		) => ({
 																			id: p.id,
 																			name: p.name,
 																			avatar: p.avatar,
-																		})
+																		}),
 																	)}
 																	team2Players={team2Players.map(
 																		(
-																			p
+																			p,
 																		) => ({
 																			id: p.id,
 																			name: p.name,
 																			avatar: p.avatar,
-																		})
+																		}),
 																	)}
 																	team1Score={
 																		match.team1_score ??
@@ -2058,7 +2047,7 @@ function SessionPageContent() {
 																	onClick={() =>
 																		isAdmin &&
 																		handleOpenVideoDrawer(
-																			match
+																			match,
 																		)
 																	}
 																	hasVideo={
@@ -2066,9 +2055,9 @@ function SessionPageContent() {
 																	}
 																/>
 															);
-														}
+														},
 													);
-												}
+												},
 											)}
 										</Stack>
 									</Box>
@@ -2110,13 +2099,13 @@ function SessionPageContent() {
 										: [
 												match.player_ids[0],
 												match.player_ids[1],
-										  ];
+											];
 									const team2PlayerIds = isSingles
 										? [match.player_ids[1]]
 										: [
 												match.player_ids[2],
 												match.player_ids[3],
-										  ];
+											];
 
 									const team1Players = team1PlayerIds
 										.map((id) => getPlayer(id))
@@ -2129,12 +2118,12 @@ function SessionPageContent() {
 										? team1Players[0]?.name || "Unknown"
 										: `${team1Players[0]?.name || ""} & ${
 												team1Players[1]?.name || ""
-										  }`.trim();
+											}`.trim();
 									const team2Name = isSingles
 										? team2Players[0]?.name || "Unknown"
 										: `${team2Players[0]?.name || ""} & ${
 												team2Players[1]?.name || ""
-										  }`.trim();
+											}`.trim();
 
 									return (
 										<>
@@ -2195,7 +2184,7 @@ function SessionPageContent() {
 																	""
 																}
 																onChange={(
-																	e
+																	e,
 																) => {
 																	// Update the match in state
 																	setSelectedMatchForVideo(
@@ -2209,10 +2198,10 @@ function SessionPageContent() {
 																							e
 																								.target
 																								.value,
-																							10
-																					  )
+																							10,
+																						)
 																					: null,
-																		}
+																		},
 																	);
 																}}
 																placeholder="0"
@@ -2241,7 +2230,7 @@ function SessionPageContent() {
 																	""
 																}
 																onChange={(
-																	e
+																	e,
 																) => {
 																	// Update the match in state
 																	setSelectedMatchForVideo(
@@ -2255,10 +2244,10 @@ function SessionPageContent() {
 																							e
 																								.target
 																								.value,
-																							10
-																					  )
+																							10,
+																						)
 																					: null,
-																		}
+																		},
 																	);
 																}}
 																placeholder="0"
@@ -2302,7 +2291,7 @@ function SessionPageContent() {
 													value={videoUrlInput}
 													onChange={(e) =>
 														setVideoUrlInput(
-															e.target.value
+															e.target.value,
 														)
 													}
 													placeholder={
@@ -2329,7 +2318,7 @@ function SessionPageContent() {
 										]?.find(
 											(m) =>
 												m.id ===
-												selectedMatchForVideo.id
+												selectedMatchForVideo.id,
 										);
 
 									const scoresChanged =
@@ -2439,33 +2428,33 @@ function SessionPageContent() {
 							selectedMatchForEdit.match_type === "singles"
 								? ([
 										getPlayer(
-											selectedMatchForEdit.player_ids[0]
+											selectedMatchForEdit.player_ids[0],
 										),
-								  ].filter(Boolean) as Player[])
+									].filter(Boolean) as Player[])
 								: ([
 										getPlayer(
-											selectedMatchForEdit.player_ids[0]
+											selectedMatchForEdit.player_ids[0],
 										),
 										getPlayer(
-											selectedMatchForEdit.player_ids[1]
+											selectedMatchForEdit.player_ids[1],
 										),
-								  ].filter(Boolean) as Player[])
+									].filter(Boolean) as Player[])
 						}
 						team2Players={
 							selectedMatchForEdit.match_type === "singles"
 								? ([
 										getPlayer(
-											selectedMatchForEdit.player_ids[1]
+											selectedMatchForEdit.player_ids[1],
 										),
-								  ].filter(Boolean) as Player[])
+									].filter(Boolean) as Player[])
 								: ([
 										getPlayer(
-											selectedMatchForEdit.player_ids[2]
+											selectedMatchForEdit.player_ids[2],
 										),
 										getPlayer(
-											selectedMatchForEdit.player_ids[3]
+											selectedMatchForEdit.player_ids[3],
 										),
-								  ].filter(Boolean) as Player[])
+									].filter(Boolean) as Player[])
 						}
 						onSave={handleEditMatch}
 						isSaving={isEditingMatch}
@@ -2492,7 +2481,7 @@ function SessionPageContent() {
 											checked={deleteConfirmationChecked}
 											onChange={(e) =>
 												setDeleteConfirmationChecked(
-													e.target.checked
+													e.target.checked,
 												)
 											}
 											disabled={deleting}
@@ -2645,296 +2634,656 @@ function SessionPageContent() {
 								</Box>
 
 								{/* Matches */}
-								<Stack
-									direction="column"
-									spacing={4}
-								>
+								<Stack direction="column" spacing={4}>
 									{/* Show message for Round 6 if Round 5 is not completed (6-player variant) */}
 									{currentRound === 6 &&
-										sessionData.session.player_count === 6 &&
+										sessionData.session.player_count ===
+											6 &&
 										(() => {
 											const round5Matches =
-												sessionData.matchesByRound[5] || [];
+												sessionData.matchesByRound[5] ||
+												[];
 											const isRound5Completed =
 												round5Matches.length > 0 &&
 												round5Matches.every(
-													(m) => m.status === "completed"
+													(m) =>
+														m.status ===
+														"completed",
 												);
 											if (!isRound5Completed) {
 												return (
 													<Box className="bg-card border border-border/50 rounded-lg p-4 text-center">
 														<p className="text-muted-foreground text-sm">
-															Round 6 will be determined after Round 5 is
-															completed. Winners from Round 5 doubles will
-															play against players from Round 5 singles.
+															Round 6 will be
+															determined after
+															Round 5 is
+															completed. Winners
+															from Round 5 doubles
+															will play against
+															players from Round 5
+															singles.
 														</p>
 													</Box>
 												);
 											}
 											return null;
 										})()}
-									{currentRoundMatches.map((match, matchIndex) => {
-										const matchScores = scores[
-											match.id
-										] || { team1: null, team2: null };
-										const isSingles =
-											match.match_type === "singles";
-										const isMatchCompleted =
-											match.status === "completed";
-										const isReadOnly = isMatchCompleted;
+									{currentRoundMatches.map(
+										(match, matchIndex) => {
+											const matchScores = scores[
+												match.id
+											] || { team1: null, team2: null };
+											const isSingles =
+												match.match_type === "singles";
+											const isMatchCompleted =
+												match.status === "completed";
+											const isReadOnly = isMatchCompleted;
 
-										// Get players for each team
-										const team1PlayerIds = isSingles
-											? [match.player_ids[0]]
-											: [
-													match.player_ids[0],
-													match.player_ids[1],
-											  ];
-										const team2PlayerIds = isSingles
-											? [match.player_ids[1]]
-											: [
-													match.player_ids[2],
-													match.player_ids[3],
-											  ];
+											// Get players for each team
+											const team1PlayerIds = isSingles
+												? [match.player_ids[0]]
+												: [
+														match.player_ids[0],
+														match.player_ids[1],
+													];
+											const team2PlayerIds = isSingles
+												? [match.player_ids[1]]
+												: [
+														match.player_ids[2],
+														match.player_ids[3],
+													];
 
-										const team1Players = team1PlayerIds
-											.map((id) => getPlayer(id))
-											.filter(Boolean) as Player[];
-										const team2Players = team2PlayerIds
-											.map((id) => getPlayer(id))
-											.filter(Boolean) as Player[];
+											const team1Players = team1PlayerIds
+												.map((id) => getPlayer(id))
+												.filter(Boolean) as Player[];
+											const team2Players = team2PlayerIds
+												.map((id) => getPlayer(id))
+												.filter(Boolean) as Player[];
 
-										// For singles: use player Elo
-										// For doubles: use team Elo from double_team_ratings
-										let team1Elo: number;
-										let team2Elo: number;
+											// For singles: use player Elo
+											// For doubles: use team Elo from double_team_ratings
+											let team1Elo: number;
+											let team2Elo: number;
 
-										if (isSingles) {
-											team1Elo =
-												team1Players[0]?.elo || 1500;
-											team2Elo =
-												team2Players[0]?.elo || 1500;
-										} else {
-											// Doubles: get team IDs from match or lookup by player pair
-											const normalizePair = (
-												p1: string,
-												p2: string
-											) =>
-												p1 < p2
-													? `${p1}:${p2}`
-													: `${p2}:${p1}`;
+											if (isSingles) {
+												team1Elo =
+													team1Players[0]?.elo ||
+													1500;
+												team2Elo =
+													team2Players[0]?.elo ||
+													1500;
+											} else {
+												// Doubles: get team IDs from match or lookup by player pair
+												const normalizePair = (
+													p1: string,
+													p2: string,
+												) =>
+													p1 < p2
+														? `${p1}:${p2}`
+														: `${p2}:${p1}`;
 
-											let team1Id = match.team_1_id;
-											let team2Id = match.team_2_id;
+												let team1Id = match.team_1_id;
+												let team2Id = match.team_2_id;
 
-											// If team IDs not in match, try to find them from player pair mapping
-											if (
-												!team1Id &&
-												team1PlayerIds.length >= 2
-											) {
-												const pairKey = normalizePair(
-													team1PlayerIds[0],
-													team1PlayerIds[1]
-												);
-												team1Id =
-													playerPairToTeamId[pairKey];
+												// If team IDs not in match, try to find them from player pair mapping
+												if (
+													!team1Id &&
+													team1PlayerIds.length >= 2
+												) {
+													const pairKey =
+														normalizePair(
+															team1PlayerIds[0],
+															team1PlayerIds[1],
+														);
+													team1Id =
+														playerPairToTeamId[
+															pairKey
+														];
+												}
+
+												if (
+													!team2Id &&
+													team2PlayerIds.length >= 2
+												) {
+													const pairKey =
+														normalizePair(
+															team2PlayerIds[0],
+															team2PlayerIds[1],
+														);
+													team2Id =
+														playerPairToTeamId[
+															pairKey
+														];
+												}
+
+												// Get team Elo from state (fetched earlier) or default to 1500
+												team1Elo = team1Id
+													? (teamEloRatings[
+															team1Id
+														] ?? 1500)
+													: 1500;
+												team2Elo = team2Id
+													? (teamEloRatings[
+															team2Id
+														] ?? 1500)
+													: 1500;
 											}
 
-											if (
-												!team2Id &&
-												team2PlayerIds.length >= 2
-											) {
-												const pairKey = normalizePair(
-													team2PlayerIds[0],
-													team2PlayerIds[1]
+											// Get match counts for accurate K-factor calculation
+											// For singles: use player's match count
+											// For doubles: use average of team players' match counts (approximation for UI preview)
+											const team1MatchCount = isSingles
+												? team1Players[0]?.matchCount ||
+													0
+												: Math.round(
+														((team1Players[0]
+															?.matchCount || 0) +
+															(team1Players[1]
+																?.matchCount ||
+																0)) /
+															2,
+													);
+											const team2MatchCount = isSingles
+												? team2Players[0]?.matchCount ||
+													0
+												: Math.round(
+														((team2Players[0]
+															?.matchCount || 0) +
+															(team2Players[1]
+																?.matchCount ||
+																0)) /
+															2,
+													);
+
+											// Calculate Elo previews with accurate match counts
+											const team1WinChange =
+												calculateEloChange(
+													team1Elo,
+													team2Elo,
+													"win",
+													team1MatchCount,
 												);
-												team2Id =
-													playerPairToTeamId[pairKey];
-											}
+											const team1DrawChange =
+												calculateEloChange(
+													team1Elo,
+													team2Elo,
+													"draw",
+													team1MatchCount,
+												);
+											const team1LoseChange =
+												calculateEloChange(
+													team1Elo,
+													team2Elo,
+													"lose",
+													team1MatchCount,
+												);
 
-											// Get team Elo from state (fetched earlier) or default to 1500
-											team1Elo = team1Id
-												? teamEloRatings[team1Id] ??
-												  1500
-												: 1500;
-											team2Elo = team2Id
-												? teamEloRatings[team2Id] ??
-												  1500
-												: 1500;
-										}
+											const team2WinChange =
+												calculateEloChange(
+													team2Elo,
+													team1Elo,
+													"win",
+													team2MatchCount,
+												);
+											const team2DrawChange =
+												calculateEloChange(
+													team2Elo,
+													team1Elo,
+													"draw",
+													team2MatchCount,
+												);
+											const team2LoseChange =
+												calculateEloChange(
+													team2Elo,
+													team1Elo,
+													"lose",
+													team2MatchCount,
+												);
 
-										// Get match counts for accurate K-factor calculation
-										// For singles: use player's match count
-										// For doubles: use average of team players' match counts (approximation for UI preview)
-										const team1MatchCount = isSingles
-											? team1Players[0]?.matchCount || 0
-											: Math.round(
-													((team1Players[0]
-														?.matchCount || 0) +
-														(team1Players[1]
-															?.matchCount ||
-															0)) /
+											const team1Name = isSingles
+												? team1Players[0]?.name ||
+													"Unknown"
+												: `${
+														team1Players[0]?.name ||
+														""
+													} & ${
+														team1Players[1]?.name ||
+														""
+													}`.trim();
+											const team2Name = isSingles
+												? team2Players[0]?.name ||
+													"Unknown"
+												: `${
+														team2Players[0]?.name ||
+														""
+													} & ${
+														team2Players[1]?.name ||
+														""
+													}`.trim();
+
+											// Calculate player doubles Elo values for doubles matches
+											const team1Player1DoublesElo =
+												!isSingles
+													? (team1Players[0]
+															?.doublesElo ??
+														1500)
+													: 0;
+											const team1Player2DoublesElo =
+												!isSingles
+													? (team1Players[1]
+															?.doublesElo ??
+														1500)
+													: 0;
+											const team1PlayerAverageDoublesElo =
+												!isSingles
+													? (team1Player1DoublesElo +
+															team1Player2DoublesElo) /
 														2
-											  );
-										const team2MatchCount = isSingles
-											? team2Players[0]?.matchCount || 0
-											: Math.round(
-													((team2Players[0]
-														?.matchCount || 0) +
-														(team2Players[1]
-															?.matchCount ||
-															0)) /
+													: 0;
+
+											const team2Player1DoublesElo =
+												!isSingles
+													? (team2Players[0]
+															?.doublesElo ??
+														1500)
+													: 0;
+											const team2Player2DoublesElo =
+												!isSingles
+													? (team2Players[1]
+															?.doublesElo ??
+														1500)
+													: 0;
+											const team2PlayerAverageDoublesElo =
+												!isSingles
+													? (team2Player1DoublesElo +
+															team2Player2DoublesElo) /
 														2
-											  );
+													: 0;
 
-										// Calculate Elo previews with accurate match counts
-										const team1WinChange =
-											calculateEloChange(
-												team1Elo,
-												team2Elo,
-												"win",
-												team1MatchCount
-											);
-										const team1DrawChange =
-											calculateEloChange(
-												team1Elo,
-												team2Elo,
-												"draw",
-												team1MatchCount
-											);
-										const team1LoseChange =
-											calculateEloChange(
-												team1Elo,
-												team2Elo,
-												"lose",
-												team1MatchCount
-											);
-
-										const team2WinChange =
-											calculateEloChange(
-												team2Elo,
-												team1Elo,
-												"win",
-												team2MatchCount
-											);
-										const team2DrawChange =
-											calculateEloChange(
-												team2Elo,
-												team1Elo,
-												"draw",
-												team2MatchCount
-											);
-										const team2LoseChange =
-											calculateEloChange(
-												team2Elo,
-												team1Elo,
-												"lose",
-												team2MatchCount
-											);
-
-										const team1Name = isSingles
-											? team1Players[0]?.name || "Unknown"
-											: `${
-													team1Players[0]?.name || ""
-											  } & ${
-													team1Players[1]?.name || ""
-											  }`.trim();
-										const team2Name = isSingles
-											? team2Players[0]?.name || "Unknown"
-											: `${
-													team2Players[0]?.name || ""
-											  } & ${
-													team2Players[1]?.name || ""
-											  }`.trim();
-
-										// Calculate player doubles Elo values for doubles matches
-										const team1Player1DoublesElo =
-											!isSingles
-												? team1Players[0]?.doublesElo ??
-												  1500
-												: 0;
-										const team1Player2DoublesElo =
-											!isSingles
-												? team1Players[1]?.doublesElo ??
-												  1500
-												: 0;
-										const team1PlayerAverageDoublesElo =
-											!isSingles
-												? (team1Player1DoublesElo +
-														team1Player2DoublesElo) /
-												  2
-												: 0;
-
-										const team2Player1DoublesElo =
-											!isSingles
-												? team2Players[0]?.doublesElo ??
-												  1500
-												: 0;
-										const team2Player2DoublesElo =
-											!isSingles
-												? team2Players[1]?.doublesElo ??
-												  1500
-												: 0;
-										const team2PlayerAverageDoublesElo =
-											!isSingles
-												? (team2Player1DoublesElo +
-														team2Player2DoublesElo) /
-												  2
-												: 0;
-
-										return (
-											<Box
-												key={match.id}
-												className="bg-card rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-border/50 shadow-sm relative"
-											>
-												{/* Edit button for completed matches */}
-												{isMatchCompleted && (
-													<Button
-														variant="ghost"
-														size="sm"
-														onClick={() => {
-															setSelectedMatchForEdit(
-																match
-															);
-															setIsEditDrawerOpen(
-																true
-															);
-														}}
-														disabled={
-															recalcStatus ===
-																"running" ||
-															isEditingMatch
-														}
-														className="absolute top-2 right-2 size-8 p-0"
-													>
-														<Icon
-															icon="lucide:edit"
-															className="size-4"
-														/>
-													</Button>
-												)}
-												<Stack
-													direction="column"
-													spacing={1}
-													className="md:hidden"
+											return (
+												<Box
+													key={match.id}
+													className={cn(
+														"bg-card rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-border/50 shadow-sm relative",
+														animateMatches &&
+															"animate-in fade-in-0 slide-in-from-bottom-4 duration-500",
+													)}
+													style={
+														animateMatches
+															? {
+																	animationDelay: `${matchIndex * 100}ms`,
+																	animationFillMode:
+																		"both",
+																}
+															: undefined
+													}
 												>
-													{/* Mobile: Vertical Layout */}
-													{/* Team 1 - Mobile */}
+													{/* Edit button for completed matches */}
+													{isMatchCompleted && (
+														<Button
+															variant="ghost"
+															size="sm"
+															onClick={() => {
+																setSelectedMatchForEdit(
+																	match,
+																);
+																setIsEditDrawerOpen(
+																	true,
+																);
+															}}
+															disabled={
+																recalcStatus ===
+																	"running" ||
+																isEditingMatch
+															}
+															className="absolute top-2 right-2 size-8 p-0"
+														>
+															<Icon
+																icon="lucide:edit"
+																className="size-4"
+															/>
+														</Button>
+													)}
+													<Stack
+														direction="column"
+														spacing={1}
+														className="md:hidden"
+													>
+														{/* Mobile: Vertical Layout */}
+														{/* Team 1 - Mobile */}
+														<Stack
+															direction="row"
+															alignItems="center"
+															justifyContent="between"
+															spacing={3}
+															className="w-full"
+														>
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={2}
+																className="flex-1 min-w-0"
+															>
+																{isSingles ? (
+																	<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
+																		<AvatarImage
+																			src={
+																				team1Players[0]
+																					?.avatar ||
+																				undefined
+																			}
+																			alt={
+																				team1Players[0]
+																					?.name
+																			}
+																		/>
+																		<AvatarFallback>
+																			{team1Players[0]?.name
+																				?.charAt(
+																					0,
+																				)
+																				.toUpperCase() ||
+																				"?"}
+																		</AvatarFallback>
+																	</Avatar>
+																) : (
+																	<Stack
+																		direction="row"
+																		spacing={
+																			-2
+																		}
+																		className="shrink-0"
+																	>
+																		{team1Players.map(
+																			(
+																				player,
+																			) => (
+																				<Avatar
+																					key={
+																						player.id
+																					}
+																					className="size-10 border-2 border-background shadow-sm"
+																				>
+																					<AvatarImage
+																						src={
+																							player.avatar ||
+																							undefined
+																						}
+																						alt={
+																							player.name
+																						}
+																					/>
+																					<AvatarFallback>
+																						{player.name
+																							?.charAt(
+																								0,
+																							)
+																							.toUpperCase() ||
+																							"?"}
+																					</AvatarFallback>
+																				</Avatar>
+																			),
+																		)}
+																	</Stack>
+																)}
+																<Box className="min-w-0 flex-1">
+																	<p className="text-sm font-bold leading-tight truncate">
+																		{
+																			team1Name
+																		}
+																	</p>
+																	<p className="text-[10px] text-muted-foreground font-medium">
+																		{isSingles
+																			? `Elo ${team1Elo}`
+																			: `Team ${team1Elo}`}
+																	</p>
+																	{/* Elo predictions as addon */}
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={
+																			1.5
+																		}
+																		className="mt-0.5"
+																	>
+																		<span className="text-[9px] font-bold text-chart-2">
+																			{formatEloDelta(
+																				team1WinChange,
+																				false,
+																			)}
+																		</span>
+																		<span className="text-[9px] font-bold text-chart-3">
+																			{formatEloDelta(
+																				team1DrawChange,
+																				false,
+																			)}
+																		</span>
+																		<span className="text-[9px] font-bold text-red-500">
+																			{formatEloDelta(
+																				team1LoseChange,
+																				false,
+																			)}
+																		</span>
+																	</Stack>
+																</Box>
+															</Stack>
+															<Input
+																ref={(el) => {
+																	scoreInputRefs.current[
+																		`${match.id}-team1`
+																	] = el;
+																}}
+																type="number"
+																inputMode="numeric"
+																pattern="[0-9]*"
+																placeholder="0"
+																value={
+																	matchScores.team1 ??
+																	""
+																}
+																onChange={(e) =>
+																	handleScoreChange(
+																		match.id,
+																		"team1",
+																		e.target
+																			.value,
+																		matchIndex,
+																	)
+																}
+																disabled={
+																	isReadOnly
+																}
+																readOnly={
+																	isReadOnly
+																}
+																className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+															/>
+														</Stack>
+
+														{/* VS Divider - Mobile */}
+														<Box className="flex items-center justify-center py-1">
+															<Box className="h-px bg-border flex-1" />
+															<Box className="px-3">
+																<span className="text-[10px] font-black text-muted-foreground uppercase">
+																	{
+																		t
+																			.sessions
+																			.session
+																			.vs
+																	}
+																</span>
+															</Box>
+															<Box className="h-px bg-border flex-1" />
+														</Box>
+
+														{/* Team 2 - Mobile */}
+														<Stack
+															direction="row"
+															alignItems="center"
+															justifyContent="between"
+															spacing={3}
+															className="w-full"
+														>
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={2}
+																className="flex-1 min-w-0"
+															>
+																{isSingles ? (
+																	<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
+																		<AvatarImage
+																			src={
+																				team2Players[0]
+																					?.avatar ||
+																				undefined
+																			}
+																			alt={
+																				team2Players[0]
+																					?.name
+																			}
+																		/>
+																		<AvatarFallback>
+																			{team2Players[0]?.name
+																				?.charAt(
+																					0,
+																				)
+																				.toUpperCase() ||
+																				"?"}
+																		</AvatarFallback>
+																	</Avatar>
+																) : (
+																	<Stack
+																		direction="row"
+																		spacing={
+																			-2
+																		}
+																		className="shrink-0"
+																	>
+																		{team2Players.map(
+																			(
+																				player,
+																			) => (
+																				<Avatar
+																					key={
+																						player.id
+																					}
+																					className="size-10 border-2 border-background shadow-sm"
+																				>
+																					<AvatarImage
+																						src={
+																							player.avatar ||
+																							undefined
+																						}
+																						alt={
+																							player.name
+																						}
+																					/>
+																					<AvatarFallback>
+																						{player.name
+																							?.charAt(
+																								0,
+																							)
+																							.toUpperCase() ||
+																							"?"}
+																					</AvatarFallback>
+																				</Avatar>
+																			),
+																		)}
+																	</Stack>
+																)}
+																<Box className="min-w-0 flex-1">
+																	<p className="text-sm font-bold leading-tight truncate">
+																		{
+																			team2Name
+																		}
+																	</p>
+																	<p className="text-[10px] text-muted-foreground font-medium">
+																		{isSingles
+																			? `Elo ${team2Elo}`
+																			: `Team ${team2Elo}`}
+																	</p>
+																	{/* Elo predictions as addon */}
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={
+																			1.5
+																		}
+																		className="mt-0.5"
+																	>
+																		<span className="text-[9px] font-bold text-chart-2">
+																			{formatEloDelta(
+																				team2WinChange,
+																				false,
+																			)}
+																		</span>
+																		<span className="text-[9px] font-bold text-chart-3">
+																			{formatEloDelta(
+																				team2DrawChange,
+																				false,
+																			)}
+																		</span>
+																		<span className="text-[9px] font-bold text-red-500">
+																			{formatEloDelta(
+																				team2LoseChange,
+																				false,
+																			)}
+																		</span>
+																	</Stack>
+																</Box>
+															</Stack>
+															<Input
+																ref={(el) => {
+																	scoreInputRefs.current[
+																		`${match.id}-team2`
+																	] = el;
+																}}
+																type="number"
+																inputMode="numeric"
+																pattern="[0-9]*"
+																placeholder="0"
+																value={
+																	matchScores.team2 ??
+																	""
+																}
+																onChange={(e) =>
+																	handleScoreChange(
+																		match.id,
+																		"team2",
+																		e.target
+																			.value,
+																		matchIndex,
+																	)
+																}
+																disabled={
+																	isReadOnly
+																}
+																readOnly={
+																	isReadOnly
+																}
+																className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+															/>
+														</Stack>
+													</Stack>
+
+													{/* Desktop: Original Horizontal Layout */}
 													<Stack
 														direction="row"
 														alignItems="center"
 														justifyContent="between"
-														spacing={3}
-														className="w-full"
+														spacing={4}
+														className="hidden md:flex"
 													>
+														{/* Team 1 */}
 														<Stack
-															direction="row"
+															direction="column"
 															alignItems="center"
 															spacing={2}
-															className="flex-1 min-w-0"
+															className="flex-1"
 														>
 															{isSingles ? (
-																<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
+																<Avatar className="size-16 border-2 border-border shadow-md">
 																	<AvatarImage
 																		src={
 																			team1Players[0]
@@ -2949,7 +3298,7 @@ function SessionPageContent() {
 																	<AvatarFallback>
 																		{team1Players[0]?.name
 																			?.charAt(
-																				0
+																				0,
 																			)
 																			.toUpperCase() ||
 																			"?"}
@@ -2958,18 +3307,18 @@ function SessionPageContent() {
 															) : (
 																<Stack
 																	direction="row"
-																	spacing={-2}
-																	className="shrink-0"
+																	spacing={-4}
 																>
 																	{team1Players.map(
 																		(
-																			player
+																			player,
+																			idx,
 																		) => (
 																			<Avatar
 																				key={
 																					player.id
 																				}
-																				className="size-10 border-2 border-background shadow-sm"
+																				className="size-14 border-2 border-background shadow-sm"
 																			>
 																				<AvatarImage
 																					src={
@@ -2983,114 +3332,189 @@ function SessionPageContent() {
 																				<AvatarFallback>
 																					{player.name
 																						?.charAt(
-																							0
+																							0,
 																						)
 																						.toUpperCase() ||
 																						"?"}
 																				</AvatarFallback>
 																			</Avatar>
-																		)
+																		),
 																	)}
 																</Stack>
 															)}
-															<Box className="min-w-0 flex-1">
-																<p className="text-sm font-bold leading-tight truncate">
+															<Box className="text-center">
+																<p className="text-base font-bold leading-tight">
 																	{team1Name}
 																</p>
-																<p className="text-[10px] text-muted-foreground font-medium">
+																<p className="text-xs text-muted-foreground font-medium">
 																	{isSingles
-																		? `Elo ${team1Elo}`
-																		: `Team ${team1Elo}`}
+																		? `${t.sessions.session.elo} ${team1Elo}`
+																		: `${t.sessions.session.teamElo} ${team1Elo}`}
 																</p>
-																{/* Elo predictions as addon */}
-																<Stack
-																	direction="row"
-																	alignItems="center"
-																	spacing={1.5}
-																	className="mt-0.5"
-																>
-																	<span className="text-[9px] font-bold text-chart-2">
-																		{formatEloDelta(
-																			team1WinChange,
-																			false
-																		)}
-																	</span>
-																	<span className="text-[9px] font-bold text-chart-3">
-																		{formatEloDelta(
-																			team1DrawChange,
-																			false
-																		)}
-																	</span>
-																	<span className="text-[9px] font-bold text-red-500">
-																		{formatEloDelta(
-																			team1LoseChange,
-																			false
-																		)}
-																	</span>
-																</Stack>
+																{!isSingles && (
+																	<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
+																		<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
+																			{
+																				t
+																					.sessions
+																					.session
+																					.playerDoublesElo
+																			}
+																		</p>
+																		<p className="text-[10px] text-muted-foreground/80 leading-tight">
+																			{team1Players[0]?.name?.split(
+																				" ",
+																			)[0] ||
+																				"P1"}
+																			:{" "}
+																			{team1Player1DoublesElo.toFixed(
+																				1,
+																			)}
+																			<br />
+																			{team1Players[1]?.name?.split(
+																				" ",
+																			)[0] ||
+																				"P2"}
+																			:{" "}
+																			{team1Player2DoublesElo.toFixed(
+																				1,
+																			)}
+																			<br />
+																			<span className="font-semibold">
+																				{
+																					t
+																						.sessions
+																						.session
+																						.avg
+																				}
+
+																				:{" "}
+																				{team1PlayerAverageDoublesElo.toFixed(
+																					1,
+																				)}
+																			</span>
+																		</p>
+																	</Box>
+																)}
 															</Box>
+															<Stack
+																direction="row"
+																alignItems="center"
+																justifyContent="center"
+																spacing={3}
+																className="text-xs font-bold mt-2"
+															>
+																<span className="text-chart-2">
+																	{formatEloDelta(
+																		team1WinChange,
+																		false,
+																	)}
+																</span>
+																<span className="text-chart-3">
+																	{formatEloDelta(
+																		team1DrawChange,
+																		false,
+																	)}
+																</span>
+																<span className="text-red-500">
+																	{formatEloDelta(
+																		team1LoseChange,
+																		false,
+																	)}
+																</span>
+															</Stack>
 														</Stack>
-														<Input
-															ref={(el) => {
-																scoreInputRefs.current[`${match.id}-team1`] = el;
-															}}
-															type="number"
-															inputMode="numeric"
-															pattern="[0-9]*"
-															placeholder="0"
-															value={
-																matchScores.team1 ??
-																""
-															}
-															onChange={(e) =>
-																handleScoreChange(
-																	match.id,
-																	"team1",
-																	e.target.value,
-																	matchIndex
-																)
-															}
-															disabled={
-																isReadOnly
-															}
-															readOnly={
-																isReadOnly
-															}
-															className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-														/>
-													</Stack>
 
-													{/* VS Divider - Mobile */}
-													<Box className="flex items-center justify-center py-1">
-														<Box className="h-px bg-border flex-1" />
-														<Box className="px-3">
-															<span className="text-[10px] font-black text-muted-foreground uppercase">
-																{
-																	t.sessions
-																		.session
-																		.vs
-																}
-															</span>
-														</Box>
-														<Box className="h-px bg-border flex-1" />
-													</Box>
-
-													{/* Team 2 - Mobile */}
-													<Stack
-														direction="row"
-														alignItems="center"
-														justifyContent="between"
-														spacing={3}
-														className="w-full"
-													>
+														{/* Score Inputs */}
 														<Stack
 															direction="row"
 															alignItems="center"
+															spacing={3}
+															className="shrink-0"
+														>
+															<Input
+																ref={(el) => {
+																	scoreInputRefs.current[
+																		`${match.id}-team1-desktop`
+																	] = el;
+																}}
+																type="number"
+																inputMode="numeric"
+																pattern="[0-9]*"
+																placeholder="0"
+																value={
+																	matchScores.team1 ??
+																	""
+																}
+																onChange={(e) =>
+																	handleScoreChange(
+																		match.id,
+																		"team1",
+																		e.target
+																			.value,
+																		matchIndex,
+																	)
+																}
+																disabled={
+																	isReadOnly
+																}
+																readOnly={
+																	isReadOnly
+																}
+																className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+															/>
+															<Box className="px-1">
+																<span className="text-xs font-black text-muted-foreground">
+																	{
+																		t
+																			.sessions
+																			.session
+																			.vs
+																	}
+																</span>
+															</Box>
+															<Input
+																ref={(el) => {
+																	scoreInputRefs.current[
+																		`${match.id}-team2-desktop`
+																	] = el;
+																}}
+																type="number"
+																inputMode="numeric"
+																pattern="[0-9]*"
+																placeholder="0"
+																value={
+																	matchScores.team2 ??
+																	""
+																}
+																onChange={(e) =>
+																	handleScoreChange(
+																		match.id,
+																		"team2",
+																		e.target
+																			.value,
+																		matchIndex,
+																	)
+																}
+																disabled={
+																	isReadOnly
+																}
+																readOnly={
+																	isReadOnly
+																}
+																className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+															/>
+														</Stack>
+
+														{/* Team 2 */}
+														<Stack
+															direction="column"
+															alignItems="center"
 															spacing={2}
-															className="flex-1 min-w-0"
+															className="flex-1"
 														>
 															{isSingles ? (
-																<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
+																<Avatar className="size-16 border-2 border-border shadow-md">
 																	<AvatarImage
 																		src={
 																			team2Players[0]
@@ -3105,7 +3529,7 @@ function SessionPageContent() {
 																	<AvatarFallback>
 																		{team2Players[0]?.name
 																			?.charAt(
-																				0
+																				0,
 																			)
 																			.toUpperCase() ||
 																			"?"}
@@ -3114,18 +3538,18 @@ function SessionPageContent() {
 															) : (
 																<Stack
 																	direction="row"
-																	spacing={-2}
-																	className="shrink-0"
+																	spacing={-4}
 																>
 																	{team2Players.map(
 																		(
-																			player
+																			player,
+																			idx,
 																		) => (
 																			<Avatar
 																				key={
 																					player.id
 																				}
-																				className="size-10 border-2 border-background shadow-sm"
+																				className="size-14 border-2 border-background shadow-sm"
 																			>
 																				<AvatarImage
 																					src={
@@ -3139,468 +3563,103 @@ function SessionPageContent() {
 																				<AvatarFallback>
 																					{player.name
 																						?.charAt(
-																							0
+																							0,
 																						)
 																						.toUpperCase() ||
 																						"?"}
 																				</AvatarFallback>
 																			</Avatar>
-																		)
+																		),
 																	)}
 																</Stack>
 															)}
-															<Box className="min-w-0 flex-1">
-																<p className="text-sm font-bold leading-tight truncate">
+															<Box className="text-center">
+																<p className="text-base font-bold leading-tight">
 																	{team2Name}
 																</p>
-																<p className="text-[10px] text-muted-foreground font-medium">
+																<p className="text-xs text-muted-foreground font-medium">
 																	{isSingles
-																		? `Elo ${team2Elo}`
-																		: `Team ${team2Elo}`}
+																		? `${t.sessions.session.elo} ${team2Elo}`
+																		: `${t.sessions.session.teamElo} ${team2Elo}`}
 																</p>
-																{/* Elo predictions as addon */}
-																<Stack
-																	direction="row"
-																	alignItems="center"
-																	spacing={1.5}
-																	className="mt-0.5"
-																>
-																	<span className="text-[9px] font-bold text-chart-2">
-																		{formatEloDelta(
-																			team2WinChange,
-																			false
-																		)}
-																	</span>
-																	<span className="text-[9px] font-bold text-chart-3">
-																		{formatEloDelta(
-																			team2DrawChange,
-																			false
-																		)}
-																	</span>
-																	<span className="text-[9px] font-bold text-red-500">
-																		{formatEloDelta(
-																			team2LoseChange,
-																			false
-																		)}
-																	</span>
-																</Stack>
+																{!isSingles && (
+																	<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
+																		<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
+																			{
+																				t
+																					.sessions
+																					.session
+																					.playerDoublesElo
+																			}
+																		</p>
+																		<p className="text-[10px] text-muted-foreground/80 leading-tight">
+																			{team2Players[0]?.name?.split(
+																				" ",
+																			)[0] ||
+																				"P1"}
+																			:{" "}
+																			{team2Player1DoublesElo.toFixed(
+																				1,
+																			)}
+																			<br />
+																			{team2Players[1]?.name?.split(
+																				" ",
+																			)[0] ||
+																				"P2"}
+																			:{" "}
+																			{team2Player2DoublesElo.toFixed(
+																				1,
+																			)}
+																			<br />
+																			<span className="font-semibold">
+																				{
+																					t
+																						.sessions
+																						.session
+																						.avg
+																				}
+
+																				:{" "}
+																				{team2PlayerAverageDoublesElo.toFixed(
+																					1,
+																				)}
+																			</span>
+																		</p>
+																	</Box>
+																)}
 															</Box>
-														</Stack>
-														<Input
-															ref={(el) => {
-																scoreInputRefs.current[`${match.id}-team2`] = el;
-															}}
-															type="number"
-															inputMode="numeric"
-															pattern="[0-9]*"
-															placeholder="0"
-															value={
-																matchScores.team2 ??
-																""
-															}
-															onChange={(e) =>
-																handleScoreChange(
-																	match.id,
-																	"team2",
-																	e.target.value,
-																	matchIndex
-																)
-															}
-															disabled={
-																isReadOnly
-															}
-															readOnly={
-																isReadOnly
-															}
-															className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-														/>
-													</Stack>
-
-												</Stack>
-
-												{/* Desktop: Original Horizontal Layout */}
-												<Stack
-													direction="row"
-													alignItems="center"
-													justifyContent="between"
-													spacing={4}
-													className="hidden md:flex"
-												>
-													{/* Team 1 */}
-													<Stack
-														direction="column"
-														alignItems="center"
-														spacing={2}
-														className="flex-1"
-													>
-														{isSingles ? (
-															<Avatar className="size-16 border-2 border-border shadow-md">
-																<AvatarImage
-																	src={
-																		team1Players[0]
-																			?.avatar ||
-																		undefined
-																	}
-																	alt={
-																		team1Players[0]
-																			?.name
-																	}
-																/>
-																<AvatarFallback>
-																	{team1Players[0]?.name
-																		?.charAt(
-																			0
-																		)
-																		.toUpperCase() ||
-																		"?"}
-																</AvatarFallback>
-															</Avatar>
-														) : (
 															<Stack
 																direction="row"
-																spacing={-4}
+																alignItems="center"
+																justifyContent="center"
+																spacing={3}
+																className="text-xs font-bold mt-2"
 															>
-																{team1Players.map(
-																	(
-																		player,
-																		idx
-																	) => (
-																		<Avatar
-																			key={
-																				player.id
-																			}
-																			className="size-14 border-2 border-background shadow-sm"
-																		>
-																			<AvatarImage
-																				src={
-																					player.avatar ||
-																					undefined
-																				}
-																				alt={
-																					player.name
-																				}
-																			/>
-																			<AvatarFallback>
-																				{player.name
-																					?.charAt(
-																						0
-																					)
-																					.toUpperCase() ||
-																					"?"}
-																			</AvatarFallback>
-																		</Avatar>
-																	)
-																)}
+																<span className="text-chart-2">
+																	{formatEloDelta(
+																		team2WinChange,
+																		false,
+																	)}
+																</span>
+																<span className="text-chart-3">
+																	{formatEloDelta(
+																		team2DrawChange,
+																		false,
+																	)}
+																</span>
+																<span className="text-red-500">
+																	{formatEloDelta(
+																		team2LoseChange,
+																		false,
+																	)}
+																</span>
 															</Stack>
-														)}
-														<Box className="text-center">
-															<p className="text-base font-bold leading-tight">
-																{team1Name}
-															</p>
-															<p className="text-xs text-muted-foreground font-medium">
-																{isSingles
-																	? `${t.sessions.session.elo} ${team1Elo}`
-																	: `${t.sessions.session.teamElo} ${team1Elo}`}
-															</p>
-															{!isSingles && (
-																<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
-																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
-																		{
-																			t
-																				.sessions
-																				.session
-																				.playerDoublesElo
-																		}
-																	</p>
-																	<p className="text-[10px] text-muted-foreground/80 leading-tight">
-																		{team1Players[0]?.name?.split(
-																			" "
-																		)[0] ||
-																			"P1"}
-																		:{" "}
-																		{team1Player1DoublesElo.toFixed(
-																			1
-																		)}
-																		<br />
-																		{team1Players[1]?.name?.split(
-																			" "
-																		)[0] ||
-																			"P2"}
-																		:{" "}
-																		{team1Player2DoublesElo.toFixed(
-																			1
-																		)}
-																		<br />
-																		<span className="font-semibold">
-																			{
-																				t
-																					.sessions
-																					.session
-																					.avg
-																			}
-																			:{" "}
-																			{team1PlayerAverageDoublesElo.toFixed(
-																				1
-																			)}
-																		</span>
-																	</p>
-																</Box>
-															)}
-														</Box>
-														<Stack
-															direction="row"
-															alignItems="center"
-															justifyContent="center"
-															spacing={3}
-															className="text-xs font-bold mt-2"
-														>
-															<span className="text-chart-2">
-																{formatEloDelta(
-																	team1WinChange,
-																	false
-																)}
-															</span>
-															<span className="text-chart-3">
-																{formatEloDelta(
-																	team1DrawChange,
-																	false
-																)}
-															</span>
-															<span className="text-red-500">
-																{formatEloDelta(
-																	team1LoseChange,
-																	false
-																)}
-															</span>
 														</Stack>
 													</Stack>
-
-													{/* Score Inputs */}
-													<Stack
-														direction="row"
-														alignItems="center"
-														spacing={3}
-														className="shrink-0"
-													>
-														<Input
-															ref={(el) => {
-																scoreInputRefs.current[`${match.id}-team1-desktop`] = el;
-															}}
-															type="number"
-															inputMode="numeric"
-															pattern="[0-9]*"
-															placeholder="0"
-															value={
-																matchScores.team1 ??
-																""
-															}
-															onChange={(e) =>
-																handleScoreChange(
-																	match.id,
-																	"team1",
-																	e.target.value,
-																	matchIndex
-																)
-															}
-															disabled={
-																isReadOnly
-															}
-															readOnly={
-																isReadOnly
-															}
-															className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
-														/>
-														<Box className="px-1">
-															<span className="text-xs font-black text-muted-foreground">
-																{
-																	t.sessions
-																		.session
-																		.vs
-																}
-															</span>
-														</Box>
-														<Input
-															ref={(el) => {
-																scoreInputRefs.current[`${match.id}-team2-desktop`] = el;
-															}}
-															type="number"
-															inputMode="numeric"
-															pattern="[0-9]*"
-															placeholder="0"
-															value={
-																matchScores.team2 ??
-																""
-															}
-															onChange={(e) =>
-																handleScoreChange(
-																	match.id,
-																	"team2",
-																	e.target.value,
-																	matchIndex
-																)
-															}
-															disabled={
-																isReadOnly
-															}
-															readOnly={
-																isReadOnly
-															}
-															className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
-														/>
-													</Stack>
-
-													{/* Team 2 */}
-													<Stack
-														direction="column"
-														alignItems="center"
-														spacing={2}
-														className="flex-1"
-													>
-														{isSingles ? (
-															<Avatar className="size-16 border-2 border-border shadow-md">
-																<AvatarImage
-																	src={
-																		team2Players[0]
-																			?.avatar ||
-																		undefined
-																	}
-																	alt={
-																		team2Players[0]
-																			?.name
-																	}
-																/>
-																<AvatarFallback>
-																	{team2Players[0]?.name
-																		?.charAt(
-																			0
-																		)
-																		.toUpperCase() ||
-																		"?"}
-																</AvatarFallback>
-															</Avatar>
-														) : (
-															<Stack
-																direction="row"
-																spacing={-4}
-															>
-																{team2Players.map(
-																	(
-																		player,
-																		idx
-																	) => (
-																		<Avatar
-																			key={
-																				player.id
-																			}
-																			className="size-14 border-2 border-background shadow-sm"
-																		>
-																			<AvatarImage
-																				src={
-																					player.avatar ||
-																					undefined
-																				}
-																				alt={
-																					player.name
-																				}
-																			/>
-																			<AvatarFallback>
-																				{player.name
-																					?.charAt(
-																						0
-																					)
-																					.toUpperCase() ||
-																					"?"}
-																			</AvatarFallback>
-																		</Avatar>
-																	)
-																)}
-															</Stack>
-														)}
-														<Box className="text-center">
-															<p className="text-base font-bold leading-tight">
-																{team2Name}
-															</p>
-															<p className="text-xs text-muted-foreground font-medium">
-																{isSingles
-																	? `${t.sessions.session.elo} ${team2Elo}`
-																	: `${t.sessions.session.teamElo} ${team2Elo}`}
-															</p>
-															{!isSingles && (
-																<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
-																	<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
-																		{
-																			t
-																				.sessions
-																				.session
-																				.playerDoublesElo
-																		}
-																	</p>
-																	<p className="text-[10px] text-muted-foreground/80 leading-tight">
-																		{team2Players[0]?.name?.split(
-																			" "
-																		)[0] ||
-																			"P1"}
-																		:{" "}
-																		{team2Player1DoublesElo.toFixed(
-																			1
-																		)}
-																		<br />
-																		{team2Players[1]?.name?.split(
-																			" "
-																		)[0] ||
-																			"P2"}
-																		:{" "}
-																		{team2Player2DoublesElo.toFixed(
-																			1
-																		)}
-																		<br />
-																		<span className="font-semibold">
-																			{
-																				t
-																					.sessions
-																					.session
-																					.avg
-																			}
-																			:{" "}
-																			{team2PlayerAverageDoublesElo.toFixed(
-																				1
-																			)}
-																		</span>
-																	</p>
-																</Box>
-															)}
-														</Box>
-														<Stack
-															direction="row"
-															alignItems="center"
-															justifyContent="center"
-															spacing={3}
-															className="text-xs font-bold mt-2"
-														>
-															<span className="text-chart-2">
-																{formatEloDelta(
-																	team2WinChange,
-																	false
-																)}
-															</span>
-															<span className="text-chart-3">
-																{formatEloDelta(
-																	team2DrawChange,
-																	false
-																)}
-															</span>
-															<span className="text-red-500">
-																{formatEloDelta(
-																	team2LoseChange,
-																	false
-																)}
-															</span>
-														</Stack>
-													</Stack>
-												</Stack>
-											</Box>
-										);
-									})}
+												</Box>
+											);
+										},
+									)}
 								</Stack>
 
 								{/* Round Indicators */}
@@ -3621,7 +3680,7 @@ function SessionPageContent() {
 														"flex-1 h-1 rounded-full transition-all",
 														isActive
 															? "bg-primary"
-															: "bg-muted"
+															: "bg-muted",
 													)}
 												/>
 											);
@@ -3631,21 +3690,25 @@ function SessionPageContent() {
 
 								{/* Up Next Preview */}
 								{(() => {
-									const currentIndex = roundNumbers.indexOf(currentRound);
-									const nextRound = currentIndex < roundNumbers.length - 1 
-										? roundNumbers[currentIndex + 1] 
-										: null;
-									
+									const currentIndex =
+										roundNumbers.indexOf(currentRound);
+									const nextRound =
+										currentIndex < roundNumbers.length - 1
+											? roundNumbers[currentIndex + 1]
+											: null;
+
 									if (!nextRound) return null;
-									
-									const nextMatches = sessionData.matchesByRound[nextRound] || [];
+
+									const nextMatches =
+										sessionData.matchesByRound[nextRound] ||
+										[];
 									if (nextMatches.length === 0) return null;
-									
+
 									return (
 										<Box className="pb-4">
-											<Stack 
-												direction="row" 
-												alignItems="center" 
+											<Stack
+												direction="row"
+												alignItems="center"
 												justifyContent="center"
 												spacing={3}
 												className="flex-wrap"
@@ -3653,57 +3716,129 @@ function SessionPageContent() {
 												<span className="text-xs font-semibold text-muted-foreground/70">
 													{t.sessions.session.upNext}:
 												</span>
-												{nextMatches.map((match, idx) => {
-													const isSingles = match.match_type === "singles";
-													const team1PlayerIds = isSingles
-														? [match.player_ids[0]]
-														: [match.player_ids[0], match.player_ids[1]];
-													const team2PlayerIds = isSingles
-														? [match.player_ids[1]]
-														: [match.player_ids[2], match.player_ids[3]];
-													
-													const team1Players = team1PlayerIds
-														.map((id) => getPlayer(id))
-														.filter(Boolean) as Player[];
-													const team2Players = team2PlayerIds
-														.map((id) => getPlayer(id))
-														.filter(Boolean) as Player[];
-													
-													const team1Name = isSingles
-														? team1Players[0]?.name?.split(" ")[0] || "?"
-														: team1Players.map(p => p.name?.split(" ")[0] || "?").join(" & ");
-													const team2Name = isSingles
-														? team2Players[0]?.name?.split(" ")[0] || "?"
-														: team2Players.map(p => p.name?.split(" ")[0] || "?").join(" & ");
-													
-													return (
-														<Stack 
-															key={match.id} 
-															direction="row" 
-															alignItems="center"
-															spacing={3}
-														>
-															{idx > 0 && (
-																<Box className="w-px h-4 bg-border/50 -ml-1.5" />
-															)}
-															<Stack 
-																direction="row" 
+												{nextMatches.map(
+													(match, idx) => {
+														const isSingles =
+															match.match_type ===
+															"singles";
+														const team1PlayerIds =
+															isSingles
+																? [
+																		match
+																			.player_ids[0],
+																	]
+																: [
+																		match
+																			.player_ids[0],
+																		match
+																			.player_ids[1],
+																	];
+														const team2PlayerIds =
+															isSingles
+																? [
+																		match
+																			.player_ids[1],
+																	]
+																: [
+																		match
+																			.player_ids[2],
+																		match
+																			.player_ids[3],
+																	];
+
+														const team1Players =
+															team1PlayerIds
+																.map((id) =>
+																	getPlayer(
+																		id,
+																	),
+																)
+																.filter(
+																	Boolean,
+																) as Player[];
+														const team2Players =
+															team2PlayerIds
+																.map((id) =>
+																	getPlayer(
+																		id,
+																	),
+																)
+																.filter(
+																	Boolean,
+																) as Player[];
+
+														const team1Name =
+															isSingles
+																? team1Players[0]?.name?.split(
+																		" ",
+																	)[0] || "?"
+																: team1Players
+																		.map(
+																			(
+																				p,
+																			) =>
+																				p.name?.split(
+																					" ",
+																				)[0] ||
+																				"?",
+																		)
+																		.join(
+																			" & ",
+																		);
+														const team2Name =
+															isSingles
+																? team2Players[0]?.name?.split(
+																		" ",
+																	)[0] || "?"
+																: team2Players
+																		.map(
+																			(
+																				p,
+																			) =>
+																				p.name?.split(
+																					" ",
+																				)[0] ||
+																				"?",
+																		)
+																		.join(
+																			" & ",
+																		);
+
+														return (
+															<Stack
+																key={match.id}
+																direction="row"
 																alignItems="center"
-																spacing={1.5}
+																spacing={3}
 															>
-																<span className="text-xs text-muted-foreground">
-																	{team1Name}
-																</span>
-																<span className="text-[10px] font-bold text-muted-foreground/60">
-																	vs
-																</span>
-																<span className="text-xs text-muted-foreground">
-																	{team2Name}
-																</span>
+																{idx > 0 && (
+																	<Box className="w-px h-4 bg-border/50 -ml-1.5" />
+																)}
+																<Stack
+																	direction="row"
+																	alignItems="center"
+																	spacing={
+																		1.5
+																	}
+																>
+																	<span className="text-xs text-muted-foreground">
+																		{
+																			team1Name
+																		}
+																	</span>
+																	<span className="text-[10px] font-bold text-muted-foreground/60">
+																		vs
+																	</span>
+																	<span className="text-xs text-muted-foreground">
+																		{
+																			team2Name
+																		}
+																	</span>
+																</Stack>
 															</Stack>
-														</Stack>
-													);
-												})}
+														);
+													},
+												)}
 											</Stack>
 										</Box>
 									);
@@ -3777,7 +3912,8 @@ function SessionPageContent() {
 														<span>
 															{currentRound ===
 															roundNumbers[
-																roundNumbers.length - 1
+																roundNumbers.length -
+																	1
 															]
 																? t.sessions
 																		.session
@@ -3790,7 +3926,8 @@ function SessionPageContent() {
 															icon={
 																currentRound ===
 																roundNumbers[
-																	roundNumbers.length - 1
+																	roundNumbers.length -
+																		1
 																]
 																	? "solar:check-circle-linear"
 																	: "solar:arrow-right-linear"
@@ -3819,33 +3956,33 @@ function SessionPageContent() {
 						selectedMatchForEdit.match_type === "singles"
 							? ([
 									getPlayer(
-										selectedMatchForEdit.player_ids[0]
+										selectedMatchForEdit.player_ids[0],
 									),
-							  ].filter(Boolean) as Player[])
+								].filter(Boolean) as Player[])
 							: ([
 									getPlayer(
-										selectedMatchForEdit.player_ids[0]
+										selectedMatchForEdit.player_ids[0],
 									),
 									getPlayer(
-										selectedMatchForEdit.player_ids[1]
+										selectedMatchForEdit.player_ids[1],
 									),
-							  ].filter(Boolean) as Player[])
+								].filter(Boolean) as Player[])
 					}
 					team2Players={
 						selectedMatchForEdit.match_type === "singles"
 							? ([
 									getPlayer(
-										selectedMatchForEdit.player_ids[1]
+										selectedMatchForEdit.player_ids[1],
 									),
-							  ].filter(Boolean) as Player[])
+								].filter(Boolean) as Player[])
 							: ([
 									getPlayer(
-										selectedMatchForEdit.player_ids[2]
+										selectedMatchForEdit.player_ids[2],
 									),
 									getPlayer(
-										selectedMatchForEdit.player_ids[3]
+										selectedMatchForEdit.player_ids[3],
 									),
-							  ].filter(Boolean) as Player[])
+								].filter(Boolean) as Player[])
 					}
 					onSave={handleEditMatch}
 					isSaving={isEditingMatch}
