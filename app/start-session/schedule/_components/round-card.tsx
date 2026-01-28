@@ -24,6 +24,8 @@ type RoundCardProps = {
 	restingPlayers?: Player[];
 	isActive?: boolean;
 	isDynamic?: boolean; // Indicates this round will be determined dynamically
+	isShuffling?: boolean;
+	shuffleKey?: number;
 };
 
 export function RoundCard({
@@ -32,6 +34,8 @@ export function RoundCard({
 	restingPlayers,
 	isActive = false,
 	isDynamic = false,
+	isShuffling = false,
+	shuffleKey = 0,
 }: RoundCardProps) {
 	return (
 		<Stack direction="row" spacing={4} className="relative z-10">
@@ -106,7 +110,13 @@ export function RoundCard({
 						</>
 					) : (
 						matches.map((match, index) => (
-							<MatchRow key={index} type={match.type} players={match.players} />
+							<MatchRow 
+								key={index} 
+								type={match.type} 
+								players={match.players}
+								isShuffling={isShuffling}
+								shuffleKey={shuffleKey}
+							/>
 						))
 					)}
 				</Stack>

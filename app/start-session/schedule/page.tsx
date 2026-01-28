@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { motion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -451,7 +452,15 @@ function SchedulePageContent() {
 		}
 	}, [playerCount, selectedPlayers.length, router]);
 
-	const handleRandomize = () => {
+	const [isShuffling, setIsShuffling] = useState(false);
+	const [scheduleKey, setScheduleKey] = useState(0);
+
+	const handleRandomize = async () => {
+		// Start shuffle animation
+		setIsShuffling(true);
+		
+		// Wait for spin out animation to complete
+		await new Promise(resolve => setTimeout(resolve, 450));
 		// For 4 players: preserve doubles rounds (4-6) from original schedule
 		// For 6 players: preserve mixed rounds (5-7) from original schedule
 		// For 3 and 5 players: all matches are singles, so randomize everything
@@ -572,6 +581,12 @@ function SchedulePageContent() {
 			setIsManuallyManagingRounds(true);
 		}
 		setRounds(finalRounds);
+		
+		// Trigger re-render with new key for enter animation
+		setScheduleKey(prev => prev + 1);
+		
+		// End shuffle animation
+		setIsShuffling(false);
 	};
 
 	const [isStartingSession, setIsStartingSession] = useState(false);
@@ -648,22 +663,23 @@ function SchedulePageContent() {
 								</Box>
 							</Box>
 
-							{/* Subtitle */}
-							<p className="text-muted-foreground">
-								{t.startSession.schedule.subtitle}
-							</p>
-
 							{/* Randomize Button */}
-							<Box className="mt-2 mb-6">
+							<Box className="mb-6">
 								<Button
 									variant="outline"
 									onClick={handleRandomize}
+									disabled={isShuffling}
 									className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-secondary/50 border-border/50 rounded-2xl"
 								>
-									<Icon
-										icon="solar:shuffle-bold"
-										className="size-5 text-primary"
-									/>
+									<motion.div
+										animate={isShuffling ? { rotate: [0, 360] } : {}}
+										transition={{ duration: 0.5, ease: "easeInOut" }}
+									>
+										<Icon
+											icon="solar:shuffle-bold"
+											className={isShuffling ? "size-5 text-amber-400" : "size-5 text-foreground"}
+										/>
+									</motion.div>
 									<span className="font-semibold text-sm">
 										{t.startSession.schedule.randomize}
 									</span>
@@ -681,11 +697,11 @@ function SchedulePageContent() {
 											key={round.id}
 											roundNumber={round.roundNumber}
 											matches={round.matches}
-											restingPlayers={
-												round.restingPlayers
-											}
+											restingPlayers={round.restingPlayers}
 											isActive={index === 0}
 											isDynamic={round.isDynamic}
+											isShuffling={isShuffling}
+											shuffleKey={scheduleKey}
 										/>
 									))}
 								</Stack>
