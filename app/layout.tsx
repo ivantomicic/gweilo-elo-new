@@ -4,6 +4,7 @@ import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
 import { MobileNav } from "@/components/mobile-nav";
 import { AppTracker } from "@/components/analytics/app-tracker";
+import { MaintenanceGuard } from "@/components/maintenance/maintenance-guard";
 
 const spaceGrotesk = Space_Grotesk({
 	subsets: ["latin"],
@@ -56,8 +57,10 @@ export default function RootLayout({
 		>
 		<body>
 			<AppTracker />
-			{children}
-			<MobileNav />
+			<MaintenanceGuard>
+				{children}
+				<MobileNav />
+			</MaintenanceGuard>
 		</body>
 		</html>
 	);

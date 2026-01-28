@@ -10,10 +10,9 @@ import {
 } from "@/components/vendor/shadcn/sidebar";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Box } from "@/components/ui/box";
-import { UserManagementTable } from "@/components/admin/user-management-table";
 import { MaintenanceSettings } from "@/components/admin/maintenance-settings";
 
-function AdminPageContent() {
+function AdminSettingsPageContent() {
 	const pathname = usePathname();
 	const router = useRouter();
 
@@ -42,7 +41,7 @@ function AdminPageContent() {
 		<SidebarProvider>
 			<AppSidebar variant="inset" />
 			<SidebarInset>
-				<SiteHeader title="Admin panel" />
+				<SiteHeader title="Admin Settings" />
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
@@ -58,8 +57,9 @@ function AdminPageContent() {
 								</Tabs>
 							</Box>
 
-							<div className="space-y-4">
-								<UserManagementTable />
+							{/* Settings Content */}
+							<div className="space-y-6">
+								<MaintenanceSettings />
 							</div>
 						</div>
 					</div>
@@ -69,10 +69,10 @@ function AdminPageContent() {
 	);
 }
 
-export default function AdminPage() {
+export default function AdminSettingsPage() {
 	return (
 		<AdminGuard>
-			<AdminPageContent />
+			<AdminSettingsPageContent />
 		</AdminGuard>
 	);
 }

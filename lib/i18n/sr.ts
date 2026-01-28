@@ -249,7 +249,8 @@ export const sr = {
 		},
 		emailTest: {
 			title: "Email Test",
-			description: "Pošaljite test email da proverite email template i slanje",
+			description:
+				"Pošaljite test email da proverite email template i slanje",
 			recipient: "Email primaoca",
 			recipientPlaceholder: "email@example.com",
 			emailTitle: "Naslov",
@@ -321,7 +322,8 @@ export const sr = {
 			question: "Pitanje",
 			questionPlaceholder: "Unesite pitanje ankete",
 			description: "Opis (opciono)",
-			descriptionPlaceholder: "Objasnite šta anketa pita ili zašto je važna...",
+			descriptionPlaceholder:
+				"Objasnite šta anketa pita ili zašto je važna...",
 			addOption: "Dodaj opciju",
 			removeOption: "Ukloni",
 			optionPlaceholder: (n: number) => `Opcija ${n}`,
@@ -332,13 +334,15 @@ export const sr = {
 		},
 		delete: {
 			title: "Obriši anketu",
-			description: "Da li ste sigurni da želite da obrišete ovu anketu? Ova akcija je nepovratna.",
+			description:
+				"Da li ste sigurni da želite da obrišete ovu anketu? Ova akcija je nepovratna.",
 			confirm: "Obriši",
 			deleting: "Brisanje...",
 		},
 		confirm: {
 			title: "Potvrdi odgovor",
-			description: "Da li ste sigurni da želite da pošaljete ovaj odgovor?",
+			description:
+				"Da li ste sigurni da želite da pošaljete ovaj odgovor?",
 			submit: "Pošalji",
 		},
 		card: {
@@ -436,5 +440,22 @@ export const sr = {
 	},
 	logo: {
 		alt: "GWEILO NS",
+	},
+	maintenance: {
+		title: "Održavanje",
+		message: "Radimo na fičerima, vraćamo se uskoro.",
+		subtext: "Hvala na strpljenju!",
+		admin: {
+			title: "Mod održavanja",
+			enabled: "Uključeno",
+			disabled: "Isključeno",
+			success: {
+				enabled: "Mod održavanja uključen",
+				disabled: "Mod održavanja isključen",
+			},
+			error: {
+				updateFailed: "Greška",
+			},
+		},
 	},
 } as const;
