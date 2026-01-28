@@ -101,7 +101,7 @@ export function CalculationTerminal({
 		// Type characters
 		if (currentTypingText.length < sourceLine.text.length) {
 			const charsPerTick = 1 + Math.floor(Math.random() * 2); // 1-2 chars
-			const typingSpeed = 18 + Math.random() * 22; // 18-40ms
+			const typingSpeed = 12 + Math.random() * 18; // 12-30ms
 			const timer = setTimeout(() => {
 				const newLength = Math.min(
 					currentTypingText.length + charsPerTick,
@@ -113,7 +113,7 @@ export function CalculationTerminal({
 		}
 
 		// Line complete - move to completed and start next
-		const lineEndDelay = 80 + Math.random() * 120;
+		const lineEndDelay = 50 + Math.random() * 70;
 		const timer = setTimeout(() => {
 			// Add to completed lines (mark as not new after a tick)
 			setCompletedLines((prev) => [

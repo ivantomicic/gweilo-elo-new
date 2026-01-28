@@ -172,14 +172,33 @@ function SessionPageContent() {
 
 	// Generate terminal lines for ELO calculation visualization
 	const generateTerminalLines = useCallback(
-		(matches: Match[], roundNumber: number): TerminalLine[] => {
+		(
+			matches: Match[],
+			roundNumber: number,
+			matchScores: Record<string, { team1: number | null; team2: number | null }>
+		): TerminalLine[] => {
 			const lines: TerminalLine[] = [];
 			const players = sessionData?.players || [];
 
+			// Get player by ID
+			const getPlayer = (playerId: string): Player | undefined => {
+				return players.find((p) => p.id === playerId);
+			};
+
 			// Get player name by ID
 			const getPlayerName = (playerId: string): string => {
-				const player = players.find((p) => p.id === playerId);
-				return player?.name || "Unknown";
+				return getPlayer(playerId)?.name || "Unknown";
+			};
+
+			// Determine match outcome for a team
+			const getOutcome = (
+				team1Score: number,
+				team2Score: number,
+				isTeam1: boolean
+			): "win" | "lose" | "draw" => {
+				if (team1Score === team2Score) return "draw";
+				if (isTeam1) return team1Score > team2Score ? "win" : "lose";
+				return team2Score > team1Score ? "win" : "lose";
 			};
 
 			// Starting message
@@ -203,6 +222,9 @@ function SessionPageContent() {
 			matches.forEach((match, index) => {
 				const isSingles = match.match_type === "singles";
 				const matchDelay = 300 + index * 600; // Stagger match processing
+				const matchScore = matchScores[match.id];
+				const team1Score = matchScore?.team1 ?? 0;
+				const team2Score = matchScore?.team2 ?? 0;
 
 				lines.push({
 					text: ``,
@@ -216,37 +238,61 @@ function SessionPageContent() {
 				});
 
 				if (isSingles) {
-					const player1 = getPlayerName(match.player_ids[0]);
-					const player2 = getPlayerName(match.player_ids[1]);
+					const player1 = getPlayer(match.player_ids[0]);
+					const player2 = getPlayer(match.player_ids[1]);
+					const player1Name = player1?.name || "Unknown";
+					const player2Name = player2?.name || "Unknown";
+					const player1Elo = player1?.elo ?? 1500;
+					const player2Elo = player2?.elo ?? 1500;
+					const player1MatchCount = player1?.matchCount ?? 0;
+					const player2MatchCount = player2?.matchCount ?? 0;
+
+					// Calculate ELO changes
+					const player1Outcome = getOutcome(team1Score, team2Score, true);
+					const player2Outcome = getOutcome(team1Score, team2Score, false);
+					const player1Delta = calculateEloChange(
+						player1Elo,
+						player2Elo,
+						player1Outcome,
+						player1MatchCount
+					);
+					const player2Delta = calculateEloChange(
+						player2Elo,
+						player1Elo,
+						player2Outcome,
+						player2MatchCount
+					);
+
 					lines.push({
-						text: t.terminal.matchType.singles,
-						type: "dim",
-						delay: 80,
-					});
-					lines.push({
-						text: `${player1} vs ${player2}`,
+						text: `${player1Name} vs ${player2Name}  [${team1Score} - ${team2Score}]`,
 						type: "info",
 						delay: 100,
 					});
 					lines.push({
-						text: t.terminal.readingRatings,
+						text: t.terminal.calculating,
 						type: "dim",
 						delay: 120,
 					});
+					// Show actual ELO changes
 					lines.push({
-						text: t.terminal.calculatingExpected,
-						type: "dim",
-						delay: 100,
-					});
-					lines.push({
-						text: t.terminal.applyingKFactor,
-						type: "dim",
+						text: t.terminal.eloUpdate(
+							player1Name,
+							player1Elo,
+							player1Elo + player1Delta,
+							player1Delta
+						),
+						type: player1Delta >= 0 ? "success" : "error",
 						delay: 80,
 					});
 					lines.push({
-						text: t.terminal.updatingPlayerRatings,
-						type: "dim",
-						delay: 100,
+						text: t.terminal.eloUpdate(
+							player2Name,
+							player2Elo,
+							player2Elo + player2Delta,
+							player2Delta
+						),
+						type: player2Delta >= 0 ? "success" : "error",
+						delay: 80,
 					});
 					lines.push({
 						text: t.terminal.matchComplete(index + 1),
@@ -255,49 +301,81 @@ function SessionPageContent() {
 					});
 				} else {
 					// Doubles
-					const team1Player1 = getPlayerName(match.player_ids[0]);
-					const team1Player2 = getPlayerName(match.player_ids[1]);
-					const team2Player1 = getPlayerName(match.player_ids[2]);
-					const team2Player2 = getPlayerName(match.player_ids[3]);
+					const team1Player1 = getPlayer(match.player_ids[0]);
+					const team1Player2 = getPlayer(match.player_ids[1]);
+					const team2Player1 = getPlayer(match.player_ids[2]);
+					const team2Player2 = getPlayer(match.player_ids[3]);
+
+					const team1Player1Name = team1Player1?.name || "Unknown";
+					const team1Player2Name = team1Player2?.name || "Unknown";
+					const team2Player1Name = team2Player1?.name || "Unknown";
+					const team2Player2Name = team2Player2?.name || "Unknown";
+
+					// Use doubles ELO for calculations
+					const team1Player1Elo = team1Player1?.doublesElo ?? 1500;
+					const team1Player2Elo = team1Player2?.doublesElo ?? 1500;
+					const team2Player1Elo = team2Player1?.doublesElo ?? 1500;
+					const team2Player2Elo = team2Player2?.doublesElo ?? 1500;
+
+					const team1AvgElo = (team1Player1Elo + team1Player2Elo) / 2;
+					const team2AvgElo = (team2Player1Elo + team2Player2Elo) / 2;
+
+					// Calculate ELO changes for doubles (using average team ELO)
+					const team1Outcome = getOutcome(team1Score, team2Score, true);
+					const team2Outcome = getOutcome(team1Score, team2Score, false);
+					const team1Delta = calculateEloChange(team1AvgElo, team2AvgElo, team1Outcome);
+					const team2Delta = calculateEloChange(team2AvgElo, team1AvgElo, team2Outcome);
+
 					lines.push({
-						text: t.terminal.matchType.doubles,
-						type: "dim",
-						delay: 80,
-					});
-					lines.push({
-						text: `${team1Player1} & ${team1Player2} vs ${team2Player1} & ${team2Player2}`,
+						text: `${team1Player1Name} & ${team1Player2Name} vs ${team2Player1Name} & ${team2Player2Name}  [${team1Score} - ${team2Score}]`,
 						type: "info",
 						delay: 100,
 					});
 					lines.push({
-						text: t.terminal.readingTeamRatings,
+						text: t.terminal.calculatingTeam,
 						type: "dim",
 						delay: 120,
 					});
+					// Show actual ELO changes for each player
 					lines.push({
-						text: t.terminal.readingPlayerDoublesRatings,
-						type: "dim",
-						delay: 100,
+						text: t.terminal.eloUpdate(
+							team1Player1Name,
+							team1Player1Elo,
+							team1Player1Elo + team1Delta,
+							team1Delta
+						),
+						type: team1Delta >= 0 ? "success" : "error",
+						delay: 60,
 					});
 					lines.push({
-						text: t.terminal.calculatingTeamExpected,
-						type: "dim",
-						delay: 80,
+						text: t.terminal.eloUpdate(
+							team1Player2Name,
+							team1Player2Elo,
+							team1Player2Elo + team1Delta,
+							team1Delta
+						),
+						type: team1Delta >= 0 ? "success" : "error",
+						delay: 60,
 					});
 					lines.push({
-						text: t.terminal.calculatingPlayerExpected,
-						type: "dim",
-						delay: 80,
+						text: t.terminal.eloUpdate(
+							team2Player1Name,
+							team2Player1Elo,
+							team2Player1Elo + team2Delta,
+							team2Delta
+						),
+						type: team2Delta >= 0 ? "success" : "error",
+						delay: 60,
 					});
 					lines.push({
-						text: t.terminal.updatingTeamRatings,
-						type: "dim",
-						delay: 100,
-					});
-					lines.push({
-						text: t.terminal.updatingPlayerDoublesRatings,
-						type: "dim",
-						delay: 100,
+						text: t.terminal.eloUpdate(
+							team2Player2Name,
+							team2Player2Elo,
+							team2Player2Elo + team2Delta,
+							team2Delta
+						),
+						type: team2Delta >= 0 ? "success" : "error",
+						delay: 60,
 					});
 					lines.push({
 						text: t.terminal.matchComplete(index + 1),
@@ -898,6 +976,13 @@ function SessionPageContent() {
 								`${nextMatch.id}-team1-desktop`
 							);
 							nextRef?.focus();
+						} else {
+							// Last field - blur to dismiss keyboard on mobile
+							const currentRef = getVisibleInput(
+								`${matchId}-team2`,
+								`${matchId}-team2-desktop`
+							);
+							currentRef?.blur();
 						}
 					}
 				}, 0);
@@ -1111,7 +1196,7 @@ function SessionPageContent() {
 		submitRoundRef.current = currentRound;
 
 		// Generate terminal lines and show the terminal
-		const lines = generateTerminalLines(currentMatches, currentRound);
+		const lines = generateTerminalLines(currentMatches, currentRound, scores);
 		setTerminalLines(lines);
 		setIsTerminalComplete(false);
 		setShowCalculationTerminal(true);
@@ -3690,14 +3775,26 @@ function SessionPageContent() {
 												) : (
 													<>
 														<span>
-															{
-																t.sessions
-																	.session
-																	.next
-															}
+															{currentRound ===
+															roundNumbers[
+																roundNumbers.length - 1
+															]
+																? t.sessions
+																		.session
+																		.finish
+																: t.sessions
+																		.session
+																		.next}
 														</span>
 														<Icon
-															icon="solar:arrow-right-linear"
+															icon={
+																currentRound ===
+																roundNumbers[
+																	roundNumbers.length - 1
+																]
+																	? "solar:check-circle-linear"
+																	: "solar:arrow-right-linear"
+															}
 															className="size-5"
 														/>
 													</>
