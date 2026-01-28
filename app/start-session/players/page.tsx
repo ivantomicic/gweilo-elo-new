@@ -24,6 +24,8 @@ type User = {
 	name: string;
 	avatar: string | null;
 	email: string;
+	elo?: number;
+	matchesPlayed?: number;
 };
 
 function SelectPlayersPageContent() {
@@ -35,9 +37,9 @@ function SelectPlayersPageContent() {
 	const [loadingUsers, setLoadingUsers] = useState(true);
 	const [selectedPlayers, setSelectedPlayers] = useState<User[]>([]);
 
-	// Fetch users
+	// Fetch users and their Elo ratings
 	useEffect(() => {
-		const fetchUsers = async () => {
+		const fetchUsersAndRatings = async () => {
 			try {
 				setLoadingUsers(true);
 
@@ -49,19 +51,46 @@ function SelectPlayersPageContent() {
 					return;
 				}
 
-				const response = await fetch("/api/admin/users", {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
-				});
+				// Fetch users from API and player_ratings directly from Supabase
+				const [usersResponse, ratingsResult] = await Promise.all([
+					fetch("/api/admin/users", {
+						headers: {
+							Authorization: `Bearer ${session.access_token}`,
+						},
+					}),
+					supabase
+						.from("player_ratings")
+						.select("player_id, elo, matches_played"),
+				]);
 
-				if (!response.ok) {
+				if (!usersResponse.ok) {
 					console.error("Failed to fetch users");
 					return;
 				}
 
-				const data = await response.json();
-				setUsers(data.users || []);
+				const usersData = await usersResponse.json();
+				
+				// Create maps from player_ratings
+				const ratingsMap = new Map<string, { elo: number; matchesPlayed: number }>();
+				if (ratingsResult.data) {
+					ratingsResult.data.forEach((rating: { player_id: string; elo: number; matches_played: number }) => {
+						ratingsMap.set(rating.player_id, {
+							elo: rating.elo,
+							matchesPlayed: rating.matches_played || 0,
+						});
+					});
+				}
+
+				// Merge ratings into users and sort by matches played (most first)
+				const usersWithRatings = (usersData.users || [])
+					.map((user: User) => ({
+						...user,
+						elo: ratingsMap.get(user.id)?.elo,
+						matchesPlayed: ratingsMap.get(user.id)?.matchesPlayed || 0,
+					}))
+					.sort((a: User, b: User) => (b.matchesPlayed || 0) - (a.matchesPlayed || 0));
+
+				setUsers(usersWithRatings);
 			} catch (err) {
 				console.error("Error fetching users:", err);
 			} finally {
@@ -69,7 +98,7 @@ function SelectPlayersPageContent() {
 			}
 		};
 
-		fetchUsers();
+		fetchUsersAndRatings();
 	}, []);
 
 	// Redirect if invalid playerCount
@@ -121,9 +150,9 @@ function SelectPlayersPageContent() {
 			<AppSidebar variant="inset" />
 			<SidebarInset>
 				<SiteHeader title={t.startSession.selectPlayers.title} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+				<div className="flex flex-1 flex-col min-w-0">
+					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav min-w-0">
+						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6 min-w-0">
 							{/* Step Indicator */}
 							<Box className="flex justify-end">
 								<Box className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
@@ -137,7 +166,7 @@ function SelectPlayersPageContent() {
 							</p>
 
 							{/* Player Picker Bar */}
-							<Box className="mb-8">
+							<Box className="mb-8 -mx-4 lg:-mx-6 min-w-0">
 								{loadingUsers ? (
 									<Box className="flex items-center justify-center py-8">
 										<p className="text-muted-foreground">
@@ -145,7 +174,7 @@ function SelectPlayersPageContent() {
 										</p>
 									</Box>
 								) : (
-									<Box className="flex overflow-x-auto gap-4 pb-4 scrollbar-hide">
+									<Box className="flex overflow-x-auto gap-4 pb-4 px-4 lg:px-6 scrollbar-hide">
 										{users
 											.filter(
 												(user) => !isSelected(user.id)
@@ -268,10 +297,11 @@ function SelectPlayersPageContent() {
 																			player.name
 																		}
 																	</p>
-																	<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-																		Level
-																		4.5
-																	</p>
+																	{player.elo && (
+																		<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+																			Elo {player.elo}
+																		</p>
+																	)}
 																</Box>
 															</Stack>
 														) : (
@@ -447,10 +477,11 @@ function SelectPlayersPageContent() {
 																							player.name
 																						}
 																					</p>
-																					<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-																						Level
-																						4.5
-																					</p>
+																					{player.elo && (
+																						<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+																							Elo {player.elo}
+																						</p>
+																					)}
 																				</Box>
 																			</>
 																		) : (

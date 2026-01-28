@@ -166,7 +166,7 @@ export function MobileNav() {
 		<>
 			{/* Dark overlay gradient between content and navigation */}
 			<div
-				className="fixed left-0 right-0 bottom-0 z-40 md:hidden pointer-events-none"
+				className="fixed left-0 bottom-0 z-40 md:hidden pointer-events-none w-full"
 				style={{
 					height: isIOSSafari26 ? "200px" : "216px",
 				}}
