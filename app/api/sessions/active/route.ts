@@ -11,12 +11,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
 /**
  * GET /api/sessions/active
  *
- * Fetch the latest active session for the current user
+ * Fetch the latest active session
  *
  * Security:
  * - Requires authentication
- * - Only returns sessions created by the authenticated user
- * - Active = latest session with no finished_at (for now, just the latest session)
+ * - Regular users: only returns their own active sessions
+ * - Admins: returns ANY active session (most recent first)
+ * - Active = session with status "active"
  */
 export async function GET(request: NextRequest) {
 	try {
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest) {
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -49,19 +50,27 @@ export async function GET(request: NextRequest) {
 		if (userError || !user) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
-		// Fetch latest active session created by the user
-		const { data: session, error: sessionError } = await supabase
+		// Check if user is admin
+		const isAdmin = user.user_metadata?.role === "admin";
+
+		// Build query
+		let query = supabase
 			.from("sessions")
 			.select("*")
-			.eq("created_by", user.id)
 			.eq("status", "active")
 			.order("created_at", { ascending: false })
-			.limit(1)
-			.single();
+			.limit(1);
+
+		// For non-admins, only show their own sessions
+		if (!isAdmin) {
+			query = query.eq("created_by", user.id);
+		}
+
+		const { data: session, error: sessionError } = await query.single();
 
 		if (sessionError) {
 			// If no session found, that's okay - just return null
@@ -71,7 +80,7 @@ export async function GET(request: NextRequest) {
 			console.error("Error fetching active session:", sessionError);
 			return NextResponse.json(
 				{ error: "Failed to fetch active session" },
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 
@@ -80,8 +89,7 @@ export async function GET(request: NextRequest) {
 		console.error("Unexpected error in GET /api/sessions/active:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
-

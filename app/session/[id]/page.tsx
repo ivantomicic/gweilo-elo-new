@@ -215,18 +215,18 @@ function SessionPageContent() {
 			lines.push({
 				text: t.terminal.loadingPlayers,
 				type: "dim",
-				delay: 200,
+				delay: 120,
 			});
 			lines.push({
 				text: t.terminal.processingRound(roundNumber, matches.length),
 				type: "highlight",
-				delay: 250,
+				delay: 150,
 			});
 
 			// Process each match
 			matches.forEach((match, index) => {
 				const isSingles = match.match_type === "singles";
-				const matchDelay = 300 + index * 400;
+				const matchDelay = 180 + index * 250;
 				const matchScore = matchScores[match.id];
 				const team1Score = matchScore?.team1 ?? 0;
 				const team2Score = matchScore?.team2 ?? 0;
@@ -241,35 +241,59 @@ function SessionPageContent() {
 					const player1MatchCount = player1?.matchCount ?? 0;
 					const player2MatchCount = player2?.matchCount ?? 0;
 
-					const player1Outcome = getOutcome(team1Score, team2Score, true);
-					const player2Outcome = getOutcome(team1Score, team2Score, false);
-					const player1Delta = calculateEloChange(player1Elo, player2Elo, player1Outcome, player1MatchCount);
-					const player2Delta = calculateEloChange(player2Elo, player1Elo, player2Outcome, player2MatchCount);
+					const player1Outcome = getOutcome(
+						team1Score,
+						team2Score,
+						true,
+					);
+					const player2Outcome = getOutcome(
+						team1Score,
+						team2Score,
+						false,
+					);
+					const player1Delta = calculateEloChange(
+						player1Elo,
+						player2Elo,
+						player1Outcome,
+						player1MatchCount,
+					);
+					const player2Delta = calculateEloChange(
+						player2Elo,
+						player1Elo,
+						player2Outcome,
+						player2MatchCount,
+					);
 
 					lines.push({
-						text: t.terminal.matchHeader(index + 1, player1Name, player2Name, team1Score, team2Score),
+						text: t.terminal.matchHeader(
+							index + 1,
+							player1Name,
+							player2Name,
+							team1Score,
+							team2Score,
+						),
 						type: "info",
 						delay: matchDelay,
 					});
 					lines.push({
 						text: t.terminal.calculating,
 						type: "dim",
-						delay: 100,
+						delay: 60,
 					});
 					lines.push({
 						text: t.terminal.eloChange(player1Name, player1Delta),
 						type: player1Delta >= 0 ? "success" : "error",
-						delay: 80,
+						delay: 50,
 					});
 					lines.push({
 						text: t.terminal.eloChange(player2Name, player2Delta),
 						type: player2Delta >= 0 ? "success" : "error",
-						delay: 80,
+						delay: 50,
 					});
 					lines.push({
 						text: t.terminal.matchDone(index + 1),
 						type: "success",
-						delay: 100,
+						delay: 60,
 					});
 				} else {
 					// Doubles
@@ -291,10 +315,26 @@ function SessionPageContent() {
 					const team1AvgElo = (team1Player1Elo + team1Player2Elo) / 2;
 					const team2AvgElo = (team2Player1Elo + team2Player2Elo) / 2;
 
-					const team1Outcome = getOutcome(team1Score, team2Score, true);
-					const team2Outcome = getOutcome(team1Score, team2Score, false);
-					const team1Delta = calculateEloChange(team1AvgElo, team2AvgElo, team1Outcome);
-					const team2Delta = calculateEloChange(team2AvgElo, team1AvgElo, team2Outcome);
+					const team1Outcome = getOutcome(
+						team1Score,
+						team2Score,
+						true,
+					);
+					const team2Outcome = getOutcome(
+						team1Score,
+						team2Score,
+						false,
+					);
+					const team1Delta = calculateEloChange(
+						team1AvgElo,
+						team2AvgElo,
+						team1Outcome,
+					);
+					const team2Delta = calculateEloChange(
+						team2AvgElo,
+						team1AvgElo,
+						team2Outcome,
+					);
 
 					lines.push({
 						text: t.terminal.doublesMatchHeader(
@@ -302,7 +342,7 @@ function SessionPageContent() {
 							`${team1Player1Name} & ${team1Player2Name}`,
 							`${team2Player1Name} & ${team2Player2Name}`,
 							team1Score,
-							team2Score
+							team2Score,
 						),
 						type: "info",
 						delay: matchDelay,
@@ -310,51 +350,42 @@ function SessionPageContent() {
 					lines.push({
 						text: t.terminal.calculating,
 						type: "dim",
-						delay: 100,
+						delay: 60,
 					});
 					lines.push({
-						text: t.terminal.eloChange(`${team1Player1Name}, ${team1Player2Name}`, team1Delta),
+						text: t.terminal.eloChange(
+							`${team1Player1Name}, ${team1Player2Name}`,
+							team1Delta,
+						),
 						type: team1Delta >= 0 ? "success" : "error",
-						delay: 80,
+						delay: 50,
 					});
 					lines.push({
-						text: t.terminal.eloChange(`${team2Player1Name}, ${team2Player2Name}`, team2Delta),
+						text: t.terminal.eloChange(
+							`${team2Player1Name}, ${team2Player2Name}`,
+							team2Delta,
+						),
 						type: team2Delta >= 0 ? "success" : "error",
-						delay: 80,
+						delay: 50,
 					});
 					lines.push({
 						text: t.terminal.matchDone(index + 1),
 						type: "success",
-						delay: 100,
+						delay: 60,
 					});
 				}
 			});
 
 			// Final messages
 			lines.push({
-				text: t.terminal.validating,
-				type: "dim",
-				delay: 300,
-			});
-			lines.push({
-				text: t.terminal.creatingSnapshots,
-				type: "dim",
-				delay: 200,
-			});
-			lines.push({
-				text: t.terminal.updatingDatabase,
-				type: "dim",
-				delay: 200,
-			});
-			lines.push({
 				text: t.terminal.saving,
 				type: "dim",
-				delay: 250,
+				delay: 180,
 			});
 			lines.push({
 				text: t.terminal.done(roundNumber),
 				type: "success",
-				delay: 200,
+				delay: 120,
 			});
 
 			return lines;

@@ -43,21 +43,21 @@ export function SiteHeader({
 		| "ghost"
 		| "link";
 }) {
-	const [isAdmin, setIsAdmin] = useState(false);
+	const [canStartSession, setCanStartSession] = useState(false);
 
-	// Check if user is admin
+	// Check if user can start sessions (admin or mod)
 	useEffect(() => {
-		const checkAdmin = async () => {
+		const checkRole = async () => {
 			const user = await getCurrentUser();
-			setIsAdmin(user?.role === "admin");
+			setCanStartSession(user?.role === "admin" || user?.role === "mod");
 		};
-		checkAdmin();
+		checkRole();
 	}, []);
 
 	// Determine which action to show
 	const hasCustomAction = actionLabel && (actionHref || actionOnClick);
-	// Only show default "Start Session" button for admins
-	const showDefaultAction = !hasCustomAction && isAdmin;
+	// Show default "Start Session" button for admins and mods
+	const showDefaultAction = !hasCustomAction && canStartSession;
 	// Only show button area if there's something to show
 	const showActionButton = hasCustomAction || showDefaultAction;
 

@@ -12,16 +12,18 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/vendor/shadcn/badge";
 import { UserEditDrawer } from "@/components/admin/user-edit-drawer";
 import { t } from "@/lib/i18n";
 import { PencilIcon } from "lucide-react";
+import type { UserRole } from "@/lib/supabase/admin";
 
 type User = {
 	id: string;
 	email: string;
 	name: string;
 	avatar: string | null;
-	role: string;
+	role: UserRole;
 };
 
 export function UserManagementTable() {
@@ -100,11 +102,31 @@ export function UserManagementTable() {
 							email: updatedUser.email,
 							name: updatedUser.name,
 							avatar: updatedUser.avatar,
-							role: u.role,
+							role: updatedUser.role,
 						}
-					: u
-			)
+					: u,
+			),
 		);
+	};
+
+	// Get role badge variant
+	const getRoleBadge = (role: UserRole) => {
+		switch (role) {
+			case "admin":
+				return (
+					<Badge variant="default" className="bg-primary">
+						{t.admin.users.roles.admin}
+					</Badge>
+				);
+			case "mod":
+				return (
+					<Badge variant="secondary">{t.admin.users.roles.mod}</Badge>
+				);
+			default:
+				return (
+					<Badge variant="outline">{t.admin.users.roles.user}</Badge>
+				);
+		}
 	};
 
 	if (loading) {
@@ -131,9 +153,18 @@ export function UserManagementTable() {
 					<Table>
 						<TableHeader>
 							<TableRow>
-								<TableHead>{t.admin.users.table.avatar}</TableHead>
-								<TableHead>{t.admin.users.table.name}</TableHead>
-								<TableHead>{t.admin.users.table.email}</TableHead>
+								<TableHead>
+									{t.admin.users.table.avatar}
+								</TableHead>
+								<TableHead>
+									{t.admin.users.table.name}
+								</TableHead>
+								<TableHead>
+									{t.admin.users.table.email}
+								</TableHead>
+								<TableHead>
+									{t.admin.users.table.role}
+								</TableHead>
 								<TableHead className="w-[100px]">
 									{t.admin.users.table.actions}
 								</TableHead>
@@ -143,7 +174,7 @@ export function UserManagementTable() {
 							{users.length === 0 ? (
 								<TableRow>
 									<TableCell
-										colSpan={4}
+										colSpan={5}
 										className="text-center py-12 text-muted-foreground"
 									>
 										{t.admin.users.noUsers}
@@ -151,23 +182,32 @@ export function UserManagementTable() {
 								</TableRow>
 							) : (
 								users.map((user) => (
-									<TableRow key={user.id} className="hover:bg-muted/50">
+									<TableRow
+										key={user.id}
+										className="hover:bg-muted/50"
+									>
 										{/* Avatar */}
 										<TableCell>
 											<Avatar className="h-10 w-10">
 												<AvatarImage
-													src={user.avatar || undefined}
+													src={
+														user.avatar || undefined
+													}
 													alt={user.name}
 												/>
 												<AvatarFallback>
-													{user.name.charAt(0).toUpperCase()}
+													{user.name
+														.charAt(0)
+														.toUpperCase()}
 												</AvatarFallback>
 											</Avatar>
 										</TableCell>
 
 										{/* Name */}
 										<TableCell>
-											<span className="font-medium">{user.name}</span>
+											<span className="font-medium">
+												{user.name}
+											</span>
 										</TableCell>
 
 										{/* Email */}
@@ -175,6 +215,11 @@ export function UserManagementTable() {
 											<span className="text-muted-foreground">
 												{user.email}
 											</span>
+										</TableCell>
+
+										{/* Role */}
+										<TableCell>
+											{getRoleBadge(user.role)}
 										</TableCell>
 
 										{/* Actions */}

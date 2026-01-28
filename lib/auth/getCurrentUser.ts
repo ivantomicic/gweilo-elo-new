@@ -1,14 +1,15 @@
 import { supabase } from "@/lib/supabase/client";
+import type { UserRole } from "./getUserRole";
 
 /**
  * Get current user from Supabase auth session
- * 
+ *
  * Returns user data formatted for sidebar display:
  * - name: from user_metadata.display_name (custom) > name (OAuth) > full_name > email fallback
  * - email: from user.email
  * - avatar: from user_metadata.avatar_url or placeholder fallback
  * - role: from user_metadata.role (defaults to "user")
- * 
+ *
  * Note: display_name is used to avoid OAuth provider overwrites of custom names
  */
 export async function getCurrentUser() {
@@ -34,12 +35,17 @@ export async function getCurrentUser() {
 		user.user_metadata?.avatar_url ||
 		user.user_metadata?.avatar_url_google ||
 		null;
-	
+
 	// Role from user_metadata.role, defaults to "user" if not set
 	// This is validated server-side via Supabase trigger
 	const role = user.user_metadata?.role || "user";
 	// Validate role (security: only allow known roles)
-	const validRole = role === "admin" ? "admin" : "user";
+	let validRole: UserRole = "user";
+	if (role === "admin") {
+		validRole = "admin";
+	} else if (role === "mod") {
+		validRole = "mod";
+	}
 
 	return {
 		name,
@@ -48,4 +54,3 @@ export async function getCurrentUser() {
 		role: validRole,
 	};
 }
-

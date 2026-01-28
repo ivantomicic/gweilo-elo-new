@@ -48,7 +48,7 @@ const SUPABASE_ANON_KEY = supabaseAnonKey;
  */
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { sessionId: string; matchId: string } }
+	{ params }: { params: { sessionId: string; matchId: string } },
 ) {
 	const adminClient = createAdminClient();
 
@@ -57,7 +57,7 @@ export async function POST(
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -68,7 +68,7 @@ export async function POST(
 		if (!sessionId || !matchId) {
 			return NextResponse.json(
 				{ error: "Session ID and match ID are required" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -89,7 +89,7 @@ export async function POST(
 		if (userError || !user) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -103,16 +103,18 @@ export async function POST(
 		if (sessionError || !session) {
 			return NextResponse.json(
 				{ error: "Session not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
-		if (session.created_by !== user.id) {
+		// Check if user owns the session OR is admin
+		const isAdmin = user.user_metadata?.role === "admin";
+		if (session.created_by !== user.id && !isAdmin) {
 			return NextResponse.json(
 				{
 					error: "Unauthorized. You can only edit matches in your own sessions.",
 				},
-				{ status: 403 }
+				{ status: 403 },
 			);
 		}
 
@@ -132,7 +134,7 @@ export async function POST(
 		) {
 			return NextResponse.json(
 				{ error: "team1Score and team2Score must be valid numbers" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -168,7 +170,7 @@ export async function POST(
 					{
 						error: "Recalculation already in progress. Please wait.",
 					},
-					{ status: 409 }
+					{ status: 409 },
 				);
 			}
 
@@ -178,7 +180,7 @@ export async function POST(
 					error: "Failed to acquire recalculation lock",
 					details: lockError?.message || "Unknown error",
 				},
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 
@@ -200,19 +202,19 @@ export async function POST(
 					.eq("id", sessionId);
 				return NextResponse.json(
 					{ error: "Failed to fetch session matches" },
-					{ status: 500 }
+					{ status: 500 },
 				);
 			}
 
 			// Validate match types
 			const invalidMatches = allMatches.filter(
 				(m: any) =>
-					m.match_type !== "singles" && m.match_type !== "doubles"
+					m.match_type !== "singles" && m.match_type !== "doubles",
 			);
 			if (invalidMatches.length > 0) {
 				console.error(
 					`Found ${invalidMatches.length} matches with invalid match_type:`,
-					invalidMatches
+					invalidMatches,
 				);
 				await adminClient
 					.from("sessions")
@@ -224,15 +226,15 @@ export async function POST(
 							.map((m) => m.id)
 							.join(", ")}`,
 					},
-					{ status: 500 }
+					{ status: 500 },
 				);
 			}
 
 			const singlesCount = allMatches.filter(
-				(m: any) => m.match_type === "singles"
+				(m: any) => m.match_type === "singles",
 			).length;
 			const doublesCount = allMatches.filter(
-				(m: any) => m.match_type === "doubles"
+				(m: any) => m.match_type === "doubles",
 			).length;
 
 			// 1️⃣ RECALCULATION ENTRY LOG
@@ -257,12 +259,12 @@ export async function POST(
 						status: m.status,
 					})),
 					new_scores: { team1Score, team2Score },
-				})
+				}),
 			);
 
 			// Find the position of the match to edit in current session
 			const matchIndex = allMatches.findIndex(
-				(m: any) => m.id === matchId
+				(m: any) => m.id === matchId,
 			);
 			if (matchIndex === -1) {
 				await adminClient
@@ -271,7 +273,7 @@ export async function POST(
 					.eq("id", sessionId);
 				return NextResponse.json(
 					{ error: "Match not found in session" },
-					{ status: 404 }
+					{ status: 404 },
 				);
 			}
 
@@ -366,14 +368,14 @@ export async function POST(
 					edited_match_type: matchToEdit.match_type,
 					all_players_in_session: Array.from(allPlayerIds),
 					players_in_edited_match_type: Array.from(
-						playersInEditedMatchType
+						playersInEditedMatchType,
 					),
 					players_excluded_from_baseline: Array.from(
-						allPlayerIds
+						allPlayerIds,
 					).filter((p) => !playersInEditedMatchType.has(p)),
 					message:
 						"Only calculating baseline for players in matches of the edited match type",
-				})
+				}),
 			);
 
 			// Load baseline from previous session snapshot for each player
@@ -387,7 +389,7 @@ export async function POST(
 				// Step 1: Try to get snapshot from previous session
 				const previousSnapshot = await getPreviousSessionSnapshot(
 					playerId,
-					sessionId
+					sessionId,
 				);
 
 				if (previousSnapshot) {
@@ -400,7 +402,7 @@ export async function POST(
 							player_id: playerId,
 							source: "session_n_minus_1_snapshot",
 							baseline: previousSnapshot,
-						})
+						}),
 					);
 					continue;
 				}
@@ -410,7 +412,7 @@ export async function POST(
 				const { data: currentSessionSnapshot } = await adminClient
 					.from("session_rating_snapshots")
 					.select(
-						"elo, matches_played, wins, losses, draws, sets_won, sets_lost"
+						"elo, matches_played, wins, losses, draws, sets_won, sets_lost",
 					)
 					.eq("session_id", sessionId)
 					.eq("entity_type", "player_singles")
@@ -447,7 +449,7 @@ export async function POST(
 								losses: currentSessionSnapshot.losses,
 								draws: currentSessionSnapshot.draws,
 							},
-						})
+						}),
 					);
 					continue;
 				}
@@ -458,7 +460,7 @@ export async function POST(
 				const { data: currentRating } = await adminClient
 					.from("player_ratings")
 					.select(
-						"elo, matches_played, wins, losses, draws, sets_won, sets_lost"
+						"elo, matches_played, wins, losses, draws, sets_won, sets_lost",
 					)
 					.eq("player_id", playerId)
 					.single();
@@ -470,16 +472,16 @@ export async function POST(
 					const { data: sessionEloHistory } = await adminClient
 						.from("match_elo_history")
 						.select(
-							"player1_id, player2_id, player1_elo_delta, player2_elo_delta, match_id"
+							"player1_id, player2_id, player1_elo_delta, player2_elo_delta, match_id",
 						)
 						.in("match_id", matchIdsToReplay)
 						.or(
-							`player1_id.eq.${playerId},player2_id.eq.${playerId}`
+							`player1_id.eq.${playerId},player2_id.eq.${playerId}`,
 						);
 
 					// Get session matches to count wins/losses/draws
 					const sessionMatchesForBaseline = allMatches.filter(
-						(m: any) => m.match_type === matchToEdit.match_type
+						(m: any) => m.match_type === matchToEdit.match_type,
 					);
 
 					let sessionEloDelta = 0;
@@ -551,23 +553,23 @@ export async function POST(
 						sessionMatchesPlayed;
 					const baselineWins = Math.max(
 						0,
-						(currentRating.wins ?? 0) - sessionWins
+						(currentRating.wins ?? 0) - sessionWins,
 					);
 					const baselineLosses = Math.max(
 						0,
-						(currentRating.losses ?? 0) - sessionLosses
+						(currentRating.losses ?? 0) - sessionLosses,
 					);
 					const baselineDraws = Math.max(
 						0,
-						(currentRating.draws ?? 0) - sessionDraws
+						(currentRating.draws ?? 0) - sessionDraws,
 					);
 					const baselineSetsWon = Math.max(
 						0,
-						(currentRating.sets_won ?? 0) - sessionSetsWon
+						(currentRating.sets_won ?? 0) - sessionSetsWon,
 					);
 					const baselineSetsLost = Math.max(
 						0,
-						(currentRating.sets_lost ?? 0) - sessionSetsLost
+						(currentRating.sets_lost ?? 0) - sessionSetsLost,
 					);
 
 					baselineState.set(playerId, {
@@ -589,7 +591,7 @@ export async function POST(
 								elo: baselineElo,
 								matches_played: Math.max(
 									0,
-									baselineMatchesPlayed
+									baselineMatchesPlayed,
 								),
 								wins: baselineWins,
 								losses: baselineLosses,
@@ -609,7 +611,7 @@ export async function POST(
 								losses: -sessionLosses,
 								draws: -sessionDraws,
 							},
-						})
+						}),
 					);
 					continue;
 				}
@@ -640,7 +642,7 @@ export async function POST(
 							sets_won: 0,
 							sets_lost: 0,
 						},
-					})
+					}),
 				);
 			}
 
@@ -661,7 +663,7 @@ export async function POST(
 					tag: "[BASELINE]",
 					session_id: sessionId,
 					baseline_state: baselineLog,
-				})
+				}),
 			);
 
 			// ============================================================================
@@ -704,11 +706,14 @@ export async function POST(
 				// Never derive from: singles Elo, session snapshots, calculated session-start values
 				for (const playerId of playersInDoublesMatches) {
 					// ALWAYS load from persisted player_double_ratings (authoritative source)
-					const { data: currentPlayerDoublesRating } = await adminClient
-						.from("player_double_ratings")
-						.select("elo, matches_played, wins, losses, draws, sets_won, sets_lost")
-						.eq("player_id", playerId)
-						.maybeSingle();
+					const { data: currentPlayerDoublesRating } =
+						await adminClient
+							.from("player_double_ratings")
+							.select(
+								"elo, matches_played, wins, losses, draws, sets_won, sets_lost",
+							)
+							.eq("player_id", playerId)
+							.maybeSingle();
 
 					if (currentPlayerDoublesRating) {
 						// Get persisted state from player_double_ratings
@@ -723,7 +728,9 @@ export async function POST(
 							(m: any) =>
 								m.match_type === "doubles" &&
 								m.status === "completed" &&
-								((m as any).player_ids as string[]).includes(playerId)
+								((m as any).player_ids as string[]).includes(
+									playerId,
+								),
 						);
 
 						let sessionMatchesPlayed = 0;
@@ -738,7 +745,8 @@ export async function POST(
 						// CRITICAL: Player doubles deltas equal team deltas (both players on same team get same delta)
 						let sessionPlayerDoublesEloDelta = 0;
 						for (const match of doublesMatchesForPlayer) {
-							const playerIds = (match as any).player_ids as string[];
+							const playerIds = (match as any)
+								.player_ids as string[];
 							const playerIndex = playerIds.indexOf(playerId);
 							const isTeam1 = playerIndex < 2;
 							const team1Score = match.team1_score;
@@ -776,13 +784,17 @@ export async function POST(
 									const teamDelta = isTeam1
 										? matchHistory.team1_elo_delta
 										: matchHistory.team2_elo_delta;
-									if (teamDelta !== null && teamDelta !== undefined) {
+									if (
+										teamDelta !== null &&
+										teamDelta !== undefined
+									) {
 										const deltaNum =
 											typeof teamDelta === "string"
 												? parseFloat(teamDelta)
 												: Number(teamDelta);
 										// Reverse: subtract the delta that was applied to get baseline
-										sessionPlayerDoublesEloDelta -= deltaNum;
+										sessionPlayerDoublesEloDelta -=
+											deltaNum;
 									}
 								}
 							}
@@ -791,31 +803,37 @@ export async function POST(
 						// Calculate baseline by reversing session effects from persisted state
 						// CRITICAL: Persisted Elo already includes this session's matches, so we must reverse them
 						// Player doubles deltas equal team deltas (both players on same team get same delta)
-						const baselineElo = persistedElo + sessionPlayerDoublesEloDelta;
+						const baselineElo =
+							persistedElo + sessionPlayerDoublesEloDelta;
 						const baselineMatchesPlayed = Math.max(
 							0,
 							(currentPlayerDoublesRating.matches_played ?? 0) -
-								sessionMatchesPlayed
+								sessionMatchesPlayed,
 						);
 						const baselineWins = Math.max(
 							0,
-							(currentPlayerDoublesRating.wins ?? 0) - sessionWins
+							(currentPlayerDoublesRating.wins ?? 0) -
+								sessionWins,
 						);
 						const baselineLosses = Math.max(
 							0,
-							(currentPlayerDoublesRating.losses ?? 0) - sessionLosses
+							(currentPlayerDoublesRating.losses ?? 0) -
+								sessionLosses,
 						);
 						const baselineDraws = Math.max(
 							0,
-							(currentPlayerDoublesRating.draws ?? 0) - sessionDraws
+							(currentPlayerDoublesRating.draws ?? 0) -
+								sessionDraws,
 						);
 						const baselineSetsWon = Math.max(
 							0,
-							(currentPlayerDoublesRating.sets_won ?? 0) - sessionSetsWon
+							(currentPlayerDoublesRating.sets_won ?? 0) -
+								sessionSetsWon,
 						);
 						const baselineSetsLost = Math.max(
 							0,
-							(currentPlayerDoublesRating.sets_lost ?? 0) - sessionSetsLost
+							(currentPlayerDoublesRating.sets_lost ?? 0) -
+								sessionSetsLost,
 						);
 
 						playerDoublesBaselineState.set(playerId, {
@@ -842,27 +860,33 @@ export async function POST(
 								},
 								persisted_state: {
 									elo: persistedElo,
-									matches_played: currentPlayerDoublesRating.matches_played ?? 0,
+									matches_played:
+										currentPlayerDoublesRating.matches_played ??
+										0,
 									wins: currentPlayerDoublesRating.wins ?? 0,
-									losses: currentPlayerDoublesRating.losses ?? 0,
-									draws: currentPlayerDoublesRating.draws ?? 0,
+									losses:
+										currentPlayerDoublesRating.losses ?? 0,
+									draws:
+										currentPlayerDoublesRating.draws ?? 0,
 								},
-								session_matches_subtracted: sessionMatchesPlayed,
-								session_elo_delta_reversed: sessionPlayerDoublesEloDelta,
+								session_matches_subtracted:
+									sessionMatchesPlayed,
+								session_elo_delta_reversed:
+									sessionPlayerDoublesEloDelta,
 								baseline_elo_calculation: `${persistedElo} + ${sessionPlayerDoublesEloDelta} = ${baselineElo}`,
-							})
+							}),
 						);
 					} else {
 						// Player doesn't exist in player_double_ratings - use initial baseline
-					playerDoublesBaselineState.set(playerId, {
-						elo: 1500,
-						matches_played: 0,
-						wins: 0,
-						losses: 0,
-						draws: 0,
-						sets_won: 0,
-						sets_lost: 0,
-					});
+						playerDoublesBaselineState.set(playerId, {
+							elo: 1500,
+							matches_played: 0,
+							wins: 0,
+							losses: 0,
+							draws: 0,
+							sets_won: 0,
+							sets_lost: 0,
+						});
 						console.log(
 							JSON.stringify({
 								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
@@ -876,7 +900,7 @@ export async function POST(
 									losses: 0,
 									draws: 0,
 								},
-							})
+							}),
 						);
 					}
 				}
@@ -897,7 +921,7 @@ export async function POST(
 			if (deleteSnapshotsError) {
 				console.error(
 					"Error deleting snapshots:",
-					deleteSnapshotsError
+					deleteSnapshotsError,
 				);
 				await adminClient
 					.from("sessions")
@@ -905,7 +929,7 @@ export async function POST(
 					.eq("id", sessionId);
 				return NextResponse.json(
 					{ error: "Failed to delete snapshots" },
-					{ status: 500 }
+					{ status: 500 },
 				);
 			}
 
@@ -924,7 +948,7 @@ export async function POST(
 					snapshots_after: snapshotsAfterDelete || 0,
 					matches_to_replay: matchIdsToReplay.length,
 					match_ids_to_replay: matchIdsToReplay,
-				})
+				}),
 			);
 
 			// Step 4: Delete Elo history for matches to be replayed
@@ -936,7 +960,7 @@ export async function POST(
 			if (deleteHistoryError) {
 				console.error(
 					"Error deleting Elo history:",
-					deleteHistoryError
+					deleteHistoryError,
 				);
 				await adminClient
 					.from("sessions")
@@ -944,7 +968,7 @@ export async function POST(
 					.eq("id", sessionId);
 				return NextResponse.json(
 					{ error: "Failed to reset Elo history" },
-					{ status: 500 }
+					{ status: 500 },
 				);
 			}
 
@@ -976,9 +1000,9 @@ export async function POST(
 					all_players_in_session: Array.from(allPlayerIds),
 					players_in_replay_matches: Array.from(playersInReplay),
 					players_not_in_replay: Array.from(allPlayerIds).filter(
-						(p) => !playersInReplay.has(p)
+						(p) => !playersInReplay.has(p),
 					),
-				})
+				}),
 			);
 
 			// Step 6: Replay matches forward from Session N baseline, updating Elo in memory
@@ -1065,9 +1089,9 @@ export async function POST(
 							wins: state.wins,
 							losses: state.losses,
 							draws: state.draws,
-						})
+						}),
 					),
-				})
+				}),
 			);
 
 			const eloHistoryEntries: Array<{
@@ -1118,7 +1142,7 @@ export async function POST(
 					total_matches_in_session: allMatches.length,
 					message:
 						"Only replaying matches of the same type as the edited match",
-				})
+				}),
 			);
 
 			// Process matches sequentially from current session
@@ -1143,7 +1167,7 @@ export async function POST(
 							match_type: matchType,
 							edited_match_type: editedMatchType,
 							reason: "Match type does not match edited match type",
-						})
+						}),
 					);
 					continue;
 				}
@@ -1156,7 +1180,7 @@ export async function POST(
 							session_id: sessionId,
 							message: `Match ${match.id} replayed more than once`,
 							match_id: match.id,
-						})
+						}),
 					);
 					continue;
 				}
@@ -1180,7 +1204,7 @@ export async function POST(
 							match.team2_score === null
 						) {
 							console.warn(
-								`Match ${match.id} has no scores, skipping`
+								`Match ${match.id} has no scores, skipping`,
 							);
 							continue;
 						}
@@ -1212,29 +1236,29 @@ export async function POST(
 						score1 > score2
 							? "win"
 							: score1 < score2
-							? "loss"
-							: "draw";
+								? "loss"
+								: "draw";
 					const player2Result: MatchResult =
 						score2 > score1
 							? "win"
 							: score2 < score1
-							? "loss"
-							: "draw";
+								? "loss"
+								: "draw";
 
 					// Calculate K-factors and expected scores for logging
 					const player1K = calculateKFactor(
-						player1MatchesPlayedBefore
+						player1MatchesPlayedBefore,
 					);
 					const player2K = calculateKFactor(
-						player2MatchesPlayedBefore
+						player2MatchesPlayedBefore,
 					);
 					const player1Expected = calculateExpectedScore(
 						player1EloBefore,
-						player2EloBefore
+						player2EloBefore,
 					);
 					const player2Expected = calculateExpectedScore(
 						player2EloBefore,
-						player1EloBefore
+						player1EloBefore,
 					);
 					const player1Actual = getActualScore(player1Result);
 					const player2Actual = getActualScore(player2Result);
@@ -1243,13 +1267,13 @@ export async function POST(
 						player1EloBefore,
 						player2EloBefore,
 						player1Result,
-						player1MatchesPlayedBefore
+						player1MatchesPlayedBefore,
 					);
 					const player2Delta = calculateEloDelta(
 						player2EloBefore,
 						player1EloBefore,
 						player2Result,
-						player2MatchesPlayedBefore
+						player2MatchesPlayedBefore,
 					);
 
 					// 4️⃣ PER-MATCH REPLAY - Before update
@@ -1296,7 +1320,7 @@ export async function POST(
 									delta: player2Delta,
 								},
 							},
-						})
+						}),
 					);
 
 					// Update state in memory
@@ -1352,7 +1376,7 @@ export async function POST(
 									delta: player2Delta,
 								},
 							},
-						})
+						}),
 					);
 
 					// Note: We're using session-level snapshots, not per-match snapshots
@@ -1413,7 +1437,7 @@ export async function POST(
 								match_id: match.id,
 								message: "Doubles match must have 4 players",
 								player_count: playerIds.length,
-							})
+							}),
 						);
 						continue;
 					}
@@ -1421,11 +1445,11 @@ export async function POST(
 					// Get or create team IDs
 					const team1Id = await getOrCreateDoubleTeam(
 						playerIds[0],
-						playerIds[1]
+						playerIds[1],
 					);
 					const team2Id = await getOrCreateDoubleTeam(
 						playerIds[2],
-						playerIds[3]
+						playerIds[3],
 					);
 
 					// Track replayed teams for persistence scoping
@@ -1469,7 +1493,7 @@ export async function POST(
 								},
 								message:
 									"Team initialized at 1500 for session-scoped recomputation",
-							})
+							}),
 						);
 					}
 
@@ -1499,7 +1523,7 @@ export async function POST(
 								},
 								message:
 									"Team initialized at 1500 for session-scoped recomputation",
-							})
+							}),
 						);
 					}
 
@@ -1509,9 +1533,12 @@ export async function POST(
 					// Player doubles Elo is calculated independently using player-average expected score
 					for (const playerId of playerIds) {
 						if (!playerDoublesState.has(playerId)) {
-							const baseline = playerDoublesBaselineState.get(playerId);
+							const baseline =
+								playerDoublesBaselineState.get(playerId);
 							if (baseline) {
-								playerDoublesState.set(playerId, { ...baseline });
+								playerDoublesState.set(playerId, {
+									...baseline,
+								});
 								console.log(
 									JSON.stringify({
 										tag: "[PLAYER_DOUBLES_INITIALIZED]",
@@ -1520,14 +1547,15 @@ export async function POST(
 										source: "baseline_loaded",
 										initial_state: {
 											elo: baseline.elo,
-											matches_played: baseline.matches_played,
+											matches_played:
+												baseline.matches_played,
 											wins: baseline.wins,
 											losses: baseline.losses,
 											draws: baseline.draws,
 										},
 										message:
 											"Player doubles initialized from baseline, will be updated from player-average deltas during replay",
-									})
+									}),
 								);
 							} else {
 								// Fallback to 1500 if no baseline found (shouldn't happen if baseline loading worked)
@@ -1555,7 +1583,7 @@ export async function POST(
 										},
 										message:
 											"Player doubles initialized at 1500 (no baseline found)",
-									})
+									}),
 								);
 							}
 						}
@@ -1574,27 +1602,27 @@ export async function POST(
 						score1 > score2
 							? "win"
 							: score1 < score2
-							? "loss"
-							: "draw";
+								? "loss"
+								: "draw";
 					const team2Result: MatchResult =
 						score2 > score1
 							? "win"
 							: score2 < score1
-							? "loss"
-							: "draw";
+								? "loss"
+								: "draw";
 
 					// Calculate team Elo deltas using team Elo from memory
 					const team1Delta = calculateEloDelta(
 						team1EloBefore,
 						team2EloBefore,
 						team1Result,
-						team1MatchesPlayedBefore
+						team1MatchesPlayedBefore,
 					);
 					const team2Delta = calculateEloDelta(
 						team2EloBefore,
 						team1EloBefore,
 						team2Result,
-						team2MatchesPlayedBefore
+						team2MatchesPlayedBefore,
 					);
 
 					// Calculate K-factors and expected scores for logging
@@ -1602,11 +1630,11 @@ export async function POST(
 					const team2K = calculateKFactor(team2MatchesPlayedBefore);
 					const team1Expected = calculateExpectedScore(
 						team1EloBefore,
-						team2EloBefore
+						team2EloBefore,
 					);
 					const team2Expected = calculateExpectedScore(
 						team2EloBefore,
-						team1EloBefore
+						team1EloBefore,
 					);
 					const team1Actual = getActualScore(team1Result);
 					const team2Actual = getActualScore(team2Result);
@@ -1664,7 +1692,7 @@ export async function POST(
 									delta: team2Delta,
 								},
 							},
-						})
+						}),
 					);
 
 					// Update team state in memory
@@ -1703,16 +1731,16 @@ export async function POST(
 
 					// Get current player doubles Elo values
 					const player1DoublesState = playerDoublesState.get(
-						playerIds[0]
+						playerIds[0],
 					)!;
 					const player2DoublesState = playerDoublesState.get(
-						playerIds[1]
+						playerIds[1],
 					)!;
 					const player3DoublesState = playerDoublesState.get(
-						playerIds[2]
+						playerIds[2],
 					)!;
 					const player4DoublesState = playerDoublesState.get(
-						playerIds[3]
+						playerIds[3],
 					)!;
 
 					// Calculate team averages from player doubles Elo (from current replay state)
@@ -1725,42 +1753,52 @@ export async function POST(
 					// Calculate player doubles match counts for K-factor
 					// CRITICAL: K-factor must be based on matches_played BEFORE this match
 					// matches_played hasn't been incremented yet for this match, so current value is correct
-					const player1MatchesPlayedBefore = player1DoublesState.matches_played;
-					const player2MatchesPlayedBefore = player2DoublesState.matches_played;
-					const player3MatchesPlayedBefore = player3DoublesState.matches_played;
-					const player4MatchesPlayedBefore = player4DoublesState.matches_played;
+					const player1MatchesPlayedBefore =
+						player1DoublesState.matches_played;
+					const player2MatchesPlayedBefore =
+						player2DoublesState.matches_played;
+					const player3MatchesPlayedBefore =
+						player3DoublesState.matches_played;
+					const player4MatchesPlayedBefore =
+						player4DoublesState.matches_played;
 
 					const team1PlayerAverageMatchCount =
-						(player1MatchesPlayedBefore + player2MatchesPlayedBefore) / 2;
+						(player1MatchesPlayedBefore +
+							player2MatchesPlayedBefore) /
+						2;
 					const team2PlayerAverageMatchCount =
-						(player3MatchesPlayedBefore + player4MatchesPlayedBefore) / 2;
+						(player3MatchesPlayedBefore +
+							player4MatchesPlayedBefore) /
+						2;
 
 					// Calculate player doubles delta using player-average expected score
 					const playerDoublesTeam1Delta = calculateEloDelta(
 						team1PlayerAverageElo,
 						team2PlayerAverageElo,
 						team1Result,
-						team1PlayerAverageMatchCount
+						team1PlayerAverageMatchCount,
 					);
 					const playerDoublesTeam2Delta = calculateEloDelta(
 						team2PlayerAverageElo,
 						team1PlayerAverageElo,
 						team2Result,
-						team2PlayerAverageMatchCount
+						team2PlayerAverageMatchCount,
 					);
 
 					// Validation: Sum of deltas must equal 0 (team1Delta + team2Delta = 0)
-					const deltaSum = playerDoublesTeam1Delta + playerDoublesTeam2Delta;
+					const deltaSum =
+						playerDoublesTeam1Delta + playerDoublesTeam2Delta;
 					if (Math.abs(deltaSum) > 0.01) {
 						console.error(
 							JSON.stringify({
 								tag: "[ERROR]",
-								message: "Player doubles delta sum != 0 (asymmetric calculation bug)",
+								message:
+									"Player doubles delta sum != 0 (asymmetric calculation bug)",
 								match_id: match.id,
 								team1_delta: playerDoublesTeam1Delta,
 								team2_delta: playerDoublesTeam2Delta,
 								delta_sum: deltaSum,
-							})
+							}),
 						);
 					}
 
@@ -1776,7 +1814,8 @@ export async function POST(
 								player2DoublesState.elo,
 							],
 							team1_average_elo_before: team1PlayerAverageElo,
-							team1_average_match_count: team1PlayerAverageMatchCount,
+							team1_average_match_count:
+								team1PlayerAverageMatchCount,
 							team1_delta: playerDoublesTeam1Delta,
 							team2_players: [playerIds[2], playerIds[3]],
 							team2_player_elos: [
@@ -1784,10 +1823,11 @@ export async function POST(
 								player4DoublesState.elo,
 							],
 							team2_average_elo_before: team2PlayerAverageElo,
-							team2_average_match_count: team2PlayerAverageMatchCount,
+							team2_average_match_count:
+								team2PlayerAverageMatchCount,
 							team2_delta: playerDoublesTeam2Delta,
 							source: "player_double_ratings.elo (averaged)",
-						})
+						}),
 					);
 
 					// Apply player doubles deltas (both players on same team get same delta)
@@ -1863,7 +1903,7 @@ export async function POST(
 									delta: team2Delta,
 								},
 							},
-						})
+						}),
 					);
 
 					// Create snapshots for all 4 players using in-memory state
@@ -1872,12 +1912,12 @@ export async function POST(
 							match.id,
 							playerIds,
 							"doubles",
-							playerDoublesState
+							playerDoublesState,
 						);
 					} catch (snapshotError) {
 						console.error(
 							`Error creating snapshots for doubles match ${match.id}:`,
-							snapshotError
+							snapshotError,
 						);
 						// Non-fatal: log error but don't fail the request
 					}
@@ -1929,7 +1969,7 @@ export async function POST(
 							session_id: sessionId,
 							match_id: match.id,
 							message: `Unknown match type: ${matchType}`,
-						})
+						}),
 					);
 					continue;
 				}
@@ -1948,13 +1988,15 @@ export async function POST(
 								message:
 									"BUG DETECTED: Matches were replayed but no player IDs were tracked",
 								replayed_match_count: replayedMatchCount,
-								replayed_match_ids: Array.from(replayedMatchIds),
-								replayed_player_ids: Array.from(replayedPlayerIds),
+								replayed_match_ids:
+									Array.from(replayedMatchIds),
+								replayed_player_ids:
+									Array.from(replayedPlayerIds),
 								edited_match_type: editedMatchType,
-							})
+							}),
 						);
 						throw new Error(
-							"Replay tracking bug: singles matches replayed but no player IDs collected"
+							"Replay tracking bug: singles matches replayed but no player IDs collected",
 						);
 					}
 				} else if (editedMatchType === "doubles") {
@@ -1970,16 +2012,17 @@ export async function POST(
 								message:
 									"BUG DETECTED: Doubles matches were replayed but no team/player IDs were tracked",
 								replayed_match_count: replayedMatchCount,
-								replayed_match_ids: Array.from(replayedMatchIds),
+								replayed_match_ids:
+									Array.from(replayedMatchIds),
 								replayed_team_ids: Array.from(replayedTeamIds),
 								players_in_replayed_doubles_matches: Array.from(
-									playersInReplayedDoublesMatches
+									playersInReplayedDoublesMatches,
 								),
 								edited_match_type: editedMatchType,
-							})
+							}),
 						);
 						throw new Error(
-							"Replay tracking bug: doubles matches replayed but no team/player IDs collected"
+							"Replay tracking bug: doubles matches replayed but no team/player IDs collected",
 						);
 					}
 				}
@@ -1997,7 +2040,7 @@ export async function POST(
 							playersInReplayedDoublesMatches.size,
 						message:
 							"Validation passed: replayed matches have corresponding tracked entities",
-					})
+					}),
 				);
 			}
 
@@ -2016,11 +2059,11 @@ export async function POST(
 					replayed_player_ids: Array.from(replayedPlayerIds),
 					replayed_team_ids: Array.from(replayedTeamIds),
 					players_in_replayed_doubles_matches: Array.from(
-						playersInReplayedDoublesMatches
+						playersInReplayedDoublesMatches,
 					),
 					message:
 						"Only persisting entities that were actually replayed",
-				})
+				}),
 			);
 
 			// 6️⃣ FINAL COMPUTED STATE - Before DB write
@@ -2075,7 +2118,7 @@ export async function POST(
 					team_state: finalTeamState,
 					player_doubles_state: finalPlayerDoublesState,
 					replayed_any_doubles_matches: replayedAnyDoublesMatches,
-				})
+				}),
 			);
 
 			// Update player_ratings with final computed state
@@ -2096,7 +2139,7 @@ export async function POST(
 							player_id: playerId,
 							reason: "Player was not in replayed matches",
 							edited_match_type: editedMatchType,
-						})
+						}),
 					);
 					continue;
 				}
@@ -2128,10 +2171,10 @@ export async function POST(
 							computed_matches: state.matches_played,
 							global_db_matches: beforeState
 								? (beforeState.wins ?? 0) +
-								  (beforeState.losses ?? 0) +
-								  (beforeState.draws ?? 0)
+									(beforeState.losses ?? 0) +
+									(beforeState.draws ?? 0)
 								: 0,
-						})
+						}),
 					);
 					await adminClient
 						.from("sessions")
@@ -2145,7 +2188,7 @@ export async function POST(
 								computed_matches: state.matches_played,
 							},
 						},
-						{ status: 500 }
+						{ status: 500 },
 					);
 				}
 
@@ -2164,8 +2207,8 @@ export async function POST(
 				// Calculate global DB matches for logging (not for guardrail)
 				const globalDbMatchesPlayed = beforeState
 					? (beforeState.wins ?? 0) +
-					  (beforeState.losses ?? 0) +
-					  (beforeState.draws ?? 0)
+						(beforeState.losses ?? 0) +
+						(beforeState.draws ?? 0)
 					: 0;
 
 				console.log(
@@ -2185,7 +2228,7 @@ export async function POST(
 									wins: beforeState.wins ?? 0,
 									losses: beforeState.losses ?? 0,
 									draws: beforeState.draws ?? 0,
-							  }
+								}
 							: null,
 						after: {
 							elo: state.elo,
@@ -2194,7 +2237,7 @@ export async function POST(
 							losses: state.losses,
 							draws: state.draws,
 						},
-					})
+					}),
 				);
 			}
 
@@ -2227,8 +2270,8 @@ export async function POST(
 					// Calculate global DB matches for logging (not for guardrail)
 					const globalDbTeamMatchesPlayed = beforeState
 						? (beforeState.wins ?? 0) +
-						  (beforeState.losses ?? 0) +
-						  (beforeState.draws ?? 0)
+							(beforeState.losses ?? 0) +
+							(beforeState.draws ?? 0)
 						: 0;
 
 					console.log(
@@ -2245,7 +2288,7 @@ export async function POST(
 										wins: beforeState.wins ?? 0,
 										losses: beforeState.losses ?? 0,
 										draws: beforeState.draws ?? 0,
-								  }
+									}
 								: null,
 							after: {
 								elo: state.elo,
@@ -2254,7 +2297,7 @@ export async function POST(
 								losses: state.losses,
 								draws: state.draws,
 							},
-						})
+						}),
 					);
 				}
 			} else {
@@ -2265,7 +2308,7 @@ export async function POST(
 						reason: "No doubles matches were replayed in this session",
 						message:
 							"Skipping persistence of double_team_ratings and player_double_ratings",
-					})
+					}),
 				);
 			}
 
@@ -2284,7 +2327,7 @@ export async function POST(
 								session_id: sessionId,
 								player_id: playerId,
 								reason: "Player did not participate in any replayed doubles matches",
-							})
+							}),
 						);
 						continue;
 					}
@@ -2313,8 +2356,8 @@ export async function POST(
 					// Calculate global DB matches for logging (not for guardrail)
 					const globalDbPlayerDoublesMatchesPlayed = beforeState
 						? (beforeState.wins ?? 0) +
-						  (beforeState.losses ?? 0) +
-						  (beforeState.draws ?? 0)
+							(beforeState.losses ?? 0) +
+							(beforeState.draws ?? 0)
 						: 0;
 
 					console.log(
@@ -2331,7 +2374,7 @@ export async function POST(
 										wins: beforeState.wins ?? 0,
 										losses: beforeState.losses ?? 0,
 										draws: beforeState.draws ?? 0,
-								  }
+									}
 								: null,
 							after: {
 								elo: state.elo,
@@ -2340,7 +2383,7 @@ export async function POST(
 								losses: state.losses,
 								draws: state.draws,
 							},
-						})
+						}),
 					);
 				}
 			} else {
@@ -2351,7 +2394,7 @@ export async function POST(
 						reason: "No doubles matches were replayed in this session",
 						message:
 							"Skipping persistence of player_double_ratings",
-					})
+					}),
 				);
 			}
 
@@ -2371,12 +2414,12 @@ export async function POST(
 							session_id: sessionId,
 							player_id: playerId,
 							state: state,
-						})
+						}),
 					);
 				} catch (snapshotError) {
 					console.error(
 						`Error updating session snapshot for player ${playerId}:`,
-						snapshotError
+						snapshotError,
 					);
 					// Continue even if snapshot update fails - ratings are still persisted
 				}
@@ -2396,7 +2439,7 @@ export async function POST(
 						.eq("id", sessionId);
 					return NextResponse.json(
 						{ error: "Failed to insert Elo history" },
-						{ status: 500 }
+						{ status: 500 },
 					);
 				}
 			}
@@ -2429,13 +2472,13 @@ export async function POST(
 					tag: "[DB_PERSISTED]",
 					session_id: sessionId,
 					state: dbPersistedState,
-				})
+				}),
 			);
 
 			// Compare computed vs persisted
 			for (const computed of finalComputedState) {
 				const persisted = dbPersistedState.find(
-					(p) => p.player_id === computed.player_id
+					(p) => p.player_id === computed.player_id,
 				);
 				if (persisted) {
 					if (
@@ -2450,7 +2493,7 @@ export async function POST(
 								player_id: computed.player_id,
 								computed: computed,
 								persisted: persisted,
-							})
+							}),
 						);
 					}
 				}
@@ -2490,20 +2533,20 @@ export async function POST(
 					details:
 						error instanceof Error ? error.message : String(error),
 				},
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 	} catch (error) {
 		console.error(
 			"Unexpected error in POST /api/sessions/[sessionId]/matches/[matchId]/edit:",
-			error
+			error,
 		);
 		return NextResponse.json(
 			{
 				error: "Internal server error",
 				details: error instanceof Error ? error.message : String(error),
 			},
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

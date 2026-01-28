@@ -25,7 +25,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  */
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { sessionId: string } }
+	{ params }: { params: { sessionId: string } },
 ) {
 	const adminClient = createAdminClient();
 
@@ -34,7 +34,7 @@ export async function POST(
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -44,7 +44,7 @@ export async function POST(
 		if (!sessionId) {
 			return NextResponse.json(
 				{ error: "Session ID is required" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -65,7 +65,7 @@ export async function POST(
 		if (userError || !user) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -79,17 +79,18 @@ export async function POST(
 		if (sessionError || !session) {
 			return NextResponse.json(
 				{ error: "Session not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
-		// Verify user owns the session
-		if (session.created_by !== user.id) {
+		// Verify user owns the session OR is admin
+		const isAdmin = user.user_metadata?.role === "admin";
+		if (session.created_by !== user.id && !isAdmin) {
 			return NextResponse.json(
 				{
 					error: "Unauthorized. You can only force close your own sessions.",
 				},
-				{ status: 403 }
+				{ status: 403 },
 			);
 		}
 
@@ -122,7 +123,7 @@ export async function POST(
 			console.error("Error force closing session:", updateError);
 			return NextResponse.json(
 				{ error: "Failed to force close session" },
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 
@@ -133,12 +134,11 @@ export async function POST(
 	} catch (error) {
 		console.error(
 			"Unexpected error in POST /api/sessions/[sessionId]/force-close:",
-			error
+			error,
 		);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }
-

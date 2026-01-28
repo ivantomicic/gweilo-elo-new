@@ -42,7 +42,7 @@ type MatchScore = {
  */
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { sessionId: string; roundNumber: string } }
+	{ params }: { params: { sessionId: string; roundNumber: string } },
 ) {
 	const adminClient = createAdminClient();
 
@@ -51,7 +51,7 @@ export async function POST(
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -62,7 +62,7 @@ export async function POST(
 		if (!sessionId || !roundNumber) {
 			return NextResponse.json(
 				{ error: "Session ID and round number are required" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -71,14 +71,14 @@ export async function POST(
 		if (isNaN(roundNum)) {
 			return NextResponse.json(
 				{ error: "Invalid round number" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		if (!supabaseUrl || !supabaseAnonKey) {
 			return NextResponse.json(
 				{ error: "Missing Supabase environment variables" },
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 
@@ -99,7 +99,7 @@ export async function POST(
 		if (userError || !user) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
 			);
 		}
 
@@ -113,16 +113,18 @@ export async function POST(
 		if (sessionError || !session) {
 			return NextResponse.json(
 				{ error: "Session not found" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
-		if (session.created_by !== user.id) {
+		// Check if user owns the session OR is admin
+		const isAdmin = user.user_metadata?.role === "admin";
+		if (session.created_by !== user.id && !isAdmin) {
 			return NextResponse.json(
 				{
 					error: "Unauthorized. You can only submit results for your own sessions.",
 				},
-				{ status: 403 }
+				{ status: 403 },
 			);
 		}
 
@@ -132,7 +134,7 @@ export async function POST(
 				{
 					error: "Session is already completed. Cannot submit more rounds.",
 				},
-				{ status: 409 } // Conflict
+				{ status: 409 }, // Conflict
 			);
 		}
 
@@ -143,7 +145,7 @@ export async function POST(
 		if (!Array.isArray(matchScores) || matchScores.length === 0) {
 			return NextResponse.json(
 				{ error: "matchScores must be a non-empty array" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -158,18 +160,18 @@ export async function POST(
 		if (matchesError || !matches || matches.length === 0) {
 			return NextResponse.json(
 				{ error: "No matches found for this round" },
-				{ status: 404 }
+				{ status: 404 },
 			);
 		}
 
 		// Validate: All matches must be pending
 		const completedMatches = matches.filter(
-			(m) => m.status === "completed"
+			(m) => m.status === "completed",
 		);
 		if (completedMatches.length > 0) {
 			return NextResponse.json(
 				{ error: "Round already completed. Cannot resubmit." },
-				{ status: 409 } // Conflict
+				{ status: 409 }, // Conflict
 			);
 		}
 
@@ -181,7 +183,7 @@ export async function POST(
 
 		// Validate: All matches must have scores provided
 		const matchScoresMap = new Map(
-			matchScores.map((ms) => [ms.matchId, ms])
+			matchScores.map((ms) => [ms.matchId, ms]),
 		);
 		const missingScores = matches.filter((m) => {
 			const score = matchScoresMap.get(m.id);
@@ -198,19 +200,19 @@ export async function POST(
 				{
 					error: `Missing or invalid scores for ${missingScores.length} match(es)`,
 				},
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
 		// Validate: All provided match IDs must exist in this round
 		const matchIds = new Set(matches.map((m) => m.id));
 		const invalidMatches = matchScores.filter(
-			(ms) => !matchIds.has(ms.matchId)
+			(ms) => !matchIds.has(ms.matchId),
 		);
 		if (invalidMatches.length > 0) {
 			return NextResponse.json(
 				{ error: "Invalid match IDs provided" },
-				{ status: 400 }
+				{ status: 400 },
 			);
 		}
 
@@ -267,19 +269,19 @@ export async function POST(
 						playerIds[0],
 						playerIds[1],
 						score.team1Score,
-						score.team2Score
+						score.team2Score,
 					);
 				} catch (eloError) {
 					console.error(
 						`Error updating Elo ratings for match ${match.id}:`,
-						eloError
+						eloError,
 					);
 					throw new Error(
 						`Failed to update Elo ratings: ${
 							eloError instanceof Error
 								? eloError.message
 								: String(eloError)
-						}`
+						}`,
 					);
 				}
 
@@ -316,7 +318,7 @@ export async function POST(
 				} catch (snapshotError) {
 					console.error(
 						`Error creating snapshots for match ${match.id}:`,
-						snapshotError
+						snapshotError,
 					);
 					// Non-fatal: log error but don't fail the request
 					// In production, you might want to rollback here
@@ -343,19 +345,19 @@ export async function POST(
 						[playerIds[0], playerIds[1]],
 						[playerIds[2], playerIds[3]],
 						score.team1Score,
-						score.team2Score
+						score.team2Score,
 					);
 				} catch (eloError) {
 					console.error(
 						`Error updating Elo ratings for match ${match.id}:`,
-						eloError
+						eloError,
 					);
 					throw new Error(
 						`Failed to update Elo ratings: ${
 							eloError instanceof Error
 								? eloError.message
 								: String(eloError)
-						}`
+						}`,
 					);
 				}
 
@@ -392,7 +394,7 @@ export async function POST(
 				} catch (snapshotError) {
 					console.error(
 						`Error creating snapshots for match ${match.id}:`,
-						snapshotError
+						snapshotError,
 					);
 					// Non-fatal: log error but don't fail the request
 				}
@@ -421,7 +423,7 @@ export async function POST(
 			console.error("Error updating matches:", updateErrors);
 			return NextResponse.json(
 				{ error: "Failed to update match statuses" },
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 
@@ -450,18 +452,23 @@ export async function POST(
 			if (sessionData && sessionData.player_count === 6) {
 				// Find Round 5 matches to determine Round 6
 				const round5DoublesMatch = matches.find(
-					(m) => m.match_type === "doubles"
+					(m) => m.match_type === "doubles",
 				);
 				const round5SinglesMatch = matches.find(
-					(m) => m.match_type === "singles"
+					(m) => m.match_type === "singles",
 				);
 
 				if (round5DoublesMatch && round5SinglesMatch) {
-					const doublesScore = matchScoresMap.get(round5DoublesMatch.id)!;
-					const singlesScore = matchScoresMap.get(round5SinglesMatch.id)!;
+					const doublesScore = matchScoresMap.get(
+						round5DoublesMatch.id,
+					)!;
+					const singlesScore = matchScoresMap.get(
+						round5SinglesMatch.id,
+					)!;
 
 					// Determine winners of Round 5 doubles
-					const doublesPlayerIds = round5DoublesMatch.player_ids as string[];
+					const doublesPlayerIds =
+						round5DoublesMatch.player_ids as string[];
 					// Team 1: [0, 1], Team 2: [2, 3]
 					const doublesWinners =
 						doublesScore.team1Score > doublesScore.team2Score
@@ -469,7 +476,8 @@ export async function POST(
 							: [doublesPlayerIds[2], doublesPlayerIds[3]];
 
 					// Get players from Round 5 singles
-					const singlesPlayerIds = round5SinglesMatch.player_ids as string[];
+					const singlesPlayerIds =
+						round5SinglesMatch.player_ids as string[];
 
 					// Round 6 doubles: winners from Round 5 doubles vs players from Round 5 singles
 					// Round 6 singles: the remaining players (losers from Round 5 doubles)
@@ -487,13 +495,17 @@ export async function POST(
 							.eq("round_number", 6)
 							.order("match_order", { ascending: true });
 
-					if (!round6Error && round6Matches && round6Matches.length > 0) {
+					if (
+						!round6Error &&
+						round6Matches &&
+						round6Matches.length > 0
+					) {
 						// Update Round 6 doubles match
 						const round6DoublesMatch = round6Matches.find(
-							(m) => m.match_type === "doubles"
+							(m) => m.match_type === "doubles",
 						);
 						const round6SinglesMatch = round6Matches.find(
-							(m) => m.match_type === "singles"
+							(m) => m.match_type === "singles",
 						);
 
 						if (round6DoublesMatch) {
@@ -508,11 +520,11 @@ export async function POST(
 							// Team 2: players from Round 5 singles
 							const team1Id = await getOrCreateDoubleTeam(
 								doublesWinners[0],
-								doublesWinners[1]
+								doublesWinners[1],
 							);
 							const team2Id = await getOrCreateDoubleTeam(
 								singlesPlayerIds[0],
-								singlesPlayerIds[1]
+								singlesPlayerIds[1],
 							);
 
 							await adminClient
@@ -563,10 +575,12 @@ export async function POST(
 						status: "completed",
 						completed_at: new Date().toISOString(),
 						best_player_id: bestWorst.best_player_id,
-						best_player_display_name: bestWorst.best_player_display_name,
+						best_player_display_name:
+							bestWorst.best_player_display_name,
 						best_player_delta: bestWorst.best_player_delta,
 						worst_player_id: bestWorst.worst_player_id,
-						worst_player_display_name: bestWorst.worst_player_display_name,
+						worst_player_display_name:
+							bestWorst.worst_player_display_name,
 						worst_player_delta: bestWorst.worst_player_delta,
 					})
 					.eq("id", sessionId);
@@ -574,7 +588,7 @@ export async function POST(
 				if (updateSessionError) {
 					console.error(
 						"Error marking session as completed:",
-						updateSessionError
+						updateSessionError,
 					);
 					// Non-fatal: log error but don't fail the request
 					// Session can be manually marked as completed later if needed
@@ -590,7 +604,7 @@ export async function POST(
 	} catch (error) {
 		console.error(
 			"Unexpected error in POST /api/sessions/[sessionId]/rounds/[roundNumber]/submit:",
-			error
+			error,
 		);
 		return NextResponse.json(
 			{
@@ -598,7 +612,7 @@ export async function POST(
 				details: error instanceof Error ? error.message : String(error),
 				stack: error instanceof Error ? error.stack : undefined,
 			},
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

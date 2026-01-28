@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
 	Sheet,
 	SheetContent,
 	SheetHeader,
@@ -13,13 +20,14 @@ import {
 	SheetFooter,
 } from "@/components/ui/sheet";
 import { t } from "@/lib/i18n";
+import type { UserRole } from "@/lib/supabase/admin";
 
 type User = {
 	id: string;
 	email: string;
 	name: string;
 	avatar: string | null;
-	role: string;
+	role: UserRole;
 };
 
 type UserEditDrawerProps = {
@@ -37,6 +45,7 @@ export function UserEditDrawer({
 }: UserEditDrawerProps) {
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
+	const [role, setRole] = useState<UserRole>("user");
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -47,13 +56,14 @@ export function UserEditDrawer({
 		if (user) {
 			setName(user.name);
 			setEmail(user.email);
+			setRole(user.role);
 			setAvatarPreview(user.avatar);
 			setError(null);
 		}
 	}, [user]);
 
 	const handleAvatarChange = async (
-		e: React.ChangeEvent<HTMLInputElement>
+		e: React.ChangeEvent<HTMLInputElement>,
 	) => {
 		const file = e.target.files?.[0];
 		if (!file || !user) return;
@@ -100,7 +110,7 @@ export function UserEditDrawer({
 					setError(t.settings.error.bucketNotFound);
 				} else if (
 					uploadError.message.includes(
-						"new row violates row-level security"
+						"new row violates row-level security",
 					)
 				) {
 					setError(t.settings.error.permissionDenied);
@@ -156,6 +166,7 @@ export function UserEditDrawer({
 					name: name.trim(),
 					email: email.trim(),
 					avatar: avatarPreview,
+					role,
 				}),
 			});
 
@@ -187,6 +198,7 @@ export function UserEditDrawer({
 		user &&
 		(name.trim() !== user.name ||
 			email.trim() !== user.email ||
+			role !== user.role ||
 			avatarPreview !== user.avatar);
 
 	if (!user) return null;
@@ -257,6 +269,36 @@ export function UserEditDrawer({
 						/>
 						<p className="text-xs text-muted-foreground ml-1">
 							{t.settings.emailConfirmationNotice}
+						</p>
+					</div>
+
+					{/* Role */}
+					<div className="space-y-2">
+						<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+							{t.admin.users.drawer.role}
+						</label>
+						<Select
+							value={role}
+							onValueChange={(value: UserRole) => setRole(value)}
+							disabled={saving}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="user">
+									{t.admin.users.roles.user}
+								</SelectItem>
+								<SelectItem value="mod">
+									{t.admin.users.roles.mod}
+								</SelectItem>
+								<SelectItem value="admin">
+									{t.admin.users.roles.admin}
+								</SelectItem>
+							</SelectContent>
+						</Select>
+						<p className="text-xs text-muted-foreground ml-1">
+							{t.admin.users.drawer.roleDescription}
 						</p>
 					</div>
 				</div>

@@ -234,10 +234,19 @@ export const sr = {
 				avatar: "Avatar",
 				name: "Ime",
 				email: "Email",
+				role: "Uloga",
 				actions: "Akcije",
+			},
+			roles: {
+				user: "Korisnik",
+				mod: "Moderator",
+				admin: "Administrator",
 			},
 			drawer: {
 				title: "Uredi korisnika",
+				role: "Uloga",
+				roleDescription:
+					"Moderatori mogu pokretati sesije i unositi rezultate.",
 			},
 			success: {
 				updated: "Korisnik je uspešno ažuriran",
@@ -465,19 +474,26 @@ export const sr = {
 		loadingPlayers: "Učitavam podatke igrača...",
 		processingRound: (round: number, matchCount: number) =>
 			`Obrađujem rundu ${round} · ${matchCount} ${matchCount === 1 ? "meč" : matchCount >= 2 && matchCount <= 4 ? "meča" : "mečeva"}`,
-		matchHeader: (current: number, player1: string, player2: string, score1: number, score2: number) =>
-			`Meč ${current}: ${player1} vs ${player2}  [${score1}-${score2}]`,
-		doublesMatchHeader: (current: number, team1: string, team2: string, score1: number, score2: number) =>
-			`Meč ${current}: ${team1} vs ${team2}  [${score1}-${score2}]`,
+		matchHeader: (
+			current: number,
+			player1: string,
+			player2: string,
+			score1: number,
+			score2: number,
+		) => `Meč ${current}: ${player1} vs ${player2}  [${score1}-${score2}]`,
+		doublesMatchHeader: (
+			current: number,
+			team1: string,
+			team2: string,
+			score1: number,
+			score2: number,
+		) => `Meč ${current}: ${team1} vs ${team2}  [${score1}-${score2}]`,
 		calculating: "Računam rejtinge...",
 		eloChange: (name: string, delta: number) => {
 			const sign = delta >= 0 ? "+" : "";
 			return `  → ${name}: ${sign}${delta.toFixed(1)}`;
 		},
 		matchDone: (num: number) => `Meč ${num} ✓`,
-		validating: "Validacija podataka...",
-		creatingSnapshots: "Kreiram ELO snapshot...",
-		updatingDatabase: "Ažuriram bazu podataka...",
 		saving: "Čuvam rezultate...",
 		done: (round: number) => `Runda ${round} uspešno završena!`,
 		running: "radi",
