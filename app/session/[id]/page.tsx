@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -158,6 +158,9 @@ function SessionPageContent() {
 	const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<
 		string | null
 	>(null);
+
+	// Refs for score inputs to enable auto-focus
+	const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
 	// Reusable function to fetch players with updated Elo ratings
 	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
@@ -658,9 +661,9 @@ function SessionPageContent() {
 		[]
 	);
 
-	// Handle score change
+	// Handle score change with auto-focus to next input
 	const handleScoreChange = useCallback(
-		(matchId: string, side: "team1" | "team2", value: string) => {
+		(matchId: string, side: "team1" | "team2", value: string, matchIndex?: number) => {
 			setScores((prev) => {
 				let parsedValue: number | null = null;
 				if (value !== "") {
@@ -675,8 +678,29 @@ function SessionPageContent() {
 					},
 				};
 			});
+
+			// Auto-focus next input if a value was entered
+			if (value !== "") {
+				setTimeout(() => {
+					if (side === "team1") {
+						// Focus team2 input of same match (try mobile first, then desktop)
+						const nextRef = scoreInputRefs.current[`${matchId}-team2`] 
+							|| scoreInputRefs.current[`${matchId}-team2-desktop`];
+						nextRef?.focus();
+					} else if (side === "team2" && matchIndex !== undefined) {
+						// Focus team1 input of next match
+						const currentMatches = sessionData?.matchesByRound[currentRound] || [];
+						if (matchIndex < currentMatches.length - 1) {
+							const nextMatch = currentMatches[matchIndex + 1];
+							const nextRef = scoreInputRefs.current[`${nextMatch.id}-team1`]
+								|| scoreInputRefs.current[`${nextMatch.id}-team1-desktop`];
+							nextRef?.focus();
+						}
+					}
+				}, 0);
+			}
 		},
-		[]
+		[sessionData, currentRound]
 	);
 
 	// Navigate rounds
@@ -2345,7 +2369,7 @@ function SessionPageContent() {
 											}
 											return null;
 										})()}
-									{currentRoundMatches.map((match) => {
+									{currentRoundMatches.map((match, matchIndex) => {
 										const matchScores = scores[
 											match.id
 										] || { team1: null, team2: null };
@@ -2703,7 +2727,12 @@ function SessionPageContent() {
 															</Box>
 														</Stack>
 														<Input
+															ref={(el) => {
+																scoreInputRefs.current[`${match.id}-team1`] = el;
+															}}
 															type="number"
+															inputMode="numeric"
+															pattern="[0-9]*"
 															placeholder="0"
 															value={
 																matchScores.team1 ??
@@ -2713,8 +2742,8 @@ function SessionPageContent() {
 																handleScoreChange(
 																	match.id,
 																	"team1",
-																	e.target
-																		.value
+																	e.target.value,
+																	matchIndex
 																)
 															}
 															disabled={
@@ -2854,7 +2883,12 @@ function SessionPageContent() {
 															</Box>
 														</Stack>
 														<Input
+															ref={(el) => {
+																scoreInputRefs.current[`${match.id}-team2`] = el;
+															}}
 															type="number"
+															inputMode="numeric"
+															pattern="[0-9]*"
 															placeholder="0"
 															value={
 																matchScores.team2 ??
@@ -2864,8 +2898,8 @@ function SessionPageContent() {
 																handleScoreChange(
 																	match.id,
 																	"team2",
-																	e.target
-																		.value
+																	e.target.value,
+																	matchIndex
 																)
 															}
 															disabled={
@@ -3045,7 +3079,12 @@ function SessionPageContent() {
 														className="shrink-0"
 													>
 														<Input
+															ref={(el) => {
+																scoreInputRefs.current[`${match.id}-team1-desktop`] = el;
+															}}
 															type="number"
+															inputMode="numeric"
+															pattern="[0-9]*"
 															placeholder="0"
 															value={
 																matchScores.team1 ??
@@ -3055,8 +3094,8 @@ function SessionPageContent() {
 																handleScoreChange(
 																	match.id,
 																	"team1",
-																	e.target
-																		.value
+																	e.target.value,
+																	matchIndex
 																)
 															}
 															disabled={
@@ -3077,7 +3116,12 @@ function SessionPageContent() {
 															</span>
 														</Box>
 														<Input
+															ref={(el) => {
+																scoreInputRefs.current[`${match.id}-team2-desktop`] = el;
+															}}
 															type="number"
+															inputMode="numeric"
+															pattern="[0-9]*"
 															placeholder="0"
 															value={
 																matchScores.team2 ??
@@ -3087,8 +3131,8 @@ function SessionPageContent() {
 																handleScoreChange(
 																	match.id,
 																	"team2",
-																	e.target
-																		.value
+																	e.target.value,
+																	matchIndex
 																)
 															}
 															disabled={
@@ -3280,6 +3324,86 @@ function SessionPageContent() {
 										})}
 									</Stack>
 								</Box>
+
+								{/* Up Next Preview */}
+								{(() => {
+									const currentIndex = roundNumbers.indexOf(currentRound);
+									const nextRound = currentIndex < roundNumbers.length - 1 
+										? roundNumbers[currentIndex + 1] 
+										: null;
+									
+									if (!nextRound) return null;
+									
+									const nextMatches = sessionData.matchesByRound[nextRound] || [];
+									if (nextMatches.length === 0) return null;
+									
+									return (
+										<Box className="pb-4">
+											<Stack 
+												direction="row" 
+												alignItems="center" 
+												justifyContent="center"
+												spacing={3}
+												className="flex-wrap"
+											>
+												<span className="text-xs font-semibold text-muted-foreground/70">
+													{t.sessions.session.upNext}:
+												</span>
+												{nextMatches.map((match, idx) => {
+													const isSingles = match.match_type === "singles";
+													const team1PlayerIds = isSingles
+														? [match.player_ids[0]]
+														: [match.player_ids[0], match.player_ids[1]];
+													const team2PlayerIds = isSingles
+														? [match.player_ids[1]]
+														: [match.player_ids[2], match.player_ids[3]];
+													
+													const team1Players = team1PlayerIds
+														.map((id) => getPlayer(id))
+														.filter(Boolean) as Player[];
+													const team2Players = team2PlayerIds
+														.map((id) => getPlayer(id))
+														.filter(Boolean) as Player[];
+													
+													const team1Name = isSingles
+														? team1Players[0]?.name?.split(" ")[0] || "?"
+														: team1Players.map(p => p.name?.split(" ")[0] || "?").join(" & ");
+													const team2Name = isSingles
+														? team2Players[0]?.name?.split(" ")[0] || "?"
+														: team2Players.map(p => p.name?.split(" ")[0] || "?").join(" & ");
+													
+													return (
+														<Stack 
+															key={match.id} 
+															direction="row" 
+															alignItems="center"
+															spacing={3}
+														>
+															{idx > 0 && (
+																<Box className="w-px h-4 bg-border/50 -ml-1.5" />
+															)}
+															<Stack 
+																direction="row" 
+																alignItems="center"
+																spacing={1.5}
+															>
+																<span className="text-xs text-muted-foreground">
+																	{team1Name}
+																</span>
+																<span className="text-[10px] font-bold text-muted-foreground/60">
+																	vs
+																</span>
+																<span className="text-xs text-muted-foreground">
+																	{team2Name}
+																</span>
+															</Stack>
+														</Stack>
+													);
+												})}
+											</Stack>
+										</Box>
+									);
+								})()}
 
 								{/* Navigation Buttons */}
 								<Box className="pt-2 pb-8">

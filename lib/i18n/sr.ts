@@ -132,6 +132,7 @@ export const sr = {
 			sessionSummary: "Pregled termina",
 			previous: "Prethodna",
 			next: "Sledeća",
+			upNext: "Sledeći set",
 			submitting: "Slanje...",
 			vs: "VS",
 			elo: "Elo",
