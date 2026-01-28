@@ -43,13 +43,13 @@ export function RoundCard({
 			<Box
 				className={cn(
 					"size-12 rounded-full bg-background border-4 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(59,130,246,0.3)]",
-					isActive ? "border-primary" : "border-border"
+					isActive ? "border-primary" : "border-border",
 				)}
 			>
 				<span
 					className={cn(
 						"text-sm font-bold",
-						isActive ? "text-foreground" : "text-muted-foreground"
+						isActive ? "text-foreground" : "text-muted-foreground",
 					)}
 				>
 					{roundNumber}
@@ -88,12 +88,13 @@ export function RoundCard({
 						<>
 							<Box className="text-sm text-muted-foreground py-2 space-y-1">
 								<p className="font-medium text-foreground/80">
-									Schedule will be determined after Round {roundNumber - 1} is
-									completed.
+									Schedule will be determined after Round{" "}
+									{roundNumber - 1} is completed.
 								</p>
 								<p className="text-xs">
-									Winners from Round {roundNumber - 1} doubles will stay in
-									doubles and play against players from Round {roundNumber - 1}{" "}
+									Winners from Round {roundNumber - 1} doubles
+									will stay in doubles and play against
+									players from Round {roundNumber - 1}{" "}
 									singles.
 								</p>
 							</Box>
@@ -110,9 +111,9 @@ export function RoundCard({
 						</>
 					) : (
 						matches.map((match, index) => (
-							<MatchRow 
-								key={index} 
-								type={match.type} 
+							<MatchRow
+								key={index}
+								type={match.type}
 								players={match.players}
 								isShuffling={isShuffling}
 								shuffleKey={shuffleKey}
@@ -124,4 +125,3 @@ export function RoundCard({
 		</Stack>
 	);
 }
-

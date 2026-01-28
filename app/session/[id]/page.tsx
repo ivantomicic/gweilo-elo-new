@@ -2611,7 +2611,7 @@ function SessionPageContent() {
 												)}
 												<Stack
 													direction="column"
-													spacing={4}
+													spacing={1}
 													className="md:hidden"
 												>
 													{/* Mobile: Vertical Layout */}
