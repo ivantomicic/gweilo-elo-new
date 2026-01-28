@@ -30,7 +30,7 @@ const getSpinOut = () => {
 		transition: { 
 			duration: 0.35, 
 			delay,
-			ease: [0.4, 0, 1, 1] // ease-in (accelerate)
+			ease: [0.4, 0, 1, 1] as [number, number, number, number] // ease-in (accelerate)
 		}
 	};
 };
