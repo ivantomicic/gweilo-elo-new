@@ -54,9 +54,8 @@ async function sendPollCreatedEmails(poll: {
 
 		if (playersWithEmail.length === 0) {
 			console.log('[sendPollCreatedEmails] No players with emails found to notify');
-			console.log('[sendPollCreatedEmails] All users:', users.map(u => ({
-				email: u.email,
-				role: u.user_metadata?.role,
+			console.log('[sendPollCreatedEmails] All profiles:', profiles.map(p => ({
+				email: p.email,
 			})));
 			return;
 		}
