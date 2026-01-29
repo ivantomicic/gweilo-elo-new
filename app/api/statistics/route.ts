@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 import {
 	getLatestTwoCompletedSessions,
 	computeRankMovements,
@@ -69,8 +68,6 @@ export async function GET(request: NextRequest) {
 		const shouldFetchDoublesPlayer = view === "all" || view === "doubles_player";
 		const shouldFetchDoublesTeam = view === "all" || view === "doubles_team";
 
-		// Create admin client to fetch user details (needed to access auth.users)
-		const adminClient = createAdminClient();
 
 		// Fetch statistics in parallel for better performance
 		const [singlesResult, doublesPlayerResult, doublesTeamResult] = await Promise.all([
@@ -166,15 +163,17 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
-		// Fetch user details for all players
+		// Fetch user details from profiles table (fast database query)
 		const usersMap = new Map<string, { display_name: string; avatar: string | null }>();
 
 		if (allPlayerIds.size > 0) {
-			const { data: allUsersData, error: usersError } =
-				await adminClient.auth.admin.listUsers();
+			const { data: profiles, error: profilesError } = await supabase
+				.from("profiles")
+				.select("id, display_name, avatar_url")
+				.in("id", Array.from(allPlayerIds));
 
-			if (usersError) {
-				console.error("Error fetching users:", usersError);
+			if (profilesError) {
+				console.error("Error fetching profiles:", profilesError);
 				return NextResponse.json(
 					{ error: "Failed to fetch user details" },
 					{ status: 500 }
@@ -182,18 +181,12 @@ export async function GET(request: NextRequest) {
 			}
 
 			// Create map for all users we need
-			allUsersData.users
-				.filter((u) => allPlayerIds.has(u.id))
-				.forEach((user) => {
-					usersMap.set(user.id, {
-						display_name:
-							user.user_metadata?.display_name ||
-							user.user_metadata?.name ||
-							user.email?.split("@")[0] ||
-							"User",
-						avatar: user.user_metadata?.avatar_url || null,
-					});
+			(profiles || []).forEach((profile) => {
+				usersMap.set(profile.id, {
+					display_name: profile.display_name || "User",
+					avatar: profile.avatar_url || null,
 				});
+			});
 		}
 
 		// Get latest sessions once for rank movements (if needed)

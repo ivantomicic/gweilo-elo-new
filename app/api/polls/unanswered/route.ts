@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createAdminClient } from '@/lib/supabase/admin';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -133,27 +132,21 @@ export async function GET(request: NextRequest) {
 			userIds.forEach(id => allUserIds.add(id));
 		}
 
-		const { createAdminClient } = await import('@/lib/supabase/admin');
-		const adminClient = createAdminClient();
 		const usersMap = new Map<string, { name: string; avatar: string | null }>();
 
 		if (allUserIds.size > 0) {
-			const { data: allUsersData, error: usersError } = await adminClient.auth.admin.listUsers();
+			const { data: profiles, error: profilesError } = await supabase
+				.from('profiles')
+				.select('id, display_name, avatar_url')
+				.in('id', Array.from(allUserIds));
 
-			if (!usersError && allUsersData) {
-				allUsersData.users
-					.filter((u) => allUserIds.has(u.id))
-					.forEach((user) => {
-						usersMap.set(user.id, {
-							name:
-								user.user_metadata?.display_name ||
-								user.user_metadata?.name ||
-								user.user_metadata?.full_name ||
-								user.email?.split('@')[0] ||
-								'User',
-							avatar: user.user_metadata?.avatar_url || null,
-						});
+			if (!profilesError && profiles) {
+				profiles.forEach((profile) => {
+					usersMap.set(profile.id, {
+						name: profile.display_name || 'User',
+						avatar: profile.avatar_url || null,
 					});
+				});
 			}
 		}
 

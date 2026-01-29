@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -58,38 +57,25 @@ export async function GET(
 
 		const playerId = params.playerId;
 
-		// Fetch player data using admin client (to access any user's metadata)
-		const adminClient = createAdminClient();
-		const { data: userData, error: fetchError } =
-			await adminClient.auth.admin.getUserById(playerId);
+		// Fetch player data from profiles table (fast database query)
+		const { data: profile, error: profileError } = await supabase
+			.from("profiles")
+			.select("id, display_name, avatar_url")
+			.eq("id", playerId)
+			.single();
 
-		if (fetchError || !userData.user) {
-			console.error("Error fetching player:", fetchError);
+		if (profileError || !profile) {
+			console.error("Error fetching player:", profileError);
 			return NextResponse.json(
 				{ error: "Player not found" },
 				{ status: 404 }
 			);
 		}
 
-		const player = userData.user;
-
-		// Extract display name and avatar from user_metadata
-		const displayName =
-			player.user_metadata?.display_name ||
-			player.user_metadata?.name ||
-			player.user_metadata?.full_name ||
-			player.email?.split("@")[0] ||
-			"Unknown";
-
-		const avatar =
-			player.user_metadata?.avatar_url ||
-			player.user_metadata?.avatar_url_google ||
-			null;
-
 		return NextResponse.json({
-			id: player.id,
-			display_name: displayName,
-			avatar: avatar,
+			id: profile.id,
+			display_name: profile.display_name || "Unknown",
+			avatar: profile.avatar_url || null,
 		});
 	} catch (error) {
 		console.error("Unexpected error in GET /api/player/[playerId]:", error);

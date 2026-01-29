@@ -34,15 +34,20 @@ export async function fetchPlayersWithRatings(
 		return [];
 	}
 
-	// Fetch user details using admin client (needed to access auth.users)
-	const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers();
+	// Fetch user details from profiles table (fast database query)
+	const { data: profiles, error: profilesError } = await supabase
+		.from("profiles")
+		.select("id, display_name, avatar_url")
+		.in("id", playerIds);
 
-	if (usersError) {
-		throw new Error(`Failed to fetch users: ${usersError.message}`);
+	if (profilesError) {
+		throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
 	}
 
-	// Filter to only requested players
-	const requestedUsers = users.filter((u) => playerIds.includes(u.id));
+	// Create map of player_id -> profile for requested players
+	const profilesMap = new Map(
+		(profiles || []).map((p) => [p.id, p])
+	);
 
 	// Fetch singles ratings in batch
 	const { data: singlesRatings, error: singlesError } = await supabase
@@ -86,32 +91,29 @@ export async function fetchPlayersWithRatings(
 		doublesRatings.map((r) => [r.player_id, typeof r.elo === 'string' ? parseFloat(r.elo) : Number(r.elo)])
 	);
 
-	// Combine user data with ratings
-	const playersWithRatings: PlayerWithRatings[] = requestedUsers.map((user) => {
-		const displayName =
-			user.user_metadata?.display_name ||
-			user.user_metadata?.name ||
-			user.user_metadata?.full_name ||
-			user.email?.split("@")[0] ||
-			"User";
+	// Combine profile data with ratings
+	const playersWithRatings: PlayerWithRatings[] = playerIds
+		.filter((id) => profilesMap.has(id))
+		.map((playerId) => {
+			const profile = profilesMap.get(playerId)!;
+			const displayName = profile.display_name || "User";
+			const avatar = profile.avatar_url || null;
+			const singlesElo = singlesMap.get(playerId) ?? 1500;
+			const doublesElo = includeDoublesElo ? (doublesMap.get(playerId) ?? 1500) : null;
 
-		const avatar = user.user_metadata?.avatar_url || null;
-		const singlesElo = singlesMap.get(user.id) ?? 1500;
-		const doublesElo = includeDoublesElo ? (doublesMap.get(user.id) ?? 1500) : null;
+			// Debug: Log if using default 1500
+			if (!singlesMap.has(playerId)) {
+				console.log(`[fetchPlayersWithRatings] No rating found for player ${playerId} (${displayName}), using default 1500`);
+			}
 
-		// Debug: Log if using default 1500
-		if (!singlesMap.has(user.id)) {
-			console.log(`[fetchPlayersWithRatings] No rating found for player ${user.id} (${displayName}), using default 1500`);
-		}
-
-		return {
-			player_id: user.id,
-			display_name: displayName,
-			avatar,
-			singles_elo: singlesElo,
-			doubles_elo: doublesElo,
-		};
-	});
+			return {
+				player_id: playerId,
+				display_name: displayName,
+				avatar,
+				singles_elo: singlesElo,
+				doubles_elo: doublesElo,
+			};
+		});
 
 	return playersWithRatings;
 }

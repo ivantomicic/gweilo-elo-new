@@ -19,9 +19,6 @@ type PlayerStat = {
 	draws: number;
 };
 
-const CACHE_KEY = "top3players_cache";
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 export function Top3PlayersWidget() {
 	const router = useRouter();
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
@@ -29,30 +26,16 @@ export function Top3PlayersWidget() {
 
 	useEffect(() => {
 		const fetchTopPlayers = async () => {
+			const startTime = performance.now();
 			try {
 				setLoading(true);
-
-				// Check cache first
-				const cachedData = localStorage.getItem(CACHE_KEY);
-				if (cachedData) {
-					try {
-						const { data, timestamp } = JSON.parse(cachedData);
-						const now = Date.now();
-						if (now - timestamp < CACHE_DURATION) {
-							// Cache is still fresh
-							setTopPlayers(data);
-							setLoading(false);
-							return;
-						}
-					} catch (e) {
-						// Invalid cache, continue to fetch
-						console.warn("Invalid cache data, fetching fresh data");
-					}
-				}
 
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
+
+				const authTime = performance.now();
+				console.log(`[Top3Players] Auth check: ${(authTime - startTime).toFixed(0)}ms`);
 
 				if (!session) {
 					setTopPlayers([]);
@@ -65,6 +48,9 @@ export function Top3PlayersWidget() {
 					},
 				});
 
+				const fetchTime = performance.now();
+				console.log(`[Top3Players] API fetch: ${(fetchTime - authTime).toFixed(0)}ms`);
+
 				if (!response.ok) {
 					setTopPlayers([]);
 					return;
@@ -75,14 +61,8 @@ export function Top3PlayersWidget() {
 				const top3 = data.data || [];
 				setTopPlayers(top3);
 
-				// Cache the data
-				localStorage.setItem(
-					CACHE_KEY,
-					JSON.stringify({
-						data: top3,
-						timestamp: Date.now(),
-					})
-				);
+				const totalTime = performance.now();
+				console.log(`[Top3Players] Total time: ${(totalTime - startTime).toFixed(0)}ms`);
 			} catch (error) {
 				console.error("Error fetching top players:", error);
 				setTopPlayers([]);

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -76,45 +75,28 @@ export async function GET(request: NextRequest) {
 		// Get player IDs
 		const playerIds = singlesRatings.map((r) => r.player_id);
 
-		// Fetch only the top 3 users (not all users!)
-		const adminClient = createAdminClient();
-		const { data: allUsersData, error: usersError } =
-			await adminClient.auth.admin.listUsers();
+		// Fetch user profiles from database (fast!) instead of Auth Admin API (slow!)
+		const { data: profiles, error: profilesError } = await supabase
+			.from("profiles")
+			.select("id, display_name, avatar_url")
+			.in("id", playerIds);
 
-		if (usersError) {
-			console.error("Error fetching users:", usersError);
-			return NextResponse.json(
-				{ error: "Failed to fetch user details" },
-				{ status: 500 }
-			);
+		if (profilesError) {
+			console.error("Error fetching profiles:", profilesError);
 		}
 
-		// Create map for only the top 3 users
-		const usersMap = new Map<string, { display_name: string; avatar: string | null }>();
-		
-		if (allUsersData?.users) {
-			playerIds.forEach((playerId) => {
-				const user = allUsersData.users.find((u) => u.id === playerId);
-				if (user) {
-					usersMap.set(user.id, {
-						display_name:
-							user.user_metadata?.display_name ||
-							user.user_metadata?.name ||
-							user.email?.split("@")[0] ||
-							"User",
-						avatar: user.user_metadata?.avatar_url || null,
-					});
-				}
-			});
-		}
+		// Create lookup map
+		const profilesMap = new Map(
+			(profiles || []).map((p) => [p.id, p])
+		);
 
 		// Build response with top 3 players
 		const top3Stats = singlesRatings.map((rating) => {
-			const user = usersMap.get(rating.player_id);
+			const profile = profilesMap.get(rating.player_id);
 			return {
 				player_id: rating.player_id,
-				display_name: user?.display_name || "User",
-				avatar: user?.avatar || null,
+				display_name: profile?.display_name || "User",
+				avatar: profile?.avatar_url || null,
 				elo: rating.elo ?? 1500,
 			};
 		});

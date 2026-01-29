@@ -241,11 +241,13 @@ export async function GET(
 				? sessionPlayers.map((sp) => sp.player_id)
 				: [];
 
-		// Get player display names and avatars
-		const { data: users, error: usersError } =
-			await adminClient.auth.admin.listUsers();
-		if (usersError) {
-			console.error("Error fetching users:", usersError);
+		// Get player display names and avatars from profiles table (fast database query)
+		const { data: profiles, error: profilesError } = await supabase
+			.from("profiles")
+			.select("id, display_name, avatar_url");
+
+		if (profilesError) {
+			console.error("Error fetching profiles:", profilesError);
 			return NextResponse.json(
 				{ error: "Failed to fetch user data" },
 				{ status: 500 }
@@ -253,16 +255,11 @@ export async function GET(
 		}
 
 		const userMap = new Map(
-			users.users.map((u) => [
-				u.id,
+			(profiles || []).map((p) => [
+				p.id,
 				{
-					display_name:
-						u.user_metadata?.display_name ||
-						u.user_metadata?.name ||
-						u.user_metadata?.full_name ||
-						u.email?.split("@")[0] ||
-						"Unknown",
-					avatar: u.user_metadata?.avatar_url || null,
+					display_name: p.display_name || "Unknown",
+					avatar: p.avatar_url || null,
 				},
 			])
 		);

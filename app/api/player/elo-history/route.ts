@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -63,10 +62,9 @@ export async function GET(request: NextRequest) {
 
 		// Use requested playerId if provided, otherwise use authenticated user's ID
 		const userId = requestedPlayerId || user.id;
-		const adminClient = createAdminClient();
 
 		// Fetch all match Elo history entries where the user is player1_id or player2_id
-		const { data: eloHistory, error: historyError } = await adminClient
+		const { data: eloHistory, error: historyError } = await supabase
 			.from("match_elo_history")
 			.select("match_id, player1_id, player2_id, player1_elo_after, player2_elo_after, player1_elo_delta, player2_elo_delta, created_at")
 			.or(`player1_id.eq.${userId},player2_id.eq.${userId}`)
@@ -83,7 +81,7 @@ export async function GET(request: NextRequest) {
 		// Fetch all matches to get match ordering and session IDs
 		const matchIds = (eloHistory || []).map((h) => h.match_id);
 		const { data: matches, error: matchesError } = matchIds.length > 0
-			? await adminClient
+			? await supabase
 					.from("session_matches")
 					.select("id, session_id, round_number, match_order, match_type")
 					.in("id", matchIds)
@@ -106,29 +104,24 @@ export async function GET(request: NextRequest) {
 
 		const usersMap = new Map<string, string>();
 		if (allPlayerIds.size > 0) {
-			const { data: usersData, error: usersError } =
-				await adminClient.auth.admin.listUsers();
+			const { data: profiles, error: profilesError } = await supabase
+				.from("profiles")
+				.select("id, display_name")
+				.in("id", Array.from(allPlayerIds));
 
-			if (usersError) {
-				console.error("Error fetching users:", usersError);
-			} else if (usersData) {
-				usersData.users
-					.filter((u) => allPlayerIds.has(u.id))
-					.forEach((user) => {
-						const displayName =
-							user.user_metadata?.display_name ||
-							user.user_metadata?.name ||
-							user.email?.split("@")[0] ||
-							"User";
-						usersMap.set(user.id, displayName);
-					});
+			if (profilesError) {
+				console.error("Error fetching profiles:", profilesError);
+			} else if (profiles) {
+				profiles.forEach((profile) => {
+					usersMap.set(profile.id, profile.display_name || "User");
+				});
 			}
 		}
 
 		// Fetch sessions to get session dates
 		const sessionIds = [...new Set((matches || []).map((m) => m.session_id))];
 		const { data: sessions, error: sessionsError } = sessionIds.length > 0
-			? await adminClient
+			? await supabase
 					.from("sessions")
 					.select("id, created_at")
 					.in("id", sessionIds)
@@ -144,7 +137,7 @@ export async function GET(request: NextRequest) {
 		);
 
 		// Get current Elo rating for the player
-		const { data: currentRating } = await adminClient
+		const { data: currentRating } = await supabase
 			.from("player_ratings")
 			.select("elo")
 			.eq("player_id", userId)

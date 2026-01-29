@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -95,19 +94,20 @@ export async function GET(request: NextRequest) {
 			}
 		});
 
-		// Fetch player details using admin client
-		const adminClient = createAdminClient();
+		// Fetch player details from profiles table (fast database query)
 		const usersMap = new Map<
 			string,
 			{ display_name: string; avatar: string | null }
 		>();
 
 		if (allPlayerIds.size > 0) {
-			const { data: allUsersData, error: usersError } =
-				await adminClient.auth.admin.listUsers();
+			const { data: profiles, error: profilesError } = await supabase
+				.from("profiles")
+				.select("id, display_name, avatar_url")
+				.in("id", Array.from(allPlayerIds));
 
-			if (usersError) {
-				console.error("Error fetching users:", usersError);
+			if (profilesError) {
+				console.error("Error fetching profiles:", profilesError);
 				return NextResponse.json(
 					{ error: "Failed to fetch user details" },
 					{ status: 500 }
@@ -115,18 +115,12 @@ export async function GET(request: NextRequest) {
 			}
 
 			// Create map for all users we need
-			allUsersData.users
-				.filter((u) => allPlayerIds.has(u.id))
-				.forEach((user) => {
-					usersMap.set(user.id, {
-						display_name:
-							user.user_metadata?.display_name ||
-							user.user_metadata?.name ||
-							user.email?.split("@")[0] ||
-							"User",
-						avatar: user.user_metadata?.avatar_url || null,
-					});
+			(profiles || []).forEach((profile) => {
+				usersMap.set(profile.id, {
+					display_name: profile.display_name || "User",
+					avatar: profile.avatar_url || null,
 				});
+			});
 		}
 
 		// Build video items with player details

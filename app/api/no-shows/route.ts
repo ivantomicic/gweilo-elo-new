@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { createAdminClient, verifyAdmin } from '@/lib/supabase/admin';
+import { verifyAdmin } from '@/lib/supabase/admin';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -44,8 +44,6 @@ export async function GET(request: NextRequest) {
 			},
 		});
 
-		// Create admin client to fetch user info (needed because regular users can't query auth.users)
-		const adminClient = createAdminClient();
 
 		// Fetch all no-shows from the database (RLS will enforce read permissions)
 		const { data: noShows, error: noShowsError } = await supabase
@@ -78,11 +76,14 @@ export async function GET(request: NextRequest) {
 			return NextResponse.json({ users: [] });
 		}
 
-		// Get user details using admin client
-		const { data: { users }, error: usersError } = await adminClient.auth.admin.listUsers();
+		// Get user details from profiles table (fast database query)
+		const { data: profiles, error: profilesError } = await supabase
+			.from('profiles')
+			.select('id, display_name, avatar_url')
+			.in('id', userIds);
 
-		if (usersError) {
-			console.error('Error fetching users:', usersError);
+		if (profilesError) {
+			console.error('Error fetching profiles:', profilesError);
 			return NextResponse.json(
 				{ error: 'Failed to fetch user information' },
 				{ status: 500 }
@@ -90,19 +91,14 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Format response: combine user info with no-show stats
-		const formattedUsers = users
-			.filter((user) => userIds.includes(user.id))
-			.map((user) => {
-				const stats = userNoShowsMap.get(user.id)!;
+		const formattedUsers = (profiles || [])
+			.filter((profile) => userNoShowsMap.has(profile.id))
+			.map((profile) => {
+				const stats = userNoShowsMap.get(profile.id)!;
 				return {
-					id: user.id,
-					name:
-						user.user_metadata?.display_name ||
-						user.user_metadata?.name ||
-						user.user_metadata?.full_name ||
-						user.email?.split('@')[0] ||
-						'User',
-					avatar: user.user_metadata?.avatar_url || null,
+					id: profile.id,
+					name: profile.display_name || 'User',
+					avatar: profile.avatar_url || null,
 					noShowCount: stats.count,
 					lastNoShowDate: stats.lastDate,
 				};

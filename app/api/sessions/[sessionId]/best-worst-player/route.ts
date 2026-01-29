@@ -296,24 +296,19 @@ export async function GET(
 		const usersMap = new Map<string, string>();
 
 		if (playerIdsToFetch.size > 0) {
-			const { data: usersData, error: usersError } =
-				await adminClient.auth.admin.listUsers();
+			const { data: profiles, error: profilesError } = await supabase
+				.from("profiles")
+				.select("id, display_name")
+				.in("id", Array.from(playerIdsToFetch));
 
-			if (usersError) {
-				console.error("Error fetching user data:", usersError);
+			if (profilesError) {
+				console.error("Error fetching profiles:", profilesError);
 				// Non-fatal: continue without display names
-			} else if (usersData) {
+			} else if (profiles) {
 				// Create map of player_id -> display_name
-				usersData.users
-					.filter((u) => playerIdsToFetch.has(u.id))
-					.forEach((user) => {
-						const displayName =
-							user.user_metadata?.display_name ||
-							user.user_metadata?.name ||
-							user.email?.split("@")[0] ||
-							"User";
-						usersMap.set(user.id, displayName);
-					});
+				profiles.forEach((profile) => {
+					usersMap.set(profile.id, profile.display_name || "User");
+				});
 			}
 		}
 

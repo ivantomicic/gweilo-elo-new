@@ -30,27 +30,27 @@ async function sendPollCreatedEmails(poll: {
 			return;
 		}
 
-		// Get admin client to fetch all users
+		// Get admin client to fetch all users (need email for sending)
 		const adminClient = createAdminClient();
 
-		// List all users
-		const { data, error: usersError } = await adminClient.auth.admin.listUsers();
+		// Fetch profiles with email from database
+		const { data: profiles, error: profilesError } = await adminClient
+			.from('profiles')
+			.select('id, email');
 
-		if (usersError || !data) {
-			console.error('[sendPollCreatedEmails] Failed to fetch users:', usersError);
+		if (profilesError || !profiles) {
+			console.error('[sendPollCreatedEmails] Failed to fetch profiles:', profilesError);
 			return;
 		}
 
-		// The listUsers() API returns { users: User[] } structure
-		const users = data.users || [];
-		console.log(`[sendPollCreatedEmails] Fetched ${users.length} users from Supabase`);
+		console.log(`[sendPollCreatedEmails] Fetched ${profiles.length} profiles from database`);
 
 		// Filter to all users with email addresses
-		const playersWithEmail = users.filter(
-			(user) => user.email
+		const playersWithEmail = profiles.filter(
+			(profile) => profile.email
 		);
 
-		console.log(`[sendPollCreatedEmails] Found ${users.length} total users, ${playersWithEmail.length} players with emails`);
+		console.log(`[sendPollCreatedEmails] Found ${profiles.length} total profiles, ${playersWithEmail.length} players with emails`);
 
 		if (playersWithEmail.length === 0) {
 			console.log('[sendPollCreatedEmails] No players with emails found to notify');
@@ -61,7 +61,7 @@ async function sendPollCreatedEmails(poll: {
 			return;
 		}
 
-		console.log(`[sendPollCreatedEmails] Sending emails to ${playersWithEmail.length} player(s):`, playersWithEmail.map(u => u.email));
+		console.log(`[sendPollCreatedEmails] Sending emails to ${playersWithEmail.length} player(s):`, playersWithEmail.map(p => p.email));
 
 		// Send emails to all players with rate limiting (max 2 per second to avoid rate limit errors)
 		// Each email gets personalized with the recipient's user ID
@@ -75,7 +75,7 @@ async function sendPollCreatedEmails(poll: {
 		for (let i = 0; i < playersWithEmail.length; i += RATE_LIMIT_PER_SECOND) {
 			const batch = playersWithEmail.slice(i, i + RATE_LIMIT_PER_SECOND);
 			
-			const batchPromises = batch.map(async (player) => {
+			const batchPromises = batch.map(async (profile) => {
 				try {
 					const functionUrl = `${supabaseUrl}/functions/v1/send-email`;
 					const response = await fetch(functionUrl, {
@@ -85,7 +85,7 @@ async function sendPollCreatedEmails(poll: {
 							'Content-Type': 'application/json',
 						},
 						body: JSON.stringify({
-							to: player.email!,
+							to: profile.email!,
 							type: 'poll_created',
 							payload: {
 								question: poll.question,
@@ -96,7 +96,7 @@ async function sendPollCreatedEmails(poll: {
 									text: opt.text,
 								})),
 								pollId: poll.id,
-								userId: player.id, // Include user ID for auto-submit
+								userId: profile.id, // Include user ID for auto-submit
 							},
 						}),
 					});
@@ -104,25 +104,25 @@ async function sendPollCreatedEmails(poll: {
 					if (!response.ok) {
 						const errorText = await response.text();
 						console.error(
-							`[sendPollCreatedEmails] Failed to send email to ${player.email}:`,
+							`[sendPollCreatedEmails] Failed to send email to ${profile.email}:`,
 							`Status: ${response.status}`,
 							errorText
 						);
 						failureCount++;
-						return { success: false, email: player.email };
+						return { success: false, email: profile.email };
 					} else {
 						const result = await response.json();
-						console.log(`[sendPollCreatedEmails] Email sent to ${player.email}`, result);
+						console.log(`[sendPollCreatedEmails] Email sent to ${profile.email}`, result);
 						successCount++;
-						return { success: true, email: player.email };
+						return { success: true, email: profile.email };
 					}
 				} catch (error) {
 					console.error(
-						`[sendPollCreatedEmails] Error sending email to ${player.email}:`,
+						`[sendPollCreatedEmails] Error sending email to ${profile.email}:`,
 						error
 					);
 					failureCount++;
-					return { success: false, email: player.email };
+					return { success: false, email: profile.email };
 				}
 			});
 
@@ -279,27 +279,21 @@ export async function GET(request: NextRequest) {
 			userIds.forEach(id => allUserIds.add(id));
 		}
 
-		const { createAdminClient } = await import('@/lib/supabase/admin');
-		const adminClient = createAdminClient();
 		const usersMap = new Map<string, { name: string; avatar: string | null }>();
 
 		if (allUserIds.size > 0) {
-			const { data: allUsersData, error: usersError } = await adminClient.auth.admin.listUsers();
+			const { data: profiles, error: profilesError } = await supabase
+				.from('profiles')
+				.select('id, display_name, avatar_url')
+				.in('id', Array.from(allUserIds));
 
-			if (!usersError && allUsersData) {
-				allUsersData.users
-					.filter((u) => allUserIds.has(u.id))
-					.forEach((user) => {
-						usersMap.set(user.id, {
-							name:
-								user.user_metadata?.display_name ||
-								user.user_metadata?.name ||
-								user.user_metadata?.full_name ||
-								user.email?.split('@')[0] ||
-								'User',
-							avatar: user.user_metadata?.avatar_url || null,
-						});
+			if (!profilesError && profiles) {
+				profiles.forEach((profile) => {
+					usersMap.set(profile.id, {
+						name: profile.display_name || 'User',
+						avatar: profile.avatar_url || null,
 					});
+				});
 			}
 		}
 
