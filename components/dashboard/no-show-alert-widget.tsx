@@ -21,31 +21,10 @@ export function NoShowAlertWidget() {
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
 	const [loading, setLoading] = useState(true);
 
-	const CACHE_KEY = "noshow_alert_cache";
-	const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 	useEffect(() => {
 		const fetchNoShowStats = async () => {
 			try {
 				setLoading(true);
-
-				// Check cache first
-				const cachedData = localStorage.getItem(CACHE_KEY);
-				if (cachedData) {
-					try {
-						const { data, timestamp } = JSON.parse(cachedData);
-						const now = Date.now();
-						if (now - timestamp < CACHE_DURATION) {
-							// Cache is still fresh
-							setWorstOffender(data);
-							setLoading(false);
-							return;
-						}
-					} catch (e) {
-						// Invalid cache, continue to fetch
-						console.warn("Invalid cache data, fetching fresh data");
-					}
-				}
 
 				const {
 					data: { session },
@@ -72,15 +51,6 @@ export function NoShowAlertWidget() {
 				// Worst offender is the first one (sorted by count descending)
 				const worst = users[0] || null;
 				setWorstOffender(worst);
-
-				// Cache the data
-				localStorage.setItem(
-					CACHE_KEY,
-					JSON.stringify({
-						data: worst,
-						timestamp: Date.now(),
-					})
-				);
 			} catch (error) {
 				console.error("Error fetching no-show stats:", error);
 				setWorstOffender(null);

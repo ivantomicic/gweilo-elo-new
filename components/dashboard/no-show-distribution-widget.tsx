@@ -28,31 +28,10 @@ export function NoShowDistributionWidget() {
 	const [users, setUsers] = useState<NoShowUser[]>([]);
 	const [loading, setLoading] = useState(true);
 
-	const CACHE_KEY = "noshow_distribution_cache";
-	const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
 	useEffect(() => {
 		const fetchNoShowStats = async () => {
 			try {
 				setLoading(true);
-
-				// Check cache first
-				const cachedData = localStorage.getItem(CACHE_KEY);
-				if (cachedData) {
-					try {
-						const { data, timestamp } = JSON.parse(cachedData);
-						const now = Date.now();
-						if (now - timestamp < CACHE_DURATION) {
-							// Cache is still fresh
-							setUsers(data);
-							setLoading(false);
-							return;
-						}
-					} catch (e) {
-						// Invalid cache, continue to fetch
-						console.warn("Invalid cache data, fetching fresh data");
-					}
-				}
 
 				const {
 					data: { session },
@@ -77,15 +56,6 @@ export function NoShowDistributionWidget() {
 				const data = await response.json();
 				const fetchedUsers = data.users || [];
 				setUsers(fetchedUsers);
-
-				// Cache the data
-				localStorage.setItem(
-					CACHE_KEY,
-					JSON.stringify({
-						data: fetchedUsers,
-						timestamp: Date.now(),
-					})
-				);
 			} catch (error) {
 				console.error("Error fetching no-show stats:", error);
 				setUsers([]);

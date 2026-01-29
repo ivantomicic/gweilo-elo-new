@@ -288,11 +288,11 @@ export default function HomePage() {
 
 							{/* Widget Grid */}
 							<Stack direction="column" spacing={4}>
-								{/* First Row: 3 widgets */}
-								<Box className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+								{/* First Row: 2 widgets on md, 3 on xl+ (min 325px per widget) */}
+								<Box className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
 									<Top3PlayersWidget />
 									<NoShowAlertWidget />
-									<Box className="hidden md:block">
+									<Box className="hidden xl:block">
 										<TableTennisGifWidget />
 									</Box>
 								</Box>
