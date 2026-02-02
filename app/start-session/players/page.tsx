@@ -37,6 +37,7 @@ function SelectPlayersPageContent() {
 	const [users, setUsers] = useState<User[]>([]);
 	const [loadingUsers, setLoadingUsers] = useState(true);
 	const [selectedPlayers, setSelectedPlayers] = useState<User[]>([]);
+	const [isStartingSession, setIsStartingSession] = useState(false);
 	
 	// Scroll indicators state
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -136,7 +137,7 @@ function SelectPlayersPageContent() {
 
 	// Redirect if invalid playerCount
 	useEffect(() => {
-		if (!playerCount || playerCount < 3 || playerCount > 6) {
+		if (!playerCount || playerCount < 2 || playerCount > 6) {
 			router.push("/start-session");
 		}
 	}, [playerCount, router]);
@@ -177,6 +178,73 @@ function SelectPlayersPageContent() {
 	};
 
 	const isComplete = selectedPlayers.length === maxSelections;
+	const isTwoPlayerSession = playerCount === 2;
+
+	const handleStartTwoPlayerSession = async () => {
+		if (!isTwoPlayerSession || !isComplete) return;
+		try {
+			setIsStartingSession(true);
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				console.error("Not authenticated");
+				return;
+			}
+
+			const sessionDateTime =
+				typeof window !== "undefined"
+					? sessionStorage.getItem("sessionDateTime")
+					: null;
+
+			const playersPayload = selectedPlayers.map((player) => ({
+				id: player.id,
+				name: player.name,
+				avatar: player.avatar,
+			}));
+
+			const rounds = [
+				{
+					id: "1",
+					roundNumber: 1,
+					matches: [
+						{
+							type: "singles",
+							players: [playersPayload[0], playersPayload[1]],
+						},
+					],
+				},
+			];
+
+			const response = await fetch("/api/sessions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${session.access_token}`,
+				},
+				body: JSON.stringify({
+					playerCount,
+					players: playersPayload,
+					rounds,
+					createdAt: sessionDateTime || undefined,
+				}),
+			});
+
+			if (!response.ok) {
+				const data = await response.json();
+				console.error("Failed to create session:", data.error);
+				return;
+			}
+
+			const data = await response.json();
+			router.push(`/session/${data.sessionId}`);
+		} catch (error) {
+			console.error("Error starting session:", error);
+		} finally {
+			setIsStartingSession(false);
+		}
+	};
 
 	return (
 		<SidebarProvider>
@@ -665,6 +733,11 @@ function SelectPlayersPageContent() {
 										disabled={!isComplete}
 										onClick={() => {
 											if (isComplete) {
+												if (isTwoPlayerSession) {
+													handleStartTwoPlayerSession();
+													return;
+												}
+
 												// Store selected players in sessionStorage
 												sessionStorage.setItem(
 													"selectedPlayers",
@@ -686,7 +759,9 @@ function SelectPlayersPageContent() {
 											spacing={2}
 										>
 											<span>
-												{t.startSession.continue}
+												{isTwoPlayerSession && isStartingSession
+													? "Kreiranje..."
+													: t.startSession.continue}
 											</span>
 											<Icon
 												icon="solar:arrow-right-linear"

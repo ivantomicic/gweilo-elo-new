@@ -38,6 +38,24 @@ type Round = {
 };
 
 /**
+ * Generate schedule for 2 players
+ *
+ * Single match between the two players
+ */
+const generateScheduleFor2Players = (players: Player[]): Round[] => {
+	if (players.length !== 2) return [];
+
+	const [A, B] = players;
+	return [
+		{
+			id: "1",
+			roundNumber: 1,
+			matches: [{ type: "singles", players: [A, B] }],
+		},
+	];
+};
+
+/**
  * Generate schedule for 3 players
  *
  * Round 1: Two random players play, third rests (not shown)
@@ -342,6 +360,10 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
  * Generate schedule based on player count
  */
 const generateSchedule = (players: Player[]): Round[] => {
+	if (players.length === 2) {
+		return generateScheduleFor2Players(players);
+	}
+
 	if (players.length === 3) {
 		return generateScheduleFor3Players(players);
 	}
@@ -442,7 +464,7 @@ function SchedulePageContent() {
 
 	// Redirect if invalid playerCount or no players
 	useEffect(() => {
-		if (!playerCount || playerCount < 3 || playerCount > 6) {
+		if (!playerCount || playerCount < 2 || playerCount > 6) {
 			router.push("/start-session");
 			return;
 		}
@@ -641,7 +663,7 @@ function SchedulePageContent() {
 
 	if (
 		!playerCount ||
-		playerCount < 3 ||
+		playerCount < 2 ||
 		playerCount > 6 ||
 		rounds.length === 0
 	) {
