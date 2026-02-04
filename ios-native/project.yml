@@ -1,0 +1,23 @@
+name: GweiloEloNative
+options:
+  bundleIdPrefix: com.gweiloelo
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  GweiloEloNative:
+    type: application
+    platform: iOS
+    sources:
+      - GweiloEloNative
+    settings:
+      base:
+        INFOPLIST_FILE: GweiloEloNative/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.gweiloelo.ios
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+    dependencies:
+      - package: Supabase
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: 2.0.0
