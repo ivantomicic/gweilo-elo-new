@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getAuthToken } from "../_utils/auth";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -47,15 +48,13 @@ type Round = {
 export async function POST(request: NextRequest) {
 	try {
 		// Get JWT token from Authorization header
-		const authHeader = request.headers.get("authorization");
-		if (!authHeader || !authHeader.startsWith("Bearer ")) {
+		const token = getAuthToken(request);
+		if (!token) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
 				{ status: 401 }
 			);
 		}
-
-		const token = authHeader.replace("Bearer ", "");
 
 		// Create Supabase client with user's JWT token (so RLS works correctly)
 		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {

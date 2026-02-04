@@ -20,6 +20,7 @@ enum APIClient {
 
     var request = URLRequest(url: url)
     request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue(session.accessToken, forHTTPHeaderField: "X-Supabase-Token")
     request.setValue("application/json", forHTTPHeaderField: "Accept")
     let debug = TokenDebug(from: session)
     return (request, debug)
