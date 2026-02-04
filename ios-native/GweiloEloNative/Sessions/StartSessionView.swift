@@ -200,8 +200,16 @@ final class StartSessionViewModel: ObservableObject {
       throw StartSessionError.missingApiBase
     }
 
-    guard let accessToken = SupabaseService.shared.client.auth.currentSession?.accessToken else {
-      throw StartSessionError.notAuthenticated
+    let supabase = SupabaseService.shared.client
+    let session: Session
+    do {
+      session = try await supabase.auth.refreshSession()
+    } catch {
+      if let current = supabase.auth.currentSession {
+        session = current
+      } else {
+        throw StartSessionError.notAuthenticated
+      }
     }
 
     let payload = StartSessionPayload(
@@ -215,7 +223,8 @@ final class StartSessionViewModel: ObservableObject {
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue(session.accessToken, forHTTPHeaderField: "X-Supabase-Token")
     request.httpBody = try JSONEncoder().encode(payload)
 
     let (data, response) = try await URLSession.shared.data(for: request)
@@ -224,7 +233,8 @@ final class StartSessionViewModel: ObservableObject {
     }
 
     if httpResponse.statusCode >= 300 {
-      throw StartSessionError.serverError
+      let body = String(data: data, encoding: .utf8) ?? ""
+      throw StartSessionError.serverError(status: httpResponse.statusCode, body: body)
     }
 
     let decoded = try JSONDecoder().decode(StartSessionResponse.self, from: data)
@@ -280,7 +290,7 @@ enum StartSessionError: LocalizedError {
   case missingApiBase
   case notAuthenticated
   case badResponse
-  case serverError
+  case serverError(status: Int, body: String)
 
   var errorDescription: String? {
     switch self {
@@ -290,8 +300,9 @@ enum StartSessionError: LocalizedError {
       return "Not authenticated"
     case .badResponse:
       return "Invalid response from server"
-    case .serverError:
-      return "Failed to create session"
+    case .serverError(let status, let body):
+      let message = body.isEmpty ? "Failed to create session" : body
+      return "Failed to create session (\(status)). \(message)"
     }
   }
 }

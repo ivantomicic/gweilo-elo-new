@@ -10,6 +10,8 @@ struct HomeView: View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 20) {
+          ActiveSessionBanner()
+
           Top3PlayersView()
 
           PerformanceTrendCard(

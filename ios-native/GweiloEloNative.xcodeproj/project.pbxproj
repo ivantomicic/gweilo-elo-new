@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -15,6 +15,7 @@
 		2E3530630F704DE7481FA5E9 /* GweiloEloNativeApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82E2AD62D74714AB696F79E /* GweiloEloNativeApp.swift */; };
 		2EA3C95E97A9DDE4109EAEB2 /* Top3PlayersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A43DAE5E8A1C1D03446607B7 /* Top3PlayersView.swift */; };
 		36A3FBF5D57700458330CFBF /* DesignTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF7C3987EC6B54547C230B2A /* DesignTokens.swift */; };
+		3F7704DE253FFB2C845B91A1 /* ActiveSessionBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 621E03FD7BA035C3C0AB2644 /* ActiveSessionBanner.swift */; };
 		54C181B416CAACC0FCC8A132 /* SupabaseConfig.plist in Resources */ = {isa = PBXBuildFile; fileRef = 82B3F62C3725F20B541CA06A /* SupabaseConfig.plist */; };
 		5E0B24C92CE3FDFBA1F9AFDE /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 617C467439E5AD5533AB666C /* SessionDetailView.swift */; };
 		653BCAA50D264C68C3ADB769 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 696DDB96574EB69C35C0B3A4 /* Assets.xcassets */; };
@@ -37,7 +38,7 @@
 
 /* Begin PBXFileReference section */
 		0726C64B5EC824EEA3121775 /* PerformanceTrendCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceTrendCard.swift; sourceTree = "<group>"; };
-		0E85B510B12BD0F42EBAA7C9 /* SupabaseConfig.plist.example */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = SupabaseConfig.plist.example; sourceTree = "<group>"; };
+		0E85B510B12BD0F42EBAA7C9 /* SupabaseConfig.plist.example */ = {isa = PBXFileReference; path = SupabaseConfig.plist.example; sourceTree = "<group>"; };
 		0FDABAE0E584B2A2B530E800 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
 		15F62C8C18F6BAA96E9E65C4 /* Haptics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Haptics.swift; sourceTree = "<group>"; };
 		295748C359414F40F1A64D87 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
@@ -47,6 +48,7 @@
 		4FC18F7DECB711852141A41C /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		508F981D013248715D36E03A /* StartSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartSessionView.swift; sourceTree = "<group>"; };
 		617C467439E5AD5533AB666C /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		621E03FD7BA035C3C0AB2644 /* ActiveSessionBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActiveSessionBanner.swift; sourceTree = "<group>"; };
 		634636DCE0F074FDF0DA5C45 /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		696DDB96574EB69C35C0B3A4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6C5C1213C8A6961E99FD8F94 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
@@ -55,7 +57,7 @@
 		9AAF7F95B328BF324C681FA7 /* UserRole.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRole.swift; sourceTree = "<group>"; };
 		9C3C6AA363E04413A07B972F /* PlayerDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDetailView.swift; sourceTree = "<group>"; };
 		A43DAE5E8A1C1D03446607B7 /* Top3PlayersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Top3PlayersView.swift; sourceTree = "<group>"; };
-		AE828936021258575CCD9553 /* GweiloEloNative.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GweiloEloNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AE828936021258575CCD9553 /* GweiloEloNative.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GweiloEloNative.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B1263B4F20F1822882D29C8F /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		C4827BCA4AA7A5181E42A404 /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
 		D82E2AD62D74714AB696F79E /* GweiloEloNativeApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloEloNativeApp.swift; sourceTree = "<group>"; };
@@ -99,6 +101,7 @@
 		5518C571A7E8D5190561C3E8 /* Home */ = {
 			isa = PBXGroup;
 			children = (
+				621E03FD7BA035C3C0AB2644 /* ActiveSessionBanner.swift */,
 				FFF1747620511F39F569FC4E /* HomeView.swift */,
 				A43DAE5E8A1C1D03446607B7 /* Top3PlayersView.swift */,
 			);
@@ -259,6 +262,7 @@
 			packageReferences = (
 				D4D84361E36C2BC8BC7E6F7D /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -286,6 +290,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0DA489F95DCEBB9A0AD2F3E6 /* APIClient.swift in Sources */,
+				3F7704DE253FFB2C845B91A1 /* ActiveSessionBanner.swift in Sources */,
 				002EF9F7ACA9BC550ECE756B /* AuthViewModel.swift in Sources */,
 				FBB2B1145FB2053725FDAF67 /* AvatarView.swift in Sources */,
 				36A3FBF5D57700458330CFBF /* DesignTokens.swift in Sources */,
@@ -319,7 +324,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				INFOPLIST_FILE = GweiloEloNative/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -457,7 +461,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				INFOPLIST_FILE = GweiloEloNative/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
