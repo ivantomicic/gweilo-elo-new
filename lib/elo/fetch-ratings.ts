@@ -91,30 +91,30 @@ export async function fetchPlayersWithRatings(
 		doublesRatings.map((r) => [r.player_id, typeof r.elo === 'string' ? parseFloat(r.elo) : Number(r.elo)])
 	);
 
-	// Combine profile data with ratings
-	const playersWithRatings: PlayerWithRatings[] = playerIds
-		.filter((id) => profilesMap.has(id))
-		.map((playerId) => {
-			const profile = profilesMap.get(playerId)!;
-			const displayName = profile.display_name || "User";
-			const avatar = profile.avatar_url || null;
-			const singlesElo = singlesMap.get(playerId) ?? 1500;
-			const doublesElo = includeDoublesElo ? (doublesMap.get(playerId) ?? 1500) : null;
+	// Combine profile data with ratings (fallback to defaults if profile missing)
+	const playersWithRatings: PlayerWithRatings[] = playerIds.map((playerId) => {
+		const profile = profilesMap.get(playerId);
+		const displayName = profile?.display_name || "User";
+		const avatar = profile?.avatar_url || null;
+		const singlesElo = singlesMap.get(playerId) ?? 1500;
+		const doublesElo = includeDoublesElo ? (doublesMap.get(playerId) ?? 1500) : null;
 
-			// Debug: Log if using default 1500
-			if (!singlesMap.has(playerId)) {
-				console.log(`[fetchPlayersWithRatings] No rating found for player ${playerId} (${displayName}), using default 1500`);
-			}
+		// Debug: Log if using default 1500 or missing profile
+		if (!singlesMap.has(playerId)) {
+			console.log(`[fetchPlayersWithRatings] No rating found for player ${playerId} (${displayName}), using default 1500`);
+		}
+		if (!profile) {
+			console.log(`[fetchPlayersWithRatings] No profile found for player ${playerId}, using fallback display name.`);
+		}
 
-			return {
-				player_id: playerId,
-				display_name: displayName,
-				avatar,
-				singles_elo: singlesElo,
-				doubles_elo: doublesElo,
-			};
-		});
+		return {
+			player_id: playerId,
+			display_name: displayName,
+			avatar,
+			singles_elo: singlesElo,
+			doubles_elo: doublesElo,
+		};
+	});
 
 	return playersWithRatings;
 }
-

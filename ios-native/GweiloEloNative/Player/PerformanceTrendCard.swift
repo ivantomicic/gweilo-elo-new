@@ -75,12 +75,12 @@ struct PerformanceTrendCard: View {
     let points = viewModel.filtered(primary: filter)
     let current = points.last?.elo ?? 1500
     let peak = points.map { $0.elo }.max() ?? current
-    let delta = (points.last?.elo ?? 1500) - (points.first?.elo ?? 1500)
+    let lowest = points.map { $0.elo }.min() ?? current
 
     return HStack(spacing: 16) {
       StatBlock(label: "Current", value: String(Int(current)))
       StatBlock(label: "Peak", value: String(Int(peak)))
-      StatBlock(label: "Δ", value: String(Int(delta)))
+      StatBlock(label: "Lowest", value: String(Int(lowest)))
     }
   }
 
@@ -334,13 +334,40 @@ private struct TooltipView: View {
   let point: EloPoint
 
   var body: some View {
+    let result: (String, Color, String) = {
+      if point.delta > 0 { return ("Win", .green, "checkmark.circle.fill") }
+      if point.delta < 0 { return ("Loss", .red, "xmark.circle.fill") }
+      return ("Draw", AppColors.muted, "minus.circle.fill")
+    }()
+
     VStack(alignment: .leading, spacing: 4) {
-      Text(point.opponent.isEmpty ? "Match" : point.opponent)
+      Text(point.sessionDate, style: .date)
+        .font(.caption2)
+        .foregroundStyle(AppColors.muted)
+      Text("Match #\(point.matchIndex)")
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(AppColors.muted)
+      Text(point.opponent.isEmpty ? "Opponent" : point.opponent)
         .font(.caption.weight(.semibold))
         .foregroundStyle(.white)
-      Text("ELO \(Int(point.elo))  \(point.delta >= 0 ? "+" : "")\(Int(point.delta))")
-        .font(.caption2)
-        .foregroundStyle(point.delta >= 0 ? Color.green : Color.red)
+
+      HStack(spacing: 6) {
+        Image(systemName: result.2)
+          .font(.caption)
+          .foregroundStyle(result.1)
+        Text(result.0)
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(result.1)
+      }
+
+      HStack(spacing: 8) {
+        Text("ELO \(Int(point.elo))")
+          .font(.caption2)
+          .foregroundStyle(.white)
+        Text("\(point.delta >= 0 ? "+" : "")\(Int(point.delta))")
+          .font(.caption2.weight(.semibold))
+          .foregroundStyle(point.delta >= 0 ? .green : .red)
+      }
     }
     .padding(.horizontal, 10)
     .padding(.vertical, 8)
