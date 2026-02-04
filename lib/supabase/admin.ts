@@ -52,7 +52,28 @@ export async function verifyUser(
 		return null;
 	}
 
-	const role = user.user_metadata?.role || "user";
+	const roleFromValue = (value: unknown): UserRole | null => {
+		if (value === "admin") return "admin";
+		if (value === "mod") return "mod";
+		return null;
+	};
+
+	const roleFromArray = (metadata?: Record<string, unknown>): UserRole | null => {
+		const roles = metadata?.roles;
+		if (Array.isArray(roles)) {
+			if (roles.includes("admin")) return "admin";
+			if (roles.includes("mod")) return "mod";
+		}
+		return null;
+	};
+
+	const role =
+		roleFromValue(user.user_metadata?.role) ||
+		roleFromValue(user.app_metadata?.role) ||
+		roleFromArray(user.user_metadata) ||
+		roleFromArray(user.app_metadata) ||
+		"user";
+
 	let validRole: UserRole = "user";
 	if (role === "admin") {
 		validRole = "admin";
