@@ -4,36 +4,19 @@ struct HomeView: View {
   @ObservedObject var auth: AuthViewModel
   @State private var isModOrAdmin = false
   @State private var showStartSession = false
+  @State private var progressRefreshID = UUID()
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(spacing: 20) {
-          if isModOrAdmin {
-            Button {
-              Haptics.tap()
-              showStartSession = true
-            } label: {
-              HStack {
-                Label("Start Session", systemImage: "plus.circle.fill")
-                  .font(.headline.weight(.semibold))
-                Spacer()
-                Image(systemName: "chevron.right")
-                  .foregroundStyle(AppColors.muted)
-              }
-              .padding(16)
-              .background(AppColors.card)
-              .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            }
-            .buttonStyle(.plain)
-          }
-
           Top3PlayersView()
 
           PerformanceTrendCard(
             playerId: nil,
             secondaryPlayerId: nil,
-            title: "Player Progress"
+            title: "Player Progress",
+            refreshID: progressRefreshID
           )
 
           if let session = auth.session {
@@ -58,8 +41,23 @@ struct HomeView: View {
         }
         .padding()
       }
+      .refreshable {
+        progressRefreshID = UUID()
+      }
       .background(AppColors.background)
       .navigationTitle("Home")
+      .toolbar {
+        if isModOrAdmin {
+          ToolbarItem(placement: .topBarTrailing) {
+            Button {
+              Haptics.tap()
+              showStartSession = true
+            } label: {
+              Label("Start Session", systemImage: "plus")
+            }
+          }
+        }
+      }
       .sheet(isPresented: $showStartSession) {
         StartSessionView { _ in
           showStartSession = false
