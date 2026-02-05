@@ -44,6 +44,11 @@ struct StartSessionView: View {
   private func startSessionAndClose() async {
     do {
       let sessionId = try await model.startSession()
+      if #available(iOS 16.1, *) {
+        let createdAt = ISO8601DateFormatter().string(from: model.sessionDate)
+        let liveSession = ActiveSession(id: sessionId, player_count: model.maxSelections, created_at: createdAt)
+        await SessionLiveActivityManager.shared.sync(with: liveSession)
+      }
       onCreated(sessionId)
       dismiss()
     } catch {

@@ -11,8 +11,6 @@ import SwiftUI
 @main
 struct GweiloEloLiveActivityBundle: WidgetBundle {
     var body: some Widget {
-        GweiloEloLiveActivity()
-        GweiloEloLiveActivityControl()
-        GweiloEloLiveActivityLiveActivity()
+        SessionLiveActivityWidget()
     }
 }

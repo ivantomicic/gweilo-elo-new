@@ -2,7 +2,7 @@ name: GweiloEloNative
 options:
   bundleIdPrefix: com.gweiloelo
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "16.1"
 targets:
   GweiloEloNative:
     type: application
@@ -17,6 +17,19 @@ targets:
         CURRENT_PROJECT_VERSION: 1
     dependencies:
       - package: Supabase
+      - target: GweiloEloLiveActivity
+        embed: true
+  GweiloEloLiveActivity:
+    type: app-extension
+    platform: iOS
+    productType: com.apple.product-type.widget-extension
+    sources:
+      - GweiloEloLiveActivity
+      - GweiloEloNative/Shared/SessionLiveActivityAttributes.swift
+    settings:
+      base:
+        INFOPLIST_FILE: GweiloEloLiveActivity/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.gweiloelo.ios.liveactivity
 packages:
   Supabase:
     url: https://github.com/supabase/supabase-swift

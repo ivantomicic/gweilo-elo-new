@@ -76,9 +76,4 @@ struct GweiloEloLiveActivity: Widget {
     }
 }
 
-#Preview(as: .systemSmall) {
-    GweiloEloLiveActivity()
-} timeline: {
-    SimpleEntry(date: .now, emoji: "😀")
-    SimpleEntry(date: .now, emoji: "🤩")
-}
+// Preview intentionally removed for iOS 16.x compatibility.

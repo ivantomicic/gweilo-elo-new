@@ -9,72 +9,75 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
-struct GweiloEloLiveActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
-        // Dynamic stateful properties about your activity go here!
-        var emoji: String
-    }
+struct SessionLiveActivityWidget: Widget {
+  var body: some WidgetConfiguration {
+    ActivityConfiguration(for: SessionLiveActivityAttributes.self) { context in
+      HStack(spacing: 12) {
+        Circle()
+          .fill(Color.green)
+          .frame(width: 10, height: 10)
+          .overlay(
+            Circle()
+              .stroke(Color.green.opacity(0.4), lineWidth: 6)
+              .opacity(0.6)
+          )
 
-    // Fixed non-changing properties about your activity go here!
-    var name: String
-}
-
-struct GweiloEloLiveActivityLiveActivity: Widget {
-    var body: some WidgetConfiguration {
-        ActivityConfiguration(for: GweiloEloLiveActivityAttributes.self) { context in
-            // Lock screen/banner UI goes here
-            VStack {
-                Text("Hello \(context.state.emoji)")
-            }
-            .activityBackgroundTint(Color.cyan)
-            .activitySystemActionForegroundColor(Color.black)
-
-        } dynamicIsland: { context in
-            DynamicIsland {
-                // Expanded UI goes here.  Compose the expanded UI through
-                // various regions, like leading/trailing/center/bottom
-                DynamicIslandExpandedRegion(.leading) {
-                    Text("Leading")
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text("Trailing")
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    Text("Bottom \(context.state.emoji)")
-                    // more content
-                }
-            } compactLeading: {
-                Text("L")
-            } compactTrailing: {
-                Text("T \(context.state.emoji)")
-            } minimal: {
-                Text(context.state.emoji)
-            }
-            .widgetURL(URL(string: "http://www.apple.com"))
-            .keylineTint(Color.red)
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Active session")
+            .font(.headline.weight(.semibold))
+          Text("\(context.attributes.playerCount) players • started \(context.attributes.startedAt, style: .relative)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
+
+        Spacer()
+
+        Text(context.state.status.uppercased())
+          .font(.caption2.weight(.bold))
+          .foregroundStyle(.white)
+          .padding(.horizontal, 8)
+          .padding(.vertical, 4)
+          .background(Color.green.opacity(0.8))
+          .clipShape(Capsule())
+      }
+      .padding()
+      .activityBackgroundTint(Color(.systemBackground))
+      .activitySystemActionForegroundColor(Color(.label))
+
+    } dynamicIsland: { context in
+      DynamicIsland {
+        DynamicIslandExpandedRegion(.leading) {
+          VStack(alignment: .leading, spacing: 2) {
+            Text("Session")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+            Text("\(context.attributes.playerCount) players")
+              .font(.caption.weight(.semibold))
+          }
+        }
+        DynamicIslandExpandedRegion(.trailing) {
+          Text("Live")
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.green)
+        }
+        DynamicIslandExpandedRegion(.bottom) {
+          Text("Started \(context.attributes.startedAt, style: .relative)")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+      } compactLeading: {
+        Text("\(context.attributes.playerCount)")
+          .font(.caption2.weight(.bold))
+      } compactTrailing: {
+        Image(systemName: "bolt.circle.fill")
+          .foregroundStyle(.green)
+      } minimal: {
+        Image(systemName: "bolt.fill")
+          .foregroundStyle(.green)
+      }
+      .keylineTint(Color.green)
     }
+  }
 }
 
-extension GweiloEloLiveActivityAttributes {
-    fileprivate static var preview: GweiloEloLiveActivityAttributes {
-        GweiloEloLiveActivityAttributes(name: "World")
-    }
-}
-
-extension GweiloEloLiveActivityAttributes.ContentState {
-    fileprivate static var smiley: GweiloEloLiveActivityAttributes.ContentState {
-        GweiloEloLiveActivityAttributes.ContentState(emoji: "😀")
-     }
-     
-     fileprivate static var starEyes: GweiloEloLiveActivityAttributes.ContentState {
-         GweiloEloLiveActivityAttributes.ContentState(emoji: "🤩")
-     }
-}
-
-#Preview("Notification", as: .content, using: GweiloEloLiveActivityAttributes.preview) {
-   GweiloEloLiveActivityLiveActivity()
-} contentStates: {
-    GweiloEloLiveActivityAttributes.ContentState.smiley
-    GweiloEloLiveActivityAttributes.ContentState.starEyes
-}
+// Preview intentionally removed for iOS 16.x compatibility.

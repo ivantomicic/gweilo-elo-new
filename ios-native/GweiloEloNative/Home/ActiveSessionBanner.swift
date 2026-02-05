@@ -122,6 +122,9 @@ final class ActiveSessionViewModel: ObservableObject {
     do {
       let session = try await fetchActiveSession()
       self.session = session
+      if #available(iOS 16.1, *) {
+        await SessionLiveActivityManager.shared.sync(with: session)
+      }
     } catch {
       self.session = nil
       errorMessage = error.localizedDescription
@@ -130,7 +133,7 @@ final class ActiveSessionViewModel: ObservableObject {
 
   private func fetchActiveSession() async throws -> ActiveSession? {
     let supabase = SupabaseService.shared.client
-    let session = try await supabase.auth.session
+    let session = try await supabase.auth.refreshSession()
 
     let url = SupabaseService.shared.apiBaseURL?.appendingPathComponent("api/sessions/active")
     guard let url else { throw ActiveSessionError.missingApiBase }
@@ -176,6 +179,10 @@ struct ActiveSession: Decodable, Identifiable {
   let id: UUID
   let player_count: Int
   let created_at: String
+
+  var startedAtDate: Date {
+    ISO8601DateFormatter().date(from: created_at) ?? Date()
+  }
 }
 
 private struct ActiveSessionResponse: Decodable {
