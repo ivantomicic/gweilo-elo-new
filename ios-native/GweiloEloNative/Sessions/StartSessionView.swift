@@ -730,8 +730,20 @@ final class StartSessionFlowModel: ObservableObject {
       request.setValue(session.accessToken, forHTTPHeaderField: "X-Supabase-Token")
 
       let (data, response) = try await URLSession.shared.data(for: request)
-      guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode < 300 else {
-        throw StartSessionError.serverError(status: (response as? HTTPURLResponse)?.statusCode ?? 500, body: String(data: data, encoding: .utf8) ?? "")
+      guard let httpResponse = response as? HTTPURLResponse else {
+        throw StartSessionError.badResponse
+      }
+      if httpResponse.statusCode >= 300 {
+        let body = String(data: data, encoding: .utf8) ?? ""
+        if httpResponse.statusCode == 401 {
+          if let debugInfo = try? await fetchDebugMe(apiBaseURL: apiBaseURL, token: session.accessToken) {
+            throw StartSessionError.serverError(
+              status: httpResponse.statusCode,
+              body: "\(body)\nDetected role: \(debugInfo.detectedRole)\nuser_metadata: \(debugInfo.userMetadataSummary)\napp_metadata: \(debugInfo.appMetadataSummary)"
+            )
+          }
+        }
+        throw StartSessionError.serverError(status: httpResponse.statusCode, body: body)
       }
 
       let decoded = try JSONDecoder().decode(AdminUsersResponse.self, from: data)
@@ -912,6 +924,19 @@ final class StartSessionFlowModel: ObservableObject {
     }
     return matchups
   }
+
+  private func fetchDebugMe(apiBaseURL: URL, token: String) async throws -> DebugMeResponse {
+    var request = URLRequest(url: apiBaseURL.appendingPathComponent("api/debug/me"))
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    request.setValue(token, forHTTPHeaderField: "X-Supabase-Token")
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode < 300 else {
+      throw StartSessionError.serverError(status: (response as? HTTPURLResponse)?.statusCode ?? 500, body: String(data: data, encoding: .utf8) ?? "")
+    }
+    return try JSONDecoder().decode(DebugMeResponse.self, from: data)
+  }
 }
 
 struct StartSessionPlayer: Identifiable, Hashable {
@@ -968,6 +993,64 @@ struct AdminUser: Decodable {
   let email: String
   let name: String
   let avatar: String?
+}
+
+private struct DebugMeResponse: Decodable {
+  let id: String
+  let email: String?
+  let detectedRole: String
+  let user_metadata: [String: JSONValue]?
+  let app_metadata: [String: JSONValue]?
+
+  var userMetadataSummary: String { summary(from: user_metadata) }
+  var appMetadataSummary: String { summary(from: app_metadata) }
+
+  private func summary(from dict: [String: JSONValue]?) -> String {
+    guard let dict else { return "{}" }
+    let pairs = dict.map { "\($0.key)=\($0.value.description)" }.sorted()
+    return "{ " + pairs.joined(separator: ", ") + " }"
+  }
+}
+
+private enum JSONValue: Decodable, CustomStringConvertible {
+  case string(String)
+  case number(Double)
+  case bool(Bool)
+  case array([JSONValue])
+  case object([String: JSONValue])
+  case null
+
+  var description: String {
+    switch self {
+    case .string(let value): return value
+    case .number(let value): return String(value)
+    case .bool(let value): return value ? "true" : "false"
+    case .array(let values): return "[" + values.map(\.description).joined(separator: ", ") + "]"
+    case .object(let values):
+      let pairs = values.map { "\($0.key)=\($0.value.description)" }.sorted()
+      return "{ " + pairs.joined(separator: ", ") + " }"
+    case .null: return "null"
+    }
+  }
+
+  init(from decoder: Decoder) throws {
+    let container = try decoder.singleValueContainer()
+    if container.decodeNil() {
+      self = .null
+    } else if let value = try? container.decode(Bool.self) {
+      self = .bool(value)
+    } else if let value = try? container.decode(Double.self) {
+      self = .number(value)
+    } else if let value = try? container.decode(String.self) {
+      self = .string(value)
+    } else if let value = try? container.decode([String: JSONValue].self) {
+      self = .object(value)
+    } else if let value = try? container.decode([JSONValue].self) {
+      self = .array(value)
+    } else {
+      self = .null
+    }
+  }
 }
 
 private struct PlayerRatingRow: Decodable {

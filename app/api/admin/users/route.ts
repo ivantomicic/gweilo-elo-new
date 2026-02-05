@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyModOrAdmin } from "@/lib/supabase/admin";
+import { getAuthToken } from "../../_utils/auth";
 
 /**
  * GET /api/admin/users
@@ -21,7 +22,8 @@ import { createAdminClient, verifyModOrAdmin } from "@/lib/supabase/admin";
 export async function GET(request: NextRequest) {
 	try {
 		// Verify admin or mod access
-		const authHeader = request.headers.get("authorization");
+		const token = getAuthToken(request);
+		const authHeader = token ? `Bearer ${token}` : null;
 		const userId = await verifyModOrAdmin(authHeader);
 
 		if (!userId) {
