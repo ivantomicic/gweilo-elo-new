@@ -719,7 +719,7 @@ final class StartSessionFlowModel: ObservableObject {
 
     do {
       let supabase = SupabaseService.shared.client
-      let session = try await supabase.auth.session
+      let session = try await supabase.auth.refreshSession()
 
       let apiBaseURL = SupabaseService.shared.apiBaseURL
       guard let apiBaseURL else { throw StartSessionError.missingApiBase }
