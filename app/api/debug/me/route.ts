@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getAuthToken } from "../_utils/auth";
+import { getAuthToken } from "../../_utils/auth";
 
 /**
  * GET /api/debug/me
