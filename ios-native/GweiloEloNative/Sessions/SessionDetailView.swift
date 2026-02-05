@@ -5,6 +5,7 @@ struct SessionDetailView: View {
   let sessionId: UUID
   @StateObject private var viewModel = SessionDetailViewModel()
   @State private var selection: SessionDetailSection = .overview
+  @State private var hasInitializedSelection = false
 
   var body: some View {
     VStack(spacing: 16) {
@@ -19,6 +20,9 @@ struct SessionDetailView: View {
       } else {
         Picker("Section", selection: $selection) {
           Text("Overview").tag(SessionDetailSection.overview)
+          if viewModel.isActiveSession {
+            Text("Live").tag(SessionDetailSection.live)
+          }
           Text("Matches").tag(SessionDetailSection.matches)
           Text("Players").tag(SessionDetailSection.players)
         }
@@ -30,6 +34,10 @@ struct SessionDetailView: View {
             if selection == .overview {
               SessionOverviewCard(summary: viewModel.summary)
               SessionHighlightsCard(summary: viewModel.summary)
+            }
+
+            if selection == .live {
+              LiveSessionView(viewModel: viewModel)
             }
 
             if selection == .matches {
@@ -53,6 +61,15 @@ struct SessionDetailView: View {
     .navigationTitle("Session")
     .task {
       await viewModel.load(sessionId: sessionId)
+    }
+    .onChange(of: viewModel.summary?.status) { newValue in
+      guard !hasInitializedSelection else { return }
+      if newValue == "active" {
+        selection = .live
+      } else {
+        selection = .overview
+      }
+      hasInitializedSelection = true
     }
   }
 }
@@ -254,8 +271,166 @@ private struct MatchRowView: View {
   }
 }
 
+private struct LiveSessionView: View {
+  @ObservedObject var viewModel: SessionDetailViewModel
+
+  var body: some View {
+    VStack(spacing: 16) {
+      if viewModel.roundNumbers.isEmpty {
+        Text("No rounds available yet.")
+          .font(.caption)
+          .foregroundStyle(AppColors.muted)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        RoundPicker(
+          roundNumbers: viewModel.roundNumbers,
+          selectedRound: $viewModel.currentRound
+        )
+
+        if let matches = viewModel.matchesByRound[viewModel.currentRound] {
+          VStack(spacing: 12) {
+            ForEach(matches) { match in
+              LiveMatchCard(match: match, viewModel: viewModel)
+            }
+          }
+        }
+
+        if let submitError = viewModel.submitError {
+          Text(submitError)
+            .font(.caption)
+            .foregroundStyle(.red)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+
+        Button(viewModel.isSubmitting ? "Submitting…" : "Submit Round") {
+          Haptics.tap()
+          Task { await viewModel.submitCurrentRound() }
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(!viewModel.canSubmitCurrentRound || viewModel.isSubmitting)
+      }
+    }
+    .padding(16)
+    .background(AppColors.card)
+    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+  }
+}
+
+private struct RoundPicker: View {
+  let roundNumbers: [Int]
+  @Binding var selectedRound: Int
+
+  var body: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 10) {
+        ForEach(roundNumbers, id: \.self) { round in
+          let isSelected = round == selectedRound
+          Button {
+            Haptics.tap()
+            selectedRound = round
+          } label: {
+            Text("Round \(round)")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(isSelected ? .white : AppColors.muted)
+              .padding(.horizontal, 12)
+              .padding(.vertical, 6)
+              .background(isSelected ? AppColors.primary : AppColors.card.opacity(0.6))
+              .clipShape(Capsule())
+          }
+          .buttonStyle(.plain)
+        }
+      }
+    }
+  }
+}
+
+private struct LiveMatchCard: View {
+  let match: SessionMatch
+  @ObservedObject var viewModel: SessionDetailViewModel
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 10) {
+      HStack {
+        Text(match.match_type.capitalized)
+          .font(.caption.weight(.bold))
+          .foregroundStyle(AppColors.muted)
+        Spacer()
+        if match.status == "completed" {
+          Text("Completed")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.green)
+        }
+      }
+
+      Text(viewModel.matchTitle(match))
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.white)
+
+      ScoreInputRow(match: match, viewModel: viewModel)
+
+      if let previews = viewModel.eloPreviews(for: match), !previews.isEmpty {
+        VStack(alignment: .leading, spacing: 4) {
+          ForEach(previews) { preview in
+            HStack {
+              Text(preview.label)
+                .font(.caption)
+                .foregroundStyle(AppColors.muted)
+              Spacer()
+              Text(preview.formattedDelta)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(preview.delta >= 0 ? .green : .red)
+            }
+          }
+        }
+        .padding(10)
+        .background(Color.white.opacity(0.04))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+      }
+    }
+    .padding(14)
+    .background(Color.white.opacity(0.03))
+    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+  }
+}
+
+private struct ScoreInputRow: View {
+  let match: SessionMatch
+  @ObservedObject var viewModel: SessionDetailViewModel
+
+  var body: some View {
+    HStack(spacing: 12) {
+      scoreField(
+        placeholder: "0",
+        text: viewModel.scoreBinding(matchId: match.id, team: 1),
+        disabled: match.status == "completed"
+      )
+
+      Text("-")
+        .foregroundStyle(AppColors.muted)
+
+      scoreField(
+        placeholder: "0",
+        text: viewModel.scoreBinding(matchId: match.id, team: 2),
+        disabled: match.status == "completed"
+      )
+    }
+  }
+
+  private func scoreField(placeholder: String, text: Binding<String>, disabled: Bool) -> some View {
+    TextField(placeholder, text: text)
+      .keyboardType(.numberPad)
+      .multilineTextAlignment(.center)
+      .frame(width: 56)
+      .padding(.vertical, 8)
+      .background(AppColors.card)
+      .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+      .disabled(disabled)
+  }
+}
+
 enum SessionDetailSection {
   case overview
+  case live
   case matches
   case players
 }
@@ -264,14 +439,38 @@ enum SessionDetailSection {
 final class SessionDetailViewModel: ObservableObject {
   @Published var summary: SessionDetailSummary?
   @Published var matches: [SessionMatch] = []
+  @Published var matchesByRound: [Int: [SessionMatch]] = [:]
+  @Published var roundNumbers: [Int] = []
+  @Published var currentRound: Int = 1
   @Published var players: [SessionPlayer] = []
   @Published var playerMap: [UUID: SessionPlayer] = [:]
+  @Published var scoreInputs: [UUID: MatchScoreInput] = [:]
+  @Published var isSubmitting = false
+  @Published var submitError: String?
   @Published var isLoading = false
   @Published var errorMessage: String?
 
+  private var activeSessionId: UUID?
+
+  var isActiveSession: Bool {
+    summary?.status == "active"
+  }
+
+  var canSubmitCurrentRound: Bool {
+    guard let matches = matchesByRound[currentRound], !matches.isEmpty else { return false }
+    guard matches.contains(where: { $0.status != "completed" }) else { return false }
+    return matches.allSatisfy { match in
+      guard match.status != "completed" else { return true }
+      guard let input = scoreInputs[match.id] else { return false }
+      return input.team1Value != nil && input.team2Value != nil
+    }
+  }
+
   func load(sessionId: UUID) async {
+    activeSessionId = sessionId
     isLoading = true
     errorMessage = nil
+    submitError = nil
 
     do {
       let supabase = SupabaseService.shared.client
@@ -295,33 +494,7 @@ final class SessionDetailViewModel: ObservableObject {
         .execute()
         .value
 
-      let playerRows: [SessionPlayerRowDB] = try await supabase
-        .from("session_players")
-        .select("id, player_id, team")
-        .eq("session_id", value: sessionId.uuidString)
-        .execute()
-        .value
-
-      let playerIds = playerRows.map { $0.player_id }
-      let profiles: [ProfileRow] = try await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", values: playerIds.map { $0.uuidString })
-        .execute()
-        .value
-
-      let profileMap = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
-
-      players = playerRows.map { row in
-        let profile = profileMap[row.player_id]
-        return SessionPlayer(
-          id: row.player_id,
-          displayName: profile?.display_name ?? "User",
-          avatarURL: profile?.avatar_url.flatMap(URL.init(string:)),
-          team: row.team
-        )
-      }
-
+      players = try await fetchPlayers(sessionId: sessionId)
       playerMap = Dictionary(uniqueKeysWithValues: players.map { ($0.id, $0) })
 
       let singlesCount = matchesRows.filter { $0.match_type == "singles" && $0.status == "completed" }.count
@@ -338,11 +511,228 @@ final class SessionDetailViewModel: ObservableObject {
       )
 
       matches = matchesRows
+      matchesByRound = Dictionary(grouping: matchesRows) { $0.round_number ?? 0 }
+      roundNumbers = matchesByRound.keys.filter { $0 > 0 }.sorted()
+      setInitialRound()
+      initializeScoreInputs()
       isLoading = false
     } catch {
       isLoading = false
-      errorMessage = "Failed to load session."
+      errorMessage = "Failed to load session. \(error.localizedDescription)"
     }
+  }
+
+  func scoreBinding(matchId: UUID, team: Int) -> Binding<String> {
+    Binding<String>(
+      get: {
+        if let input = self.scoreInputs[matchId] {
+          return team == 1 ? input.team1 : input.team2
+        }
+        return ""
+      },
+      set: { newValue in
+        self.updateScore(matchId: matchId, team: team, value: newValue)
+      }
+    )
+  }
+
+  func matchTitle(_ match: SessionMatch) -> String {
+    guard !match.player_ids.isEmpty else { return "Match" }
+
+    if match.match_type == "singles", match.player_ids.count >= 2 {
+      let p1 = playerMap[match.player_ids[0]]?.displayName ?? "Player"
+      let p2 = playerMap[match.player_ids[1]]?.displayName ?? "Player"
+      return "\(p1) vs \(p2)"
+    }
+
+    if match.match_type == "doubles", match.player_ids.count >= 4 {
+      let p1 = playerMap[match.player_ids[0]]?.displayName ?? "P1"
+      let p2 = playerMap[match.player_ids[1]]?.displayName ?? "P2"
+      let p3 = playerMap[match.player_ids[2]]?.displayName ?? "P3"
+      let p4 = playerMap[match.player_ids[3]]?.displayName ?? "P4"
+      return "\(p1) & \(p2) vs \(p3) & \(p4)"
+    }
+
+    return "Match"
+  }
+
+  func eloPreviews(for match: SessionMatch) -> [EloPreview]? {
+    guard let input = scoreInputs[match.id],
+          let team1Score = input.team1Value,
+          let team2Score = input.team2Value else {
+      return nil
+    }
+
+    if match.match_type == "singles", match.player_ids.count >= 2 {
+      let p1Id = match.player_ids[0]
+      let p2Id = match.player_ids[1]
+      let p1 = playerMap[p1Id]
+      let p2 = playerMap[p2Id]
+      let p1Elo = p1?.elo ?? 1500
+      let p2Elo = p2?.elo ?? 1500
+      let p1Matches = p1?.matchCount ?? 0
+      let p2Matches = p2?.matchCount ?? 0
+
+      let p1Outcome = outcome(team1: team1Score, team2: team2Score, isTeam1: true)
+      let p2Outcome = outcome(team1: team1Score, team2: team2Score, isTeam1: false)
+
+      let p1Delta = calculateEloChange(playerElo: p1Elo, opponentElo: p2Elo, outcome: p1Outcome, matchCount: p1Matches)
+      let p2Delta = calculateEloChange(playerElo: p2Elo, opponentElo: p1Elo, outcome: p2Outcome, matchCount: p2Matches)
+
+      return [
+        EloPreview(label: p1?.displayName ?? "Player 1", delta: p1Delta),
+        EloPreview(label: p2?.displayName ?? "Player 2", delta: p2Delta)
+      ]
+    }
+
+    if match.match_type == "doubles", match.player_ids.count >= 4 {
+      let team1Players = match.player_ids.prefix(2).compactMap { playerMap[$0] }
+      let team2Players = match.player_ids.suffix(2).compactMap { playerMap[$0] }
+
+      let team1Avg = averageElo(team1Players.map { $0.doublesElo ?? 1500 })
+      let team2Avg = averageElo(team2Players.map { $0.doublesElo ?? 1500 })
+
+      let team1Outcome = outcome(team1: team1Score, team2: team2Score, isTeam1: true)
+      let team2Outcome = outcome(team1: team1Score, team2: team2Score, isTeam1: false)
+
+      let team1Delta = calculateEloChange(playerElo: team1Avg, opponentElo: team2Avg, outcome: team1Outcome, matchCount: 0)
+      let team2Delta = calculateEloChange(playerElo: team2Avg, opponentElo: team1Avg, outcome: team2Outcome, matchCount: 0)
+
+      let team1Name = team1Players.map { $0.displayName }.joined(separator: " & ")
+      let team2Name = team2Players.map { $0.displayName }.joined(separator: " & ")
+
+      return [
+        EloPreview(label: team1Name.isEmpty ? "Team 1" : team1Name, delta: team1Delta),
+        EloPreview(label: team2Name.isEmpty ? "Team 2" : team2Name, delta: team2Delta)
+      ]
+    }
+
+    return nil
+  }
+
+  func submitCurrentRound() async {
+    guard let sessionId = activeSessionId else { return }
+    guard let matches = matchesByRound[currentRound], !matches.isEmpty else { return }
+    guard canSubmitCurrentRound else { return }
+
+    submitError = nil
+    isSubmitting = true
+
+    do {
+      let scores = matches.compactMap { match -> [String: Any]? in
+        guard let input = scoreInputs[match.id],
+              let team1 = input.team1Value,
+              let team2 = input.team2Value else { return nil }
+        return [
+          "matchId": match.id.uuidString,
+          "team1Score": team1,
+          "team2Score": team2
+        ]
+      }
+
+      let supabase = SupabaseService.shared.client
+      let session = try await supabase.auth.refreshSession()
+      guard let apiBaseURL = SupabaseService.shared.apiBaseURL else {
+        throw SessionSubmitError.missingApiBase
+      }
+
+      var request = URLRequest(url: apiBaseURL.appendingPathComponent("api/sessions/\(sessionId.uuidString)/rounds/\(currentRound)/submit"))
+      request.httpMethod = "POST"
+      request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+      request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+      request.setValue(session.accessToken, forHTTPHeaderField: "X-Supabase-Token")
+      request.httpBody = try JSONSerialization.data(withJSONObject: ["matchScores": scores], options: [])
+
+      let (data, response) = try await URLSession.shared.data(for: request)
+      guard let httpResponse = response as? HTTPURLResponse else {
+        throw SessionSubmitError.badResponse
+      }
+      if httpResponse.statusCode >= 300 {
+        let body = String(data: data, encoding: .utf8) ?? ""
+        throw SessionSubmitError.server(status: httpResponse.statusCode, body: body)
+      }
+
+      await load(sessionId: sessionId)
+    } catch {
+      submitError = error.localizedDescription
+    }
+
+    isSubmitting = false
+  }
+
+  private func fetchPlayers(sessionId: UUID) async throws -> [SessionPlayer] {
+    guard let apiBaseURL = SupabaseService.shared.apiBaseURL else {
+      throw SessionSubmitError.missingApiBase
+    }
+
+    let supabase = SupabaseService.shared.client
+    let session = try await supabase.auth.refreshSession()
+
+    var request = URLRequest(url: apiBaseURL.appendingPathComponent("api/sessions/\(sessionId.uuidString)/players"))
+    request.httpMethod = "GET"
+    request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
+    request.setValue(session.accessToken, forHTTPHeaderField: "X-Supabase-Token")
+
+    let (data, response) = try await URLSession.shared.data(for: request)
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw SessionSubmitError.badResponse
+    }
+    if httpResponse.statusCode >= 300 {
+      let body = String(data: data, encoding: .utf8) ?? ""
+      throw SessionSubmitError.server(status: httpResponse.statusCode, body: body)
+    }
+
+    let decoded = try JSONDecoder().decode(SessionPlayersResponse.self, from: data)
+    return decoded.players.map {
+      SessionPlayer(
+        id: $0.id,
+        sessionPlayerId: $0.sessionPlayerId,
+        displayName: $0.name,
+        avatarURL: $0.avatar.flatMap(URL.init(string:)),
+        team: $0.team,
+        elo: $0.elo,
+        doublesElo: $0.doublesElo,
+        matchCount: $0.matchCount
+      )
+    }
+  }
+
+  private func setInitialRound() {
+    if let pendingRound = roundNumbers.first(where: { round in
+      matchesByRound[round]?.contains(where: { $0.status != "completed" }) == true
+    }) {
+      currentRound = pendingRound
+    } else if let last = roundNumbers.last {
+      currentRound = last
+    } else {
+      currentRound = 1
+    }
+  }
+
+  private func initializeScoreInputs() {
+    var inputs: [UUID: MatchScoreInput] = [:]
+    for match in matches {
+      var input = MatchScoreInput()
+      if let team1 = match.team1_score {
+        input.team1 = String(team1)
+      }
+      if let team2 = match.team2_score {
+        input.team2 = String(team2)
+      }
+      inputs[match.id] = input
+    }
+    scoreInputs = inputs
+  }
+
+  private func updateScore(matchId: UUID, team: Int, value: String) {
+    var input = scoreInputs[matchId] ?? MatchScoreInput()
+    let sanitized = value.filter { $0.isNumber }
+    if team == 1 {
+      input.team1 = sanitized
+    } else {
+      input.team2 = sanitized
+    }
+    scoreInputs[matchId] = input
   }
 
   private func formatBadge(name: String?, delta: Double?, prefix: String) -> String? {
@@ -363,9 +753,13 @@ struct SessionDetailSummary {
 
 struct SessionPlayer: Identifiable, Hashable {
   let id: UUID
+  let sessionPlayerId: UUID
   let displayName: String
   let avatarURL: URL?
   let team: String?
+  let elo: Int?
+  let doublesElo: Int?
+  let matchCount: Int?
 }
 
 struct SessionMatch: Identifiable, Decodable {
@@ -396,14 +790,97 @@ private struct SessionRow: Decodable {
   let worst_player_delta: Double?
 }
 
-private struct SessionPlayerRowDB: Decodable {
-  let id: UUID
-  let player_id: UUID
-  let team: String?
+private struct SessionPlayersResponse: Decodable {
+  let players: [SessionPlayerAPI]
 }
 
-private struct ProfileRow: Decodable {
+private struct SessionPlayerAPI: Decodable {
   let id: UUID
-  let display_name: String?
-  let avatar_url: String?
+  let sessionPlayerId: UUID
+  let team: String?
+  let name: String
+  let avatar: String?
+  let elo: Int?
+  let doublesElo: Int?
+  let matchCount: Int?
+}
+
+struct MatchScoreInput: Hashable {
+  var team1: String = ""
+  var team2: String = ""
+
+  var team1Value: Int? { Int(team1) }
+  var team2Value: Int? { Int(team2) }
+}
+
+struct EloPreview: Identifiable {
+  let id = UUID()
+  let label: String
+  let delta: Double
+
+  var formattedDelta: String {
+    let rounded = Int(delta.rounded())
+    return rounded >= 0 ? "+\(rounded)" : "\(rounded)"
+  }
+}
+
+private enum SessionSubmitError: LocalizedError {
+  case missingApiBase
+  case badResponse
+  case server(status: Int, body: String)
+
+  var errorDescription: String? {
+    switch self {
+    case .missingApiBase:
+      return "Missing API base URL"
+    case .badResponse:
+      return "Invalid response"
+    case .server(let status, let body):
+      let message = body.isEmpty ? "Failed to submit round" : body
+      return "Submit failed (\(status)). \(message)"
+    }
+  }
+}
+
+private enum EloOutcome {
+  case win
+  case loss
+  case draw
+}
+
+private func outcome(team1: Int, team2: Int, isTeam1: Bool) -> EloOutcome {
+  if team1 == team2 { return .draw }
+  if isTeam1 { return team1 > team2 ? .win : .loss }
+  return team2 > team1 ? .win : .loss
+}
+
+private func calculateKFactor(matchCount: Int) -> Double {
+  if matchCount < 10 { return 40 }
+  if matchCount < 40 { return 32 }
+  return 24
+}
+
+private func expectedScore(playerElo: Double, opponentElo: Double) -> Double {
+  1 / (1 + pow(10, (opponentElo - playerElo) / 400))
+}
+
+private func actualScore(outcome: EloOutcome) -> Double {
+  switch outcome {
+  case .win: return 1.0
+  case .loss: return 0.0
+  case .draw: return 0.5
+  }
+}
+
+private func calculateEloChange(playerElo: Int, opponentElo: Int, outcome: EloOutcome, matchCount: Int) -> Double {
+  let k = calculateKFactor(matchCount: matchCount)
+  let expected = expectedScore(playerElo: Double(playerElo), opponentElo: Double(opponentElo))
+  let actual = actualScore(outcome: outcome)
+  return k * (actual - expected)
+}
+
+private func averageElo(_ elos: [Int]) -> Int {
+  guard !elos.isEmpty else { return 1500 }
+  let total = elos.reduce(0, +)
+  return Int(round(Double(total) / Double(elos.count)))
 }

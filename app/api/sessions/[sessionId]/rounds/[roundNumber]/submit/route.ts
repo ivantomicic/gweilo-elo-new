@@ -5,6 +5,7 @@ import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
 import { createEloSnapshots } from "@/lib/elo/snapshots";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
+import { getAuthToken } from "../../../../../_utils/auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -47,15 +48,14 @@ export async function POST(
 	const adminClient = createAdminClient();
 
 	try {
-		const authHeader = request.headers.get("authorization");
-		if (!authHeader || !authHeader.startsWith("Bearer ")) {
+		const token = getAuthToken(request);
+		if (!token) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
 				{ status: 401 },
 			);
 		}
 
-		const token = authHeader.replace("Bearer ", "");
 		const sessionId = params.sessionId;
 		const roundNumber = params.roundNumber;
 

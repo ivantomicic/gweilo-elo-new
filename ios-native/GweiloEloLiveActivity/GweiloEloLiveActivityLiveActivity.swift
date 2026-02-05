@@ -41,6 +41,7 @@ struct SessionLiveActivityWidget: Widget {
           .clipShape(Capsule())
       }
       .padding()
+      .widgetURL(sessionURL(context.attributes.sessionId))
       .activityBackgroundTint(Color(.systemBackground))
       .activitySystemActionForegroundColor(Color(.label))
 
@@ -75,8 +76,17 @@ struct SessionLiveActivityWidget: Widget {
         Image(systemName: "bolt.fill")
           .foregroundStyle(.green)
       }
+      .widgetURL(sessionURL(context.attributes.sessionId))
       .keylineTint(Color.green)
     }
+  }
+
+  private func sessionURL(_ sessionId: String) -> URL? {
+    var components = URLComponents()
+    components.scheme = "gweiloelo"
+    components.host = "session"
+    components.path = "/\(sessionId)"
+    return components.url
   }
 }
 

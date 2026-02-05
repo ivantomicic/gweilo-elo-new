@@ -101,9 +101,7 @@ export async function verifyAdmin(
 		return null;
 	}
 	return result.userId;
-}
-
-/**
+}/**
  * Verify that the requesting user is a mod or admin
  *
  * Mods can start sessions and record results.

@@ -427,6 +427,7 @@
 		2E25F4F07B433A99DF55138D /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				INFOPLIST_FILE = GweiloEloLiveActivity/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -434,6 +435,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gweiloelo.ios.liveactivity;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -462,6 +464,7 @@
 		4F84B4A62C15A430D13AF0CF /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				INFOPLIST_FILE = GweiloEloLiveActivity/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -469,6 +472,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.gweiloelo.ios.liveactivity;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -3,6 +3,7 @@ import SwiftUI
 struct RootView: View {
   @StateObject private var auth = AuthViewModel()
   @State private var tabSelection: AppTab = .home
+  @State private var sessionLink: SessionLink?
 
   var body: some View {
     Group {
@@ -45,8 +46,30 @@ struct RootView: View {
         .onChange(of: tabSelection) { _ in
           Haptics.tap()
         }
+        .onOpenURL { url in
+          if let sessionId = SessionLink.sessionId(from: url) {
+            tabSelection = .sessions
+            sessionLink = SessionLink(id: sessionId)
+          }
+        }
+        .sheet(item: $sessionLink) { link in
+          NavigationStack {
+            SessionDetailView(sessionId: link.id)
+          }
+        }
       }
     }
+  }
+}
+
+private struct SessionLink: Identifiable {
+  let id: UUID
+
+  static func sessionId(from url: URL) -> UUID? {
+    guard url.scheme == "gweiloelo" else { return nil }
+    guard url.host == "session" else { return nil }
+    let path = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    return UUID(uuidString: path)
   }
 }
 

@@ -4,6 +4,17 @@
 <dict>
 	<key>CFBundleDisplayName</key>
 	<string>GweiloElo</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.gweiloelo.ios</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>gweiloelo</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
