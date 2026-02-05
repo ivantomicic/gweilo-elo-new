@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
 import { createEloSnapshots } from "@/lib/elo/snapshots";
@@ -7,12 +6,6 @@ import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
 import { getAuthToken } from "../../../../../_utils/auth";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-	throw new Error("Missing Supabase environment variables");
-}
 
 type MatchScore = {
 	matchId: string;
@@ -75,36 +68,24 @@ export async function POST(
 			);
 		}
 
-		if (!supabaseUrl || !supabaseAnonKey) {
-			return NextResponse.json(
-				{ error: "Missing Supabase environment variables" },
-				{ status: 500 },
-			);
-		}
-
-		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
-			global: {
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			},
-		});
-
-		// Verify user is authenticated
+		// Verify user is authenticated (admin client validates the JWT)
 		const {
 			data: { user },
 			error: userError,
-		} = await supabase.auth.getUser(token);
+		} = await adminClient.auth.getUser(token);
 
 		if (userError || !user) {
 			return NextResponse.json(
-				{ error: "Unauthorized. Authentication required." },
+				{
+					error: "Unauthorized. Authentication required.",
+					detail: userError?.message || "Invalid token",
+				},
 				{ status: 401 },
 			);
 		}
 
 		// Verify user owns the session and check status
-		const { data: session, error: sessionError } = await supabase
+		const { data: session, error: sessionError } = await adminClient
 			.from("sessions")
 			.select("created_by, status")
 			.eq("id", sessionId)
