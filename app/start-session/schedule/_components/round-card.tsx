@@ -24,6 +24,10 @@ type RoundCardProps = {
 	restingPlayers?: Player[];
 	isActive?: boolean;
 	isDynamic?: boolean; // Indicates this round will be determined dynamically
+	dynamicNote?: {
+		title: string;
+		description: string;
+	};
 	isShuffling?: boolean;
 	shuffleKey?: number;
 };
@@ -34,9 +38,19 @@ export function RoundCard({
 	restingPlayers,
 	isActive = false,
 	isDynamic = false,
+	dynamicNote,
 	isShuffling = false,
 	shuffleKey = 0,
 }: RoundCardProps) {
+	const dynamicTitle =
+		dynamicNote?.title ??
+		`Schedule will be determined after Round ${roundNumber - 1} is completed.`;
+	const dynamicDescription =
+		dynamicNote?.description ??
+		`Winners from Round ${roundNumber - 1} doubles will stay in doubles and play against players from Round ${
+			roundNumber - 1
+		} singles.`;
+
 	return (
 		<Stack direction="row" spacing={4} className="relative z-10">
 			{/* Round number indicator */}
@@ -84,20 +98,16 @@ export function RoundCard({
 
 				{/* Matches */}
 				<Stack direction="column" spacing={3}>
-					{isDynamic ? (
-						<>
-							<Box className="text-sm text-muted-foreground py-2 space-y-1">
-								<p className="font-medium text-foreground/80">
-									Schedule will be determined after Round{" "}
-									{roundNumber - 1} is completed.
-								</p>
-								<p className="text-xs">
-									Winners from Round {roundNumber - 1} doubles
-									will stay in doubles and play against
-									players from Round {roundNumber - 1}{" "}
-									singles.
-								</p>
-							</Box>
+						{isDynamic ? (
+							<>
+								<Box className="text-sm text-muted-foreground py-2 space-y-1">
+									<p className="font-medium text-foreground/80">
+										{dynamicTitle}
+									</p>
+									<p className="text-xs">
+										{dynamicDescription}
+									</p>
+								</Box>
 							{/* Show placeholder matches for reference */}
 							<Box className="opacity-50">
 								{matches.map((match, index) => (

@@ -530,6 +530,68 @@ export async function POST(
 								.eq("id", round6SinglesMatch.id);
 						}
 					}
+
+					// Fetch Round 7 matches to update
+					const { data: round7Matches, error: round7Error } =
+						await adminClient
+							.from("session_matches")
+							.select("*")
+							.eq("session_id", sessionId)
+							.eq("round_number", 7)
+							.order("match_order", { ascending: true });
+
+					if (
+						!round7Error &&
+						round7Matches &&
+						round7Matches.length > 0
+					) {
+						const round7DoublesMatch = round7Matches.find(
+							(m) => m.match_type === "doubles",
+						);
+						const round7SinglesMatch = round7Matches.find(
+							(m) => m.match_type === "singles",
+						);
+
+						if (round7DoublesMatch) {
+							// Update doubles match: losers from Round 5 doubles + players from Round 5 singles
+							const newDoublesPlayerIds = [
+								...doublesLosers,
+								...singlesPlayerIds,
+							];
+
+							// Team 1: losers from Round 5 doubles
+							// Team 2: players from Round 5 singles
+							const team1Id = await getOrCreateDoubleTeam(
+								doublesLosers[0],
+								doublesLosers[1],
+							);
+							const team2Id = await getOrCreateDoubleTeam(
+								singlesPlayerIds[0],
+								singlesPlayerIds[1],
+							);
+
+							await adminClient
+								.from("session_matches")
+								.update({
+									player_ids: newDoublesPlayerIds,
+									team_1_id: team1Id,
+									team_2_id: team2Id,
+								})
+								.eq("id", round7DoublesMatch.id);
+						}
+
+						if (round7SinglesMatch) {
+							// Update singles match: winners from Round 5 doubles
+							await adminClient
+								.from("session_matches")
+								.update({
+									player_ids: doublesWinners,
+									team_1_id: null,
+									team_2_id: null,
+								})
+								.eq("id", round7SinglesMatch.id);
+						}
+					}
 				}
 			}
 		}

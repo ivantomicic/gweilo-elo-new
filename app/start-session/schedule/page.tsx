@@ -35,6 +35,10 @@ type Round = {
 	matches: Match[];
 	restingPlayers?: Player[];
 	isDynamic?: boolean; // Flag to indicate this round will be updated dynamically
+	dynamicNote?: {
+		title: string;
+		description: string;
+	};
 };
 
 /**
@@ -343,14 +347,21 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
 		isDynamic: true, // Flag to indicate this round will be updated dynamically
 	});
 
-	// Round 7: Team A vs Team C (doubles), Team B internal (singles)
+	// Round 7: Dynamically determined after Round 5
+	// Doubles losers vs Round 5 singles, doubles winners play singles
 	rounds.push({
 		id: "7",
 		roundNumber: 7,
 		matches: [
-			{ type: "doubles", players: [A, B, E, F] }, // Team A vs Team C
-			{ type: "singles", players: [C, D] }, // Team B internal
+			{ type: "doubles", players: [C, D, E, F] }, // Placeholder - will be updated dynamically
+			{ type: "singles", players: [A, B] }, // Placeholder - will be updated dynamically
 		],
+		isDynamic: true,
+		dynamicNote: {
+			title: "Schedule will be determined after Round 5 is completed.",
+			description:
+				"Round 5 doubles winners will play singles, and doubles losers will play doubles against Round 5 singles.",
+		},
 	});
 
 	return rounds;
@@ -722,6 +733,7 @@ function SchedulePageContent() {
 											restingPlayers={round.restingPlayers}
 											isActive={index === 0}
 											isDynamic={round.isDynamic}
+											dynamicNote={round.dynamicNote}
 											isShuffling={isShuffling}
 											shuffleKey={scheduleKey}
 										/>
