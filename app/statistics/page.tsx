@@ -306,6 +306,22 @@ function StatisticsPageContent() {
 											? statistics.doublesPlayers
 											: statistics.doublesTeams;
 
+									const minMatches =
+										activeView === "singles"
+											? 15
+											: activeView === "doubles_player"
+											? 6
+											: null;
+
+									const filteredData =
+										minMatches === null
+											? currentData
+											: currentData.filter(
+													(item) =>
+														"matches_played" in item &&
+														item.matches_played >= minMatches,
+											  );
+
 									// Show loading state for current view if data is not loaded yet
 									if (currentViewLoading && currentData.length === 0) {
 										return (
@@ -376,7 +392,7 @@ function StatisticsPageContent() {
 													</TableRow>
 												</TableHeader>
 												<TableBody>
-													{currentData.map(
+													{filteredData.map(
 														(item, index) => {
 															const isTeam =
 																"team_id" in
