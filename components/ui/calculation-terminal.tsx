@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useId } from "react";
+import { useCallback, useEffect, useRef, useState, useId } from "react";
 import { Box } from "./box";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -44,11 +44,11 @@ export function CalculationTerminal({
 	const lineIdCounter = useRef(0);
 	const instanceId = useId();
 
-	// Generate stable ID for lines
-	const generateLineId = () => {
+	// Generate stable ID for lines (stable refs/useId, no deps needed)
+	const generateLineId = useCallback(() => {
 		lineIdCounter.current += 1;
 		return `${instanceId}-line-${lineIdCounter.current}`;
-	};
+	}, [instanceId]);
 
 	// Entrance animation
 	useEffect(() => {
@@ -125,7 +125,7 @@ export function CalculationTerminal({
 			setCurrentLineIndex((i) => i + 1);
 		}, lineEndDelay);
 		return () => clearTimeout(timer);
-	}, [currentLineIndex, currentTypingLine, currentTypingText, lines, isComplete, onComplete]);
+	}, [currentLineIndex, currentTypingLine, currentTypingText, lines, isComplete, onComplete, generateLineId]);
 
 	// Auto-scroll to bottom
 	useEffect(() => {

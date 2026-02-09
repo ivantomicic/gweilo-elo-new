@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 
@@ -68,10 +69,12 @@ export function TableTennisGifWidget({
 	return (
 		<Box className="bg-card rounded-[24px] border border-border/50 aspect-[7/5] overflow-hidden relative">
 			{gifUrl && (
-				<img
+				<Image
 					src={gifUrl}
 					alt="Table tennis"
-					className="absolute inset-0 w-full h-full object-cover"
+					fill
+					className="object-cover"
+					unoptimized
 				/>
 			)}
 		</Box>

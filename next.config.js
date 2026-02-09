@@ -20,6 +20,11 @@ const nextConfig = {
         hostname: 'img.youtube.com',
         pathname: '/vi/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'media.giphy.com',
+        pathname: '/media/**',
+      },
     ],
   },
 }

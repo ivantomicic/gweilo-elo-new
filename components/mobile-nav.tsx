@@ -163,7 +163,7 @@ export function MobileNav() {
 								animate={{ opacity: 1, y: 0, scale: 1 }}
 								exit={
 									shouldReduceMotion
-										? false
+										? undefined
 										: { opacity: 0, y: 10, scale: 0.95 }
 								}
 								transition={{ duration: 0.2 }}

@@ -203,7 +203,7 @@ function StatisticsPageContent() {
 		} finally {
 			setLoading((prev) => ({ ...prev, [viewKey]: false }));
 		}
-	}, []);
+	}, [loaded]);
 
 	// Load initial statistics for active view
 	useEffect(() => {
@@ -380,7 +380,7 @@ function StatisticsPageContent() {
 												animate={{ opacity: 1, y: 0 }}
 												exit={
 													shouldReduceMotion
-														? false
+														? undefined
 														: { opacity: 0, y: -6 }
 												}
 												transition={tableContentTransition}
