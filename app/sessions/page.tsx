@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useAuth } from "@/lib/auth/useAuth";
 import { Stack } from "@/components/ui/stack";
@@ -11,6 +11,11 @@ import { createClient } from "@supabase/supabase-js";
 import { SessionCard } from "./_components/session-card";
 import { SessionsLayout, SessionsState } from "./_components/sessions-layout";
 import { t } from "@/lib/i18n";
+
+const listTransition = {
+	duration: 0.2,
+	ease: [0.25, 0.46, 0.45, 0.94] as const,
+};
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -39,6 +44,7 @@ const PAGE_SIZE = 5;
 
 function SessionsPageContent() {
 	const { session: authSession } = useAuth();
+	const shouldReduceMotion = useReducedMotion();
 	const [sessions, setSessions] = useState<Session[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [loadingMore, setLoadingMore] = useState(false);
@@ -296,7 +302,15 @@ function SessionsPageContent() {
 	if (loading) {
 		return (
 			<SessionsLayout>
-				<SessionsState message={t.sessions.loading} variant="loading" />
+				<motion.div
+					initial={
+						shouldReduceMotion ? false : { opacity: 0, y: 8 }
+					}
+					animate={{ opacity: 1, y: 0 }}
+					transition={listTransition}
+				>
+					<SessionsState message={t.sessions.loading} variant="loading" />
+				</motion.div>
 			</SessionsLayout>
 		);
 	}
@@ -304,7 +318,15 @@ function SessionsPageContent() {
 	if (error) {
 		return (
 			<SessionsLayout>
-				<SessionsState message={error} variant="error" />
+				<motion.div
+					initial={
+						shouldReduceMotion ? false : { opacity: 0, y: 8 }
+					}
+					animate={{ opacity: 1, y: 0 }}
+					transition={listTransition}
+				>
+					<SessionsState message={error} variant="error" />
+				</motion.div>
 			</SessionsLayout>
 		);
 	}
@@ -312,10 +334,18 @@ function SessionsPageContent() {
 	return (
 		<SessionsLayout>
 			{sessions.length === 0 ? (
-				<SessionsState
-					message={t.sessions.noSessions}
-					variant="empty"
-				/>
+				<motion.div
+					initial={
+						shouldReduceMotion ? false : { opacity: 0, y: 8 }
+					}
+					animate={{ opacity: 1, y: 0 }}
+					transition={listTransition}
+				>
+					<SessionsState
+						message={t.sessions.noSessions}
+						variant="empty"
+					/>
+				</motion.div>
 			) : (
 				<InfiniteScroll
 					hasMore={hasMore}
@@ -326,12 +356,15 @@ function SessionsPageContent() {
 						{sessions.map((session, index) => (
 							<motion.div
 								key={session.id}
-								initial={{ opacity: 0, y: 20 }}
+								initial={
+									shouldReduceMotion
+										? false
+										: { opacity: 0, y: 12 }
+								}
 								animate={{ opacity: 1, y: 0 }}
 								transition={{
-									duration: 0.3,
-									delay: index * 0.1,
-									ease: "easeOut",
+									...listTransition,
+									delay: shouldReduceMotion ? 0 : index * 0.03,
 								}}
 							>
 								<SessionCard

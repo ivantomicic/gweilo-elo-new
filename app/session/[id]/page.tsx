@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { motion, useReducedMotion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -85,11 +86,17 @@ type SessionData = {
 
 type Scores = Record<string, { team1: number | null; team2: number | null }>;
 
+const pageTransition = {
+	duration: 0.2,
+	ease: [0.25, 0.46, 0.45, 0.94] as const,
+};
+
 function SessionPageContent() {
 	const params = useParams();
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const sessionId = params.id as string;
+	const shouldReduceMotion = useReducedMotion();
 
 	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
 	// This controls both the table and the match list
@@ -1728,9 +1735,16 @@ function SessionPageContent() {
 					<SiteHeader title={t.sessions.session.loading} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+							<motion.div
+								className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
+								initial={
+									shouldReduceMotion ? false : { opacity: 0, y: 8 }
+								}
+								animate={{ opacity: 1, y: 0 }}
+								transition={pageTransition}
+							>
 								<Loading label={t.sessions.session.loading} />
-							</div>
+							</motion.div>
 						</div>
 					</div>
 				</SidebarInset>
@@ -1746,14 +1760,21 @@ function SessionPageContent() {
 					<SiteHeader title={t.sessions.session.title} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+							<motion.div
+								className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
+								initial={
+									shouldReduceMotion ? false : { opacity: 0, y: 8 }
+								}
+								animate={{ opacity: 1, y: 0 }}
+								transition={pageTransition}
+							>
 								<Box>
 									<p className="text-destructive">
 										{error ||
 											t.sessions.session.loadingFailed}
 									</p>
 								</Box>
-							</div>
+							</motion.div>
 						</div>
 					</div>
 				</SidebarInset>
@@ -1800,7 +1821,14 @@ function SessionPageContent() {
 						/>
 						<div className="flex flex-1 flex-col">
 							<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-								<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+								<motion.div
+									className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
+									initial={
+										shouldReduceMotion ? false : { opacity: 0, y: 8 }
+									}
+									animate={{ opacity: 1, y: 0 }}
+									transition={pageTransition}
+								>
 									{/* Compact Header */}
 									<Box className="mb-4">
 										{/* Page-level Navigation Tabs */}
@@ -2092,7 +2120,7 @@ function SessionPageContent() {
 											)}
 										</Stack>
 									</Box>
-								</div>
+								</motion.div>
 							</div>
 						</div>
 					</SidebarInset>
@@ -2626,7 +2654,14 @@ function SessionPageContent() {
 					<SiteHeader title={formattedSessionDate} />
 					<div className="flex flex-1 flex-col">
 						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+							<motion.div
+								className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
+								initial={
+									shouldReduceMotion ? false : { opacity: 0, y: 8 }
+								}
+								animate={{ opacity: 1, y: 0 }}
+								transition={pageTransition}
+							>
 								{/* Header */}
 								<Box className="flex justify-between items-end">
 									<Box>
@@ -3971,7 +4006,7 @@ function SessionPageContent() {
 										</Button>
 									</Stack>
 								</Box>
-							</div>
+							</motion.div>
 						</div>
 					</div>
 				</SidebarInset>

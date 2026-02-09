@@ -57,7 +57,7 @@ export function SessionCard({
 	return (
 		<Box
 			onClick={() => router.push(`/session/${session.id}`)}
-			className="group relative bg-card rounded-[24px] border border-border/50 p-4 transition-all cursor-pointer shadow-sm touch-safe hover-only active:scale-[0.98] active:bg-accent/50"
+			className="group relative bg-card rounded-[24px] border border-border/50 p-4 transition-[transform,background-color] duration-150 cursor-pointer shadow-sm touch-safe hover-only active:scale-[0.98] active:bg-accent/50"
 		>
 			<Stack direction="row" alignItems="center" spacing={4}>
 				{/* Date Section */}

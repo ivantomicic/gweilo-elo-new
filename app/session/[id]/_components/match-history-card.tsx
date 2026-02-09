@@ -57,7 +57,7 @@ export function MatchHistoryCard({
 			className={cn(
 				"bg-card rounded-xl border border-border/40 overflow-hidden",
 				onClick &&
-					"cursor-pointer hover:border-border active:scale-[0.99] transition-all"
+					"cursor-pointer hover:border-border active:scale-[0.99] transition-[transform,border-color] duration-150"
 			)}
 		>
 			<Box className="px-3 py-3 flex items-center gap-3">

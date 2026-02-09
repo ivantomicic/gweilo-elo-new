@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -26,6 +27,13 @@ import { supabase } from "@/lib/supabase/client";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+
+const MotionTableRow = motion(TableRow);
+
+const tableContentTransition = {
+	duration: 0.2,
+	ease: [0.25, 0.46, 0.45, 0.94] as const, // ease-out
+};
 
 type PlayerStats = {
 	player_id: string;
@@ -72,6 +80,7 @@ type StatisticsData = {
 function StatisticsPageContent() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
+	const shouldReduceMotion = useReducedMotion();
 
 	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
 	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
@@ -325,9 +334,22 @@ function StatisticsPageContent() {
 									// Show loading state for current view if data is not loaded yet
 									if (currentViewLoading && currentData.length === 0) {
 										return (
-											<Box className="bg-card rounded-lg border border-border/50 p-6">
-												<Loading label={t.statistics.loading} />
-											</Box>
+											<AnimatePresence mode="wait">
+												<motion.div
+													key={activeView}
+													initial={
+														shouldReduceMotion
+															? false
+															: { opacity: 0, y: 8 }
+													}
+													animate={{ opacity: 1, y: 0 }}
+													transition={tableContentTransition}
+												>
+													<Box className="bg-card rounded-lg border border-border/50 p-6">
+														<Loading label={t.statistics.loading} />
+													</Box>
+												</motion.div>
+											</AnimatePresence>
 										);
 									}
 
@@ -347,7 +369,23 @@ function StatisticsPageContent() {
 									};
 
 									return (
-										<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
+										<AnimatePresence mode="wait">
+											<motion.div
+												key={activeView}
+												initial={
+													shouldReduceMotion
+														? false
+														: { opacity: 0, y: 8 }
+												}
+												animate={{ opacity: 1, y: 0 }}
+												exit={
+													shouldReduceMotion
+														? false
+														: { opacity: 0, y: -6 }
+												}
+												transition={tableContentTransition}
+												className="rounded-lg border border-border/50 overflow-hidden bg-card"
+											>
 											<Table>
 												<TableHeader className="bg-muted/30">
 													<TableRow>
@@ -409,10 +447,20 @@ function StatisticsPageContent() {
 																const team =
 																	item as TeamStats;
 																return (
-																	<TableRow
+																	<MotionTableRow
 																		key={
 																			key
 																		}
+																		initial={
+																			shouldReduceMotion
+																				? false
+																				: { opacity: 0, y: 6 }
+																		}
+																		animate={{ opacity: 1, y: 0 }}
+																		transition={{
+																			...tableContentTransition,
+																			delay: shouldReduceMotion ? 0 : index * 0.02,
+																		}}
 																	>
 																		<TableCell
 																			className={cn(
@@ -537,15 +585,25 @@ function StatisticsPageContent() {
 																				team.elo
 																			}
 																		</TableCell>
-																	</TableRow>
+																	</MotionTableRow>
 																);
 															}
 
 															const player =
 																item as PlayerStats;
 															return (
-																<TableRow
+																<MotionTableRow
 																	key={key}
+																	initial={
+																		shouldReduceMotion
+																			? false
+																			: { opacity: 0, y: 6 }
+																	}
+																	animate={{ opacity: 1, y: 0 }}
+																	transition={{
+																		...tableContentTransition,
+																		delay: shouldReduceMotion ? 0 : index * 0.02,
+																	}}
 																>
 																	<TableCell
 																		className={cn(
@@ -661,13 +719,14 @@ function StatisticsPageContent() {
 																			player.elo
 																		}
 																	</TableCell>
-																</TableRow>
+																</MotionTableRow>
 															);
 														}
 													)}
 												</TableBody>
 											</Table>
-										</Box>
+											</motion.div>
+										</AnimatePresence>
 									);
 								})()}
 							</Box>
