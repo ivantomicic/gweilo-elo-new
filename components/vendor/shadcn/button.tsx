@@ -26,6 +26,11 @@ const buttonVariants = cva(
 				xs: "h-7 rounded-md px-2 text-xs",
 				lg: "h-11 rounded-md px-8",
 				icon: "h-10 w-10",
+				// Auth screen: full-width primary CTA (pill, shadow, press feedback)
+				auth: "w-full h-14 rounded-full px-6 text-lg font-bold shadow-lg shadow-primary/20 transition-[transform,color] active:scale-[0.97] mt-4",
+				// Auth screen: full-width secondary (e.g. Google sign-in)
+				authSecondary:
+					"w-full h-12 rounded-xl border border-border/50 transition-[transform,color] active:scale-[0.97]",
 			},
 		},
 		defaultVariants: {

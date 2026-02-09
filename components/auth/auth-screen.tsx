@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Icon } from "@/components/ui/icon";
@@ -38,6 +38,7 @@ export function AuthScreen() {
 	const [authState, setAuthState] = useState<AuthState>("idle");
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const errorMessageId = useId();
 
 	const handleLogin = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -204,7 +205,7 @@ export function AuthScreen() {
 										placeholder="randy.daytona@ping.pong"
 									/>
 
-									<Button className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4">
+									<Button size="auth">
 										<Stack
 											direction="row"
 											alignItems="center"
@@ -226,7 +227,7 @@ export function AuthScreen() {
 											onClick={() =>
 												setShowForgotPassword(false)
 											}
-											className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+											className="text-sm text-muted-foreground hover:text-foreground h-auto p-0"
 										>
 											{t.auth.backToSignIn}
 										</Button>
@@ -255,7 +256,11 @@ export function AuthScreen() {
 									</Box>
 
 									{error && (
-										<Box className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+										<Box
+											id={errorMessageId}
+											role="alert"
+											className="p-3 rounded-lg bg-destructive/10 border border-destructive/20"
+										>
 											<p className="text-sm text-destructive text-center">
 												{error}
 											</p>
@@ -274,6 +279,8 @@ export function AuthScreen() {
 											}
 											required
 											disabled={isLoading}
+											aria-invalid={!!error}
+											aria-describedby={error ? errorMessageId : undefined}
 										/>
 
 										<Input
@@ -327,8 +334,8 @@ export function AuthScreen() {
 
 										<Button
 											type="submit"
+											size="auth"
 											disabled={isLoading}
-											className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
 											<Stack
 												direction="row"
@@ -397,7 +404,7 @@ export function AuthScreen() {
 											setPassword("");
 											setFullName("");
 										}}
-										className="text-sm text-muted-foreground hover:text-foreground transition-colors h-auto p-0"
+										className="text-sm text-muted-foreground hover:text-foreground h-auto p-0"
 									>
 										{t.auth.backToSignIn}
 									</Button>
@@ -425,7 +432,11 @@ export function AuthScreen() {
 									</Box>
 
 									{error && (
-										<Box className="p-3 rounded-lg bg-destructive/10 border border-destructive/20">
+										<Box
+											id={errorMessageId}
+											role="alert"
+											className="p-3 rounded-lg bg-destructive/10 border border-destructive/20"
+										>
 											<p className="text-sm text-destructive text-center">
 												{error}
 											</p>
@@ -444,6 +455,8 @@ export function AuthScreen() {
 											}
 											required
 											disabled={isLoading}
+											aria-invalid={!!error}
+											aria-describedby={error ? errorMessageId : undefined}
 										/>
 
 										<Input
@@ -497,8 +510,8 @@ export function AuthScreen() {
 
 										<Button
 											type="submit"
+											size="auth"
 											disabled={isLoading}
-											className="w-full h-14 rounded-full font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all mt-4 disabled:opacity-50 disabled:cursor-not-allowed"
 										>
 											<Stack
 												direction="row"
@@ -547,10 +560,10 @@ export function AuthScreen() {
 						</Stack>
 						<Button
 							variant="secondary"
+							size="authSecondary"
 							type="button"
 							onClick={handleGoogleAuth}
 							disabled={isLoading}
-							className="w-full h-12 border border-border/50 rounded-xl active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 						>
 							<Stack
 								direction="row"
@@ -594,7 +607,7 @@ export function AuthScreen() {
 									setFullName("");
 								}}
 								disabled={isLoading}
-								className="ml-1 font-bold text-primary hover:underline transition-all h-auto p-0 disabled:opacity-50"
+								className="ml-1 font-bold h-auto p-0"
 							>
 								{isLogin ? t.auth.createAccount : t.auth.signIn}
 							</Button>
