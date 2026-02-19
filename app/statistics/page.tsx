@@ -27,6 +27,10 @@ import { supabase } from "@/lib/supabase/client";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import {
+	MIN_DOUBLES_PLAYER_MATCHES,
+	MIN_SINGLES_MATCHES,
+} from "@/lib/statistics/min-matches";
 
 const MotionTableRow = motion(TableRow);
 
@@ -317,9 +321,9 @@ function StatisticsPageContent() {
 
 									const minMatches =
 										activeView === "singles"
-											? 15
+											? MIN_SINGLES_MATCHES
 											: activeView === "doubles_player"
-											? 6
+											? MIN_DOUBLES_PLAYER_MATCHES
 											: null;
 
 									const filteredData =

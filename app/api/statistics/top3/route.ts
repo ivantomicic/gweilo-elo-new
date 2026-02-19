@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { MIN_SINGLES_MATCHES } from "@/lib/statistics/min-matches";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -53,10 +54,11 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch top 3 players by Elo (singles only)
+		// Fetch top 3 eligible players by Elo (singles only)
 		const { data: singlesRatings, error: singlesError } = await supabase
 			.from("player_ratings")
-			.select("player_id, elo")
+			.select("player_id, elo, matches_played")
+			.gte("matches_played", MIN_SINGLES_MATCHES)
 			.order("elo", { ascending: false })
 			.limit(3);
 

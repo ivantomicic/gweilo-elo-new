@@ -1,0 +1,2 @@
+export const MIN_SINGLES_MATCHES = 15;
+export const MIN_DOUBLES_PLAYER_MATCHES = 6;
