@@ -25,6 +25,7 @@ type User = {
 	name: string;
 	avatar: string | null;
 	email: string;
+	role?: string;
 	elo?: number;
 	matchesPlayed?: number;
 };
@@ -74,7 +75,7 @@ function SelectPlayersPageContent() {
 
 				// Fetch users from API and player_ratings directly from Supabase
 				const [usersResponse, ratingsResult] = await Promise.all([
-					fetch("/api/admin/users", {
+					fetch("/api/admin/users?excludeGuests=true", {
 						headers: {
 							Authorization: `Bearer ${session.access_token}`,
 						},
@@ -113,6 +114,7 @@ function SelectPlayersPageContent() {
 
 				// Merge ratings into users and sort by matches played (most first)
 				const usersWithRatings = (usersData.users || [])
+					.filter((user: User) => user.role !== "guest")
 					.map((user: User) => ({
 						...user,
 						elo: ratingsMap.get(user.id)?.elo,

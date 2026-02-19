@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 
-const VALID_ROLES = ["user", "mod", "admin"] as const;
+const VALID_ROLES = ["user", "mod", "admin", "guest"] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
 /**
@@ -18,7 +18,7 @@ type ValidRole = (typeof VALID_ROLES)[number];
  * - Display name → updates user_metadata.display_name
  * - Email → uses Supabase email update (requires confirmation)
  * - Avatar → updates user_metadata.avatar_url (assumes URL is already uploaded)
- * - Role → updates user_metadata.role (admin, mod, or user)
+ * - Role → updates user_metadata.role (admin, mod, user, or guest)
  *
  * Limitations:
  * - Email changes require confirmation (Supabase sends confirmation email)

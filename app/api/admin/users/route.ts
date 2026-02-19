@@ -21,6 +21,9 @@ import { getAuthToken } from "../../_utils/auth";
  */
 export async function GET(request: NextRequest) {
 	try {
+		const { searchParams } = new URL(request.url);
+		const excludeGuests = searchParams.get("excludeGuests") === "true";
+
 		// Verify admin or mod access
 		const token = getAuthToken(request);
 		const authHeader = token ? `Bearer ${token}` : null;
@@ -51,19 +54,27 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Format user data for frontend
-		const formattedUsers = users.map((user) => ({
-			id: user.id,
-			email: user.email || "",
-			name:
-				user.user_metadata?.display_name ||
-				user.user_metadata?.name ||
-				user.user_metadata?.full_name ||
-				user.email?.split("@")[0] ||
-				"User",
-			avatar: user.user_metadata?.avatar_url || null,
-			role: user.user_metadata?.role || "user",
-			createdAt: user.created_at,
-		}));
+		const formattedUsers = users
+			.map((user) => {
+				const role =
+					typeof user.user_metadata?.role === "string"
+						? user.user_metadata.role
+						: "user";
+				return {
+					id: user.id,
+					email: user.email || "",
+					name:
+						user.user_metadata?.display_name ||
+						user.user_metadata?.name ||
+						user.user_metadata?.full_name ||
+						user.email?.split("@")[0] ||
+						"User",
+					avatar: user.user_metadata?.avatar_url || null,
+					role,
+					createdAt: user.created_at,
+				};
+			})
+			.filter((user) => !excludeGuests || user.role !== "guest");
 
 		return NextResponse.json({ users: formattedUsers });
 	} catch (error) {

@@ -22,12 +22,21 @@ import {
 import { t } from "@/lib/i18n";
 import type { UserRole } from "@/lib/supabase/admin";
 
+type EditableRole = "user" | "mod" | "admin" | "guest";
+
+function toEditableRole(role: string | undefined): EditableRole {
+	if (role === "admin") return "admin";
+	if (role === "mod") return "mod";
+	if (role === "guest") return "guest";
+	return "user";
+}
+
 type User = {
 	id: string;
 	email: string;
 	name: string;
 	avatar: string | null;
-	role: UserRole;
+	role: UserRole | "guest";
 };
 
 type UserEditDrawerProps = {
@@ -45,7 +54,7 @@ export function UserEditDrawer({
 }: UserEditDrawerProps) {
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
-	const [role, setRole] = useState<UserRole>("user");
+	const [role, setRole] = useState<EditableRole>("user");
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -56,7 +65,7 @@ export function UserEditDrawer({
 		if (user) {
 			setName(user.name);
 			setEmail(user.email);
-			setRole(user.role);
+			setRole(toEditableRole(user.role));
 			setAvatarPreview(user.avatar);
 			setError(null);
 		}
@@ -140,6 +149,7 @@ export function UserEditDrawer({
 
 	const handleSave = async () => {
 		if (!user) return;
+		const initialRole = toEditableRole(user.role);
 
 		try {
 			setSaving(true);
@@ -166,7 +176,7 @@ export function UserEditDrawer({
 					name: name.trim(),
 					email: email.trim(),
 					avatar: avatarPreview,
-					role,
+					...(role !== initialRole ? { role } : {}),
 				}),
 			});
 
@@ -196,9 +206,9 @@ export function UserEditDrawer({
 
 	const hasChanges =
 		user &&
-		(name.trim() !== user.name ||
+		(toEditableRole(user.role) !== role ||
+			name.trim() !== user.name ||
 			email.trim() !== user.email ||
-			role !== user.role ||
 			avatarPreview !== user.avatar);
 
 	if (!user) return null;
@@ -279,7 +289,9 @@ export function UserEditDrawer({
 						</label>
 						<Select
 							value={role}
-							onValueChange={(value: UserRole) => setRole(value)}
+							onValueChange={(value: EditableRole) =>
+								setRole(value)
+							}
 							disabled={saving}
 						>
 							<SelectTrigger className="w-full">
@@ -294,6 +306,9 @@ export function UserEditDrawer({
 								</SelectItem>
 								<SelectItem value="admin">
 									{t.admin.users.roles.admin}
+								</SelectItem>
+								<SelectItem value="guest">
+									{t.admin.users.roles.guest}
 								</SelectItem>
 							</SelectContent>
 						</Select>

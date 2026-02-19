@@ -56,11 +56,14 @@ export function useCalculatorData(): UseCalculatorDataResult {
 
 				setCurrentUserId(session.user.id);
 
-				const usersResponse = await fetch("/api/admin/users", {
+				const usersResponse = await fetch(
+					"/api/admin/users?excludeGuests=true",
+					{
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
 					},
-				});
+					},
+				);
 
 				if (!usersResponse.ok) {
 					setError("Ne mogu da učitam igrače.");
@@ -68,7 +71,9 @@ export function useCalculatorData(): UseCalculatorDataResult {
 				}
 
 				const { users } = await usersResponse.json();
-				const adminUsers = (users || []) as AdminUser[];
+				const adminUsers = ((users || []) as AdminUser[]).filter(
+					(user) => user.role !== "guest",
+				);
 				const userIds = adminUsers.map((user) => user.id);
 
 				const [ratingsResult, profilesResult] = await Promise.all([

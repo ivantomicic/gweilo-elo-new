@@ -258,12 +258,13 @@ export const sr = {
 				user: "Korisnik",
 				mod: "Moderator",
 				admin: "Administrator",
+				guest: "Gost",
 			},
 			drawer: {
 				title: "Uredi korisnika",
 				role: "Uloga",
 				roleDescription:
-					"Moderatori mogu pokretati sesije i unositi rezultate.",
+					"Moderatori mogu pokretati sesije i unositi rezultate. Gosti imaju samo pregled rezultata.",
 			},
 			success: {
 				updated: "Korisnik je uspešno ažuriran",

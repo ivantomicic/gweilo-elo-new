@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -53,12 +54,47 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Fetch top 3 players by Elo (singles only)
+		// Build guest id set so leaderboard never shows guest accounts
+		const adminClient = createAdminClient();
+		const guestUserIds = new Set<string>();
+		const perPage = 1000;
+		let page = 1;
+
+		while (true) {
+			const {
+				data: { users },
+				error: usersError,
+			} = await adminClient.auth.admin.listUsers({
+				page,
+				perPage,
+			});
+
+			if (usersError) {
+				console.error("Error fetching users for top3 filtering:", usersError);
+				return NextResponse.json(
+					{ error: "Failed to fetch user roles" },
+					{ status: 500 },
+				);
+			}
+
+			users.forEach((listedUser) => {
+				if (listedUser.user_metadata?.role === "guest") {
+					guestUserIds.add(listedUser.id);
+				}
+			});
+
+			if (users.length < perPage) {
+				break;
+			}
+
+			page += 1;
+		}
+
+		// Fetch ranked players by Elo (singles only)
 		const { data: singlesRatings, error: singlesError } = await supabase
 			.from("player_ratings")
 			.select("player_id, elo")
-			.order("elo", { ascending: false })
-			.limit(3);
+			.order("elo", { ascending: false });
 
 		if (singlesError) {
 			console.error("Error fetching top 3 players:", singlesError);
@@ -72,8 +108,16 @@ export async function GET(request: NextRequest) {
 			return NextResponse.json({ data: [] });
 		}
 
+		const top3NonGuestRatings = singlesRatings
+			.filter((rating) => !guestUserIds.has(rating.player_id))
+			.slice(0, 3);
+
+		if (top3NonGuestRatings.length === 0) {
+			return NextResponse.json({ data: [] });
+		}
+
 		// Get player IDs
-		const playerIds = singlesRatings.map((r) => r.player_id);
+		const playerIds = top3NonGuestRatings.map((r) => r.player_id);
 
 		// Fetch user profiles from database (fast!) instead of Auth Admin API (slow!)
 		const { data: profiles, error: profilesError } = await supabase
@@ -91,7 +135,7 @@ export async function GET(request: NextRequest) {
 		);
 
 		// Build response with top 3 players
-		const top3Stats = singlesRatings.map((rating) => {
+		const top3Stats = top3NonGuestRatings.map((rating) => {
 			const profile = profilesMap.get(rating.player_id);
 			return {
 				player_id: rating.player_id,

@@ -5,6 +5,7 @@ export type AdminUser = {
 	name: string;
 	avatar: string | null;
 	email: string;
+	role?: string;
 };
 
 export type PlayerRating = {

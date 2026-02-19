@@ -4,6 +4,7 @@ import {
 	getLatestTwoCompletedSessions,
 	computeRankMovements,
 } from "@/lib/elo/rank-movements";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -59,6 +60,42 @@ export async function GET(request: NextRequest) {
 				{ error: "Unauthorized. Authentication required." },
 				{ status: 401 }
 			);
+		}
+
+		// Build a role map (via Auth Admin API) so guests can be excluded from player statistics
+		const adminClient = createAdminClient();
+		const guestUserIds = new Set<string>();
+		const perPage = 1000;
+		let page = 1;
+
+		while (true) {
+			const {
+				data: { users },
+				error: usersError,
+			} = await adminClient.auth.admin.listUsers({
+				page,
+				perPage,
+			});
+
+			if (usersError) {
+				console.error("Error fetching users for role filtering:", usersError);
+				return NextResponse.json(
+					{ error: "Failed to fetch user roles" },
+					{ status: 500 },
+				);
+			}
+
+			users.forEach((listedUser) => {
+				if (listedUser.user_metadata?.role === "guest") {
+					guestUserIds.add(listedUser.id);
+				}
+			});
+
+			if (users.length < perPage) {
+				break;
+			}
+
+			page += 1;
 		}
 
 		// Get view parameter from query string
@@ -119,6 +156,13 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
+		const filteredSinglesRatings = (singlesRatings || []).filter(
+			(rating) => !guestUserIds.has(rating.player_id),
+		);
+		const filteredDoublesPlayerRatings = (doublesPlayerRatings || []).filter(
+			(rating) => !guestUserIds.has(rating.player_id),
+		);
+
 		// Fetch all teams for team ratings
 		const teamIds = doublesTeamRatings?.map((r) => r.team_id) || [];
 		let teamsMap = new Map<
@@ -148,16 +192,31 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
+		const filteredDoublesTeamRatings = (doublesTeamRatings || []).filter(
+			(rating) => {
+				const team = teamsMap.get(rating.team_id);
+				if (!team) return false;
+				return (
+					!guestUserIds.has(team.player_1_id) &&
+					!guestUserIds.has(team.player_2_id)
+				);
+			},
+		);
+
 		// Get all unique player IDs (only for requested views)
 		const allPlayerIds = new Set<string>();
-		if (shouldFetchSingles && singlesRatings) {
-			singlesRatings.forEach((r) => allPlayerIds.add(r.player_id));
+		if (shouldFetchSingles) {
+			filteredSinglesRatings.forEach((r) => allPlayerIds.add(r.player_id));
 		}
-		if (shouldFetchDoublesPlayer && doublesPlayerRatings) {
-			doublesPlayerRatings.forEach((r) => allPlayerIds.add(r.player_id));
+		if (shouldFetchDoublesPlayer) {
+			filteredDoublesPlayerRatings.forEach((r) =>
+				allPlayerIds.add(r.player_id),
+			);
 		}
 		if (shouldFetchDoublesTeam) {
-			teamsMap.forEach((team) => {
+			filteredDoublesTeamRatings.forEach((rating) => {
+				const team = teamsMap.get(rating.team_id);
+				if (!team) return;
 				allPlayerIds.add(team.player_1_id);
 				allPlayerIds.add(team.player_2_id);
 			});
@@ -209,8 +268,8 @@ export async function GET(request: NextRequest) {
 			rank_movement: number;
 		}> = [];
 
-		if (shouldFetchSingles && singlesRatings) {
-			singlesStats = (singlesRatings || []).map((rating) => {
+		if (shouldFetchSingles) {
+			singlesStats = filteredSinglesRatings.map((rating) => {
 				const user = usersMap.get(rating.player_id);
 				return {
 					player_id: rating.player_id,
@@ -262,8 +321,8 @@ export async function GET(request: NextRequest) {
 			rank_movement: number;
 		}> = [];
 
-		if (shouldFetchDoublesPlayer && doublesPlayerRatings) {
-			doublesPlayerStats = (doublesPlayerRatings || []).map((rating) => {
+		if (shouldFetchDoublesPlayer) {
+			doublesPlayerStats = filteredDoublesPlayerRatings.map((rating) => {
 				const user = usersMap.get(rating.player_id);
 				return {
 					player_id: rating.player_id,
@@ -313,8 +372,8 @@ export async function GET(request: NextRequest) {
 			rank_movement: number;
 		}> = [];
 
-		if (shouldFetchDoublesTeam && doublesTeamRatings) {
-			doublesTeamStats = (doublesTeamRatings || [])
+		if (shouldFetchDoublesTeam) {
+			doublesTeamStats = filteredDoublesTeamRatings
 				.map((rating) => {
 					const team = teamsMap.get(rating.team_id);
 					if (!team) return null;
@@ -389,4 +448,3 @@ export async function GET(request: NextRequest) {
 		);
 	}
 }
-

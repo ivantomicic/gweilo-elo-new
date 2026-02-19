@@ -18,12 +18,14 @@ import { t } from "@/lib/i18n";
 import { PencilIcon } from "lucide-react";
 import type { UserRole } from "@/lib/supabase/admin";
 
+type ManagedUserRole = UserRole | "guest";
+
 type User = {
 	id: string;
 	email: string;
 	name: string;
 	avatar: string | null;
-	role: UserRole;
+	role: ManagedUserRole;
 };
 
 export function UserManagementTable() {
@@ -110,7 +112,7 @@ export function UserManagementTable() {
 	};
 
 	// Get role badge variant
-	const getRoleBadge = (role: UserRole) => {
+	const getRoleBadge = (role: ManagedUserRole) => {
 		switch (role) {
 			case "admin":
 				return (
@@ -121,6 +123,10 @@ export function UserManagementTable() {
 			case "mod":
 				return (
 					<Badge variant="secondary">{t.admin.users.roles.mod}</Badge>
+				);
+			case "guest":
+				return (
+					<Badge variant="outline">{t.admin.users.roles.guest}</Badge>
 				);
 			default:
 				return (

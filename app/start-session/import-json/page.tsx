@@ -60,11 +60,14 @@ function ImportJsonPageContent() {
 				}
 
 				// Fetch players via admin API (admin-only endpoint)
-				const response = await fetch("/api/admin/users", {
+				const response = await fetch(
+					"/api/admin/users?excludeGuests=true",
+					{
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
 					},
-				});
+					},
+				);
 
 				if (!response.ok) {
 					console.error("Error loading players:", response.statusText);
@@ -72,10 +75,12 @@ function ImportJsonPageContent() {
 				}
 
 				const data = await response.json();
-				const mappings: PlayerMapping[] = data.users.map((user: any) => ({
-					id: user.id,
-					name: user.name || "User",
-				}));
+				const mappings: PlayerMapping[] = data.users
+					.filter((user: any) => user.role !== "guest")
+					.map((user: any) => ({
+						id: user.id,
+						name: user.name || "User",
+					}));
 
 				setPlayerMappings(mappings);
 			} catch (err) {
@@ -356,4 +361,3 @@ export default function ImportJsonPage() {
 		</AdminGuard>
 	);
 }
-
