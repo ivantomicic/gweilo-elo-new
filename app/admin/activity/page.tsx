@@ -79,17 +79,13 @@ function AdminActivityPageContent() {
 	const activeTab =
 		pathname === "/admin/activity"
 			? "activity"
-			: pathname === "/admin/email-test"
-				? "email-test"
-				: pathname === "/admin/settings"
-					? "settings"
-					: "users";
+			: pathname === "/admin/settings"
+				? "settings"
+				: "users";
 
 	const handleTabChange = (value: string) => {
 		if (value === "activity") {
 			router.push("/admin/activity");
-		} else if (value === "email-test") {
-			router.push("/admin/email-test");
 		} else if (value === "settings") {
 			router.push("/admin/settings");
 		} else {
@@ -433,15 +429,12 @@ function AdminActivityPageContent() {
 										<TabsTrigger value="users">
 											Users
 										</TabsTrigger>
-										<TabsTrigger value="activity">
-											Activity Log
-										</TabsTrigger>
-										<TabsTrigger value="email-test">
-											Email Test
-										</TabsTrigger>
-										<TabsTrigger value="settings">
-											Settings
-										</TabsTrigger>
+									<TabsTrigger value="activity">
+										Activity Log
+									</TabsTrigger>
+									<TabsTrigger value="settings">
+										Settings
+									</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>

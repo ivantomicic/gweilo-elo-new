@@ -6,6 +6,7 @@ import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";
+import { getUserRole } from "@/lib/auth/getUserRole";
 import { t } from "@/lib/i18n";
 
 type NavItem = {
@@ -34,6 +35,12 @@ const settingsItem: NavItem = {
 	icon: "solar:settings-bold",
 };
 
+const adminItem: NavItem = {
+	titleKey: "admin",
+	url: "/admin",
+	icon: "solar:shield-bold",
+};
+
 // Show first 4 items in main nav
 const mainNavItems = navItems.slice(0, 4);
 
@@ -48,6 +55,7 @@ const mainNavItems = navItems.slice(0, 4);
 export function MobileNav() {
 	const pathname = usePathname();
 	const { isAuthenticated } = useAuth();
+	const [isAdmin, setIsAdmin] = useState(false);
 	const [isIOSSafari26, setIsIOSSafari26] = useState(false);
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
@@ -117,6 +125,18 @@ export function MobileNav() {
 		setIsMoreOpen(false);
 	}, [pathname]);
 
+	useEffect(() => {
+		const checkAdmin = async () => {
+			if (!isAuthenticated) {
+				setIsAdmin(false);
+				return;
+			}
+			const role = await getUserRole();
+			setIsAdmin(role === "admin");
+		};
+		checkAdmin();
+	}, [isAuthenticated]);
+
 	// Don't render navigation if not authenticated
 	if (isAuthenticated === null) {
 		// Loading state - don't render nav yet
@@ -130,7 +150,8 @@ export function MobileNav() {
 
 	const hasActiveInMore =
 		moreNavItems.some((item) => pathname === item.url) ||
-		pathname === settingsItem.url;
+		pathname === settingsItem.url ||
+		pathname.startsWith("/admin");
 
 	return (
 		<>
@@ -233,6 +254,42 @@ export function MobileNav() {
 										</Link>
 									);
 								})()}
+
+								{/* Admin (admins only) */}
+								{isAdmin && (
+									(() => {
+										const isActive = pathname.startsWith(
+											adminItem.url,
+										);
+										return (
+											<Link
+												href={adminItem.url}
+												className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
+												onClick={() =>
+													setIsMoreOpen(false)
+												}
+											>
+												<Icon
+													icon={adminItem.icon}
+													className={`size-5 transition-colors duration-200 ${
+														isActive
+															? "text-primary"
+															: "text-muted-foreground group-hover:text-foreground"
+													}`}
+												/>
+												<span
+													className={`text-sm transition-colors duration-200 ${
+														isActive
+															? "font-bold text-primary"
+															: "font-medium text-muted-foreground group-hover:text-foreground"
+													}`}
+												>
+													{t.nav[adminItem.titleKey]}
+												</span>
+											</Link>
+										);
+									})()
+								)}
 							</motion.div>
 						)}
 					</AnimatePresence>

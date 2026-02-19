@@ -11,7 +11,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Box } from "@/components/ui/box";
 import { UserManagementTable } from "@/components/admin/user-management-table";
-import { MaintenanceSettings } from "@/components/admin/maintenance-settings";
 
 function AdminPageContent() {
 	const pathname = usePathname();
@@ -21,17 +20,13 @@ function AdminPageContent() {
 	const activeTab =
 		pathname === "/admin/activity"
 			? "activity"
-			: pathname === "/admin/email-test"
-				? "email-test"
-				: pathname === "/admin/settings"
-					? "settings"
-					: "users";
+			: pathname === "/admin/settings"
+				? "settings"
+				: "users";
 
 	const handleTabChange = (value: string) => {
 		if (value === "activity") {
 			router.push("/admin/activity");
-		} else if (value === "email-test") {
-			router.push("/admin/email-test");
 		} else if (value === "settings") {
 			router.push("/admin/settings");
 		} else {
@@ -57,15 +52,12 @@ function AdminPageContent() {
 										<TabsTrigger value="users">
 											Users
 										</TabsTrigger>
-										<TabsTrigger value="activity">
-											Activity Log
-										</TabsTrigger>
-										<TabsTrigger value="email-test">
-											Email Test
-										</TabsTrigger>
-										<TabsTrigger value="settings">
-											Settings
-										</TabsTrigger>
+									<TabsTrigger value="activity">
+										Activity Log
+									</TabsTrigger>
+									<TabsTrigger value="settings">
+										Settings
+									</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>
