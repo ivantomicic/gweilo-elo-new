@@ -58,6 +58,7 @@ export const sr = {
 		statistics: "Statistika",
 		sessions: "Termini",
 		videos: "Video",
+		calculator: "Kalkulator",
 	},
 	nav: {
 		dashboard: "Pregled",
@@ -70,6 +71,7 @@ export const sr = {
 		rules: "Pravila igre",
 		polls: "Anketarijum",
 		admin: "Admin panel",
+		calculator: "Kalkulator",
 		ariaLabel: "Glavna navigacija",
 		moreMenuLabel: "Meni Više",
 	},

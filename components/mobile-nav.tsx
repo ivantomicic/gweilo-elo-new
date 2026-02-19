@@ -41,6 +41,12 @@ const adminItem: NavItem = {
 	icon: "solar:shield-bold",
 };
 
+const calculatorItem: NavItem = {
+	titleKey: "calculator",
+	url: "/calculator",
+	icon: "solar:calculator-bold",
+};
+
 // Show first 4 items in main nav
 const mainNavItems = navItems.slice(0, 4);
 
@@ -151,7 +157,8 @@ export function MobileNav() {
 	const hasActiveInMore =
 		moreNavItems.some((item) => pathname === item.url) ||
 		pathname === settingsItem.url ||
-		pathname.startsWith("/admin");
+		pathname.startsWith("/admin") ||
+		pathname.startsWith("/calculator");
 
 	return (
 		<>
@@ -257,38 +264,72 @@ export function MobileNav() {
 
 								{/* Admin (admins only) */}
 								{isAdmin && (
-									(() => {
-										const isActive = pathname.startsWith(
-											adminItem.url,
-										);
-										return (
-											<Link
-												href={adminItem.url}
-												className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-												onClick={() =>
-													setIsMoreOpen(false)
-												}
-											>
-												<Icon
-													icon={adminItem.icon}
-													className={`size-5 transition-colors duration-200 ${
-														isActive
-															? "text-primary"
-															: "text-muted-foreground group-hover:text-foreground"
-													}`}
-												/>
-												<span
-													className={`text-sm transition-colors duration-200 ${
-														isActive
-															? "font-bold text-primary"
-															: "font-medium text-muted-foreground group-hover:text-foreground"
-													}`}
+									<>
+										{(() => {
+											const isActive = pathname.startsWith(
+												calculatorItem.url,
+											);
+											return (
+												<Link
+													href={calculatorItem.url}
+													className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
+													onClick={() =>
+														setIsMoreOpen(false)
+													}
 												>
-													{t.nav[adminItem.titleKey]}
-												</span>
-											</Link>
-										);
-									})()
+													<Icon
+														icon={calculatorItem.icon}
+														className={`size-5 transition-colors duration-200 ${
+															isActive
+																? "text-primary"
+																: "text-muted-foreground group-hover:text-foreground"
+														}`}
+													/>
+													<span
+														className={`text-sm transition-colors duration-200 ${
+															isActive
+																? "font-bold text-primary"
+																: "font-medium text-muted-foreground group-hover:text-foreground"
+														}`}
+													>
+														{t.nav[calculatorItem.titleKey]}
+													</span>
+												</Link>
+											);
+										})()}
+										{(() => {
+											const isActive = pathname.startsWith(
+												adminItem.url,
+											);
+											return (
+												<Link
+													href={adminItem.url}
+													className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
+													onClick={() =>
+														setIsMoreOpen(false)
+													}
+												>
+													<Icon
+														icon={adminItem.icon}
+														className={`size-5 transition-colors duration-200 ${
+															isActive
+																? "text-primary"
+																: "text-muted-foreground group-hover:text-foreground"
+														}`}
+													/>
+													<span
+														className={`text-sm transition-colors duration-200 ${
+															isActive
+																? "font-bold text-primary"
+																: "font-medium text-muted-foreground group-hover:text-foreground"
+														}`}
+													>
+														{t.nav[adminItem.titleKey]}
+													</span>
+												</Link>
+											);
+										})()}
+									</>
 								)}
 							</motion.div>
 						)}

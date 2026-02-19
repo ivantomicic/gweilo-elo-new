@@ -136,4 +136,34 @@
 		-moz-appearance: textfield;
 		appearance: textfield;
 	}
+
+	/* Calculator selected-opponent card layout */
+	.calculator-opponent-card {
+		container-type: inline-size;
+	}
+
+	.calculator-opponent-selector-inline {
+		display: none;
+	}
+
+	.calculator-opponent-selector-below {
+		margin-top: 0.75rem;
+	}
+
+	@container (min-width: 700px) {
+		.calculator-opponent-top {
+			align-items: center;
+		}
+
+		.calculator-opponent-selector-inline {
+			display: block;
+			flex: 1 1 300px;
+			max-width: 360px;
+		}
+
+		.calculator-opponent-selector-below {
+			display: none;
+			margin-top: 0;
+		}
+	}
 }

@@ -20,6 +20,7 @@ import {
 	LayoutDashboardIcon,
 	ListIcon,
 	PlayIcon,
+	CalculatorIcon,
 	SearchIcon,
 	SettingsIcon,
 	ShieldIcon,
@@ -126,6 +127,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
 	// Add Admin panel after Anketarijum if user is admin
 	if (user?.role === "admin") {
+		navSecondaryItems.push({
+			title: "Kalkulator",
+			url: "/calculator",
+			icon: CalculatorIcon,
+		});
 		navSecondaryItems.push({
 			title: "Admin panel",
 			url: "/admin",
