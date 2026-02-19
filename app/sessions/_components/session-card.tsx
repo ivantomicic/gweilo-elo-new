@@ -50,9 +50,6 @@ export function SessionCard({
 		bestWorst &&
 		(bestWorst.best_player_delta !== null ||
 			bestWorst.worst_player_delta !== null);
-	
-	// Show skeleton for completed sessions while best/worst data is loading
-	const isLoadingBestWorst = session.status === "completed" && bestWorst === null;
 
 	return (
 		<Box
@@ -123,19 +120,6 @@ export function SessionCard({
 						)}
 
 						{/* Best/Worst Players */}
-						{isLoadingBestWorst && (
-							<Stack
-								direction="row"
-								alignItems="center"
-								spacing={2}
-								className="mt-2 flex-wrap"
-							>
-								{/* Skeleton for best player badge */}
-								<Box className="h-[20px] w-[100px] bg-muted-foreground/20 rounded-lg animate-pulse" />
-								{/* Skeleton for worst player badge */}
-								<Box className="h-[20px] w-[100px] bg-muted-foreground/20 rounded-lg animate-pulse" />
-							</Stack>
-						)}
 						{hasBestWorst && (
 							<Stack
 								direction="row"

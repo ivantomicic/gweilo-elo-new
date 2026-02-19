@@ -170,6 +170,42 @@ function SessionsPageContent() {
 					});
 				}
 
+				// Resolve latest player names for best/worst badges
+				// Keep stored names only as fallback when profile lookup misses.
+				const bestWorstPlayerIds = Array.from(
+					new Set(
+						newSessions
+							.flatMap((session: any) => [
+								session.best_player_id,
+								session.worst_player_id,
+							])
+							.filter(Boolean),
+					),
+				) as string[];
+
+				const bestWorstNameMap = new Map<string, string>();
+				if (bestWorstPlayerIds.length > 0) {
+					const { data: profiles, error: profilesError } =
+						await supabaseClient
+							.from("profiles")
+							.select("id, display_name")
+							.in("id", bestWorstPlayerIds);
+
+					if (profilesError) {
+						console.error(
+							"Error fetching best/worst player names:",
+							profilesError,
+						);
+					} else {
+						(profiles || []).forEach((profile: any) => {
+							bestWorstNameMap.set(
+								profile.id,
+								profile.display_name || "User",
+							);
+						});
+					}
+				}
+
 				// Merge match counts and best/worst player data into sessions
 				const sessionsWithCounts = newSessions.map((session: any) => {
 					const counts = countsMap.get(session.id) || {
@@ -185,11 +221,23 @@ function SessionsPageContent() {
 							? {
 									best_player_id: session.best_player_id || null,
 									best_player_display_name:
-										session.best_player_display_name || null,
+										(session.best_player_id
+											? bestWorstNameMap.get(
+													session.best_player_id,
+												)
+											: null) ||
+										session.best_player_display_name ||
+										null,
 									best_player_delta: session.best_player_delta || null,
 									worst_player_id: session.worst_player_id || null,
 									worst_player_display_name:
-										session.worst_player_display_name || null,
+										(session.worst_player_id
+											? bestWorstNameMap.get(
+													session.worst_player_id,
+												)
+											: null) ||
+										session.worst_player_display_name ||
+										null,
 									worst_player_delta: session.worst_player_delta || null,
 							  }
 							: null;
@@ -207,44 +255,6 @@ function SessionsPageContent() {
 					setSessions((prev) => [...prev, ...sessionsWithCounts]);
 				} else {
 					setSessions(sessionsWithCounts);
-				}
-
-				// Fallback: Calculate best/worst dynamically for completed sessions without stored data
-				const completedSessionsNeedingCalc = sessionsWithCounts.filter(
-					(s) => s.status === "completed" && !s.best_worst_player
-				);
-
-				if (completedSessionsNeedingCalc.length > 0) {
-					// Load best/worst data dynamically - update each session individually as data arrives
-					completedSessionsNeedingCalc.forEach((session) => {
-						fetch(`/api/sessions/${session.id}/best-worst-player`, {
-							headers: {
-								Authorization: `Bearer ${authSession.access_token}`,
-							},
-						})
-							.then((response) => {
-								if (!response.ok) {
-									return null;
-								}
-								return response.json();
-							})
-							.then((data) => {
-								// Update this specific session immediately when data arrives
-								setSessions((prev) =>
-									prev.map((s) =>
-										s.id === session.id
-											? { ...s, best_worst_player: data }
-											: s
-									)
-								);
-							})
-							.catch((err) => {
-								console.error(
-									`Error fetching best/worst for session ${session.id}:`,
-									err
-								);
-							});
-					});
 				}
 
 				// Check if there are more items to load
