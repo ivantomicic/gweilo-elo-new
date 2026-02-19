@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Separator } from "@/components/vendor/shadcn/separator";
 import { SidebarTrigger } from "@/components/vendor/shadcn/sidebar";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,7 @@ export function SiteHeader({
 		| "link";
 }) {
 	const [canStartSession, setCanStartSession] = useState(false);
+	const pathname = usePathname();
 
 	// Check if user can start sessions (admin or mod)
 	useEffect(() => {
@@ -56,8 +58,10 @@ export function SiteHeader({
 
 	// Determine which action to show
 	const hasCustomAction = actionLabel && (actionHref || actionOnClick);
+	const isStartSessionRoute = pathname.startsWith("/start-session");
 	// Show default "Start Session" button for admins and mods
-	const showDefaultAction = !hasCustomAction && canStartSession;
+	const showDefaultAction =
+		!hasCustomAction && canStartSession && !isStartSessionRoute;
 	// Only show button area if there's something to show
 	const showActionButton = hasCustomAction || showDefaultAction;
 
