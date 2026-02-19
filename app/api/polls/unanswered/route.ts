@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
 		// Fetch user data for all users who answered
 		const allUserIds = new Set<string>();
 		for (const userIds of optionUserIdsMap.values()) {
-			userIds.forEach(id => allUserIds.add(id));
+			userIds.forEach((id) => allUserIds.add(id));
 		}
 
 		const usersMap = new Map<string, { name: string; avatar: string | null }>();

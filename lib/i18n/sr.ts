@@ -387,6 +387,8 @@ export const sr = {
 			yourChoice: "Vaš izbor",
 			total: "Ukupno",
 			voters: "Glasači",
+			othersAnswers: "Odgovori drugih",
+			yourVote: "Vaš glas",
 		},
 		banner: {
 			title: "Aktivne ankete",

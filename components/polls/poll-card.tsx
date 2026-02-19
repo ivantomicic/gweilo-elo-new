@@ -680,7 +680,97 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						{poll.description}
 					</p>
 				)}
+				{/* Admin: show others' answers before voting */}
+				{isAdmin && !poll.hasUserAnswered && poll.totalAnswers > 0 && (
+					<div className="mb-6 pt-4 border-t border-border/30 space-y-4 relative z-10">
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+							{t.polls.card.othersAnswers}
+						</p>
+						<p className="text-[10px] text-muted-foreground/60 mb-2">
+							{t.polls.card.total}: {poll.totalAnswers} {poll.totalAnswers === 1 ? t.polls.card.vote : t.polls.card.votes}
+						</p>
+						{[...poll.options]
+							.sort((a, b) => b.answerCount - a.answerCount)
+							.map((option) => {
+								const percentage =
+									poll.totalAnswers > 0
+										? Math.round(
+												(option.answerCount / poll.totalAnswers) * 100
+										  )
+										: 0;
+								const maxVotes = Math.max(
+									...poll.options.map((opt) => opt.answerCount)
+								);
+								const isWinner =
+									poll.totalAnswers > 0 &&
+									option.answerCount === maxVotes &&
+									maxVotes > 0;
+								return (
+									<div key={option.id}>
+										<div className="flex justify-between text-xs font-semibold mb-2">
+											<span className={`flex items-center gap-2 ${isWinner ? "text-primary" : "text-foreground/70"}`}>
+												{isWinner && (
+													<Icon icon="solar:star-bold" className="text-primary size-4" />
+												)}
+												{option.text}
+											</span>
+											<div className="flex items-center gap-2">
+												{option.users && option.users.length > 0 && (
+													<div className="flex items-center -space-x-1.5">
+														{option.users.slice(0, 5).map((user) => (
+															<Avatar key={user.id} className="size-5 border border-background/50">
+																<AvatarImage src={user.avatar || undefined} alt={user.name} />
+																<AvatarFallback className="text-[10px]">
+																	{user.name.charAt(0).toUpperCase()}
+																</AvatarFallback>
+															</Avatar>
+														))}
+														{option.users.length > 5 && (
+															<button
+																type="button"
+																onClick={(e) => {
+																	e.preventDefault();
+																	e.stopPropagation();
+																	setSelectedOptionForAvatars(option);
+																	setShowAvatarsSheet(true);
+																}}
+																className="size-5 rounded-full bg-muted border border-background/50 flex items-center justify-center hover:bg-muted/80 transition-colors cursor-pointer"
+															>
+																<span className="text-[8px] font-semibold text-muted-foreground">
+																	+{option.users.length - 5}
+																</span>
+															</button>
+														)}
+													</div>
+												)}
+												<span className={isWinner ? "text-primary" : "text-foreground/70"}>
+													{percentage}%
+												</span>
+											</div>
+										</div>
+										<div className="h-2 w-full bg-muted/30 rounded-full overflow-hidden">
+											<div
+												className={`h-full rounded-full transition-all duration-500 ${
+													isWinner
+														? "bg-primary"
+														: option.answerCount > 0
+														? "bg-primary/40"
+														: "bg-muted/50"
+												}`}
+												style={{ width: `${percentage}%` }}
+											/>
+										</div>
+									</div>
+								);
+							})}
+					</div>
+				)}
 				<div className="space-y-3 relative z-10">
+					{isAdmin && !poll.hasUserAnswered && poll.totalAnswers > 0 && (
+						<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+							{t.polls.card.yourVote}
+						</p>
+					)}
 					{poll.options.map((option) => {
 						const isSelected = selectedOption === option.id;
 						return (
