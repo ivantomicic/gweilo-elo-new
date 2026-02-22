@@ -34,61 +34,62 @@ export async function fetchPlayersWithRatings(
 		return [];
 	}
 
-	// Fetch user details from profiles table (fast database query)
-	const { data: profiles, error: profilesError } = await supabase
-		.from("profiles")
-		.select("id, display_name, avatar_url")
-		.in("id", playerIds);
+	// Fetch profile + ratings in parallel to reduce round-trip latency.
+	const [
+		{ data: profiles, error: profilesError },
+		{ data: singlesRatings, error: singlesError },
+		{ data: doublesRatings, error: doublesError },
+	] = await Promise.all([
+		supabase
+			.from("profiles")
+			.select("id, display_name, avatar_url")
+			.in("id", playerIds),
+		supabase
+			.from("player_ratings")
+			.select("player_id, elo")
+			.in("player_id", playerIds),
+		includeDoublesElo
+			? supabase
+					.from("player_double_ratings")
+					.select("player_id, elo")
+					.in("player_id", playerIds)
+			: Promise.resolve({
+					data: [] as Array<{ player_id: string; elo: number | string }>,
+					error: null,
+				}),
+	]);
 
 	if (profilesError) {
 		throw new Error(`Failed to fetch profiles: ${profilesError.message}`);
 	}
 
-	// Create map of player_id -> profile for requested players
-	const profilesMap = new Map(
-		(profiles || []).map((p) => [p.id, p])
-	);
-
-	// Fetch singles ratings in batch
-	const { data: singlesRatings, error: singlesError } = await supabase
-		.from("player_ratings")
-		.select("player_id, elo")
-		.in("player_id", playerIds);
-
 	if (singlesError) {
 		console.error("Error fetching singles ratings:", singlesError);
-		throw new Error(`Failed to fetch singles ratings: ${singlesError.message}`);
+		throw new Error(
+			`Failed to fetch singles ratings: ${singlesError.message}`,
+		);
 	}
 
-	// Debug: Log what we fetched
-	console.log(`[fetchPlayersWithRatings] Fetched ratings for ${playerIds.length} players:`, {
-		requestedPlayerIds: playerIds,
-		foundRatings: (singlesRatings || []).map(r => ({ player_id: r.player_id, elo: r.elo })),
-		ratingsCount: (singlesRatings || []).length
-	});
-
-	// Fetch doubles ratings if needed
-	let doublesRatings: Array<{ player_id: string; elo: number }> = [];
-	if (includeDoublesElo) {
-		const { data: doublesData, error: doublesError } = await supabase
-			.from("player_double_ratings")
-			.select("player_id, elo")
-			.in("player_id", playerIds);
-
-		if (doublesError) {
-			throw new Error(`Failed to fetch doubles ratings: ${doublesError.message}`);
-		}
-
-		doublesRatings = doublesData || [];
+	if (includeDoublesElo && doublesError) {
+		throw new Error(`Failed to fetch doubles ratings: ${doublesError.message}`);
 	}
+
+	// Create map of player_id -> profile for requested players
+	const profilesMap = new Map((profiles || []).map((p) => [p.id, p]));
 
 	// Create maps for fast lookup
 	// Convert elo to number in case it's returned as string from NUMERIC type
 	const singlesMap = new Map(
-		(singlesRatings || []).map((r) => [r.player_id, typeof r.elo === 'string' ? parseFloat(r.elo) : Number(r.elo)])
+		(singlesRatings || []).map((r) => [
+			r.player_id,
+			typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
+		]),
 	);
 	const doublesMap = new Map(
-		doublesRatings.map((r) => [r.player_id, typeof r.elo === 'string' ? parseFloat(r.elo) : Number(r.elo)])
+		(doublesRatings || []).map((r) => [
+			r.player_id,
+			typeof r.elo === "string" ? parseFloat(r.elo) : Number(r.elo),
+		]),
 	);
 
 	// Combine profile data with ratings (fallback to defaults if profile missing)
@@ -97,15 +98,9 @@ export async function fetchPlayersWithRatings(
 		const displayName = profile?.display_name || "User";
 		const avatar = profile?.avatar_url || null;
 		const singlesElo = singlesMap.get(playerId) ?? 1500;
-		const doublesElo = includeDoublesElo ? (doublesMap.get(playerId) ?? 1500) : null;
-
-		// Debug: Log if using default 1500 or missing profile
-		if (!singlesMap.has(playerId)) {
-			console.log(`[fetchPlayersWithRatings] No rating found for player ${playerId} (${displayName}), using default 1500`);
-		}
-		if (!profile) {
-			console.log(`[fetchPlayersWithRatings] No profile found for player ${playerId}, using fallback display name.`);
-		}
+		const doublesElo = includeDoublesElo
+			? (doublesMap.get(playerId) ?? 1500)
+			: null;
 
 		return {
 			player_id: playerId,

@@ -25,15 +25,15 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuLabel,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@/components/vendor/shadcn/dropdown-menu";
 import { Icon } from "@/components/ui/icon";
 import { supabase } from "@/lib/supabase/client";
-import { t } from "@/lib/i18n";
 
 type AnalyticsEvent = {
 	id: string;
@@ -57,6 +57,13 @@ type UserOption = {
 	name: string;
 };
 
+type ActivityFilters = {
+	selectedUserIds: string[];
+	eventName: string;
+	dateFrom: string;
+	dateTo: string;
+};
+
 function AdminActivityPageContent() {
 	const pathname = usePathname();
 	const router = useRouter();
@@ -66,8 +73,10 @@ function AdminActivityPageContent() {
 	const [totalCount, setTotalCount] = useState(0);
 	const [users, setUsers] = useState<UserOption[]>([]);
 	const [loadingUsers, setLoadingUsers] = useState(true);
-	const [filters, setFilters] = useState({
-		userId: "__all__",
+	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+	const [userFilterReady, setUserFilterReady] = useState(false);
+	const [filters, setFilters] = useState<ActivityFilters>({
+		selectedUserIds: [],
 		eventName: "",
 		dateFrom: "",
 		dateTo: "",
@@ -98,14 +107,20 @@ function AdminActivityPageContent() {
 		const fetchUsers = async () => {
 			try {
 				setLoadingUsers(true);
+				setUserFilterReady(false);
 
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
 
 				if (!session) {
+					setCurrentUserId(null);
+					setUsers([]);
+					setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
 					return;
 				}
+
+				setCurrentUserId(session.user.id);
 
 				// Get unique user IDs from analytics_events
 				const { data: uniqueUserIds, error: uniqueError } =
@@ -114,13 +129,15 @@ function AdminActivityPageContent() {
 						.select("user_id")
 						.not("user_id", "is", null);
 
-				if (uniqueError) {
-					console.error(
-						"Error fetching unique user IDs:",
-						uniqueError,
-					);
-					return;
-				}
+					if (uniqueError) {
+						console.error(
+							"Error fetching unique user IDs:",
+							uniqueError,
+						);
+						setUsers([]);
+						setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
+						return;
+					}
 
 				const userIds = [
 					...new Set(
@@ -132,6 +149,7 @@ function AdminActivityPageContent() {
 
 				if (userIds.length === 0) {
 					setUsers([]);
+					setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
 					return;
 				}
 
@@ -142,26 +160,39 @@ function AdminActivityPageContent() {
 					},
 				});
 
-				if (usersResponse.ok) {
-					const { users: allUsers } = await usersResponse.json();
-					// Filter to only users that have events
-					const usersWithEvents = allUsers
-						.filter((u: UserOption) => userIds.includes(u.id))
-						.map((u: UserOption) => ({
-							id: u.id,
-							email: u.email,
-							name: u.name,
-						}))
-						.sort((a: UserOption, b: UserOption) =>
-							a.name.localeCompare(b.name),
-						);
+				if (!usersResponse.ok) {
+					setUsers([]);
+					setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
+					return;
+				}
+
+				const { users: allUsers } = await usersResponse.json();
+				// Filter to only users that have events
+				const usersWithEvents = allUsers
+					.filter((u: UserOption) => userIds.includes(u.id))
+					.map((u: UserOption) => ({
+						id: u.id,
+						email: u.email,
+						name: u.name,
+					}))
+					.sort((a: UserOption, b: UserOption) =>
+						a.name.localeCompare(b.name),
+					);
 
 					setUsers(usersWithEvents);
-				}
+					setFilters((prev) => ({
+						...prev,
+						selectedUserIds: usersWithEvents
+							.filter((u: UserOption) => u.id !== session.user.id)
+							.map((u: UserOption) => u.id),
+					}));
 			} catch (error) {
 				console.error("Error fetching users:", error);
+				setUsers([]);
+				setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
 			} finally {
 				setLoadingUsers(false);
+				setUserFilterReady(true);
 			}
 		};
 
@@ -170,6 +201,10 @@ function AdminActivityPageContent() {
 
 	// Fetch events
 	useEffect(() => {
+		if (!userFilterReady) {
+			return;
+		}
+
 		const fetchEvents = async () => {
 			try {
 				setLoading(true);
@@ -190,8 +225,16 @@ function AdminActivityPageContent() {
 					.range((page - 1) * pageSize, page * pageSize - 1);
 
 				// Apply filters
-				if (filters.userId && filters.userId !== "__all__") {
-					query = query.eq("user_id", filters.userId);
+				if (users.length > 0) {
+					if (filters.selectedUserIds.length === 0) {
+						setEvents([]);
+						setTotalCount(0);
+						return;
+					}
+
+					if (filters.selectedUserIds.length < users.length) {
+						query = query.in("user_id", filters.selectedUserIds);
+					}
 				}
 				if (filters.eventName) {
 					query = query.eq("event_name", filters.eventName);
@@ -370,20 +413,60 @@ function AdminActivityPageContent() {
 		fetchEvents();
 	}, [
 		page,
-		filters.userId,
+		userFilterReady,
+		users.length,
+		filters.selectedUserIds,
 		filters.eventName,
 		filters.dateFrom,
 		filters.dateTo,
 	]);
 
-	const handleFilterChange = (key: string, value: string) => {
+	const handleFilterChange = (
+		key: "eventName" | "dateFrom" | "dateTo",
+		value: string,
+	) => {
 		setFilters((prev) => ({ ...prev, [key]: value }));
 		setPage(1); // Reset to first page on filter change
 	};
 
+	const handleUserSelectionChange = (userId: string, checked: boolean) => {
+		setFilters((prev) => {
+			const isSelected = prev.selectedUserIds.includes(userId);
+			if (checked && !isSelected) {
+				return {
+					...prev,
+					selectedUserIds: [...prev.selectedUserIds, userId],
+				};
+			}
+			if (!checked && isSelected) {
+				return {
+					...prev,
+					selectedUserIds: prev.selectedUserIds.filter(
+						(id) => id !== userId,
+					),
+				};
+			}
+			return prev;
+		});
+		setPage(1);
+	};
+
+	const handleSelectAllUsers = () => {
+		setFilters((prev) => ({
+			...prev,
+			selectedUserIds: users.map((user) => user.id),
+		}));
+		setPage(1);
+	};
+
+	const handleClearUsers = () => {
+		setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
+		setPage(1);
+	};
+
 	const handleResetFilters = () => {
 		setFilters({
-			userId: "__all__",
+			selectedUserIds: users.map((user) => user.id),
 			eventName: "",
 			dateFrom: "",
 			dateTo: "",
@@ -392,6 +475,17 @@ function AdminActivityPageContent() {
 	};
 
 	const totalPages = Math.ceil(totalCount / pageSize);
+	const allUsersSelected =
+		users.length > 0 && filters.selectedUserIds.length === users.length;
+	const userFilterLabel = loadingUsers
+		? "Loading users..."
+		: users.length === 0
+			? "No users"
+			: allUsersSelected
+				? "All users"
+				: filters.selectedUserIds.length === 0
+					? "No users selected"
+					: `${filters.selectedUserIds.length} users selected`;
 
 	// Format date: DD.MM.YYYY
 	const formatDate = (dateString: string): string => {
@@ -439,113 +533,209 @@ function AdminActivityPageContent() {
 								</Tabs>
 							</Box>
 
-							{/* Filters */}
-							<Box className="space-y-4 p-4">
-								<Stack direction="column" spacing={4}>
-									<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-										<div>
-											<Label htmlFor="filter-user">
-												User
-											</Label>
-											<Select
-												value={
-													filters.userId || "__all__"
-												}
-												onValueChange={(value) =>
-													handleFilterChange(
-														"userId",
-														value,
-													)
-												}
-											>
-												<SelectTrigger id="filter-user">
-													<SelectValue placeholder="All users" />
-												</SelectTrigger>
-												<SelectContent>
-													<SelectItem value="__all__">
-														All users
-													</SelectItem>
-													{loadingUsers ? (
-														<SelectItem
-															value="__loading__"
-															disabled
-														>
-															Loading users...
-														</SelectItem>
-													) : (
-														users.map((user) => (
-															<SelectItem
-																key={user.id}
-																value={user.id}
+								{/* Filters */}
+									<Box className="space-y-4 p-4">
+										<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+											<div className="space-y-2">
+												<div className="flex min-h-5 items-center">
+													<Label htmlFor="filter-user-trigger">
+														Users
+													</Label>
+												</div>
+												<div>
+													<DropdownMenu>
+														<DropdownMenuTrigger asChild>
+															<Button
+																id="filter-user-trigger"
+																type="button"
+																variant="outline"
+																className="w-full justify-between text-left"
 															>
-																{user.name} (
-																{user.email})
-															</SelectItem>
-														))
-													)}
-												</SelectContent>
-											</Select>
+																<span className="truncate">
+																	{
+																		userFilterLabel
+																	}
+																</span>
+																<Stack
+																	direction="row"
+																	alignItems="center"
+																	spacing={2}
+																>
+																	<Icon
+																		icon="solar:alt-arrow-down-linear"
+																		className="size-4 text-muted-foreground"
+																	/>
+																</Stack>
+															</Button>
+														</DropdownMenuTrigger>
+														<DropdownMenuContent
+															align="start"
+															className="w-[340px]"
+														>
+															<DropdownMenuLabel>
+																Choose users to show
+															</DropdownMenuLabel>
+															<DropdownMenuSeparator />
+															{loadingUsers ? (
+																<div className="px-2 py-3 text-sm text-muted-foreground">
+																	Loading users...
+																</div>
+															) : users.length ===
+															  0 ? (
+																<div className="px-2 py-3 text-sm text-muted-foreground">
+																	No users with activity yet.
+																</div>
+															) : (
+																<div className="max-h-72 overflow-y-auto py-1">
+																	{users.map(
+																		(user) => (
+																			<DropdownMenuCheckboxItem
+																				key={
+																					user.id
+																				}
+																				checked={filters.selectedUserIds.includes(
+																					user.id,
+																				)}
+																				onCheckedChange={(
+																					checked,
+																				) =>
+																					handleUserSelectionChange(
+																						user.id,
+																						checked ===
+																							true,
+																					)
+																				}
+																				onSelect={(
+																					event,
+																				) =>
+																					event.preventDefault()
+																				}
+																			>
+																				<div className="flex min-w-0 flex-col">
+																					<span className="truncate">
+																						{
+																							user.name
+																						}
+																						{user.id ===
+																						currentUserId
+																							? " (you)"
+																							: ""}
+																					</span>
+																					<span className="truncate text-xs text-muted-foreground">
+																						{
+																							user.email
+																						}
+																					</span>
+																				</div>
+																			</DropdownMenuCheckboxItem>
+																		),
+																	)}
+																</div>
+															)}
+														</DropdownMenuContent>
+													</DropdownMenu>
+												</div>
+												<div className="flex items-center gap-2">
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={handleSelectAllUsers}
+														disabled={
+															loadingUsers ||
+															users.length === 0
+														}
+													>
+														All
+													</Button>
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														onClick={handleClearUsers}
+														disabled={
+															loadingUsers ||
+															users.length === 0
+														}
+													>
+														None
+													</Button>
+												</div>
+												<p className="text-xs text-muted-foreground">
+													{filters.selectedUserIds.length}/
+													{users.length} selected. Your own activity is unchecked by default.
+												</p>
+											</div>
+
+											<div className="space-y-2">
+												<div className="flex min-h-5 items-center">
+													<Label htmlFor="filter-event">
+														Event Type
+													</Label>
+												</div>
+												<Input
+													id="filter-event"
+													type="text"
+													placeholder="user_logged_in, app_loaded, page_viewed"
+													value={filters.eventName}
+													onChange={(e) =>
+														handleFilterChange(
+															"eventName",
+															e.target.value,
+														)
+													}
+												/>
+											</div>
+
+											<div className="space-y-2">
+												<div className="flex min-h-5 items-center">
+													<Label htmlFor="filter-date-from">
+														From Date
+													</Label>
+												</div>
+												<Input
+													id="filter-date-from"
+													type="date"
+													value={filters.dateFrom}
+													onChange={(e) =>
+														handleFilterChange(
+															"dateFrom",
+															e.target.value,
+														)
+													}
+												/>
+											</div>
+
+											<div className="space-y-2">
+												<div className="flex min-h-5 items-center">
+													<Label htmlFor="filter-date-to">
+														To Date
+													</Label>
+												</div>
+												<Input
+													id="filter-date-to"
+													type="date"
+													value={filters.dateTo}
+													onChange={(e) =>
+														handleFilterChange(
+															"dateTo",
+															e.target.value,
+														)
+													}
+												/>
+											</div>
 										</div>
-										<div>
-											<Label htmlFor="filter-event">
-												Event Type
-											</Label>
-											<Input
-												id="filter-event"
-												type="text"
-												placeholder="user_logged_in, app_loaded, page_viewed"
-												value={filters.eventName}
-												onChange={(e) =>
-													handleFilterChange(
-														"eventName",
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-										<div>
-											<Label htmlFor="filter-date-from">
-												From Date
-											</Label>
-											<Input
-												id="filter-date-from"
-												type="date"
-												value={filters.dateFrom}
-												onChange={(e) =>
-													handleFilterChange(
-														"dateFrom",
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-										<div>
-											<Label htmlFor="filter-date-to">
-												To Date
-											</Label>
-											<Input
-												id="filter-date-to"
-												type="date"
-												value={filters.dateTo}
-												onChange={(e) =>
-													handleFilterChange(
-														"dateTo",
-														e.target.value,
-													)
-												}
-											/>
-										</div>
-									</div>
+
 									<div>
 										<Button
+											type="button"
 											variant="outline"
 											onClick={handleResetFilters}
 										>
-											Reset Filters
+											Reset filters
 										</Button>
 									</div>
-								</Stack>
-							</Box>
+								</Box>
 
 							{/* Events Table */}
 							<Box>

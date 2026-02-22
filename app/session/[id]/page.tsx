@@ -154,11 +154,6 @@ function SessionPageContent() {
 	const [playerPairToTeamId, setPlayerPairToTeamId] = useState<
 		Record<string, string>
 	>({});
-	const [viewAvailability, setViewAvailability] = useState<{
-		hasSingles: boolean;
-		hasDoublesPlayer: boolean;
-		hasDoublesTeam: boolean;
-	} | null>(null);
 	const [matchEloHistory, setMatchEloHistory] = useState<
 		Record<
 			string,
@@ -171,6 +166,30 @@ function SessionPageContent() {
 	const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<
 		string | null
 	>(null);
+
+	const viewAvailability = useMemo(() => {
+		if (!sessionData) return null;
+
+		let hasSingles = false;
+		let hasDoubles = false;
+		for (const roundMatches of Object.values(sessionData.matchesByRound)) {
+			for (const match of roundMatches) {
+				if (match.match_type === "singles") {
+					hasSingles = true;
+				} else if (match.match_type === "doubles") {
+					hasDoubles = true;
+				}
+				if (hasSingles && hasDoubles) break;
+			}
+			if (hasSingles && hasDoubles) break;
+		}
+
+		return {
+			hasSingles,
+			hasDoublesPlayer: hasDoubles,
+			hasDoublesTeam: hasDoubles,
+		};
+	}, [sessionData]);
 
 	// Terminal state for ELO calculation visualization
 	const [showCalculationTerminal, setShowCalculationTerminal] =
@@ -404,37 +423,38 @@ function SessionPageContent() {
 	const scoreInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
 	// Reusable function to fetch players with updated Elo ratings
-	const fetchPlayers = useCallback(async (): Promise<Player[]> => {
-		const {
-			data: { session },
-		} = await supabase.auth.getSession();
+	const fetchPlayers = useCallback(
+		async (accessToken: string): Promise<Player[]> => {
+			if (!accessToken) {
+				throw new Error("Not authenticated");
+			}
 
-		if (!session) {
-			throw new Error("Not authenticated");
-		}
-
-		const playersResponse = await fetch(
-			`/api/sessions/${sessionId}/players`,
-			{
-				headers: {
-					Authorization: `Bearer ${session.access_token}`,
+			const playersResponse = await fetch(
+				`/api/sessions/${sessionId}/players`,
+				{
+					headers: {
+						Authorization: `Bearer ${accessToken}`,
+					},
 				},
-			},
-		);
-
-		if (!playersResponse.ok) {
-			const errorData = await playersResponse.json().catch(() => ({}));
-			console.error("Error fetching players:", errorData);
-			throw new Error(
-				`Failed to load players: ${
-					errorData.error || playersResponse.statusText
-				}`,
 			);
-		}
 
-		const playersData = await playersResponse.json();
-		return playersData.players as Player[];
-	}, [sessionId]);
+			if (!playersResponse.ok) {
+				const errorData = await playersResponse
+					.json()
+					.catch(() => ({}));
+				console.error("Error fetching players:", errorData);
+				throw new Error(
+					`Failed to load players: ${
+						errorData.error || playersResponse.statusText
+					}`,
+				);
+			}
+
+			const playersData = await playersResponse.json();
+			return playersData.players as Player[];
+		},
+		[sessionId],
+	);
 
 	// Load session data
 	useEffect(() => {
@@ -464,61 +484,55 @@ function SessionPageContent() {
 					},
 				);
 
-				// Fetch session
-				const { data: sessionRecord, error: sessionError } =
-					await supabaseClient
-						.from("sessions")
-						.select("*")
-						.eq("id", sessionId)
-						.single();
+				// Bootstrap session page data in parallel
+				const [sessionResult, playersResult, matchesResult] =
+					await Promise.all([
+						supabaseClient
+							.from("sessions")
+							.select(
+								"id, player_count, created_at, status, completed_at",
+							)
+							.eq("id", sessionId)
+							.single(),
+						fetchPlayers(session.access_token),
+						supabaseClient
+							.from("session_matches")
+							.select(
+								"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id",
+							)
+							.eq("session_id", sessionId)
+							.order("round_number", { ascending: true })
+							.order("match_order", { ascending: true }),
+					]);
 
-				if (sessionError) {
-					console.error("Error fetching session:", sessionError);
+				if (sessionResult.error || !sessionResult.data) {
+					console.error("Error fetching session:", sessionResult.error);
 					setError(
 						`Failed to load session: ${
-							sessionError.message || JSON.stringify(sessionError)
+							sessionResult.error?.message ||
+							"Session not found"
 						}`,
 					);
 					setLoading(false);
 					return;
 				}
 
-				// Fetch players with details
-				let players: Player[];
-				try {
-					players = await fetchPlayers();
-				} catch (playersError) {
-					console.error("Error fetching players:", playersError);
-					setError(
-						`Failed to load players: ${
-							playersError instanceof Error
-								? playersError.message
-								: String(playersError)
-						}`,
-					);
-					setLoading(false);
-					return;
-				}
+				const players = playersResult;
 
-				// Fetch matches
-				const { data: matches, error: matchesError } =
-					await supabaseClient
-						.from("session_matches")
-						.select("*")
-						.eq("session_id", sessionId)
-						.order("round_number", { ascending: true })
-						.order("match_order", { ascending: true });
-
-				if (matchesError) {
-					console.error("Error fetching matches:", matchesError);
+				if (matchesResult.error) {
+					console.error("Error fetching matches:", matchesResult.error);
 					setError(
 						`Failed to load matches: ${
-							matchesError.message || JSON.stringify(matchesError)
+							matchesResult.error.message ||
+							JSON.stringify(matchesResult.error)
 						}`,
 					);
 					setLoading(false);
 					return;
 				}
+
+				const sessionRecord = sessionResult.data;
+				const matches = (matchesResult.data || []) as Match[];
 
 				// Group matches by round_number
 				const matchesByRound = (matches || []).reduce(
@@ -544,29 +558,17 @@ function SessionPageContent() {
 				const fetchTeamEloRatings = async () => {
 					const teamIds = new Set<string>();
 
-					// Collect team IDs from matches (if stored)
-					for (const match of matches || []) {
-						if (match.match_type === "doubles") {
-							if (match.team_1_id) {
-								teamIds.add(match.team_1_id);
-							}
-							if (match.team_2_id) {
-								teamIds.add(match.team_2_id);
-							}
-						}
-					}
-
-					// For matches without team IDs, get/create them
 					const pairToTeamIdMap: Record<string, string> = {};
-					for (const match of matches || []) {
+					const missingPairs = new Map<string, [string, string]>();
+
+					const normalizePair = (p1: string, p2: string) =>
+						p1 < p2 ? `${p1}:${p2}` : `${p2}:${p1}`;
+
+					for (const match of matches) {
 						if (
 							match.match_type === "doubles" &&
 							match.player_ids.length >= 4
 						) {
-							// Normalize player pairs for lookup
-							const normalizePair = (p1: string, p2: string) =>
-								p1 < p2 ? `${p1}:${p2}` : `${p2}:${p1}`;
-
 							const pair1Key = normalizePair(
 								match.player_ids[0],
 								match.player_ids[1],
@@ -579,42 +581,54 @@ function SessionPageContent() {
 							let team1Id = match.team_1_id;
 							let team2Id = match.team_2_id;
 
-							if (!team1Id) {
-								try {
-									team1Id = await getOrCreateDoubleTeam(
-										match.player_ids[0],
-										match.player_ids[1],
-									);
-									pairToTeamIdMap[pair1Key] = team1Id;
-								} catch (error) {
-									console.error(
-										"Error getting team 1 ID:",
-										error,
-									);
-								}
-							} else {
+							if (team1Id) {
 								pairToTeamIdMap[pair1Key] = team1Id;
+								teamIds.add(team1Id);
+							} else if (!pairToTeamIdMap[pair1Key]) {
+								missingPairs.set(pair1Key, [
+									match.player_ids[0],
+									match.player_ids[1],
+								]);
 							}
 
-							if (!team2Id) {
-								try {
-									team2Id = await getOrCreateDoubleTeam(
-										match.player_ids[2],
-										match.player_ids[3],
-									);
-									pairToTeamIdMap[pair2Key] = team2Id;
-								} catch (error) {
-									console.error(
-										"Error getting team 2 ID:",
-										error,
-									);
-								}
-							} else {
+							if (team2Id) {
 								pairToTeamIdMap[pair2Key] = team2Id;
+								teamIds.add(team2Id);
+							} else if (!pairToTeamIdMap[pair2Key]) {
+								missingPairs.set(pair2Key, [
+									match.player_ids[2],
+									match.player_ids[3],
+								]);
 							}
+						}
+					}
 
-							if (team1Id) teamIds.add(team1Id);
-							if (team2Id) teamIds.add(team2Id);
+					if (missingPairs.size > 0) {
+						const resolvedPairs = await Promise.all(
+							Array.from(missingPairs.entries()).map(
+								async ([pairKey, [player1Id, player2Id]]) => {
+									try {
+										const teamId =
+											await getOrCreateDoubleTeam(
+												player1Id,
+												player2Id,
+											);
+										return [pairKey, teamId] as const;
+									} catch (error) {
+										console.error(
+											`Error getting team ID for pair ${pairKey}:`,
+											error,
+										);
+										return [pairKey, null] as const;
+									}
+								},
+							),
+						);
+
+						for (const [pairKey, teamId] of resolvedPairs) {
+							if (!teamId) continue;
+							pairToTeamIdMap[pairKey] = teamId;
+							teamIds.add(teamId);
 						}
 					}
 
@@ -657,7 +671,7 @@ function SessionPageContent() {
 
 				// Fetch match Elo history for completed matches
 				const fetchMatchEloHistory = async () => {
-					const completedMatchIds = (matches || [])
+					const completedMatchIds = matches
 						.filter((m) => m.status === "completed")
 						.map((m) => m.id);
 
@@ -665,30 +679,12 @@ function SessionPageContent() {
 						return;
 					}
 
-					const {
-						data: { session: authSession },
-					} = await supabase.auth.getSession();
-
-					if (!authSession) {
-						return;
-					}
-
-					const supabaseClient = createClient(
-						supabaseUrl,
-						supabaseAnonKey,
-						{
-							global: {
-								headers: {
-									Authorization: `Bearer ${authSession.access_token}`,
-								},
-							},
-						},
-					);
-
 					const { data: eloHistory, error: eloHistoryError } =
 						await supabaseClient
 							.from("match_elo_history")
-							.select("*")
+							.select(
+								"match_id, player1_elo_delta, player2_elo_delta, team1_elo_delta, team2_elo_delta",
+							)
 							.in("match_id", completedMatchIds);
 
 					if (eloHistoryError) {
@@ -1045,6 +1041,7 @@ function SessionPageContent() {
 		error?: string;
 	} | null>(null);
 	const submitRoundRef = useRef(currentRound);
+	const isManualRecalcPollingRef = useRef(false);
 
 	// Handle terminal animation complete - finalize the submission
 	const handleTerminalComplete = useCallback(() => {
@@ -1246,41 +1243,43 @@ function SessionPageContent() {
 				return;
 			}
 
-			// Refetch players to get updated Elo ratings
-			const updatedPlayers = await fetchPlayers();
+				// Refetch players to get updated Elo ratings
+				const updatedPlayers = await fetchPlayers(session.access_token);
 
-			// For Round 5 of 6-player sessions, also refetch matches
-			let allMatches: Match[] | undefined;
-			if (currentRound === 5 && sessionData.session.player_count === 6) {
-				const {
-					data: { session: authSession },
-				} = await supabase.auth.getSession();
-
-				if (authSession) {
+				// For Round 5 of 6-player sessions, also refetch matches
+				let allMatches: Match[] | undefined;
+				if (currentRound === 5 && sessionData.session.player_count === 6) {
 					const supabaseClient = createClient(
 						supabaseUrl,
 						supabaseAnonKey,
 						{
 							global: {
 								headers: {
-									Authorization: `Bearer ${authSession.access_token}`,
+									Authorization: `Bearer ${session.access_token}`,
 								},
 							},
 						},
 					);
 
-					const { data: matchesData } = await supabaseClient
-						.from("session_matches")
-						.select("*")
-						.eq("session_id", sessionId)
-						.order("round_number", { ascending: true })
-						.order("match_order", { ascending: true });
+					const { data: matchesData, error: matchesError } =
+						await supabaseClient
+							.from("session_matches")
+							.select(
+								"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id",
+							)
+							.eq("session_id", sessionId)
+							.order("round_number", { ascending: true })
+							.order("match_order", { ascending: true });
 
-					if (matchesData) {
+					if (matchesError) {
+						console.error(
+							"Error refetching matches after round submit:",
+							matchesError,
+						);
+					} else if (matchesData) {
 						allMatches = matchesData as Match[];
 					}
 				}
-			}
 
 			// Store successful result
 			submitResultRef.current = {
@@ -1451,14 +1450,9 @@ function SessionPageContent() {
 	}, []);
 
 	// Fetch recalc status
-	const fetchRecalcStatus = useCallback(async () => {
-		if (!sessionId) return;
+	const fetchRecalcStatus = useCallback(async (): Promise<string | null> => {
+		if (!sessionId) return null;
 		try {
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-			if (!session) return;
-
 			const { data, error } = await supabase
 				.from("sessions")
 				.select("recalc_status")
@@ -1467,15 +1461,21 @@ function SessionPageContent() {
 
 			if (!error && data) {
 				setRecalcStatus(data.recalc_status);
+				return data.recalc_status;
 			}
+			return null;
 		} catch (err) {
 			console.error("Error fetching recalc status:", err);
+			return null;
 		}
 	}, [sessionId]);
 
 	// Poll recalc status when it's running
 	useEffect(() => {
-		if (recalcStatus === "running") {
+		if (
+			recalcStatus === "running" &&
+			!isManualRecalcPollingRef.current
+		) {
 			const interval = setInterval(fetchRecalcStatus, 1000); // Poll every second
 			return () => clearInterval(interval);
 		}
@@ -1549,40 +1549,34 @@ function SessionPageContent() {
 				// Poll until recalculation is done
 				const maxWait = 60000; // 60 seconds max
 				const startTime = Date.now();
+				isManualRecalcPollingRef.current = true;
 				const pollInterval = setInterval(async () => {
-					await fetchRecalcStatus();
-					// Check status by fetching it directly
-					const {
-						data: { session: authSession },
-					} = await supabase.auth.getSession();
-					if (!authSession) return;
+					const latestStatus = await fetchRecalcStatus();
 
-					const { data: statusData } = await supabase
-						.from("sessions")
-						.select("recalc_status")
-						.eq("id", sessionId)
-						.single();
-
-					if (statusData?.recalc_status === "done") {
+					if (latestStatus === "done") {
 						clearInterval(pollInterval);
+						isManualRecalcPollingRef.current = false;
 						toast.success("Session recalculated successfully", {
 							id: toastId,
 						});
 						// Reload session data
 						window.location.reload();
-					} else if (statusData?.recalc_status === "failed") {
+					} else if (latestStatus === "failed") {
 						clearInterval(pollInterval);
+						isManualRecalcPollingRef.current = false;
 						toast.error("Recalculation failed", {
 							id: toastId,
 						});
 					} else if (Date.now() - startTime > maxWait) {
 						clearInterval(pollInterval);
+						isManualRecalcPollingRef.current = false;
 						toast.error("Recalculation timed out", {
 							id: toastId,
 						});
 					}
 				}, 1000);
 			} catch (err) {
+				isManualRecalcPollingRef.current = false;
 				console.error("Error editing match:", err);
 				toast.error("Failed to edit match", {
 					description:
@@ -1915,17 +1909,13 @@ function SessionPageContent() {
 												}
 											</h3>
 										</Box>
-										<SessionSummaryTable
-											sessionId={sessionId}
-											activeView={activeView}
-											onViewChange={handleViewChange}
-											onViewAvailabilityChange={
-												setViewAvailability
-											}
-											onPlayerClick={(playerId) => {
-												setSelectedPlayerFilter(
-													selectedPlayerFilter ===
-														playerId
+											<SessionSummaryTable
+												sessionId={sessionId}
+												activeView={activeView}
+												onPlayerClick={(playerId) => {
+													setSelectedPlayerFilter(
+														selectedPlayerFilter ===
+															playerId
 														? null
 														: playerId,
 												);

@@ -222,64 +222,75 @@ export async function GET(
 			);
 		}
 
-		// Get all players in this session
-		const { data: sessionPlayers, error: playersError } = await adminClient
-			.from("session_players")
-			.select("player_id")
-			.eq("session_id", sessionId);
+		// Get session players and completed matches in parallel
+		const [sessionPlayersResult, sessionMatchesResult] = await Promise.all([
+			adminClient
+				.from("session_players")
+				.select("player_id")
+				.eq("session_id", sessionId),
+			adminClient
+				.from("session_matches")
+				.select(
+					"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order"
+				)
+				.eq("session_id", sessionId)
+				.eq("status", "completed"),
+		]);
 
-		if (playersError) {
-			console.error("Error fetching session players:", playersError);
+		if (sessionPlayersResult.error) {
+			console.error(
+				"Error fetching session players:",
+				sessionPlayersResult.error,
+			);
 			return NextResponse.json(
 				{ error: "Failed to fetch session players" },
-				{ status: 500 }
+				{ status: 500 },
+			);
+		}
+
+		if (sessionMatchesResult.error) {
+			console.error(
+				"Error fetching session matches:",
+				sessionMatchesResult.error,
+			);
+			return NextResponse.json(
+				{ error: "Failed to fetch session matches" },
+				{ status: 500 },
 			);
 		}
 
 		const playerIds =
-			sessionPlayers && sessionPlayers.length > 0
-				? sessionPlayers.map((sp) => sp.player_id)
+			sessionPlayersResult.data && sessionPlayersResult.data.length > 0
+				? sessionPlayersResult.data.map((sp) => sp.player_id)
 				: [];
 
-		// Get player display names and avatars from profiles table (fast database query)
-		const { data: profiles, error: profilesError } = await supabase
-			.from("profiles")
-			.select("id, display_name, avatar_url");
+		// Get player display names and avatars only for players in this session
+		const profilesResult =
+			playerIds.length > 0
+				? await supabase
+						.from("profiles")
+						.select("id, display_name, avatar_url")
+						.in("id", playerIds)
+				: { data: [], error: null };
 
-		if (profilesError) {
-			console.error("Error fetching profiles:", profilesError);
+		if (profilesResult.error) {
+			console.error("Error fetching profiles:", profilesResult.error);
 			return NextResponse.json(
 				{ error: "Failed to fetch user data" },
-				{ status: 500 }
+				{ status: 500 },
 			);
 		}
 
 		const userMap = new Map(
-			(profiles || []).map((p) => [
+			(profilesResult.data || []).map((p) => [
 				p.id,
 				{
 					display_name: p.display_name || "Unknown",
 					avatar: p.avatar_url || null,
 				},
-			])
+			]),
 		);
-
-		// Get all matches in this session
-		const { data: sessionMatches, error: matchesError } = await adminClient
-			.from("session_matches")
-			.select(
-				"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order"
-			)
-			.eq("session_id", sessionId)
-			.eq("status", "completed");
-
-		if (matchesError) {
-			console.error("Error fetching session matches:", matchesError);
-			return NextResponse.json(
-				{ error: "Failed to fetch session matches" },
-				{ status: 500 }
-			);
-		}
+		const sessionMatches = sessionMatchesResult.data;
 
 		const singlesMatches =
 			sessionMatches?.filter((m) => m.match_type === "singles") || [];
@@ -292,8 +303,11 @@ export async function GET(
 			doubles_team?: SessionTeamSummary[];
 		} = {};
 
-		// Get previous session ID for snapshot loading
-		const previousSessionId = await getPreviousSessionId(sessionId);
+		// Get previous session ID for snapshot loading (needed only for doubles player summary)
+		const previousSessionId =
+			(!type || type === "doubles_player") && doublesMatches.length > 0
+				? await getPreviousSessionId(sessionId)
+				: null;
 
 		// 1. SINGLES SUMMARY - Using match_elo_history for elo_before and elo_after
 		if (!type || type === "singles") {

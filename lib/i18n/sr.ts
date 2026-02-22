@@ -255,7 +255,7 @@ export const sr = {
 				actions: "Akcije",
 			},
 			roles: {
-				user: "Korisnik",
+				user: "Igrač",
 				mod: "Moderator",
 				admin: "Administrator",
 				guest: "Gost",

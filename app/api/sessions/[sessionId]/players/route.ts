@@ -46,7 +46,7 @@ export async function GET(
 		// Fetch session players
 		const { data: sessionPlayers, error: playersError } = await supabase
 			.from("session_players")
-			.select("*")
+			.select("id, player_id, team")
 			.eq("session_id", sessionId);
 
 		if (playersError) {
@@ -68,7 +68,11 @@ export async function GET(
 		// Use admin client to access auth.users and ratings tables
 		// Include doubles Elo for display in live session doubles matches
 		const adminClient = createAdminClient();
-		const playersWithRatings = await fetchPlayersWithRatings(adminClient, playerIds, true);
+		const playersWithRatings = await fetchPlayersWithRatings(
+			adminClient,
+			playerIds,
+			true,
+		);
 
 		// Fetch match counts for accurate K-factor calculation
 		const { data: singlesRatings, error: ratingsError } = await adminClient
@@ -111,7 +115,10 @@ export async function GET(
 
 		return NextResponse.json({ players: playersWithDetails });
 	} catch (error) {
-		console.error("Unexpected error in GET /api/sessions/[sessionId]/players:", error);
+		console.error(
+			"Unexpected error in GET /api/sessions/[sessionId]/players:",
+			error,
+		);
 		return NextResponse.json(
 			{ error: "Internal server error" },
 			{ status: 500 }

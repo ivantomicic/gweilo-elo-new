@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { TeamNameCard } from "@/components/ui/team-name-card";
@@ -48,147 +48,155 @@ type SessionTeamSummary = {
 	draws: number;
 };
 
+type SummaryView = "singles" | "doubles_player" | "doubles_team";
+
 type SessionSummaryTableProps = {
 	sessionId: string;
-	activeView: "singles" | "doubles_player" | "doubles_team";
-	onViewChange: (view: "singles" | "doubles_player" | "doubles_team") => void;
-	onViewAvailabilityChange?: (availability: SessionViewAvailability) => void;
+	activeView: SummaryView;
 	onPlayerClick?: (playerId: string) => void;
 	selectedPlayerFilter?: string | null;
 };
 
-export type SessionViewAvailability = {
-	hasSingles: boolean;
-	hasDoublesPlayer: boolean;
-	hasDoublesTeam: boolean;
-};
-
-// Export function to get view availability (used by parent component)
-export function useSessionViewAvailability() {
-	return useState<SessionViewAvailability | null>(null);
-}
-
 export function SessionSummaryTable({
 	sessionId,
 	activeView,
-	onViewChange,
-	onViewAvailabilityChange,
 	onPlayerClick,
 	selectedPlayerFilter,
 }: SessionSummaryTableProps) {
 	const [singlesSummary, setSinglesSummary] = useState<
-		SessionPlayerSummary[]
-	>([]);
+		SessionPlayerSummary[] | null
+	>(null);
 	const [doublesPlayerSummary, setDoublesPlayerSummary] = useState<
-		SessionPlayerSummary[]
-	>([]);
+		SessionPlayerSummary[] | null
+	>(null);
 	const [doublesTeamSummary, setDoublesTeamSummary] = useState<
-		SessionTeamSummary[]
-	>([]);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+		SessionTeamSummary[] | null
+	>(null);
+	const [loadingByView, setLoadingByView] = useState<
+		Record<SummaryView, boolean>
+	>({
+		singles: false,
+		doubles_player: false,
+		doubles_team: false,
+	});
+	const [errorByView, setErrorByView] = useState<
+		Partial<Record<SummaryView, string>>
+	>({});
+	const accessTokenRef = useRef<string | null>(null);
+	const loadedViewsRef = useRef<Set<SummaryView>>(new Set());
+	const inFlightViewsRef = useRef<Set<SummaryView>>(new Set());
 
-	useEffect(() => {
-		const fetchSummary = async () => {
+	const getAccessToken = useCallback(async () => {
+		if (accessTokenRef.current) {
+			return accessTokenRef.current;
+		}
+
+		const {
+			data: { session },
+		} = await supabase.auth.getSession();
+		if (!session) {
+			throw new Error("Not authenticated");
+		}
+		accessTokenRef.current = session.access_token;
+		return session.access_token;
+	}, []);
+
+	const fetchSummaryForView = useCallback(
+		async (view: SummaryView) => {
+			if (
+				loadedViewsRef.current.has(view) ||
+				inFlightViewsRef.current.has(view)
+			) {
+				return;
+			}
+
+			inFlightViewsRef.current.add(view);
+			setLoadingByView((prev) => ({ ...prev, [view]: true }));
+			setErrorByView((prev) => {
+				const next = { ...prev };
+				delete next[view];
+				return next;
+			});
+
 			try {
-				setLoading(true);
-				setError(null);
-
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
-					setError("Not authenticated");
-					return;
-				}
-
+				const accessToken = await getAccessToken();
 				const response = await fetch(
-					`/api/sessions/${sessionId}/summary`,
+					`/api/sessions/${sessionId}/summary?type=${view}`,
 					{
 						headers: {
-							Authorization: `Bearer ${session.access_token}`,
+							Authorization: `Bearer ${accessToken}`,
 						},
-					}
+					},
 				);
 
 				if (!response.ok) {
 					const errorData = await response.json().catch(() => ({}));
 					throw new Error(
-						errorData.error || "Failed to load session summary"
+						errorData.error || "Failed to load session summary",
 					);
 				}
 
 				const data = await response.json();
-				setSinglesSummary(data.singles || []);
-				setDoublesPlayerSummary(data.doubles_player || []);
-				setDoublesTeamSummary(data.doubles_team || []);
-
-				// Notify parent of view availability
-				const availability = {
-					hasSingles: (data.singles || []).length > 0,
-					hasDoublesPlayer: (data.doubles_player || []).length > 0,
-					hasDoublesTeam: (data.doubles_team || []).length > 0,
-				};
-				onViewAvailabilityChange?.(availability);
+				if (view === "singles") {
+					setSinglesSummary(data.singles || []);
+				} else if (view === "doubles_player") {
+					setDoublesPlayerSummary(data.doubles_player || []);
+				} else {
+					setDoublesTeamSummary(data.doubles_team || []);
+				}
+				loadedViewsRef.current.add(view);
 			} catch (err) {
-				console.error("Error fetching session summary:", err);
-				setError(
-					err instanceof Error
-						? err.message
-						: "Failed to load session summary"
-				);
+				console.error(`Error fetching ${view} summary:`, err);
+				setErrorByView((prev) => ({
+					...prev,
+					[view]:
+						err instanceof Error
+							? err.message
+							: "Failed to load session summary",
+				}));
 			} finally {
-				setLoading(false);
+				inFlightViewsRef.current.delete(view);
+				setLoadingByView((prev) => ({ ...prev, [view]: false }));
 			}
-		};
+		},
+		[getAccessToken, sessionId],
+	);
 
-		fetchSummary();
+	// Reset summary state when session changes.
+	useEffect(() => {
+		setSinglesSummary(null);
+		setDoublesPlayerSummary(null);
+		setDoublesTeamSummary(null);
+		setLoadingByView({
+			singles: false,
+			doubles_player: false,
+			doubles_team: false,
+		});
+		setErrorByView({});
+		accessTokenRef.current = null;
+		loadedViewsRef.current.clear();
+		inFlightViewsRef.current.clear();
 	}, [sessionId]);
 
-	// Determine which tabs to show (before any conditional returns)
-	const hasSingles = singlesSummary.length > 0;
-	const hasDoublesPlayer = doublesPlayerSummary.length > 0;
-	const hasDoublesTeam = doublesTeamSummary.length > 0;
-
-	// Ensure activeView is valid and falls back to first available tab
-	// Must be before conditional returns to maintain hook order
+	// Load singles immediately for fastest first paint.
 	useEffect(() => {
-		if (loading) return; // Don't check during loading
+		fetchSummaryForView("singles");
+	}, [fetchSummaryForView]);
 
-		let fallbackView = activeView;
-		if (activeView === "singles" && !hasSingles) {
-			fallbackView = hasDoublesPlayer ? "doubles_player" : "doubles_team";
-		} else if (activeView === "doubles_player" && !hasDoublesPlayer) {
-			fallbackView = hasSingles ? "singles" : "doubles_team";
-		} else if (activeView === "doubles_team" && !hasDoublesTeam) {
-			fallbackView = hasSingles ? "singles" : "doubles_player";
-		}
-
-		// Update parent if view needs to change
-		if (fallbackView !== activeView) {
-			onViewChange(fallbackView);
-		}
-	}, [
-		activeView,
-		hasSingles,
-		hasDoublesPlayer,
-		hasDoublesTeam,
-		onViewChange,
-		loading,
-	]);
-
-	const handleTabChange = (value: string) => {
-		if (
-			value === "singles" ||
-			value === "doubles_player" ||
-			value === "doubles_team"
-		) {
-			onViewChange(value);
-		}
-	};
+	// Lazy-load other summaries when user opens that tab.
+	useEffect(() => {
+		fetchSummaryForView(activeView);
+	}, [activeView, fetchSummaryForView]);
 
 	const currentView = activeView;
+	const currentError = errorByView[currentView] ?? null;
+	const isCurrentViewLoading = loadingByView[currentView];
+	const currentViewLoaded =
+		currentView === "singles"
+			? singlesSummary !== null
+			: currentView === "doubles_player"
+				? doublesPlayerSummary !== null
+				: doublesTeamSummary !== null;
 
 	// Format Elo values (round to nearest integer for display)
 	const formatElo = (elo: number) => Math.round(elo);
@@ -215,7 +223,7 @@ export function SessionSummaryTable({
 		return [...arr].sort((a, b) => b.wins - a.wins);
 	};
 
-	if (loading) {
+	if (isCurrentViewLoading && !currentViewLoaded) {
 		return (
 			<Box>
 				<Loading inline label={t.sessions.session.loading} />
@@ -223,29 +231,25 @@ export function SessionSummaryTable({
 		);
 	}
 
-	if (error) {
+	if (currentError) {
 		return (
 			<Box>
-				<p className="text-destructive">{error}</p>
-			</Box>
-		);
-	}
-
-	// If no data at all
-	if (!hasSingles && !hasDoublesPlayer && !hasDoublesTeam) {
-		return (
-			<Box>
-				<p className="text-muted-foreground">
-					No summary data available.
-				</p>
+				<p className="text-destructive">{currentError}</p>
 			</Box>
 		);
 	}
 
 	// Return just the table content based on current view
 	const renderTable = () => {
-		if (currentView === "singles" && hasSingles) {
-			const sortedPlayers = sortByWins(singlesSummary);
+		if (currentView === "singles") {
+			const sortedPlayers = sortByWins(singlesSummary ?? []);
+			if (sortedPlayers.length === 0) {
+				return (
+					<p className="text-muted-foreground text-sm px-4 py-5">
+						No summary data available.
+					</p>
+				);
+			}
 			return (
 				<Table>
 					<TableHeader className="bg-muted/30">
@@ -344,8 +348,15 @@ export function SessionSummaryTable({
 			);
 		}
 
-		if (currentView === "doubles_player" && hasDoublesPlayer) {
-			const sortedPlayers = sortByWins(doublesPlayerSummary);
+		if (currentView === "doubles_player") {
+			const sortedPlayers = sortByWins(doublesPlayerSummary ?? []);
+			if (sortedPlayers.length === 0) {
+				return (
+					<p className="text-muted-foreground text-sm px-4 py-5">
+						No summary data available.
+					</p>
+				);
+			}
 			return (
 				<Table>
 					<TableHeader className="bg-muted/30">
@@ -444,8 +455,15 @@ export function SessionSummaryTable({
 			);
 		}
 
-		if (currentView === "doubles_team" && hasDoublesTeam) {
-			const sortedTeams = sortByWins(doublesTeamSummary);
+		if (currentView === "doubles_team") {
+			const sortedTeams = sortByWins(doublesTeamSummary ?? []);
+			if (sortedTeams.length === 0) {
+				return (
+					<p className="text-muted-foreground text-sm px-4 py-5">
+						No summary data available.
+					</p>
+				);
+			}
 			return (
 				<Table>
 					<TableHeader className="bg-muted/30">
@@ -544,17 +562,4 @@ export function SessionSummaryTable({
 			{renderTable()}
 		</Box>
 	);
-}
-
-// Export view availability as a prop getter function
-export function getSessionViewAvailability(
-	singlesSummary: SessionPlayerSummary[],
-	doublesPlayerSummary: SessionPlayerSummary[],
-	doublesTeamSummary: SessionTeamSummary[]
-): SessionViewAvailability {
-	return {
-		hasSingles: singlesSummary.length > 0,
-		hasDoublesPlayer: doublesPlayerSummary.length > 0,
-		hasDoublesTeam: doublesTeamSummary.length > 0,
-	};
 }

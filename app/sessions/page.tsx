@@ -7,7 +7,6 @@ import { useAuth } from "@/lib/auth/useAuth";
 import { Stack } from "@/components/ui/stack";
 import { InfiniteScroll } from "@/components/ui/infinite-scroll";
 import { supabase } from "@/lib/supabase/client";
-import { createClient } from "@supabase/supabase-js";
 import { SessionCard } from "./_components/session-card";
 import { SessionsLayout, SessionsState } from "./_components/sessions-layout";
 import { t } from "@/lib/i18n";
@@ -16,9 +15,6 @@ const listTransition = {
 	duration: 0.2,
 	ease: [0.25, 0.46, 0.45, 0.94] as const,
 };
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 type BestWorstPlayer = {
 	best_player_id: string | null;
@@ -62,113 +58,40 @@ function SessionsPageContent() {
 				}
 				setError(null);
 
-				const {
-					data: { session: authSession },
-				} = await supabase.auth.getSession();
-
 				if (!authSession) {
-					setError(t.sessions.error.notAuthenticated);
-					return;
-				}
-
-				const supabaseClient = createClient(
-					supabaseUrl,
-					supabaseAnonKey,
-					{
-						global: {
-							headers: {
-								Authorization: `Bearer ${authSession.access_token}`,
-							},
-						},
-					}
-				);
-
-				const {
-					data: { user: currentUser },
-				} = await supabaseClient.auth.getUser();
-
-				if (!currentUser) {
 					setError(t.sessions.error.notAuthenticated);
 					return;
 				}
 
 				// Fetch paginated sessions (all sessions, not filtered by user)
 				const { data: sessionsData, error: sessionsError } =
-					await supabaseClient
+					await supabase
 						.from("sessions")
-						.select("*")
+						.select(
+							"id, player_count, created_at, status, completed_at, best_player_id, best_player_display_name, best_player_delta, worst_player_id, worst_player_display_name, worst_player_delta",
+						)
 						.order("created_at", { ascending: false })
 						.range(offset, offset + PAGE_SIZE - 1);
 
 				if (sessionsError) {
 					console.error("Error fetching sessions:", sessionsError);
-					console.error("User ID:", currentUser.id);
 					setError(t.sessions.error.fetchFailed);
 					return;
 				}
 
 				const newSessions = sessionsData || [];
 
-				console.log(`[Sessions] Fetched ${newSessions.length} sessions for user ${currentUser.id}`);
-
-				// If no sessions, skip match count fetching
-				if (newSessions.length === 0) {
-					console.log(`[Sessions] No sessions found for user ${currentUser.id}`);
-					if (append) {
-						setSessions((prev) => [...prev, ...newSessions]);
-					} else {
-						setSessions(newSessions);
+					// If no sessions, skip match count fetching
+					if (newSessions.length === 0) {
+						if (!append) {
+							setSessions([]);
+						}
+						setHasMore(false);
+						return;
 					}
-					setHasMore(false);
-					return;
-				}
 
 				// Batch fetch match counts for all sessions
 				const sessionIds = newSessions.map((s) => s.id);
-
-				// Fetch match counts grouped by session_id and match_type
-				// Using a single query with filters for efficiency
-				const { data: matchCounts, error: matchCountsError } =
-					await supabaseClient
-						.from("session_matches")
-						.select("session_id, match_type")
-						.in("session_id", sessionIds)
-						.eq("status", "completed");
-
-				if (matchCountsError) {
-					console.error(
-						"Error fetching match counts:",
-						matchCountsError
-					);
-					// Non-fatal: continue with zero counts
-				}
-
-				// Aggregate match counts by session_id and match_type
-				const countsMap = new Map<
-					string,
-					{ singles: number; doubles: number }
-				>();
-
-				// Initialize all sessions with zero counts
-				sessionIds.forEach((sessionId) => {
-					countsMap.set(sessionId, { singles: 0, doubles: 0 });
-				});
-
-				// Aggregate counts from query results
-				if (matchCounts) {
-					matchCounts.forEach((match) => {
-						const counts = countsMap.get(match.session_id) || {
-							singles: 0,
-							doubles: 0,
-						};
-						if (match.match_type === "singles") {
-							counts.singles += 1;
-						} else if (match.match_type === "doubles") {
-							counts.doubles += 1;
-						}
-						countsMap.set(match.session_id, counts);
-					});
-				}
 
 				// Resolve latest player names for best/worst badges
 				// Keep stored names only as fallback when profile lookup misses.
@@ -183,27 +106,63 @@ function SessionsPageContent() {
 					),
 				) as string[];
 
-				const bestWorstNameMap = new Map<string, string>();
-				if (bestWorstPlayerIds.length > 0) {
-					const { data: profiles, error: profilesError } =
-						await supabaseClient
-							.from("profiles")
-							.select("id, display_name")
-							.in("id", bestWorstPlayerIds);
+				const [matchCountsResult, profilesResult] = await Promise.all([
+					supabase
+						.from("session_matches")
+						.select("session_id, match_type")
+						.in("session_id", sessionIds)
+						.eq("status", "completed"),
+					bestWorstPlayerIds.length > 0
+						? supabase
+								.from("profiles")
+								.select("id, display_name")
+								.in("id", bestWorstPlayerIds)
+						: Promise.resolve({ data: [], error: null }),
+				]);
 
-					if (profilesError) {
-						console.error(
-							"Error fetching best/worst player names:",
-							profilesError,
-						);
-					} else {
-						(profiles || []).forEach((profile: any) => {
-							bestWorstNameMap.set(
-								profile.id,
-								profile.display_name || "User",
-							);
-						});
+				if (matchCountsResult.error) {
+					console.error(
+						"Error fetching match counts:",
+						matchCountsResult.error,
+					);
+				}
+
+				// Aggregate match counts by session_id and match_type
+				const countsMap = new Map<
+					string,
+					{ singles: number; doubles: number }
+				>();
+
+				sessionIds.forEach((sessionId) => {
+					countsMap.set(sessionId, { singles: 0, doubles: 0 });
+				});
+
+				(matchCountsResult.data || []).forEach((match) => {
+					const counts = countsMap.get(match.session_id) || {
+						singles: 0,
+						doubles: 0,
+					};
+					if (match.match_type === "singles") {
+						counts.singles += 1;
+					} else if (match.match_type === "doubles") {
+						counts.doubles += 1;
 					}
+					countsMap.set(match.session_id, counts);
+				});
+
+				const bestWorstNameMap = new Map<string, string>();
+				if (profilesResult.error) {
+					console.error(
+						"Error fetching best/worst player names:",
+						profilesResult.error,
+					);
+				} else {
+					(profilesResult.data || []).forEach((profile: any) => {
+						bestWorstNameMap.set(
+							profile.id,
+							profile.display_name || "User",
+						);
+					});
 				}
 
 				// Merge match counts and best/worst player data into sessions
@@ -267,7 +226,7 @@ function SessionsPageContent() {
 				setLoadingMore(false);
 			}
 		},
-		[]
+		[authSession]
 	);
 
 	// Initial load and refetch when user changes
