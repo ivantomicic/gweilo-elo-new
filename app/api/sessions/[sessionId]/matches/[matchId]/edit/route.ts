@@ -7,6 +7,10 @@ import {
 	createEloSnapshots,
 } from "@/lib/elo/snapshots";
 import {
+	getDoublesPlayerBaseline,
+	getDoublesTeamBaseline,
+} from "@/lib/elo/session-baseline";
+import {
 	calculateEloDelta,
 	calculateKFactor,
 	calculateExpectedScore,
@@ -96,7 +100,7 @@ export async function POST(
 		// Verify user owns the session
 		const { data: session, error: sessionError } = await supabase
 			.from("sessions")
-			.select("created_by, recalc_status")
+			.select("created_by, recalc_status, status, completed_at")
 			.eq("id", sessionId)
 			.single();
 
@@ -116,6 +120,38 @@ export async function POST(
 				},
 				{ status: 403 },
 			);
+		}
+
+		// Guard: this endpoint only replays one session's matches, so editing older
+		// completed sessions would overwrite global ratings for newer completed sessions.
+		if (session.status === "completed") {
+			const { data: latestCompletedSession, error: latestError } =
+				await adminClient
+					.from("sessions")
+					.select("id")
+					.eq("status", "completed")
+					.order("completed_at", { ascending: false })
+					.limit(1)
+					.single();
+
+			if (latestError || !latestCompletedSession) {
+				return NextResponse.json(
+					{
+						error: "Cannot verify if this is the latest completed session",
+					},
+					{ status: 500 },
+				);
+			}
+
+			if (latestCompletedSession.id !== sessionId) {
+				return NextResponse.json(
+					{
+						error: "Only the latest completed session can be edited safely",
+						latest_completed_session_id: latestCompletedSession.id,
+					},
+					{ status: 400 },
+				);
+			}
 		}
 
 		// Parse request body
@@ -513,7 +549,6 @@ export async function POST(
 					for (const match of sessionMatchesForBaseline) {
 						const playerIds = (match as any).player_ids as string[];
 						if (playerIds.includes(playerId)) {
-							sessionMatchesPlayed += 1;
 							const playerIndex = playerIds.indexOf(playerId);
 							const playerScore =
 								playerIndex === 0
@@ -528,15 +563,16 @@ export async function POST(
 								playerScore !== null &&
 								opponentScore !== null
 							) {
+								sessionMatchesPlayed += 1;
 								if (playerScore > opponentScore) {
 									sessionWins += 1;
-									sessionSetsWon += 1;
 								} else if (playerScore < opponentScore) {
 									sessionLosses += 1;
-									sessionSetsLost += 1;
 								} else {
 									sessionDraws += 1;
 								}
+								sessionSetsWon += playerScore;
+								sessionSetsLost += opponentScore;
 							}
 						}
 					}
@@ -685,8 +721,66 @@ export async function POST(
 				}
 			>();
 
+			const doublesPlayerHistoricalBaseline = new Map<
+				string,
+				{
+					elo: number;
+					matches_played: number;
+					wins: number;
+					losses: number;
+					draws: number;
+				}
+			>();
+			const doublesTeamHistoricalBaseline = new Map<
+				string,
+				{
+					elo: number;
+					matches_played: number;
+					wins: number;
+					losses: number;
+					draws: number;
+					player1Id: string;
+					player2Id: string;
+				}
+			>();
+			const doublesPlayerSessionAdjustments = new Map<
+				string,
+				{
+					matches_played: number;
+					wins: number;
+					losses: number;
+					draws: number;
+					sets_won: number;
+					sets_lost: number;
+				}
+			>();
+			const doublesTeamSessionAdjustments = new Map<
+				string,
+				{
+					matches_played: number;
+					wins: number;
+					losses: number;
+					draws: number;
+					sets_won: number;
+					sets_lost: number;
+				}
+			>();
+
 			// Only load player doubles baselines if editing doubles matches
 			if (matchToEdit.match_type === "doubles") {
+				const historicalPlayerBaseline =
+					await getDoublesPlayerBaseline(sessionId);
+				const historicalTeamBaseline =
+					await getDoublesTeamBaseline(sessionId);
+
+				for (const [playerId, state] of historicalPlayerBaseline.entries()) {
+					doublesPlayerHistoricalBaseline.set(playerId, state);
+				}
+
+				for (const [teamId, state] of historicalTeamBaseline.entries()) {
+					doublesTeamHistoricalBaseline.set(teamId, state);
+				}
+
 				// Collect all players who will participate in doubles matches during replay
 				const playersInDoublesMatches = new Set<string>();
 				for (const match of allMatches) {
@@ -701,11 +795,134 @@ export async function POST(
 					}
 				}
 
+				const getOrInitPlayerAdjustment = (playerId: string) => {
+					let state = doublesPlayerSessionAdjustments.get(playerId);
+					if (!state) {
+						state = {
+							matches_played: 0,
+							wins: 0,
+							losses: 0,
+							draws: 0,
+							sets_won: 0,
+							sets_lost: 0,
+						};
+						doublesPlayerSessionAdjustments.set(playerId, state);
+					}
+					return state;
+				};
+
+				const getOrInitTeamAdjustment = (teamId: string) => {
+					let state = doublesTeamSessionAdjustments.get(teamId);
+					if (!state) {
+						state = {
+							matches_played: 0,
+							wins: 0,
+							losses: 0,
+							draws: 0,
+							sets_won: 0,
+							sets_lost: 0,
+						};
+						doublesTeamSessionAdjustments.set(teamId, state);
+					}
+					return state;
+				};
+
+				// Aggregate this session's completed doubles stats for baseline set counters
+				for (const match of allMatches) {
+					if ((match as any).match_type !== "doubles") {
+						continue;
+					}
+
+					const playerIds = (match as any).player_ids as string[];
+					if (playerIds.length < 4) {
+						continue;
+					}
+
+					const team1Score = (match as any).team1_score as
+						| number
+						| null;
+					const team2Score = (match as any).team2_score as
+						| number
+						| null;
+
+					if (team1Score === null || team2Score === null) {
+						continue;
+					}
+
+					const team1Id = await getOrCreateDoubleTeam(
+						playerIds[0],
+						playerIds[1],
+					);
+					const team2Id = await getOrCreateDoubleTeam(
+						playerIds[2],
+						playerIds[3],
+					);
+
+					const team1Won = team1Score > team2Score;
+					const team2Won = team2Score > team1Score;
+					const isDraw = team1Score === team2Score;
+
+					const team1Adjustment = getOrInitTeamAdjustment(team1Id);
+					team1Adjustment.matches_played += 1;
+					team1Adjustment.sets_won += team1Score;
+					team1Adjustment.sets_lost += team2Score;
+					if (team1Won) {
+						team1Adjustment.wins += 1;
+					} else if (team2Won) {
+						team1Adjustment.losses += 1;
+					} else if (isDraw) {
+						team1Adjustment.draws += 1;
+					}
+
+					const team2Adjustment = getOrInitTeamAdjustment(team2Id);
+					team2Adjustment.matches_played += 1;
+					team2Adjustment.sets_won += team2Score;
+					team2Adjustment.sets_lost += team1Score;
+					if (team2Won) {
+						team2Adjustment.wins += 1;
+					} else if (team1Won) {
+						team2Adjustment.losses += 1;
+					} else if (isDraw) {
+						team2Adjustment.draws += 1;
+					}
+
+					for (const playerId of [playerIds[0], playerIds[1]]) {
+						const adjustment = getOrInitPlayerAdjustment(playerId);
+						adjustment.matches_played += 1;
+						adjustment.sets_won += team1Score;
+						adjustment.sets_lost += team2Score;
+						if (team1Won) {
+							adjustment.wins += 1;
+						} else if (team2Won) {
+							adjustment.losses += 1;
+						} else if (isDraw) {
+							adjustment.draws += 1;
+						}
+					}
+
+					for (const playerId of [playerIds[2], playerIds[3]]) {
+						const adjustment = getOrInitPlayerAdjustment(playerId);
+						adjustment.matches_played += 1;
+						adjustment.sets_won += team2Score;
+						adjustment.sets_lost += team1Score;
+						if (team2Won) {
+							adjustment.wins += 1;
+						} else if (team1Won) {
+							adjustment.losses += 1;
+						} else if (isDraw) {
+							adjustment.draws += 1;
+						}
+					}
+				}
+
 				// Load baseline for each player in doubles matches
-				// CRITICAL: Baseline must ALWAYS come from persisted player_double_ratings (or 1500 if none exist)
-				// Never derive from: singles Elo, session snapshots, calculated session-start values
+				// CRITICAL: Player doubles baseline Elo must come from replaying previous sessions.
+				// Team-delta reversal is invalid for player_double_ratings because doubles-player Elo
+				// is calculated independently using player-average expected score.
 				for (const playerId of playersInDoublesMatches) {
-					// ALWAYS load from persisted player_double_ratings (authoritative source)
+					const historicalBaseline =
+						doublesPlayerHistoricalBaseline.get(playerId);
+
 					const { data: currentPlayerDoublesRating } =
 						await adminClient
 							.from("player_double_ratings")
@@ -715,133 +932,27 @@ export async function POST(
 							.eq("player_id", playerId)
 							.maybeSingle();
 
-					if (currentPlayerDoublesRating) {
-						// Get persisted state from player_double_ratings
-						const persistedElo =
-							typeof currentPlayerDoublesRating.elo === "string"
-								? parseFloat(currentPlayerDoublesRating.elo)
-								: Number(currentPlayerDoublesRating.elo);
+					const sessionAdjustment =
+						doublesPlayerSessionAdjustments.get(playerId);
 
-						// Count completed doubles matches for this player in this session
-						// to calculate baseline matches_played by subtracting session matches
-						const doublesMatchesForPlayer = allMatches.filter(
-							(m: any) =>
-								m.match_type === "doubles" &&
-								m.status === "completed" &&
-								((m as any).player_ids as string[]).includes(
-									playerId,
-								),
-						);
-
-						let sessionMatchesPlayed = 0;
-						let sessionWins = 0;
-						let sessionLosses = 0;
-						let sessionDraws = 0;
-						let sessionSetsWon = 0;
-						let sessionSetsLost = 0;
-
-						// Count matches and wins/losses from session matches
-						// Also accumulate Elo deltas from match_elo_history to reverse them
-						// CRITICAL: Player doubles deltas equal team deltas (both players on same team get same delta)
-						let sessionPlayerDoublesEloDelta = 0;
-						for (const match of doublesMatchesForPlayer) {
-							const playerIds = (match as any)
-								.player_ids as string[];
-							const playerIndex = playerIds.indexOf(playerId);
-							const isTeam1 = playerIndex < 2;
-							const team1Score = match.team1_score;
-							const team2Score = match.team2_score;
-
-							if (team1Score !== null && team2Score !== null) {
-								sessionMatchesPlayed += 1;
-								const playerTeamWon = isTeam1
-									? team1Score > team2Score
-									: team2Score > team1Score;
-								const playerTeamLost = isTeam1
-									? team1Score < team2Score
-									: team2Score < team1Score;
-								const isDraw = team1Score === team2Score;
-
-								if (playerTeamWon) {
-									sessionWins += 1;
-									sessionSetsWon += 1;
-								} else if (playerTeamLost) {
-									sessionLosses += 1;
-									sessionSetsLost += 1;
-								} else if (isDraw) {
-									sessionDraws += 1;
-								}
-
-								// Load team delta from match_elo_history to reverse player doubles Elo
-								// NOTE: We query BEFORE deletion (history still exists at this point)
-								const { data: matchHistory } = await adminClient
-									.from("match_elo_history")
-									.select("team1_elo_delta, team2_elo_delta")
-									.eq("match_id", match.id)
-									.maybeSingle();
-
-								if (matchHistory) {
-									const teamDelta = isTeam1
-										? matchHistory.team1_elo_delta
-										: matchHistory.team2_elo_delta;
-									if (
-										teamDelta !== null &&
-										teamDelta !== undefined
-									) {
-										const deltaNum =
-											typeof teamDelta === "string"
-												? parseFloat(teamDelta)
-												: Number(teamDelta);
-										// Reverse: subtract the delta that was applied to get baseline
-										sessionPlayerDoublesEloDelta -=
-											deltaNum;
-									}
-								}
-							}
-						}
-
-						// Calculate baseline by reversing session effects from persisted state
-						// CRITICAL: Persisted Elo already includes this session's matches, so we must reverse them
-						// Player doubles deltas equal team deltas (both players on same team get same delta)
-						const baselineElo =
-							persistedElo + sessionPlayerDoublesEloDelta;
-						const baselineMatchesPlayed = Math.max(
-							0,
-							(currentPlayerDoublesRating.matches_played ?? 0) -
-								sessionMatchesPlayed,
-						);
-						const baselineWins = Math.max(
-							0,
-							(currentPlayerDoublesRating.wins ?? 0) -
-								sessionWins,
-						);
-						const baselineLosses = Math.max(
-							0,
-							(currentPlayerDoublesRating.losses ?? 0) -
-								sessionLosses,
-						);
-						const baselineDraws = Math.max(
-							0,
-							(currentPlayerDoublesRating.draws ?? 0) -
-								sessionDraws,
-						);
+					if (historicalBaseline) {
 						const baselineSetsWon = Math.max(
 							0,
-							(currentPlayerDoublesRating.sets_won ?? 0) -
-								sessionSetsWon,
+							(currentPlayerDoublesRating?.sets_won ?? 0) -
+								(sessionAdjustment?.sets_won ?? 0),
 						);
 						const baselineSetsLost = Math.max(
 							0,
-							(currentPlayerDoublesRating.sets_lost ?? 0) -
-								sessionSetsLost,
+							(currentPlayerDoublesRating?.sets_lost ?? 0) -
+								(sessionAdjustment?.sets_lost ?? 0),
 						);
 
 						playerDoublesBaselineState.set(playerId, {
-							elo: baselineElo,
-							matches_played: Math.max(0, baselineMatchesPlayed),
-							wins: baselineWins,
-							losses: baselineLosses,
-							draws: baselineDraws,
+							elo: historicalBaseline.elo,
+							matches_played: historicalBaseline.matches_played,
+							wins: historicalBaseline.wins,
+							losses: historicalBaseline.losses,
+							draws: historicalBaseline.draws,
 							sets_won: baselineSetsWon,
 							sets_lost: baselineSetsLost,
 						});
@@ -850,34 +961,21 @@ export async function POST(
 								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
 								session_id: sessionId,
 								player_id: playerId,
-								source: "player_double_ratings_persisted",
+								source: "historical_replay_baseline",
 								baseline: {
-									elo: baselineElo,
-									matches_played: baselineMatchesPlayed,
-									wins: baselineWins,
-									losses: baselineLosses,
-									draws: baselineDraws,
-								},
-								persisted_state: {
-									elo: persistedElo,
+									elo: historicalBaseline.elo,
 									matches_played:
-										currentPlayerDoublesRating.matches_played ??
-										0,
-									wins: currentPlayerDoublesRating.wins ?? 0,
-									losses:
-										currentPlayerDoublesRating.losses ?? 0,
-									draws:
-										currentPlayerDoublesRating.draws ?? 0,
+										historicalBaseline.matches_played,
+									wins: historicalBaseline.wins,
+									losses: historicalBaseline.losses,
+									draws: historicalBaseline.draws,
+									sets_won: baselineSetsWon,
+									sets_lost: baselineSetsLost,
 								},
-								session_matches_subtracted:
-									sessionMatchesPlayed,
-								session_elo_delta_reversed:
-									sessionPlayerDoublesEloDelta,
-								baseline_elo_calculation: `${persistedElo} + ${sessionPlayerDoublesEloDelta} = ${baselineElo}`,
+								session_adjustment: sessionAdjustment ?? null,
 							}),
 						);
 					} else {
-						// Player doesn't exist in player_double_ratings - use initial baseline
 						playerDoublesBaselineState.set(playerId, {
 							elo: 1500,
 							matches_played: 0,
@@ -892,7 +990,7 @@ export async function POST(
 								tag: "[PLAYER_DOUBLES_BASELINE_LOADED]",
 								session_id: sessionId,
 								player_id: playerId,
-								source: "initial_baseline_1500",
+								source: "initial_baseline_1500_no_historical_state",
 								baseline: {
 									elo: 1500,
 									matches_played: 0,
@@ -1060,20 +1158,6 @@ export async function POST(
 			for (const [playerId, baseline] of baselineState.entries()) {
 				// baselineState only contains players in the edited match type
 				currentState.set(playerId, { ...baseline });
-			}
-
-			// Load baseline for teams from previous session snapshot
-			// For teams, we need to check if they existed in previous session
-			// If not, initialize at 1500
-			const allTeamIds = new Set<string>();
-			for (const match of allMatches) {
-				if ((match as any).match_type === "doubles") {
-					const playerIds = (match as any).player_ids as string[];
-					if (playerIds.length >= 4) {
-						// Get or create team IDs (we'll do this during replay, but collect pairs now)
-						// For baseline, we'll load team ratings from DB if they exist
-					}
-				}
 			}
 
 			console.log(
@@ -1463,66 +1547,114 @@ export async function POST(
 						playersInReplayedDoublesMatches.add(playerId);
 					}
 
-					// Initialize team state from scratch (session-scoped recomputation)
-					// CRITICAL: NEVER read team Elo from database during replay
-					// All teams start at 1500/0/0/0/0 for this session
-					// This ensures mathematical correctness and prevents double counting
+					// Initialize team state from historical baseline (sessions before current one).
+					// If no historical state exists for this pair, it is a new team and starts at 1500.
 					if (!teamState.has(team1Id)) {
-						teamState.set(team1Id, {
-							elo: 1500,
-							matches_played: 0,
-							wins: 0,
-							losses: 0,
-							draws: 0,
-							sets_won: 0,
-							sets_lost: 0,
-						});
+						const historicalBaseline =
+							doublesTeamHistoricalBaseline.get(team1Id);
+						const { data: persistedTeamRating } = await adminClient
+							.from("double_team_ratings")
+							.select("sets_won, sets_lost")
+							.eq("team_id", team1Id)
+							.maybeSingle();
+						const sessionAdjustment =
+							doublesTeamSessionAdjustments.get(team1Id);
+
+						if (historicalBaseline) {
+							teamState.set(team1Id, {
+								elo: historicalBaseline.elo,
+								matches_played:
+									historicalBaseline.matches_played,
+								wins: historicalBaseline.wins,
+								losses: historicalBaseline.losses,
+								draws: historicalBaseline.draws,
+								sets_won: Math.max(
+									0,
+									(persistedTeamRating?.sets_won ?? 0) -
+										(sessionAdjustment?.sets_won ?? 0),
+								),
+								sets_lost: Math.max(
+									0,
+									(persistedTeamRating?.sets_lost ?? 0) -
+										(sessionAdjustment?.sets_lost ?? 0),
+								),
+							});
+						} else {
+							teamState.set(team1Id, {
+								elo: 1500,
+								matches_played: 0,
+								wins: 0,
+								losses: 0,
+								draws: 0,
+								sets_won: 0,
+								sets_lost: 0,
+							});
+						}
 
 						console.log(
 							JSON.stringify({
 								tag: "[TEAM_INITIALIZED]",
 								session_id: sessionId,
 								team_id: team1Id,
-								source: "session_scoped_recomputation",
-								initial_state: {
-									elo: 1500,
-									matches_played: 0,
-									wins: 0,
-									losses: 0,
-									draws: 0,
-								},
-								message:
-									"Team initialized at 1500 for session-scoped recomputation",
+								source: historicalBaseline
+									? "historical_replay_baseline"
+									: "initial_baseline_1500_new_team",
+								initial_state: teamState.get(team1Id),
 							}),
 						);
 					}
 
 					if (!teamState.has(team2Id)) {
-						teamState.set(team2Id, {
-							elo: 1500,
-							matches_played: 0,
-							wins: 0,
-							losses: 0,
-							draws: 0,
-							sets_won: 0,
-							sets_lost: 0,
-						});
+						const historicalBaseline =
+							doublesTeamHistoricalBaseline.get(team2Id);
+						const { data: persistedTeamRating } = await adminClient
+							.from("double_team_ratings")
+							.select("sets_won, sets_lost")
+							.eq("team_id", team2Id)
+							.maybeSingle();
+						const sessionAdjustment =
+							doublesTeamSessionAdjustments.get(team2Id);
+
+						if (historicalBaseline) {
+							teamState.set(team2Id, {
+								elo: historicalBaseline.elo,
+								matches_played:
+									historicalBaseline.matches_played,
+								wins: historicalBaseline.wins,
+								losses: historicalBaseline.losses,
+								draws: historicalBaseline.draws,
+								sets_won: Math.max(
+									0,
+									(persistedTeamRating?.sets_won ?? 0) -
+										(sessionAdjustment?.sets_won ?? 0),
+								),
+								sets_lost: Math.max(
+									0,
+									(persistedTeamRating?.sets_lost ?? 0) -
+										(sessionAdjustment?.sets_lost ?? 0),
+								),
+							});
+						} else {
+							teamState.set(team2Id, {
+								elo: 1500,
+								matches_played: 0,
+								wins: 0,
+								losses: 0,
+								draws: 0,
+								sets_won: 0,
+								sets_lost: 0,
+							});
+						}
 
 						console.log(
 							JSON.stringify({
 								tag: "[TEAM_INITIALIZED]",
 								session_id: sessionId,
 								team_id: team2Id,
-								source: "session_scoped_recomputation",
-								initial_state: {
-									elo: 1500,
-									matches_played: 0,
-									wins: 0,
-									losses: 0,
-									draws: 0,
-								},
-								message:
-									"Team initialized at 1500 for session-scoped recomputation",
+								source: historicalBaseline
+									? "historical_replay_baseline"
+									: "initial_baseline_1500_new_team",
+								initial_state: teamState.get(team2Id),
 							}),
 						);
 					}

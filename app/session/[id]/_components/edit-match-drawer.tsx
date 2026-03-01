@@ -230,7 +230,7 @@ export function EditMatchDrawer({
 					<Box className="p-3 bg-muted/50 rounded-lg border border-border/50">
 						<p className="text-xs text-muted-foreground">
 							<Icon icon="lucide:info" className="inline size-3 mr-1" />
-							Editing this match will recalculate Elo ratings for all subsequent matches in this session.
+							Editing this match will recalculate Elo ratings for all matches of the same type in this session.
 						</p>
 					</Box>
 				</Box>
@@ -260,4 +260,3 @@ export function EditMatchDrawer({
 		</Drawer>
 	);
 }
-
