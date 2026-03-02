@@ -5,27 +5,19 @@ import { supabase } from "@/lib/supabase/client";
 import { Loading } from "@/components/ui/loading";
 import { SummaryCards } from "./summary-cards";
 import { EntriesTable } from "./entries-table";
+import { CommitmentsAdminPanel } from "./commitments-admin-panel";
 import { t } from "@/lib/i18n";
-
-type NoShowUser = {
-	id: string;
-	name: string;
-	avatar: string | null;
-	noShowCount: number;
-	lastNoShowDate: string;
-};
 
 type NoShowsViewProps = {
 	onRefetchReady?: (refetch: () => void) => void;
+	isAdmin: boolean;
 };
 
-export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
-	const [users, setUsers] = useState<NoShowUser[]>([]);
+export function NoShowsView({ onRefetchReady, isAdmin }: NoShowsViewProps) {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const tableRefetchRef = useRef<(() => void) | null>(null);
 
-	// Stable fetch function for aggregated stats (for cards)
 	const fetchNoShowStats = useCallback(async () => {
 		try {
 			setLoading(true);
@@ -55,8 +47,7 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 				return;
 			}
 
-			const data = await response.json();
-			setUsers(data.users || []);
+			await response.json();
 		} catch (err) {
 			console.error("Error fetching no-show stats:", err);
 			setError(t.ispale.error.fetchFailed);
@@ -65,12 +56,10 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 		}
 	}, []);
 
-	// Fetch stats on mount
 	useEffect(() => {
 		fetchNoShowStats();
 	}, [fetchNoShowStats]);
 
-	// Combined refetch function
 	const handleRefetch = useCallback(() => {
 		fetchNoShowStats();
 		if (tableRefetchRef.current) {
@@ -78,7 +67,6 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 		}
 	}, [fetchNoShowStats]);
 
-	// Expose refetch function to parent
 	const onRefetchReadyRef = useRef(onRefetchReady);
 	useEffect(() => {
 		onRefetchReadyRef.current = onRefetchReady;
@@ -110,10 +98,10 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 
 	return (
 		<div className="space-y-6 px-4 lg:px-6">
-			{/* Summary Cards */}
 			<SummaryCards />
 
-			{/* Entries Table */}
+			{isAdmin && <CommitmentsAdminPanel onCommitmentSaved={handleRefetch} />}
+
 			<EntriesTable
 				onRefetchReady={(refetch) => {
 					tableRefetchRef.current = refetch;

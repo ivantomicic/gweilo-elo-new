@@ -21,6 +21,7 @@ type NoShowUser = {
 	name: string;
 	avatar: string | null;
 	noShowCount: number;
+	adjustedNoShowCount?: number;
 	lastNoShowDate: string;
 };
 
@@ -70,14 +71,11 @@ export function NoShowDistributionWidget() {
 	// Prepare data for pie chart - top 5 players
 	const topFive = users.slice(0, 5);
 	
-	// Calculate total for percentage calculation
-	const totalNoShows = users.reduce((sum, user) => sum + user.noShowCount, 0);
-
 	// Chart config for shadcn chart style - using blue shades
 	const chartConfig = useMemo(() => {
 		const config: ChartConfig = {
 			value: {
-				label: t.ispale.cards.noShows,
+				label: t.ispale.cards.adjustedNoShows,
 			},
 		};
 
@@ -108,7 +106,8 @@ export function NoShowDistributionWidget() {
 			return {
 				player: key,
 				name: user.name,
-				value: user.noShowCount,
+				value: user.adjustedNoShowCount ?? user.noShowCount,
+				rawNoShows: user.noShowCount,
 				fill: `var(--color-${key})`,
 			};
 		});
@@ -165,14 +164,16 @@ export function NoShowDistributionWidget() {
 								content={
 									<ChartTooltipContent
 										hideLabel
-										formatter={(value: any, name: any, item: any, index: any, payload: any) => {
+										formatter={(value: any, name: any) => {
 											const numValue = typeof value === 'number' ? value : Number(value);
+											const safeValue = Number.isFinite(numValue) ? numValue : 0;
 											const playerKey = typeof name === 'string' ? name : String(name);
 											const dataEntry = chartData.find(
 												(d) => d.player === playerKey
 											);
 											const playerName = dataEntry?.name || playerKey;
-											return `${playerName}: ${numValue} ${numValue === 1 ? t.ispale.miss : t.ispale.misses}`;
+											const raw = dataEntry?.rawNoShows ?? 0;
+											return `${playerName}: ${safeValue.toFixed(2)} ${t.ispale.adjusted} (${raw} ${raw === 1 ? t.ispale.miss : t.ispale.misses})`;
 										}}
 									/>
 								}

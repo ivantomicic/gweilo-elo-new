@@ -25,6 +25,8 @@ type NoShowEntry = {
 	date: string;
 	reason: string | null;
 	createdAt: string;
+	daysPerWeekAtTime: number;
+	weightApplied: number;
 };
 
 type EntriesTableProps = {
@@ -38,7 +40,6 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 	const [error, setError] = useState<string | null>(null);
 	const [page, setPage] = useState(1);
 	const [totalPages, setTotalPages] = useState(0);
-	const [total, setTotal] = useState(0);
 	const pageSize = 10;
 
 	// Stable fetch function
@@ -80,7 +81,6 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 				const data = await response.json();
 				setEntries(data.entries || []);
 				setTotalPages(data.totalPages || 0);
-				setTotal(data.total || 0);
 				setInitialLoad(false);
 			} catch (err) {
 				console.error("Error fetching entries:", err);
@@ -155,13 +155,14 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 							<TableHead>{t.ispale.table.player}</TableHead>
 							<TableHead>{t.ispale.table.date}</TableHead>
 							<TableHead>{t.ispale.table.reason}</TableHead>
+							<TableHead>{t.ispale.table.weight}</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{initialLoad && loading ? (
 							<TableRow>
 								<TableCell
-									colSpan={3}
+									colSpan={4}
 									className="h-[400px] text-center text-muted-foreground"
 								>
 									{t.ispale.loading}
@@ -170,7 +171,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 						) : entries.length === 0 ? (
 							<TableRow>
 								<TableCell
-									colSpan={3}
+									colSpan={4}
 									className="h-[400px] text-center text-muted-foreground"
 								>
 									{t.ispale.noNoShows}
@@ -200,6 +201,13 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 									<TableCell>
 										<span className="text-muted-foreground">
 											{entry.reason || "—"}
+										</span>
+									</TableCell>
+
+									{/* Weight */}
+									<TableCell>
+										<span className="text-muted-foreground">
+											{entry.weightApplied.toFixed(4)}
 										</span>
 									</TableCell>
 								</TableRow>

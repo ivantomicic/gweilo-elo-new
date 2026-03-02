@@ -287,15 +287,53 @@ export const sr = {
 		last: "Poslednja",
 		miss: "Ispal",
 		misses: "ispala",
+		adjusted: "Prilagođeno",
+		raw: "Sirovo",
 		cards: {
 			worstOffender: "Najviše ispalih termina",
 			topOffenders: "Top 5 najgoreg",
 			noShows: "Ispala",
+			adjustedNoShows: "Prilagođene ispale",
 		},
 		table: {
 			player: "Igrač",
 			date: "Datum",
 			reason: "Razlog",
+			weight: "Težina",
+		},
+		commitments: {
+			title: "Nedeljna obaveza igrača",
+			description:
+				"Podesi koliko dana nedeljno je igrač prijavljen. Težina jedne ispale je 1 / broj dana.",
+			loading: "Učitavanje obaveza...",
+			noCommitments: "Nema podešenih obaveza",
+			formula: "Formula: prilagođene ispale = suma(1 / broj dana nedeljno u trenutku ispale)",
+			activeCount: (count: number) => `Aktivne obaveze: ${count}`,
+			form: {
+				player: "Igrač",
+				playerPlaceholder: "Izaberi igrača",
+				daysPerWeek: "Dana nedeljno",
+				effectiveFrom: "Važi od",
+				save: "Sačuvaj obavezu",
+			},
+			table: {
+				player: "Igrač",
+				daysPerWeek: "Dana / ned.",
+				weight: "Težina ispale",
+				validFrom: "Važi od",
+				validTo: "Važi do",
+				status: "Status",
+			},
+			status: {
+				active: "Aktivno",
+				upcoming: "Planirano",
+				past: "Isteklo",
+			},
+			error: {
+				fetchFailed: "Greška pri učitavanju obaveza",
+				saveFailed: "Greška pri čuvanju obaveze",
+				missingRequired: "Popuni sva obavezna polja",
+			},
 		},
 		drawer: {
 			title: "Dodaj ispalu",

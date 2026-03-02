@@ -69,6 +69,7 @@ function NoShowsPageContent() {
 								onRefetchReady={(refetch) => {
 									setRefetchNoShows(() => refetch);
 								}}
+								isAdmin={isAdmin}
 							/>
 						</div>
 					</div>

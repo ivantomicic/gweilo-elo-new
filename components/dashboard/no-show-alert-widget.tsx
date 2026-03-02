@@ -14,6 +14,7 @@ type NoShowUser = {
 	name: string;
 	avatar: string | null;
 	noShowCount: number;
+	adjustedNoShowCount?: number;
 	lastNoShowDate: string;
 };
 
@@ -150,6 +151,8 @@ export function NoShowAlertWidget() {
 					</p>
 					<p className="text-xs text-muted-foreground text-center">
 						{t.ispale.last}: {formatRelativeTime(worstOffender.lastNoShowDate)} •{" "}
+						{(worstOffender.adjustedNoShowCount ?? worstOffender.noShowCount).toFixed(2)}{" "}
+						{t.ispale.adjusted} •{" "}
 						{worstOffender.noShowCount}{" "}
 						{worstOffender.noShowCount === 1
 							? t.ispale.miss
