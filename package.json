@@ -4,6 +4,8 @@
 	"private": true,
 	"scripts": {
 		"dev": "node scripts/dev-with-ip.js",
+		"dev:main": "node scripts/dev-with-supabase-profile.js main",
+		"dev:branch": "node scripts/dev-with-supabase-profile.js branch",
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",

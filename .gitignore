@@ -28,6 +28,8 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+.env.supabase.*
+!.env.supabase.example
 
 # vercel
 .vercel
@@ -39,4 +41,3 @@ next-env.d.ts
 # Xcode
 *.xcuserstate
 **/xcuserdata/
-
