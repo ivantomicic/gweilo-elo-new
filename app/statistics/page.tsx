@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -85,6 +86,7 @@ function StatisticsPageContent() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const shouldReduceMotion = useReducedMotion();
+	const { trigger } = useWebHaptics();
 
 	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
 	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
@@ -108,6 +110,11 @@ function StatisticsPageContent() {
 			params.set("view", "doubles-team");
 		}
 		router.push(`?${params.toString()}`, { scroll: false });
+	};
+
+	const handlePlayerClick = (playerId: string) => {
+		void trigger();
+		router.push(`/player/${playerId}`);
 	};
 
 	const [statistics, setStatistics] = useState<StatisticsData>({
@@ -624,8 +631,8 @@ function StatisticsPageContent() {
 																		<div className="flex items-center gap-3">
 																			<Box
 																				onClick={() =>
-																					router.push(
-																						`/player/${player.player_id}`
+																					handlePlayerClick(
+																						player.player_id
 																					)
 																				}
 																				className="cursor-pointer hover:opacity-80 transition-opacity"

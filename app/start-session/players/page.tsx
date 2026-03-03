@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -33,6 +34,7 @@ type User = {
 function SelectPlayersPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { trigger } = useWebHaptics();
 	const playerCount = parseInt(searchParams.get("count") || "0", 10);
 
 	const [users, setUsers] = useState<User[]>([]);
@@ -168,10 +170,12 @@ function SelectPlayersPageContent() {
 			return;
 		}
 
+		void trigger();
 		setSelectedPlayers([...selectedPlayers, player]);
 	};
 
 	const handlePlayerRemove = (playerId: string) => {
+		void trigger();
 		setSelectedPlayers(selectedPlayers.filter((p) => p.id !== playerId));
 	};
 
@@ -713,9 +717,10 @@ function SelectPlayersPageContent() {
 								>
 									<Button
 										variant="outline"
-										onClick={() =>
-											router.push("/start-session")
-										}
+										onClick={() => {
+											void trigger();
+											router.push("/start-session");
+										}}
 										className="flex-1 py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
 									>
 										<Stack
@@ -735,6 +740,7 @@ function SelectPlayersPageContent() {
 										disabled={!isComplete}
 										onClick={() => {
 											if (isComplete) {
+												void trigger();
 												if (isTwoPlayerSession) {
 													handleStartTwoPlayerSession();
 													return;

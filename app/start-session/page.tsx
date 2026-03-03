@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils";
 
 function StartSessionPageContent() {
 	const router = useRouter();
+	const { trigger } = useWebHaptics();
 	const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
@@ -120,7 +122,10 @@ function StartSessionPageContent() {
 									onOpenChange={setIsDatePickerOpen}
 								>
 									<SheetTrigger asChild>
-										<Box className="bg-card rounded-[24px] p-5 border border-border/50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer">
+										<Box
+											className="bg-card rounded-[24px] p-5 border border-border/50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer"
+											onClick={() => void trigger()}
+										>
 											<Stack
 												direction="row"
 												alignItems="center"
@@ -229,9 +234,10 @@ function StartSessionPageContent() {
 												/>
 											</Box>
 											<Button
-												onClick={() =>
-													setIsDatePickerOpen(false)
-												}
+												onClick={() => {
+													void trigger();
+													setIsDatePickerOpen(false);
+												}}
 												className="w-full"
 											>
 												Gotovo
@@ -254,9 +260,10 @@ function StartSessionPageContent() {
 											<Box
 												key={num}
 												component="button"
-												onClick={() =>
-													setSelectedPlayers(num)
-												}
+												onClick={() => {
+													void trigger();
+													setSelectedPlayers(num);
+												}}
 												className={cn(
 													"rounded-[24px] p-6 border flex flex-col items-center justify-center gap-2 relative overflow-hidden active:scale-95 transition-all cursor-pointer",
 													isSelected
@@ -318,6 +325,7 @@ function StartSessionPageContent() {
 									disabled={selectedPlayers === null}
 									onClick={() => {
 										if (selectedPlayers !== null) {
+											void trigger();
 											router.push(
 												`/start-session/players?count=${selectedPlayers}`
 											);

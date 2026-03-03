@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -397,6 +398,7 @@ const generateSchedule = (players: Player[]): Round[] => {
 function SchedulePageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const { trigger } = useWebHaptics();
 	const playerCount = parseInt(searchParams.get("count") || "0", 10);
 
 	// Get selected players from sessionStorage
@@ -489,6 +491,8 @@ function SchedulePageContent() {
 	const [scheduleKey, setScheduleKey] = useState(0);
 
 	const handleRandomize = async () => {
+		void trigger();
+
 		// Start shuffle animation
 		setIsShuffling(true);
 		
@@ -626,6 +630,7 @@ function SchedulePageContent() {
 
 	const handleStartSession = async () => {
 		if (isStartingSession) return;
+		void trigger();
 
 		try {
 			setIsStartingSession(true);
@@ -771,11 +776,12 @@ function SchedulePageContent() {
 									</Button>
 									<Button
 										variant="secondary"
-										onClick={() =>
+										onClick={() => {
+											void trigger();
 											router.push(
 												`/start-session/players?count=${playerCount}`
-											)
-										}
+											);
+										}}
 										className="w-full py-4 px-6 rounded-full font-bold text-lg h-auto"
 									>
 										{t.startSession.back}

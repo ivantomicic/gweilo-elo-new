@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useWebHaptics } from "web-haptics/react";
 import { Separator } from "@/components/vendor/shadcn/separator";
 import { SidebarTrigger } from "@/components/vendor/shadcn/sidebar";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,12 @@ export function SiteHeader({
 }) {
 	const [canStartSession, setCanStartSession] = useState(false);
 	const pathname = usePathname();
+	const { trigger } = useWebHaptics();
+
+	const handleActionClick = () => {
+		void trigger();
+		actionOnClick?.();
+	};
 
 	// Check if user can start sessions (admin or mod)
 	useEffect(() => {
@@ -80,7 +87,10 @@ export function SiteHeader({
 					<div className="ml-auto flex items-center gap-2">
 						{showDefaultAction ? (
 							<Button asChild size="sm">
-								<Link href="/start-session">
+								<Link
+									href="/start-session"
+									onClick={() => void trigger()}
+								>
 									<Icon
 										icon="solar:add-circle-bold"
 										className="size-4 mr-1.5"
@@ -93,10 +103,15 @@ export function SiteHeader({
 								size="sm"
 								variant={actionVariant || "default"}
 								asChild={!!actionHref}
-								onClick={actionOnClick}
+								onClick={
+									actionHref ? undefined : handleActionClick
+								}
 							>
 								{actionHref ? (
-									<Link href={actionHref}>
+									<Link
+										href={actionHref}
+										onClick={handleActionClick}
+									>
 										{actionIcon && (
 											<Icon
 												icon={actionIcon}

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useWebHaptics } from "web-haptics/react";
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";
 import { getUserRole } from "@/lib/auth/getUserRole";
@@ -66,6 +67,21 @@ export function MobileNav() {
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
 	const shouldReduceMotion = useReducedMotion();
+	const { trigger } = useWebHaptics();
+
+	const triggerNavHaptic = () => {
+		void trigger();
+	};
+
+	const handleMoreToggle = () => {
+		void trigger();
+		setIsMoreOpen((prev) => !prev);
+	};
+
+	const handleMoreItemClick = () => {
+		void trigger();
+		setIsMoreOpen(false);
+	};
 
 	// All hooks must be called before any conditional returns
 	useEffect(() => {
@@ -205,7 +221,7 @@ export function MobileNav() {
 											key={item.url}
 											href={item.url}
 											className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-											onClick={() => setIsMoreOpen(false)}
+											onClick={handleMoreItemClick}
 										>
 											<Icon
 												icon={item.icon}
@@ -239,7 +255,7 @@ export function MobileNav() {
 										<Link
 											href={settingsItem.url}
 											className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-											onClick={() => setIsMoreOpen(false)}
+											onClick={handleMoreItemClick}
 										>
 											<Icon
 												icon={settingsItem.icon}
@@ -273,8 +289,8 @@ export function MobileNav() {
 												<Link
 													href={calculatorItem.url}
 													className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-													onClick={() =>
-														setIsMoreOpen(false)
+													onClick={
+														handleMoreItemClick
 													}
 												>
 													<Icon
@@ -305,8 +321,8 @@ export function MobileNav() {
 												<Link
 													href={adminItem.url}
 													className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-													onClick={() =>
-														setIsMoreOpen(false)
+													onClick={
+														handleMoreItemClick
 													}
 												>
 													<Icon
@@ -343,6 +359,7 @@ export function MobileNav() {
 								<Link
 									key={item.url}
 									href={item.url}
+									onClick={triggerNavHaptic}
 									className="flex flex-col items-center justify-center w-14 h-14 relative group cursor-pointer touch-manipulation min-h-[44px] min-w-[44px]"
 								>
 									{isActive && (
@@ -385,7 +402,7 @@ export function MobileNav() {
 						<button
 							ref={moreButtonRef}
 							type="button"
-							onClick={() => setIsMoreOpen(!isMoreOpen)}
+							onClick={handleMoreToggle}
 							aria-label={t.nav.moreMenuLabel}
 							aria-expanded={isMoreOpen}
 							className={`flex flex-col items-center justify-center w-14 h-14 relative group cursor-pointer transition-colors duration-200 touch-manipulation min-h-[44px] min-w-[44px] ${

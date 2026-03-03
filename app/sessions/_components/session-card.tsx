@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useWebHaptics } from "web-haptics/react";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
@@ -40,6 +41,7 @@ export function SessionCard({
 	formatDateYear,
 }: SessionCardProps) {
 	const router = useRouter();
+	const { trigger } = useWebHaptics();
 
 	const singlesCount = session.singles_match_count ?? 0;
 	const doublesCount = session.doubles_match_count ?? 0;
@@ -53,7 +55,10 @@ export function SessionCard({
 
 	return (
 		<Box
-			onClick={() => router.push(`/session/${session.id}`)}
+			onClick={() => {
+				void trigger();
+				router.push(`/session/${session.id}`);
+			}}
 			className="group relative bg-card rounded-[24px] border border-border/50 p-4 transition-[transform,background-color] duration-150 cursor-pointer shadow-sm touch-safe hover-only active:scale-[0.98] active:bg-accent/50"
 		>
 			<Stack direction="row" alignItems="center" spacing={4}>
