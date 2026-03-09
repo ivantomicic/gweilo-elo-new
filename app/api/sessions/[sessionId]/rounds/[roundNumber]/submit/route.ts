@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
-import { createEloSnapshots } from "@/lib/elo/snapshots";
+import {
+	createEloSnapshots,
+	captureCompletedSessionSnapshots,
+} from "@/lib/elo/snapshots";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
 import { getAuthToken } from "../../../../../_utils/auth";
@@ -635,6 +639,19 @@ export async function POST(
 					);
 					// Non-fatal: log error but don't fail the request
 					// Session can be manually marked as completed later if needed
+				} else {
+					try {
+						await captureCompletedSessionSnapshots(
+							sessionId,
+							adminClient
+						);
+						revalidateTag("statistics");
+					} catch (snapshotError) {
+						console.error(
+							"Error capturing completed session snapshots:",
+							snapshotError,
+						);
+					}
 				}
 			}
 		}

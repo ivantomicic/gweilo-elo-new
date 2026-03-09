@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
+import { captureCompletedSessionSnapshots } from "@/lib/elo/snapshots";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -96,6 +98,38 @@ export async function POST(
 
 		// If already completed, return success (idempotent)
 		if (session.status === "completed") {
+			const [
+				{ data: latestCompletedSession },
+				{ count: nonCompletedSessionCount },
+			] = await Promise.all([
+				adminClient
+					.from("sessions")
+					.select("id")
+					.eq("status", "completed")
+					.order("completed_at", { ascending: false })
+					.limit(1)
+					.maybeSingle(),
+				adminClient
+					.from("sessions")
+					.select("*", { count: "exact", head: true })
+					.neq("status", "completed"),
+			]);
+
+			if (
+				latestCompletedSession?.id === sessionId &&
+				(nonCompletedSessionCount || 0) === 0
+			) {
+				try {
+					await captureCompletedSessionSnapshots(sessionId, adminClient);
+					revalidateTag("statistics");
+				} catch (snapshotError) {
+					console.error(
+						"Error refreshing completed session snapshots during idempotent force close:",
+						snapshotError
+					);
+				}
+			}
+
 			return NextResponse.json({
 				success: true,
 				message: "Session is already completed",
@@ -124,6 +158,16 @@ export async function POST(
 			return NextResponse.json(
 				{ error: "Failed to force close session" },
 				{ status: 500 },
+			);
+		}
+
+		try {
+			await captureCompletedSessionSnapshots(sessionId, adminClient);
+			revalidateTag("statistics");
+		} catch (snapshotError) {
+			console.error(
+				"Error capturing completed session snapshots after force close:",
+				snapshotError
 			);
 		}
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runMatchEditRecalculation } from "./recalculation";
@@ -204,7 +205,7 @@ export async function POST(
 			);
 		}
 
-		return await runMatchEditRecalculation({
+		const response = await runMatchEditRecalculation({
 			adminClient,
 			sessionId,
 			matchId,
@@ -213,6 +214,12 @@ export async function POST(
 			reason,
 			userId: user.id,
 		});
+
+		if (response.ok) {
+			revalidateTag("statistics");
+		}
+
+		return response;
 	} catch (error) {
 		console.error(
 			"Unexpected error in POST /api/sessions/[sessionId]/matches/[matchId]/edit:",

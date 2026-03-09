@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
 	getPreviousSessionSnapshot,
-	updateSessionSnapshot,
 	createEloSnapshots,
+	captureCompletedSessionSnapshots,
 } from "@/lib/elo/snapshots";
 import {
 	getDoublesPlayerBaseline,
@@ -235,9 +235,8 @@ export async function runMatchEditRecalculation({
 		// CRITICAL: Only calculate baseline for players in matches of the edited match type
 		// Baseline selection order:
 		// 1. Session N-1 snapshot (if exists)
-		// 2. Current session snapshot (if exists - created at session start)
-		// 3. Calculate from current rating by reversing this session's matches (using match_elo_history)
-		// 4. Initial baseline (1500/0) - only for truly new players
+		// 2. Calculate from current rating by reversing this session's matches (using match_elo_history)
+		// 3. Initial baseline (1500/0) - only for truly new players
 		for (const playerId of playersInEditedMatchType) {
 			// Step 1: Try to get snapshot from previous session
 			const previousSnapshot = await getPreviousSessionSnapshot(
@@ -260,54 +259,7 @@ export async function runMatchEditRecalculation({
 				continue;
 			}
 
-			// Step 2: No previous session snapshot - check if there's a snapshot for THIS session
-			// (created at session start, before any matches)
-			const { data: currentSessionSnapshot } = await adminClient
-				.from("session_rating_snapshots")
-				.select(
-					"elo, matches_played, wins, losses, draws, sets_won, sets_lost",
-				)
-				.eq("session_id", sessionId)
-				.eq("entity_type", "player_singles")
-				.eq("entity_id", playerId)
-				.single();
-
-			if (currentSessionSnapshot) {
-				// Use snapshot from current session start
-				const snapshotElo =
-					typeof currentSessionSnapshot.elo === "string"
-						? parseFloat(currentSessionSnapshot.elo)
-						: Number(currentSessionSnapshot.elo);
-
-				baselineState.set(playerId, {
-					elo: snapshotElo,
-					matches_played: currentSessionSnapshot.matches_played,
-					wins: currentSessionSnapshot.wins,
-					losses: currentSessionSnapshot.losses,
-					draws: currentSessionSnapshot.draws,
-					sets_won: currentSessionSnapshot.sets_won,
-					sets_lost: currentSessionSnapshot.sets_lost,
-				});
-				console.log(
-					JSON.stringify({
-						tag: "[BASELINE_LOADED]",
-						session_id: sessionId,
-						player_id: playerId,
-						source: "session_start_snapshot",
-						baseline: {
-							elo: snapshotElo,
-							matches_played:
-								currentSessionSnapshot.matches_played,
-							wins: currentSessionSnapshot.wins,
-							losses: currentSessionSnapshot.losses,
-							draws: currentSessionSnapshot.draws,
-						},
-					}),
-				);
-				continue;
-			}
-
-			// Step 3: No snapshot - calculate baseline by reversing this session's matches
+			// Step 2: No snapshot - calculate baseline by reversing this session's matches
 			// CRITICAL: This must happen BEFORE deleting match_elo_history
 			// Get current player rating
 			const { data: currentRating } = await adminClient
@@ -469,7 +421,7 @@ export async function runMatchEditRecalculation({
 				continue;
 			}
 
-			// Step 4: Player doesn't exist in player_ratings - truly new player
+			// Step 3: Player doesn't exist in player_ratings - truly new player
 			// Use initial baseline (1500/0)
 			baselineState.set(playerId, {
 				elo: 1500,
@@ -2347,33 +2299,6 @@ export async function runMatchEditRecalculation({
 			);
 		}
 
-		// Step 8: Update Session N snapshot with final computed state
-		// CRITICAL: Only update snapshots for players that were actually replayed
-		// This overwrites the snapshot for the current session after recalculation
-		for (const [playerId, state] of currentState.entries()) {
-			// Only update snapshot if this player was actually replayed
-			if (!replayedPlayerIds.has(playerId)) {
-				continue;
-			}
-			try {
-				await updateSessionSnapshot(sessionId, playerId, state);
-				console.log(
-					JSON.stringify({
-						tag: "[SESSION_SNAPSHOT_UPDATED]",
-						session_id: sessionId,
-						player_id: playerId,
-						state: state,
-					}),
-				);
-			} catch (snapshotError) {
-				console.error(
-					`Error updating session snapshot for player ${playerId}:`,
-					snapshotError,
-				);
-				// Continue even if snapshot update fails - ratings are still persisted
-			}
-		}
-
 		// Insert Elo history
 		if (eloHistoryEntries.length > 0) {
 			const { error: historyError } = await adminClient
@@ -2391,6 +2316,18 @@ export async function runMatchEditRecalculation({
 					{ status: 500 },
 				);
 			}
+		}
+
+		// Refresh the full completed-session snapshot only after match history is back in place.
+		// Rank movement arrows reverse the latest session from this history, so both must stay aligned.
+		try {
+			await captureCompletedSessionSnapshots(sessionId, adminClient);
+		} catch (snapshotError) {
+			console.error(
+				`Error capturing full session snapshots for session ${sessionId}:`,
+				snapshotError,
+			);
+			// Continue even if snapshot update fails - ratings are still persisted
 		}
 
 		// 6️⃣ FINAL PERSISTED STATE - After DB write

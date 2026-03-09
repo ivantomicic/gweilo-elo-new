@@ -1,10 +1,14 @@
 // TEMPORARY JSON IMPORT – safe to remove after migration
 
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
-import { createEloSnapshots } from "@/lib/elo/snapshots";
+import {
+	createEloSnapshots,
+	captureCompletedSessionSnapshots,
+} from "@/lib/elo/snapshots";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -479,6 +483,16 @@ export async function POST(request: NextRequest) {
 			}
 		}
 
+		try {
+			await captureCompletedSessionSnapshots(sessionId, adminClient);
+			revalidateTag("statistics");
+		} catch (snapshotError) {
+			console.error(
+				"Error capturing completed session snapshots after import:",
+				snapshotError
+			);
+		}
+
 		// Success - return session ID
 		return NextResponse.json(
 			{
@@ -495,4 +509,3 @@ export async function POST(request: NextRequest) {
 		);
 	}
 }
-

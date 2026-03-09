@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
+import { captureCompletedSessionSnapshots } from "@/lib/elo/snapshots";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -385,6 +387,18 @@ export async function DELETE(
 					);
 				}
 			}
+
+			try {
+				await captureCompletedSessionSnapshots(
+					sessionToReplay.id,
+					adminClient
+				);
+			} catch (snapshotError) {
+				console.error(
+					`Error rebuilding session snapshots for session ${sessionToReplay.id}:`,
+					snapshotError
+				);
+			}
 		}
 
 		// ============================================================================
@@ -467,6 +481,8 @@ export async function DELETE(
 					"Elo rebuild complete. Ratings should match state as if deleted session never existed.",
 			})
 		);
+
+		revalidateTag("statistics");
 
 		return NextResponse.json({
 			success: true,

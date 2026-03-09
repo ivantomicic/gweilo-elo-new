@@ -84,6 +84,17 @@ type TeamStats = {
 	rank_movement: number;
 };
 
+type SessionSnapshotRecord = {
+	entity_id: string;
+	matches_played: number | null;
+	wins: number | null;
+	losses: number | null;
+	draws: number | null;
+	sets_won: number | null;
+	sets_lost: number | null;
+	elo: number | string | null;
+};
+
 function buildProfilesMap(profiles: ProfileRecord[]) {
 	return new Map(
 		profiles.map((profile) => [
@@ -94,6 +105,44 @@ function buildProfilesMap(profiles: ProfileRecord[]) {
 			},
 		])
 	);
+}
+
+function toNumber(value: unknown, fallback = 0): number {
+	if (typeof value === "number") {
+		return value;
+	}
+
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : fallback;
+	}
+
+	return fallback;
+}
+
+async function getSessionSnapshotRows(
+	sessionId: string,
+	entityType: "player_singles" | "player_doubles" | "double_team"
+): Promise<SessionSnapshotRecord[]> {
+	const adminClient = createAdminClient();
+	const { data, error } = await adminClient
+		.from("session_rating_snapshots")
+		.select(
+			"entity_id, matches_played, wins, losses, draws, sets_won, sets_lost, elo"
+		)
+		.eq("session_id", sessionId)
+		.eq("entity_type", entityType)
+		.order("elo", { ascending: false });
+
+	if (error) {
+		console.error(
+			`Error fetching ${entityType} session snapshot rows for ${sessionId}:`,
+			error
+		);
+		return [];
+	}
+
+	return (data || []) as SessionSnapshotRecord[];
 }
 
 const getCachedProfiles = unstable_cache(
@@ -142,7 +191,7 @@ const getCachedSinglesStats = unstable_cache(
 	async (): Promise<PlayerStats[]> => {
 		const adminClient = createAdminClient();
 
-		const [ratingsResult, profiles, [latestSessionId, previousSessionId]] =
+		const [ratingsResult, profiles, [latestSessionId]] =
 			await Promise.all([
 				adminClient
 					.from("player_ratings")
@@ -160,31 +209,49 @@ const getCachedSinglesStats = unstable_cache(
 		}
 
 		const profilesMap = buildProfilesMap(profiles);
-		const singlesStats = ((ratingsResult.data || []) as SinglesRatingRecord[]).map(
-			(rating) => {
-				const profile = profilesMap.get(rating.player_id);
-				return {
-					player_id: rating.player_id,
-					display_name: profile?.display_name || "User",
-					avatar: profile?.avatar || null,
-					matches_played: rating.matches_played ?? 0,
-					wins: rating.wins ?? 0,
-					losses: rating.losses ?? 0,
-					draws: rating.draws ?? 0,
-					sets_won: rating.sets_won ?? 0,
-					sets_lost: rating.sets_lost ?? 0,
-					elo: rating.elo ?? 1500,
-					rank_movement: 0,
-				};
-			}
-		);
+		const snapshotRows = latestSessionId
+			? await getSessionSnapshotRows(latestSessionId, "player_singles")
+			: [];
+		const sourceRows =
+			snapshotRows.length > 0
+				? snapshotRows.map((row) => ({
+						player_id: row.entity_id,
+						matches_played: row.matches_played,
+						wins: row.wins,
+						losses: row.losses,
+						draws: row.draws,
+						sets_won: row.sets_won,
+						sets_lost: row.sets_lost,
+						elo: toNumber(row.elo, 1500),
+					}))
+				: ((ratingsResult.data || []) as SinglesRatingRecord[]);
+
+		const singlesStats = sourceRows.map((rating) => {
+			const profile = profilesMap.get(rating.player_id);
+			return {
+				player_id: rating.player_id,
+				display_name: profile?.display_name || "User",
+				avatar: profile?.avatar || null,
+				matches_played: rating.matches_played ?? 0,
+				wins: rating.wins ?? 0,
+				losses: rating.losses ?? 0,
+				draws: rating.draws ?? 0,
+				sets_won: rating.sets_won ?? 0,
+				sets_lost: rating.sets_lost ?? 0,
+				elo: toNumber(rating.elo, 1500),
+				rank_movement: 0,
+			};
+		});
 
 		if (latestSessionId) {
 			const rankMovements = await computeRankMovements(
-				singlesStats.map((stat) => stat.player_id),
+				singlesStats.map((stat) => ({
+					entityId: stat.player_id,
+					elo: stat.elo,
+					matchesPlayed: stat.matches_played,
+				})),
 				latestSessionId,
-				"player_singles",
-				previousSessionId
+				"player_singles"
 			);
 
 			singlesStats.forEach((stat) => {
@@ -202,7 +269,7 @@ const getCachedDoublesPlayerStats = unstable_cache(
 	async (): Promise<PlayerStats[]> => {
 		const adminClient = createAdminClient();
 
-		const [ratingsResult, profiles, [latestSessionId, previousSessionId]] =
+		const [ratingsResult, profiles, [latestSessionId]] =
 			await Promise.all([
 				adminClient
 					.from("player_double_ratings")
@@ -223,9 +290,24 @@ const getCachedDoublesPlayerStats = unstable_cache(
 		}
 
 		const profilesMap = buildProfilesMap(profiles);
-		const doublesPlayerStats = (
-			(ratingsResult.data || []) as DoublesPlayerRatingRecord[]
-		).map((rating) => {
+		const snapshotRows = latestSessionId
+			? await getSessionSnapshotRows(latestSessionId, "player_doubles")
+			: [];
+		const sourceRows =
+			snapshotRows.length > 0
+				? snapshotRows.map((row) => ({
+						player_id: row.entity_id,
+						matches_played: row.matches_played,
+						wins: row.wins,
+						losses: row.losses,
+						draws: row.draws,
+						sets_won: row.sets_won,
+						sets_lost: row.sets_lost,
+						elo: toNumber(row.elo, 1500),
+					}))
+				: ((ratingsResult.data || []) as DoublesPlayerRatingRecord[]);
+
+		const doublesPlayerStats = sourceRows.map((rating) => {
 			const profile = profilesMap.get(rating.player_id);
 			return {
 				player_id: rating.player_id,
@@ -237,17 +319,20 @@ const getCachedDoublesPlayerStats = unstable_cache(
 				draws: rating.draws ?? 0,
 				sets_won: rating.sets_won ?? 0,
 				sets_lost: rating.sets_lost ?? 0,
-				elo: rating.elo ?? 1500,
+				elo: toNumber(rating.elo, 1500),
 				rank_movement: 0,
 			};
 		});
 
 		if (latestSessionId) {
 			const rankMovements = await computeRankMovements(
-				doublesPlayerStats.map((stat) => stat.player_id),
+				doublesPlayerStats.map((stat) => ({
+					entityId: stat.player_id,
+					elo: stat.elo,
+					matchesPlayed: stat.matches_played,
+				})),
 				latestSessionId,
-				"player_doubles",
-				previousSessionId
+				"player_doubles"
 			);
 
 			doublesPlayerStats.forEach((stat) => {
@@ -269,7 +354,7 @@ const getCachedDoublesTeamStats = unstable_cache(
 			ratingsResult,
 			teams,
 			profiles,
-			[latestSessionId, previousSessionId],
+			[latestSessionId],
 		] = await Promise.all([
 			adminClient
 				.from("double_team_ratings")
@@ -297,9 +382,23 @@ const getCachedDoublesTeamStats = unstable_cache(
 			])
 		);
 		const profilesMap = buildProfilesMap(profiles);
-		const doublesTeamStats = (
-			(ratingsResult.data || []) as DoublesTeamRatingRecord[]
-		)
+		const snapshotRows = latestSessionId
+			? await getSessionSnapshotRows(latestSessionId, "double_team")
+			: [];
+		const sourceRows =
+			snapshotRows.length > 0
+				? snapshotRows.map((row) => ({
+						team_id: row.entity_id,
+						matches_played: row.matches_played,
+						wins: row.wins,
+						losses: row.losses,
+						draws: row.draws,
+						sets_won: row.sets_won,
+						sets_lost: row.sets_lost,
+						elo: toNumber(row.elo, 1500),
+					}))
+				: ((ratingsResult.data || []) as DoublesTeamRatingRecord[]);
+		const doublesTeamStats = sourceRows
 			.map((rating) => {
 				const team = teamsMap.get(rating.team_id);
 				if (!team) {
@@ -327,7 +426,7 @@ const getCachedDoublesTeamStats = unstable_cache(
 					draws: rating.draws ?? 0,
 					sets_won: rating.sets_won ?? 0,
 					sets_lost: rating.sets_lost ?? 0,
-					elo: rating.elo ?? 1500,
+					elo: toNumber(rating.elo, 1500),
 					rank_movement: 0,
 				};
 			})
@@ -335,10 +434,13 @@ const getCachedDoublesTeamStats = unstable_cache(
 
 		if (latestSessionId) {
 			const rankMovements = await computeRankMovements(
-				doublesTeamStats.map((stat) => stat.team_id),
+				doublesTeamStats.map((stat) => ({
+					entityId: stat.team_id,
+					elo: stat.elo,
+					matchesPlayed: stat.matches_played,
+				})),
 				latestSessionId,
-				"double_team",
-				previousSessionId
+				"double_team"
 			);
 
 			doublesTeamStats.forEach((stat) => {
