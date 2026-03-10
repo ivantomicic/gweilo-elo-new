@@ -723,7 +723,8 @@ function createCloseGapCandidate(
 		return null;
 	}
 
-	const direction = opponent.elo >= player.elo ? "ispred" : "iza";
+	const isThreat = opponent.elo < player.elo;
+	const direction = isThreat ? "iza" : "ispred";
 	const basePriority = getBasePriority("close_gap", player.tier);
 	const closeness = Math.max(0, RIVALRY_CONFIG.gaps.realisticElo - gapElo);
 	const recency = getRecencyScore(lastPlayedAt, now);
@@ -744,11 +745,17 @@ function createCloseGapCandidate(
 		opponent,
 		"fallback",
 		breakdown,
-		`Najbliža meta: ${opponent.name}`,
-		`${opponent.name} je ${gapElo} Elo ${direction} tebe. To je trenutno najbliža swing priča na tabeli.`,
+		isThreat
+			? `Najveća pretnja: ${opponent.name}`
+			: `Najbliža meta: ${opponent.name}`,
+		isThreat
+			? `${opponent.name} je ${gapElo} Elo iza tebe. Jedan dobar termin ga vraća ozbiljno u priču.`
+			: `${opponent.name} je ${gapElo} Elo ispred tebe. To je trenutno najbliža uhvatljiva meta na tabeli.`,
 		[
 			`Najmanja Elo razlika koju trenutno imaš.`,
-			`Ovo je fallback misija kada nema jače priče.`,
+			isThreat
+				? `Ovo je fallback misija odbrane kada nema jače priče.`
+				: `Ovo je fallback misija kada nema jače priče.`,
 		],
 		{
 			gapElo,
