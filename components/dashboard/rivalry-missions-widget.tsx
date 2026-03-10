@@ -159,13 +159,11 @@ export function RivalryMissionsWidget() {
 		return null;
 	}
 
-	const isSingleMission = snapshot.missions.length === 1;
-
 	return (
 		<Stack
 			direction="column"
 			spacing={3}
-			className={`h-full ${DASHBOARD_CARD_HEIGHT_CLASS}`}
+			className={snapshot.missions.length === 1 ? `h-full ${DASHBOARD_CARD_HEIGHT_CLASS}` : undefined}
 		>
 			{snapshot.missions.map((mission) => {
 				const copy = renderMissionCopy(mission);
@@ -175,7 +173,7 @@ export function RivalryMissionsWidget() {
 				return (
 					<Box
 						key={mission.id}
-						className={`${MISSION_CARD_BASE_CLASS} bg-card p-5 md:p-6 flex flex-col flex-1 justify-center ${isSingleMission ? "h-full" : ""}`}
+						className={`${MISSION_CARD_BASE_CLASS} bg-card p-5 md:p-6 flex flex-col ${snapshot.missions.length === 1 ? `h-full ${DASHBOARD_CARD_HEIGHT_CLASS}` : ""}`}
 					>
 						<Box className={`absolute inset-0 bg-gradient-to-br ${theme.gradient}`} />
 						<Box
@@ -198,7 +196,7 @@ export function RivalryMissionsWidget() {
 						<Stack
 							direction="column"
 							spacing={4}
-							className="relative z-10 h-full justify-center"
+							className="relative z-10"
 						>
 							<Stack direction="column" spacing={3} className="relative z-10">
 								<p className="pr-24 text-xl font-semibold leading-tight text-foreground md:pr-28">
