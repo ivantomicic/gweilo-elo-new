@@ -46,6 +46,14 @@ type SinglesMatchRow = {
 	sessions: SessionRelation | SessionRelation[] | null;
 };
 
+type MatchHistoryRow = {
+	match_id: string;
+	player1_id: string;
+	player2_id: string;
+	player1_elo_delta: number | null;
+	player2_elo_delta: number | null;
+};
+
 type MissionPlayer = {
 	id: string;
 	name: string;
@@ -379,14 +387,42 @@ async function loadPairStats(
 		throw new Error(`Failed to fetch completed singles matches: ${error.message}`);
 	}
 
+	const matchIds = ((data || []) as SinglesMatchRow[]).map((row) => row.id);
+	const { data: historyRows, error: historyError } = matchIds.length
+		? await adminClient
+				.from("match_elo_history")
+				.select(
+					"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta",
+				)
+				.in("match_id", matchIds)
+		: { data: [], error: null };
+
+	if (historyError) {
+		throw new Error(`Failed to fetch match history: ${historyError.message}`);
+	}
+
+	const historyByMatchId = new Map(
+		((historyRows || []) as MatchHistoryRow[]).map((row) => [row.match_id, row]),
+	);
+
 	const pairMap = new Map<string, PairStats>();
 
 	for (const row of (data || []) as SinglesMatchRow[]) {
-		if (!Array.isArray(row.player_ids) || row.player_ids.length < 2) {
+		const history = historyByMatchId.get(row.id);
+		const historyPlayer1Id = history?.player1_id || null;
+		const historyPlayer2Id = history?.player2_id || null;
+		const fallbackPlayerIds =
+			Array.isArray(row.player_ids) && row.player_ids.length >= 2
+				? row.player_ids
+				: null;
+
+		const player1Id = historyPlayer1Id || fallbackPlayerIds?.[0];
+		const player2Id = historyPlayer2Id || fallbackPlayerIds?.[1];
+
+		if (!player1Id || !player2Id) {
 			continue;
 		}
 
-		const [player1Id, player2Id] = row.player_ids;
 		if (!playerIds.has(player1Id) || !playerIds.has(player2Id)) {
 			continue;
 		}
@@ -398,8 +434,13 @@ async function loadPairStats(
 			new Date().toISOString();
 		const team1Score = row.team1_score ?? 0;
 		const team2Score = row.team2_score ?? 0;
-		const winnerId =
-			team1Score === team2Score
+		const winnerId = history
+			? history.player1_elo_delta === history.player2_elo_delta
+				? null
+				: (history.player1_elo_delta ?? 0) > (history.player2_elo_delta ?? 0)
+					? player1Id
+					: player2Id
+			: team1Score === team2Score
 				? null
 				: team1Score > team2Score
 					? player1Id
