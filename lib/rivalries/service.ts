@@ -713,6 +713,7 @@ function createBreakStreakCandidate(
 		],
 		{
 			lossStreak: pairStats.latestLossStreak,
+			totalLosses: pairStats.losses,
 			recentCloseLossInStreak: pairStats.recentCloseLossInStreak,
 			gapElo,
 			lastPlayedAt: pairStats.lastPlayedAt,

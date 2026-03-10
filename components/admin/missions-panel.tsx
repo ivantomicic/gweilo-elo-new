@@ -50,6 +50,38 @@ function getMissionTypeLabel(type: string) {
 	}
 }
 
+function getNumberMetric(
+	metrics: Record<string, number | string | boolean | null>,
+	key: string,
+) {
+	const value = metrics[key];
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === "string") {
+		const parsed = Number(value);
+		return Number.isFinite(parsed) ? parsed : null;
+	}
+	return null;
+}
+
+function getMissionDebugSummary(
+	mission: Pick<MissionSnapshot["missions"][number], "type" | "metrics">,
+) {
+	if (mission.type !== "break_streak") {
+		return null;
+	}
+
+	const currentStreak = getNumberMetric(mission.metrics, "lossStreak");
+	const totalLosses = getNumberMetric(mission.metrics, "totalLosses");
+
+	if (currentStreak === null && totalLosses === null) {
+		return null;
+	}
+
+	return `Trenutni niz: ${currentStreak ?? "?"} • Ukupno poraza protiv ovog igrača: ${totalLosses ?? "?"}`;
+}
+
 export function MissionsPanel() {
 	const [snapshots, setSnapshots] = useState<MissionSnapshot[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -317,7 +349,7 @@ export function MissionsPanel() {
 													key={mission.id}
 													className="rounded-2xl border border-border/60 bg-background/70 p-4"
 												>
-													<Stack direction="column" spacing={2}>
+											<Stack direction="column" spacing={2}>
 														<Stack
 															direction="row"
 															alignItems="center"
@@ -341,6 +373,11 @@ export function MissionsPanel() {
 														<p className="text-sm text-muted-foreground">
 															{copy.body}
 														</p>
+														{getMissionDebugSummary(mission) ? (
+															<p className="text-xs text-muted-foreground">
+																{getMissionDebugSummary(mission)}
+															</p>
+														) : null}
 													</Stack>
 												</Box>
 											);
@@ -404,6 +441,11 @@ export function MissionsPanel() {
 																<p className="text-sm text-muted-foreground">
 																	{copy.body}
 																</p>
+																{getMissionDebugSummary(candidate) ? (
+																	<p className="mt-1 text-xs text-muted-foreground">
+																		{getMissionDebugSummary(candidate)}
+																	</p>
+																) : null}
 															</div>
 
 															<p className="text-xs text-muted-foreground">
