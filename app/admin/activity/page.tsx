@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { usePathname, useRouter } from "next/navigation";
 import { AdminGuard } from "@/components/auth/admin-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -9,7 +8,6 @@ import {
 	SidebarInset,
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Input } from "@/components/ui/input";
@@ -41,6 +39,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { supabase } from "@/lib/supabase/client";
+import { AdminTabs } from "@/components/admin/admin-tabs";
 
 type AnalyticsEvent = {
 	id: string;
@@ -112,6 +111,7 @@ const STATIC_PAGE_LABELS: Record<string, string> = {
 	"/rules": "Rules",
 	"/admin": "Admin",
 	"/admin/activity": "Admin Activity",
+	"/admin/missions": "Admin Missions",
 	"/admin/settings": "Admin Settings",
 };
 
@@ -186,8 +186,6 @@ const getInitials = (name: string): string =>
 		.join("") || "?";
 
 function AdminActivityPageContent() {
-	const pathname = usePathname();
-	const router = useRouter();
 	const [events, setEvents] = useState<AnalyticsEvent[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [page, setPage] = useState(1);
@@ -210,24 +208,6 @@ function AdminActivityPageContent() {
 	});
 
 	const pageSize = 50;
-
-	// Determine active tab based on current route
-	const activeTab =
-		pathname === "/admin/activity"
-			? "activity"
-			: pathname === "/admin/settings"
-				? "settings"
-				: "users";
-
-	const handleTabChange = (value: string) => {
-		if (value === "activity") {
-			router.push("/admin/activity");
-		} else if (value === "settings") {
-			router.push("/admin/settings");
-		} else {
-			router.push("/admin");
-		}
-	};
 
 	// Fetch available users (for filter dropdown)
 	useEffect(() => {
@@ -845,22 +825,7 @@ function AdminActivityPageContent() {
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
 							{/* Admin Navigation Tabs */}
 							<Box className="mb-4">
-								<Tabs
-									value={activeTab}
-									onValueChange={handleTabChange}
-								>
-									<TabsList>
-										<TabsTrigger value="users">
-											Users
-										</TabsTrigger>
-									<TabsTrigger value="activity">
-										Activity Log
-									</TabsTrigger>
-									<TabsTrigger value="settings">
-										Settings
-									</TabsTrigger>
-									</TabsList>
-								</Tabs>
+								<AdminTabs />
 							</Box>
 
 								{/* Filters */}

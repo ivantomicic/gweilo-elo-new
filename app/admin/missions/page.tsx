@@ -8,27 +8,22 @@ import {
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
 import { Box } from "@/components/ui/box";
-import { MaintenanceSettings } from "@/components/admin/maintenance-settings";
 import { AdminTabs } from "@/components/admin/admin-tabs";
+import { MissionsPanel } from "@/components/admin/missions-panel";
 
-function AdminSettingsPageContent() {
+function AdminMissionsPageContent() {
 	return (
 		<SidebarProvider>
 			<AppSidebar variant="inset" />
 			<SidebarInset>
-				<SiteHeader title="Admin Settings" />
+				<SiteHeader title="Admin Missions" />
 				<div className="flex flex-1 flex-col">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Admin Navigation Tabs */}
 							<Box className="mb-4">
 								<AdminTabs />
 							</Box>
-
-							{/* Settings Content */}
-							<div className="space-y-6">
-								<MaintenanceSettings />
-							</div>
+							<MissionsPanel />
 						</div>
 					</div>
 				</div>
@@ -37,10 +32,10 @@ function AdminSettingsPageContent() {
 	);
 }
 
-export default function AdminSettingsPage() {
+export default function AdminMissionsPage() {
 	return (
 		<AdminGuard>
-			<AdminSettingsPageContent />
+			<AdminMissionsPageContent />
 		</AdminGuard>
 	);
 }
