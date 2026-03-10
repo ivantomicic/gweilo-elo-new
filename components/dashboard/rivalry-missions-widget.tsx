@@ -77,13 +77,13 @@ export function RivalryMissionsWidget() {
 	}
 
 	return (
-		<>
+		<Stack direction="column" spacing={3} className="aspect-[7/5]">
 			{snapshot.missions.map((mission) => {
 				const copy = renderMissionCopy(mission);
 				return (
 					<Box
 						key={mission.id}
-						className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col justify-center"
+						className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 flex-1 flex flex-col justify-center"
 					>
 						<Stack direction="column" spacing={3}>
 							<p className="text-lg font-semibold leading-tight">{copy.title}</p>
@@ -94,6 +94,6 @@ export function RivalryMissionsWidget() {
 					</Box>
 				);
 			})}
-		</>
+		</Stack>
 	);
 }
