@@ -543,6 +543,10 @@ function createClimbCandidate(
 			: player.tier === "bottom" || player.tier === "provisional"
 				? 12
 				: 5;
+	const body =
+		gapElo <= RIVALRY_CONFIG.gaps.closeElo
+			? `${opponent.name} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da preokrene tabelu.`
+			: `${opponent.name} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da zatvori taj minus.`;
 	const breakdown = createBreakdown(
 		basePriority,
 		closeness,
@@ -558,7 +562,7 @@ function createClimbCandidate(
 		"competitive",
 		breakdown,
 		`Stigni ${opponent.name}`,
-		`${opponent.name} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da zatvori taj minus.`,
+		body,
 		[
 			`Najbliži igrač iznad tebe na tabeli.`,
 			`Elo razlika je ${gapElo}.`,
