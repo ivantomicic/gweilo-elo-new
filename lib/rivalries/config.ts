@@ -17,6 +17,7 @@ export const RIVALRY_CONFIG = {
 		minMatches: 3,
 		maxWinGap: 1,
 		minBreakStreak: 3,
+		maxBreakStreak: 5,
 	},
 	recency: {
 		hotDays: 14,

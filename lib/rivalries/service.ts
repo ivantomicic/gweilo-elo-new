@@ -672,6 +672,10 @@ function createBreakStreakCandidate(
 	pairStats: PerspectivePairStats,
 	now: Date,
 ) {
+	if (pairStats.latestLossStreak > RIVALRY_CONFIG.rivalry.maxBreakStreak) {
+		return null;
+	}
+
 	const gapElo = Math.abs(Math.round(player.elo - opponent.elo));
 	const basePriority = getBasePriority("break_streak", player.tier);
 	const closeness = Math.max(0, RIVALRY_CONFIG.gaps.breakStreakMaxElo - gapElo);
@@ -895,13 +899,20 @@ function buildPlayerSnapshot(
 
 		if (
 			perspective.latestLossStreak >= RIVALRY_CONFIG.rivalry.minBreakStreak &&
+			perspective.latestLossStreak <= RIVALRY_CONFIG.rivalry.maxBreakStreak &&
 			(Math.abs(player.elo - opponent.elo) <=
 				RIVALRY_CONFIG.gaps.breakStreakMaxElo ||
 				perspective.recentCloseLossInStreak)
 		) {
-			candidates.push(
-				createBreakStreakCandidate(player, opponent, perspective, now),
+			const candidate = createBreakStreakCandidate(
+				player,
+				opponent,
+				perspective,
+				now,
 			);
+			if (candidate) {
+				candidates.push(candidate);
+			}
 		}
 	}
 
