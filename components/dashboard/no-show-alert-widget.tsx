@@ -17,6 +17,8 @@ type NoShowUser = {
 	lastNoShowDate: string;
 };
 
+const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
+
 export function NoShowAlertWidget() {
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -64,7 +66,9 @@ export function NoShowAlertWidget() {
 
 	if (loading) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
+			<Box
+				className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
+			>
 				{/* Blurred destructive background circle */}
 				<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-destructive/20 blur-[60px] rounded-full pointer-events-none" />
 				<Box className="flex items-center justify-center mb-4 relative z-10">
@@ -106,7 +110,9 @@ export function NoShowAlertWidget() {
 	}
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
+		<Box
+			className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
+		>
 			{/* Blurred destructive background circle */}
 			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-destructive/20 blur-[60px] rounded-full pointer-events-none" />
 			<Box className="flex items-center justify-center mb-4 relative z-10">

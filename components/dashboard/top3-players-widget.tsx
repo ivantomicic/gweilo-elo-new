@@ -19,6 +19,8 @@ type PlayerStat = {
 	draws: number;
 };
 
+const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
+
 export function Top3PlayersWidget() {
 	const router = useRouter();
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
@@ -79,7 +81,9 @@ export function Top3PlayersWidget() {
 	const third = topPlayers[2];
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden px-6 pt-4 pb-0 aspect-[7/5] flex flex-col">
+		<Box
+			className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden px-6 pt-4 pb-0 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
+		>
 			{/* Blurred primary background circle */}
 			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/20 blur-[60px] rounded-full pointer-events-none" />
 

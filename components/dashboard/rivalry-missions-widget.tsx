@@ -9,6 +9,8 @@ import type { MissionSnapshot } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
 
+const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
+
 export function RivalryMissionsWidget() {
 	const [snapshot, setSnapshot] = useState<MissionSnapshot | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -54,7 +56,9 @@ export function RivalryMissionsWidget() {
 
 	if (loading) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col">
+			<Box
+				className={`bg-card rounded-[24px] border border-border/50 shadow-sm p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
+			>
 				<div className="flex flex-1 items-center justify-center">
 					<Loading inline label={t.missions.loading} />
 				</div>
@@ -64,7 +68,9 @@ export function RivalryMissionsWidget() {
 
 	if (error) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col">
+			<Box
+				className={`bg-card rounded-[24px] border border-border/50 shadow-sm p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
+			>
 				<div className="flex flex-1 items-center">
 					<p className="text-sm text-destructive">{error}</p>
 				</div>
@@ -76,14 +82,16 @@ export function RivalryMissionsWidget() {
 		return null;
 	}
 
+	const isSingleMission = snapshot.missions.length === 1;
+
 	return (
-		<Stack direction="column" spacing={3} className="aspect-[7/5]">
+		<Stack direction="column" spacing={3} className="h-full">
 			{snapshot.missions.map((mission) => {
 				const copy = renderMissionCopy(mission);
 				return (
 					<Box
 						key={mission.id}
-						className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 flex-1 flex flex-col justify-center"
+						className={`bg-card rounded-[24px] border border-border/50 shadow-sm p-6 flex flex-col justify-center ${DASHBOARD_CARD_HEIGHT_CLASS} ${isSingleMission ? "h-full" : ""}`}
 					>
 						<Stack direction="column" spacing={3}>
 							<p className="text-lg font-semibold leading-tight">{copy.title}</p>
