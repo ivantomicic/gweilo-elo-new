@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/vendor/shadcn/badge";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
@@ -77,16 +76,9 @@ export function RivalryMissionsWidget() {
 								className="rounded-[20px] border border-border/60 bg-muted/20 p-4"
 							>
 								<Stack direction="column" spacing={2}>
-									<Stack
-										direction="row"
-										alignItems="center"
-										justifyContent="between"
-									>
-										<p className="font-semibold leading-tight">
-											{copy.title}
-										</p>
-										<Badge variant="outline">{mission.score}</Badge>
-									</Stack>
+									<p className="font-semibold leading-tight">
+										{copy.title}
+									</p>
 									<p className="text-sm text-muted-foreground">
 										{copy.body}
 									</p>
