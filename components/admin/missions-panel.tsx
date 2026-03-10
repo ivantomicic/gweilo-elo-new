@@ -304,49 +304,15 @@ export function MissionsPanel() {
 								</Box>
 
 								<div className="grid gap-3 md:grid-cols-2">
-									{snapshot.missions.map((mission) => (
-										<Box
-											key={mission.id}
-											className="rounded-2xl border border-border/60 bg-background/70 p-4"
-										>
-											<Stack direction="column" spacing={2}>
-												<Stack
-													direction="row"
-													alignItems="center"
-													justifyContent="between"
-													className="flex-wrap gap-2"
-												>
-													<p className="font-semibold">{mission.title}</p>
-													<Stack
-														direction="row"
-														alignItems="center"
-														spacing={2}
-													>
-														<Badge variant="secondary">
-															{getMissionTypeLabel(mission.type)}
-														</Badge>
-														<Badge variant="outline">
-															{mission.score}
-														</Badge>
-													</Stack>
-												</Stack>
-												<p className="text-sm text-muted-foreground">
-													{mission.body}
-												</p>
-											</Stack>
+									{snapshot.missions.length === 0 ? (
+										<Box className="rounded-2xl border border-dashed border-border/60 bg-background/50 p-4 text-sm text-muted-foreground">
+											No missions for this player right now.
 										</Box>
-									))}
-								</div>
-
-								<details className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
-									<summary className="cursor-pointer list-none font-medium">
-										{t.admin.missions.candidates} ({snapshot.candidates.length})
-									</summary>
-									<div className="mt-4 space-y-3">
-										{snapshot.candidates.map((candidate) => (
+									) : (
+										snapshot.missions.map((mission) => (
 											<Box
-												key={candidate.id}
-												className="rounded-xl border border-border/50 bg-background/80 p-4"
+												key={mission.id}
+												className="rounded-2xl border border-border/60 bg-background/70 p-4"
 											>
 												<Stack direction="column" spacing={2}>
 													<Stack
@@ -355,62 +321,104 @@ export function MissionsPanel() {
 														justifyContent="between"
 														className="flex-wrap gap-2"
 													>
+														<p className="font-semibold">{mission.title}</p>
 														<Stack
 															direction="row"
 															alignItems="center"
 															spacing={2}
-															className="flex-wrap"
 														>
-															<Badge
-																variant={
-																	candidate.selected
-																		? "default"
-																		: "outline"
-																}
-															>
-																{candidate.selected
-																	? t.admin.missions.selected
-																	: "Candidate"}
-															</Badge>
 															<Badge variant="secondary">
-																{getMissionTypeLabel(candidate.type)}
+																{getMissionTypeLabel(mission.type)}
 															</Badge>
 															<Badge variant="outline">
-																{getPriorityLabel(
-																	candidate.priorityBucket,
-																)}
+																{mission.score}
 															</Badge>
 														</Stack>
-														<Badge variant="outline">
-															{candidate.score}
-														</Badge>
 													</Stack>
-
-													<div>
-														<p className="font-medium">{candidate.title}</p>
-														<p className="text-sm text-muted-foreground">
-															{candidate.body}
-														</p>
-													</div>
-
-													<p className="text-xs text-muted-foreground">
-														base {candidate.scoreBreakdown.basePriority} • closeness{" "}
-														{candidate.scoreBreakdown.closeness} • recency{" "}
-														{candidate.scoreBreakdown.recency} • realism{" "}
-														{candidate.scoreBreakdown.realism} • tier{" "}
-														{candidate.scoreBreakdown.tierFit}
+													<p className="text-sm text-muted-foreground">
+														{mission.body}
 													</p>
-
-													<div className="space-y-1 text-xs text-muted-foreground">
-														{candidate.reasoning.map((reason) => (
-															<p key={reason}>{reason}</p>
-														))}
-													</div>
 												</Stack>
 											</Box>
-										))}
-									</div>
-								</details>
+										))
+									)}
+								</div>
+
+								{snapshot.candidates.length > 0 ? (
+									<details className="rounded-2xl border border-border/60 bg-muted/15 px-4 py-3">
+										<summary className="cursor-pointer list-none font-medium">
+											{t.admin.missions.candidates} ({snapshot.candidates.length})
+										</summary>
+										<div className="mt-4 space-y-3">
+											{snapshot.candidates.map((candidate) => (
+												<Box
+													key={candidate.id}
+													className="rounded-xl border border-border/50 bg-background/80 p-4"
+												>
+													<Stack direction="column" spacing={2}>
+														<Stack
+															direction="row"
+															alignItems="center"
+															justifyContent="between"
+															className="flex-wrap gap-2"
+														>
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={2}
+																className="flex-wrap"
+															>
+																<Badge
+																	variant={
+																		candidate.selected
+																			? "default"
+																			: "outline"
+																	}
+																>
+																	{candidate.selected
+																		? t.admin.missions.selected
+																		: "Candidate"}
+																</Badge>
+																<Badge variant="secondary">
+																	{getMissionTypeLabel(candidate.type)}
+																</Badge>
+																<Badge variant="outline">
+																	{getPriorityLabel(
+																		candidate.priorityBucket,
+																	)}
+																</Badge>
+															</Stack>
+															<Badge variant="outline">
+																{candidate.score}
+															</Badge>
+														</Stack>
+
+														<div>
+															<p className="font-medium">{candidate.title}</p>
+															<p className="text-sm text-muted-foreground">
+																{candidate.body}
+															</p>
+														</div>
+
+														<p className="text-xs text-muted-foreground">
+															base {candidate.scoreBreakdown.basePriority} • closeness{" "}
+															{candidate.scoreBreakdown.closeness} • recency{" "}
+															{candidate.scoreBreakdown.recency} • realism{" "}
+															{candidate.scoreBreakdown.realism} • tier{" "}
+															{candidate.scoreBreakdown.tierFit}
+														</p>
+
+														<div className="space-y-1 text-xs text-muted-foreground">
+															{candidate.reasoning.map((reason) => (
+																<p key={reason}>{reason}</p>
+															))}
+														</div>
+													</Stack>
+												</Box>
+											))}
+										</div>
+									</details>
+								) : null}
 							</CardContent>
 						</Card>
 					))}
