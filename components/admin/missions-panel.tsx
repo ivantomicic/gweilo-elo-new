@@ -11,6 +11,7 @@ import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import type { MissionSnapshot, PlayerTier } from "@/lib/rivalries/types";
+import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
 
 function formatGeneratedAt(dateString: string) {
@@ -309,38 +310,41 @@ export function MissionsPanel() {
 											No missions for this player right now.
 										</Box>
 									) : (
-										snapshot.missions.map((mission) => (
-											<Box
-												key={mission.id}
-												className="rounded-2xl border border-border/60 bg-background/70 p-4"
-											>
-												<Stack direction="column" spacing={2}>
-													<Stack
-														direction="row"
-														alignItems="center"
-														justifyContent="between"
-														className="flex-wrap gap-2"
-													>
-														<p className="font-semibold">{mission.title}</p>
+										snapshot.missions.map((mission) => {
+											const copy = renderMissionCopy(mission);
+											return (
+												<Box
+													key={mission.id}
+													className="rounded-2xl border border-border/60 bg-background/70 p-4"
+												>
+													<Stack direction="column" spacing={2}>
 														<Stack
 															direction="row"
 															alignItems="center"
-															spacing={2}
+															justifyContent="between"
+															className="flex-wrap gap-2"
 														>
-															<Badge variant="secondary">
-																{getMissionTypeLabel(mission.type)}
-															</Badge>
-															<Badge variant="outline">
-																{mission.score}
-															</Badge>
+															<p className="font-semibold">{copy.title}</p>
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={2}
+															>
+																<Badge variant="secondary">
+																	{getMissionTypeLabel(mission.type)}
+																</Badge>
+																<Badge variant="outline">
+																	{mission.score}
+																</Badge>
+															</Stack>
 														</Stack>
+														<p className="text-sm text-muted-foreground">
+															{copy.body}
+														</p>
 													</Stack>
-													<p className="text-sm text-muted-foreground">
-														{mission.body}
-													</p>
-												</Stack>
-											</Box>
-										))
+												</Box>
+											);
+										})
 									)}
 								</div>
 
@@ -350,72 +354,75 @@ export function MissionsPanel() {
 											{t.admin.missions.candidates} ({snapshot.candidates.length})
 										</summary>
 										<div className="mt-4 space-y-3">
-											{snapshot.candidates.map((candidate) => (
-												<Box
-													key={candidate.id}
-													className="rounded-xl border border-border/50 bg-background/80 p-4"
-												>
-													<Stack direction="column" spacing={2}>
-														<Stack
-															direction="row"
-															alignItems="center"
-															justifyContent="between"
-															className="flex-wrap gap-2"
-														>
+											{snapshot.candidates.map((candidate) => {
+												const copy = renderMissionCopy(candidate);
+												return (
+													<Box
+														key={candidate.id}
+														className="rounded-xl border border-border/50 bg-background/80 p-4"
+													>
+														<Stack direction="column" spacing={2}>
 															<Stack
 																direction="row"
 																alignItems="center"
-																spacing={2}
-																className="flex-wrap"
+																justifyContent="between"
+																className="flex-wrap gap-2"
 															>
-																<Badge
-																	variant={
-																		candidate.selected
-																			? "default"
-																			: "outline"
-																	}
+																<Stack
+																	direction="row"
+																	alignItems="center"
+																	spacing={2}
+																	className="flex-wrap"
 																>
-																	{candidate.selected
-																		? t.admin.missions.selected
-																		: "Candidate"}
-																</Badge>
-																<Badge variant="secondary">
-																	{getMissionTypeLabel(candidate.type)}
-																</Badge>
+																	<Badge
+																		variant={
+																			candidate.selected
+																				? "default"
+																				: "outline"
+																		}
+																	>
+																		{candidate.selected
+																			? t.admin.missions.selected
+																			: "Candidate"}
+																	</Badge>
+																	<Badge variant="secondary">
+																		{getMissionTypeLabel(candidate.type)}
+																	</Badge>
+																	<Badge variant="outline">
+																		{getPriorityLabel(
+																			candidate.priorityBucket,
+																		)}
+																	</Badge>
+																</Stack>
 																<Badge variant="outline">
-																	{getPriorityLabel(
-																		candidate.priorityBucket,
-																	)}
+																	{candidate.score}
 																</Badge>
 															</Stack>
-															<Badge variant="outline">
-																{candidate.score}
-															</Badge>
-														</Stack>
 
-														<div>
-															<p className="font-medium">{candidate.title}</p>
-															<p className="text-sm text-muted-foreground">
-																{candidate.body}
+															<div>
+																<p className="font-medium">{copy.title}</p>
+																<p className="text-sm text-muted-foreground">
+																	{copy.body}
+																</p>
+															</div>
+
+															<p className="text-xs text-muted-foreground">
+																base {candidate.scoreBreakdown.basePriority} • closeness{" "}
+																{candidate.scoreBreakdown.closeness} • recency{" "}
+																{candidate.scoreBreakdown.recency} • realism{" "}
+																{candidate.scoreBreakdown.realism} • tier{" "}
+																{candidate.scoreBreakdown.tierFit}
 															</p>
-														</div>
 
-														<p className="text-xs text-muted-foreground">
-															base {candidate.scoreBreakdown.basePriority} • closeness{" "}
-															{candidate.scoreBreakdown.closeness} • recency{" "}
-															{candidate.scoreBreakdown.recency} • realism{" "}
-															{candidate.scoreBreakdown.realism} • tier{" "}
-															{candidate.scoreBreakdown.tierFit}
-														</p>
-
-														<div className="space-y-1 text-xs text-muted-foreground">
-															{candidate.reasoning.map((reason) => (
-																<p key={reason}>{reason}</p>
-															))}
-														</div>
-													</Stack>
-												</Box>
-											))}
+															<div className="space-y-1 text-xs text-muted-foreground">
+																{candidate.reasoning.map((reason) => (
+																	<p key={reason}>{reason}</p>
+																))}
+															</div>
+														</Stack>
+													</Box>
+												);
+											})}
 										</div>
 									</details>
 								) : null}

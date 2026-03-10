@@ -8,6 +8,7 @@ import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase/client";
 import type { MissionSnapshot } from "@/lib/rivalries/types";
+import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
 
 function formatGeneratedAt(dateString: string) {
@@ -98,28 +99,33 @@ export function RivalryMissionsWidget() {
 						<>
 							<Stack direction="column" spacing={3}>
 								{snapshot.missions.map((mission) => (
-									<Box
-										key={mission.id}
-										className="rounded-2xl border border-border/60 bg-muted/20 p-4"
-									>
-										<Stack direction="column" spacing={2}>
-											<Stack
-												direction="row"
-												alignItems="center"
-												justifyContent="between"
+									(() => {
+										const copy = renderMissionCopy(mission);
+										return (
+											<Box
+												key={mission.id}
+												className="rounded-2xl border border-border/60 bg-muted/20 p-4"
 											>
-												<p className="font-semibold leading-tight">
-													{mission.title}
-												</p>
-												<Badge variant="outline">
-													{mission.score}
-												</Badge>
-											</Stack>
-											<p className="text-sm text-muted-foreground">
-												{mission.body}
-											</p>
-										</Stack>
-									</Box>
+												<Stack direction="column" spacing={2}>
+													<Stack
+														direction="row"
+														alignItems="center"
+														justifyContent="between"
+													>
+														<p className="font-semibold leading-tight">
+															{copy.title}
+														</p>
+														<Badge variant="outline">
+															{mission.score}
+														</Badge>
+													</Stack>
+													<p className="text-sm text-muted-foreground">
+														{copy.body}
+													</p>
+												</Stack>
+											</Box>
+										);
+									})()
 								))}
 							</Stack>
 
