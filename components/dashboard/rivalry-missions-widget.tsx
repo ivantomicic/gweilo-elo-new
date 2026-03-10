@@ -147,21 +147,28 @@ export function RivalryMissionsWidget() {
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
+		let isMounted = true;
+
 		const fetchSnapshot = async () => {
 			try {
-				setLoading(true);
-				setError(null);
+				if (isMounted) {
+					setLoading(true);
+					setError(null);
+				}
 
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
 
 				if (!session?.access_token) {
-					setSnapshot(null);
+					if (isMounted) {
+						setSnapshot(null);
+					}
 					return;
 				}
 
 				const response = await fetch("/api/missions", {
+					cache: "no-store",
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
 					},
@@ -172,16 +179,41 @@ export function RivalryMissionsWidget() {
 				}
 
 				const data = await response.json();
-				setSnapshot(data.snapshot || null);
+				if (isMounted) {
+					setSnapshot(data.snapshot || null);
+				}
 			} catch (fetchError) {
 				console.error("Error loading missions:", fetchError);
-				setError(t.missions.error.fetchFailed);
+				if (isMounted) {
+					setError(t.missions.error.fetchFailed);
+				}
 			} finally {
-				setLoading(false);
+				if (isMounted) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchSnapshot();
+
+		const handleWindowFocus = () => {
+			fetchSnapshot();
+		};
+
+		const handleVisibilityChange = () => {
+			if (document.visibilityState === "visible") {
+				fetchSnapshot();
+			}
+		};
+
+		window.addEventListener("focus", handleWindowFocus);
+		document.addEventListener("visibilitychange", handleVisibilityChange);
+
+		return () => {
+			isMounted = false;
+			window.removeEventListener("focus", handleWindowFocus);
+			document.removeEventListener("visibilitychange", handleVisibilityChange);
+		};
 	}, []);
 
 	if (loading) {
