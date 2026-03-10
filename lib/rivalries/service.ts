@@ -529,6 +529,10 @@ function createClimbCandidate(
 	now: Date,
 ) {
 	const gapElo = Math.max(0, Math.round(opponent.elo - player.elo));
+	if (gapElo > RIVALRY_CONFIG.gaps.realisticElo) {
+		return null;
+	}
+
 	const basePriority = getBasePriority("climb_rank", player.tier);
 	const closeness = Math.max(0, RIVALRY_CONFIG.gaps.realisticElo - gapElo);
 	const recency = getRecencyScore(lastPlayedAt, now);
@@ -828,14 +832,15 @@ function buildPlayerSnapshot(
 		const pairPerspective = pair
 			? getPerspectiveStats(pair, player.id, above.id)
 			: null;
-		candidates.push(
-			createClimbCandidate(
-				player,
-				above,
-				pairPerspective?.lastPlayedAt || null,
-				now,
-			),
+		const candidate = createClimbCandidate(
+			player,
+			above,
+			pairPerspective?.lastPlayedAt || null,
+			now,
 		);
+		if (candidate) {
+			candidates.push(candidate);
+		}
 	}
 
 	if (
