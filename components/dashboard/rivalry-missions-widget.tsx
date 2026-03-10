@@ -85,13 +85,17 @@ export function RivalryMissionsWidget() {
 	const isSingleMission = snapshot.missions.length === 1;
 
 	return (
-		<Stack direction="column" spacing={3} className="h-full">
+		<Stack
+			direction="column"
+			spacing={3}
+			className={isSingleMission ? "h-full" : undefined}
+		>
 			{snapshot.missions.map((mission) => {
 				const copy = renderMissionCopy(mission);
 				return (
 					<Box
 						key={mission.id}
-						className={`bg-card rounded-[24px] border border-border/50 shadow-sm p-6 flex flex-col justify-center ${DASHBOARD_CARD_HEIGHT_CLASS} ${isSingleMission ? "h-full" : ""}`}
+						className={`bg-card rounded-[24px] border border-border/50 shadow-sm p-6 flex flex-col ${isSingleMission ? `justify-center h-full ${DASHBOARD_CARD_HEIGHT_CLASS}` : "justify-start"}`}
 					>
 						<Stack direction="column" spacing={3}>
 							<p className="text-lg font-semibold leading-tight">{copy.title}</p>
