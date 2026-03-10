@@ -182,28 +182,22 @@ export function RivalryMissionsWidget() {
 							className={`absolute -right-8 top-4 h-28 w-28 rounded-full blur-3xl ${theme.glow}`}
 						/>
 						<Box className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
-						<Box className="absolute right-4 top-3 text-[72px] font-semibold leading-none tracking-[-0.04em] text-white/6">
+						<Box className="absolute -right-2 -top-5 text-[112px] font-semibold leading-none tracking-[-0.06em] text-white/[0.08] md:text-[132px]">
 							{opponentInitial}
 						</Box>
+						{stat ? (
+							<Box className="absolute right-5 top-5 z-20 md:right-6 md:top-6">
+								<span
+									className={`rounded-full border px-3 py-1 text-xs font-semibold ${theme.statClass}`}
+								>
+									{stat}
+								</span>
+							</Box>
+						) : null}
 
 						<Stack direction="column" spacing={4} className="relative z-10 h-full">
-							<Stack
-								direction="row"
-								alignItems="center"
-								justifyContent="end"
-								className="gap-3"
-							>
-								{stat ? (
-									<span
-										className={`rounded-full border px-3 py-1 text-xs font-semibold ${theme.statClass}`}
-									>
-										{stat}
-									</span>
-								) : null}
-							</Stack>
-
 							<Stack direction="column" spacing={3} className="relative z-10">
-								<p className="text-xl font-semibold leading-tight text-foreground">
+								<p className="pr-24 text-xl font-semibold leading-tight text-foreground md:pr-28">
 									{copy.title}
 								</p>
 								<p className="max-w-[30ch] text-sm leading-6 text-foreground/70">
