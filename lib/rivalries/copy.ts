@@ -39,7 +39,7 @@ export function renderMissionCopy(mission: MissionLike) {
 	switch (mission.type) {
 		case "climb_rank":
 			return {
-				title: `Stigni ${opponentName}`,
+				title: `Ispred tebe: ${opponentName}`,
 				body:
 					gapElo <= RIVALRY_CONFIG.gaps.closeElo
 						? `${opponentName} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da preokrene tabelu.`
@@ -47,18 +47,18 @@ export function renderMissionCopy(mission: MissionLike) {
 			};
 		case "defend_rank":
 			return {
-				title: `Zadrži prednost nad ${opponentName}`,
+				title: `Iza tebe: ${opponentName}`,
 				body: `${opponentName} je ${gapElo} Elo iza tebe. Ako nastavi dobar niz, razlika može brzo da se istopi.`,
 			};
 		case "settle_score":
 			return {
-				title: `Reši duel sa ${opponentName}`,
-				body: `Protiv ${opponentName} si na ${getNumberMetric(metrics, "wins")}-${getNumberMetric(metrics, "losses")}. Sledeći meč može da okrene rivalstvo.`,
+				title: `Rivalstvo: ${opponentName}`,
+				body: `Skor u ovom duelu je ${getNumberMetric(metrics, "wins")}-${getNumberMetric(metrics, "losses")}. Sledeći meč može ozbiljno da promeni odnos snaga.`,
 			};
 		case "break_streak":
 			return {
-				title: `Prekini niz protiv ${opponentName}`,
-				body: `Vezao si ${getNumberMetric(metrics, "lossStreak")} poraza protiv ${opponentName}. Sledeći meč je prilika da presečeš taj niz.`,
+				title: `Niz za prekid: ${opponentName}`,
+				body: `Trenutni niz je ${getNumberMetric(metrics, "lossStreak")} poraza zaredom. Sledeći meč je prilika da ga prekineš.`,
 			};
 		case "close_gap": {
 			const direction = getStringMetric(metrics, "direction", "ispred");
