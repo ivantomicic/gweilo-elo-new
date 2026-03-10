@@ -35,42 +35,32 @@ function getMissionTheme(mission: MissionSnapshot["missions"][number]) {
 	switch (mission.type) {
 		case "climb_rank":
 			return {
-				kicker: "Juris",
 				gradient: "from-sky-500/20 via-blue-500/8 to-card",
 				glow: "bg-sky-500/18",
-				kickerClass: "border-sky-300/25 bg-sky-400/10 text-sky-100",
 				statClass: "border-sky-300/20 bg-sky-400/10 text-sky-50",
 			};
 		case "defend_rank":
 			return {
-				kicker: "Odbrana",
 				gradient: "from-emerald-500/18 via-teal-500/8 to-card",
 				glow: "bg-emerald-500/16",
-				kickerClass: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
 				statClass: "border-emerald-300/20 bg-emerald-400/10 text-emerald-50",
 			};
 		case "settle_score":
 			return {
-				kicker: "Rivalstvo",
 				gradient: "from-fuchsia-500/16 via-violet-500/8 to-card",
 				glow: "bg-fuchsia-500/14",
-				kickerClass: "border-fuchsia-300/25 bg-fuchsia-400/10 text-fuchsia-100",
 				statClass: "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-50",
 			};
 		case "break_streak":
 			return {
-				kicker: "Povratak",
 				gradient: "from-orange-500/18 via-amber-500/8 to-card",
 				glow: "bg-orange-500/16",
-				kickerClass: "border-orange-300/25 bg-orange-400/10 text-orange-100",
 				statClass: "border-orange-300/20 bg-orange-400/10 text-orange-50",
 			};
 		default:
 			return {
-				kicker: direction === "iza" ? "Pretnja" : "Meta",
 				gradient: "from-amber-500/18 via-yellow-500/8 to-card",
 				glow: "bg-amber-500/14",
-				kickerClass: "border-amber-300/25 bg-amber-400/10 text-amber-100",
 				statClass: "border-amber-300/20 bg-amber-400/10 text-amber-50",
 			};
 	}
@@ -200,14 +190,9 @@ export function RivalryMissionsWidget() {
 							<Stack
 								direction="row"
 								alignItems="center"
-								justifyContent="between"
+								justifyContent="end"
 								className="gap-3"
 							>
-								<span
-									className={`rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${theme.kickerClass}`}
-								>
-									{theme.kicker}
-								</span>
 								{stat ? (
 									<span
 										className={`rounded-full border px-3 py-1 text-xs font-semibold ${theme.statClass}`}
