@@ -52,42 +52,48 @@ export function RivalryMissionsWidget() {
 		fetchSnapshot();
 	}, []);
 
-	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col">
-			{loading ? (
+	if (loading) {
+		return (
+			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col">
 				<div className="flex flex-1 items-center justify-center">
 					<Loading inline label={t.missions.loading} />
 				</div>
-			) : error ? (
+			</Box>
+		);
+	}
+
+	if (error) {
+		return (
+			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col">
 				<div className="flex flex-1 items-center">
 					<p className="text-sm text-destructive">{error}</p>
 				</div>
-			) : !snapshot || snapshot.missions.length === 0 ? (
-				<div className="flex flex-1 items-center">
-					<p className="text-sm text-muted-foreground">{t.missions.empty}</p>
-				</div>
-			) : (
-				<Stack direction="column" spacing={3} className="flex-1 justify-center">
-					{snapshot.missions.map((mission) => {
-						const copy = renderMissionCopy(mission);
-						return (
-							<Box
-								key={mission.id}
-								className="rounded-[20px] border border-border/60 bg-muted/20 p-4"
-							>
-								<Stack direction="column" spacing={2}>
-									<p className="font-semibold leading-tight">
-										{copy.title}
-									</p>
-									<p className="text-sm text-muted-foreground">
-										{copy.body}
-									</p>
-								</Stack>
-							</Box>
-						);
-					})}
-				</Stack>
-			)}
-		</Box>
+			</Box>
+		);
+	}
+
+	if (!snapshot || snapshot.missions.length === 0) {
+		return null;
+	}
+
+	return (
+		<>
+			{snapshot.missions.map((mission) => {
+				const copy = renderMissionCopy(mission);
+				return (
+					<Box
+						key={mission.id}
+						className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 aspect-[7/5] flex flex-col justify-center"
+					>
+						<Stack direction="column" spacing={3}>
+							<p className="text-lg font-semibold leading-tight">{copy.title}</p>
+							<p className="text-sm leading-6 text-muted-foreground">
+								{copy.body}
+							</p>
+						</Stack>
+					</Box>
+				);
+			})}
+		</>
 	);
 }
