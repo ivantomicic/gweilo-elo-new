@@ -715,6 +715,10 @@ function createCloseGapCandidate(
 	now: Date,
 ) {
 	const gapElo = Math.abs(Math.round(player.elo - opponent.elo));
+	if (gapElo > RIVALRY_CONFIG.gaps.realisticElo) {
+		return null;
+	}
+
 	const direction = opponent.elo >= player.elo ? "ispred" : "iza";
 	const basePriority = getBasePriority("close_gap", player.tier);
 	const closeness = Math.max(0, RIVALRY_CONFIG.gaps.realisticElo - gapElo);
@@ -897,7 +901,15 @@ function buildPlayerSnapshot(
 		const lastPlayedAt = pair
 			? getPerspectiveStats(pair, player.id, opponent.id).lastPlayedAt
 			: null;
-		candidates.push(createCloseGapCandidate(player, opponent, lastPlayedAt, now));
+		const candidate = createCloseGapCandidate(
+			player,
+			opponent,
+			lastPlayedAt,
+			now,
+		);
+		if (candidate) {
+			candidates.push(candidate);
+		}
 	}
 
 	if (candidates.length < RIVALRY_CONFIG.maxMissionsPerPlayer) {
@@ -914,9 +926,15 @@ function buildPlayerSnapshot(
 			const lastPlayedAt = pair
 				? getPerspectiveStats(pair, player.id, opponent.id).lastPlayedAt
 				: null;
-			candidates.push(
-				createCloseGapCandidate(player, opponent, lastPlayedAt, now),
+			const candidate = createCloseGapCandidate(
+				player,
+				opponent,
+				lastPlayedAt,
+				now,
 			);
+			if (candidate) {
+				candidates.push(candidate);
+			}
 		}
 	}
 
