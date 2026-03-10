@@ -290,9 +290,9 @@ export default function HomePage() {
 							<Stack direction="column" spacing={4}>
 								{/* First Row: 2 widgets on md, 3 on xl+ (min 325px per widget) */}
 								<Box className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+									<RivalryMissionsWidget />
 									<Top3PlayersWidget />
 									<NoShowAlertWidget />
-									<RivalryMissionsWidget />
 								</Box>
 
 								{/* Second Row: 1 full-width widget */}
