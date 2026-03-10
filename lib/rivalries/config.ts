@@ -9,6 +9,7 @@ export const RIVALRY_CONFIG = {
 	gaps: {
 		closeElo: 18,
 		defendElo: 30,
+		defendEligibleElo: 45,
 		realisticElo: 55,
 		breakStreakMaxElo: 60,
 	},

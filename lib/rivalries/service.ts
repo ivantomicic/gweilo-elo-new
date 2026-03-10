@@ -598,7 +598,7 @@ function createDefendCandidate(
 		"competitive",
 		breakdown,
 		`Zadrži prednost nad ${opponent.name}`,
-		`${opponent.name} je samo ${gapElo} Elo iza tebe. Sledeći duel lako može da promeni poredak.`,
+		`${opponent.name} je ${gapElo} Elo iza tebe. Ako nastavi dobar niz, razlika može brzo da se istopi.`,
 		[
 			`Najbliži pratilac ispod tebe na tabeli.`,
 			`Elo razlika je ${gapElo}.`,
@@ -836,8 +836,7 @@ function buildPlayerSnapshot(
 
 	if (
 		below &&
-		(player.tier === "top" ||
-			closestBelowGap <= RIVALRY_CONFIG.gaps.defendElo)
+		closestBelowGap <= RIVALRY_CONFIG.gaps.defendEligibleElo
 	) {
 		const pair = pairMap.get(getPairKey(player.id, below.id));
 		const pairPerspective = pair
