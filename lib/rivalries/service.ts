@@ -39,6 +39,7 @@ type SessionRelation = {
 
 type SinglesMatchRow = {
 	id: string;
+	session_id: string;
 	player_ids: string[] | null;
 	team1_score: number | null;
 	team2_score: number | null;
@@ -57,6 +58,7 @@ type MissionPlayer = {
 
 type PairMatch = {
 	matchId: string;
+	sessionId: string;
 	playedAt: string;
 	player1Id: string;
 	player2Id: string;
@@ -84,6 +86,7 @@ type PerspectivePairStats = {
 	latestLossStreak: number;
 	latestWinStreak: number;
 	recentCloseLossInStreak: boolean;
+	recentSharedSessionCount: number;
 };
 
 type PersistedSnapshotRow = {
@@ -359,6 +362,7 @@ async function loadPairStats(
 		.select(
 			`
 				id,
+				session_id,
 				player_ids,
 				team1_score,
 				team2_score,
@@ -415,6 +419,7 @@ async function loadPairStats(
 
 		pair.matches.push({
 			matchId: row.id,
+			sessionId: row.session_id,
 			playedAt,
 			player1Id,
 			player2Id,
@@ -437,10 +442,29 @@ async function loadPairStats(
 	return pairMap;
 }
 
+async function loadRecentCompletedSessionIds(
+	adminClient: SupabaseClient,
+	limit: number,
+) {
+	const { data, error } = await adminClient
+		.from("sessions")
+		.select("id")
+		.eq("status", "completed")
+		.order("completed_at", { ascending: false })
+		.limit(limit);
+
+	if (error) {
+		throw new Error(`Failed to fetch recent completed sessions: ${error.message}`);
+	}
+
+	return new Set(((data || []) as { id: string }[]).map((session) => session.id));
+}
+
 function getPerspectiveStats(
 	pairStats: PairStats,
 	playerId: string,
 	opponentId: string,
+	recentCompletedSessionIds: Set<string> = new Set(),
 ): PerspectivePairStats {
 	let wins = 0;
 	let losses = 0;
@@ -450,8 +474,13 @@ function getPerspectiveStats(
 	let recentCloseLossInStreak = false;
 	let countingLosses = true;
 	let countingWins = true;
+	const recentSharedSessionIds = new Set<string>();
 
 	for (const match of pairStats.matches) {
+		if (recentCompletedSessionIds.has(match.sessionId)) {
+			recentSharedSessionIds.add(match.sessionId);
+		}
+
 		if (match.winnerId === null) {
 			draws += 1;
 			countingLosses = false;
@@ -491,6 +520,7 @@ function getPerspectiveStats(
 		latestLossStreak,
 		latestWinStreak,
 		recentCloseLossInStreak,
+		recentSharedSessionCount: recentSharedSessionIds.size,
 	};
 }
 
@@ -652,6 +682,7 @@ function createSettleScoreCandidate(
 		[
 			`Rivalstvo je tesno na ${pairStats.wins}-${pairStats.losses}.`,
 			`Odigrali ste ${pairStats.totalMatches} singl mečeva.`,
+			`Zajedno ste igrali u ${pairStats.recentSharedSessionCount} od poslednje ${RIVALRY_CONFIG.rivalry.recentSharedSessionWindow} sesije.`,
 			`Mala Elo razlika drži ovu priču realnom.`,
 		],
 		{
@@ -662,6 +693,7 @@ function createSettleScoreCandidate(
 			winGap: pairStats.winGap,
 			gapElo,
 			lastPlayedAt: pairStats.lastPlayedAt,
+			recentSharedSessionCount: pairStats.recentSharedSessionCount,
 		},
 	);
 }
@@ -826,6 +858,7 @@ function buildPlayerSnapshot(
 	player: MissionPlayer,
 	roster: MissionPlayer[],
 	pairMap: Map<string, PairStats>,
+	recentCompletedSessionIds: Set<string>,
 	generatedAt: string,
 	generatedReason: string,
 	generatedBy: string | null,
@@ -846,7 +879,7 @@ function buildPlayerSnapshot(
 	if (above) {
 		const pair = pairMap.get(getPairKey(player.id, above.id));
 		const pairPerspective = pair
-			? getPerspectiveStats(pair, player.id, above.id)
+			? getPerspectiveStats(pair, player.id, above.id, recentCompletedSessionIds)
 			: null;
 		const candidate = createClimbCandidate(
 			player,
@@ -865,7 +898,7 @@ function buildPlayerSnapshot(
 	) {
 		const pair = pairMap.get(getPairKey(player.id, below.id));
 		const pairPerspective = pair
-			? getPerspectiveStats(pair, player.id, below.id)
+			? getPerspectiveStats(pair, player.id, below.id, recentCompletedSessionIds)
 			: null;
 		candidates.push(
 			createDefendCandidate(
@@ -888,13 +921,27 @@ function buildPlayerSnapshot(
 		}
 
 		const perspective = getPerspectiveStats(pair, player.id, opponent.id);
+		const perspectiveWithRecentSessions = getPerspectiveStats(
+			pair,
+			player.id,
+			opponent.id,
+			recentCompletedSessionIds,
+		);
 
 		if (
-			perspective.totalMatches >= RIVALRY_CONFIG.rivalry.minMatches &&
-			perspective.winGap <= RIVALRY_CONFIG.rivalry.maxWinGap
+			perspectiveWithRecentSessions.totalMatches >=
+				RIVALRY_CONFIG.rivalry.minMatches &&
+			perspectiveWithRecentSessions.winGap <=
+				RIVALRY_CONFIG.rivalry.maxWinGap &&
+			perspectiveWithRecentSessions.recentSharedSessionCount > 0
 		) {
 			candidates.push(
-				createSettleScoreCandidate(player, opponent, perspective, now),
+				createSettleScoreCandidate(
+					player,
+					opponent,
+					perspectiveWithRecentSessions,
+					now,
+				),
 			);
 		}
 
@@ -924,11 +971,16 @@ function buildPlayerSnapshot(
 				Math.abs(player.elo - left.elo) - Math.abs(player.elo - right.elo),
 		);
 
-	for (const opponent of fallbackOpponents) {
-		const pair = pairMap.get(getPairKey(player.id, opponent.id));
-		const lastPlayedAt = pair
-			? getPerspectiveStats(pair, player.id, opponent.id).lastPlayedAt
-			: null;
+		for (const opponent of fallbackOpponents) {
+			const pair = pairMap.get(getPairKey(player.id, opponent.id));
+			const lastPlayedAt = pair
+				? getPerspectiveStats(
+						pair,
+						player.id,
+						opponent.id,
+						recentCompletedSessionIds,
+					).lastPlayedAt
+				: null;
 		const candidate = createCloseGapCandidate(
 			player,
 			opponent,
@@ -952,7 +1004,12 @@ function buildPlayerSnapshot(
 		for (const opponent of nearestOpponents) {
 			const pair = pairMap.get(getPairKey(player.id, opponent.id));
 			const lastPlayedAt = pair
-				? getPerspectiveStats(pair, player.id, opponent.id).lastPlayedAt
+				? getPerspectiveStats(
+						pair,
+						player.id,
+						opponent.id,
+						recentCompletedSessionIds,
+					).lastPlayedAt
 				: null;
 			const candidate = createCloseGapCandidate(
 				player,
@@ -1027,11 +1084,16 @@ export async function generateAndStoreMissionSnapshots(options?: {
 	}
 
 	const pairMap = await loadPairStats(adminClient, playerIdSet);
+	const recentCompletedSessionIds = await loadRecentCompletedSessionIds(
+		adminClient,
+		RIVALRY_CONFIG.rivalry.recentSharedSessionWindow,
+	);
 	const rows = players.map((player) =>
 		buildPlayerSnapshot(
 			player,
 			players,
 			pairMap,
+			recentCompletedSessionIds,
 			generatedAt,
 			reason,
 			generatedBy,

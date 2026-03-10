@@ -18,6 +18,7 @@ export const RIVALRY_CONFIG = {
 		maxWinGap: 1,
 		minBreakStreak: 3,
 		maxBreakStreak: 5,
+		recentSharedSessionWindow: 4,
 	},
 	recency: {
 		hotDays: 14,
