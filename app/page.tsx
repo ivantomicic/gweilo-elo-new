@@ -22,7 +22,7 @@ import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { Top3PlayersWidget } from "@/components/dashboard/top3-players-widget";
 import { NoShowAlertWidget } from "@/components/dashboard/no-show-alert-widget";
-import { TableTennisGifWidget } from "@/components/dashboard/table-tennis-gif-widget";
+import { RivalryMissionsWidget } from "@/components/dashboard/rivalry-missions-widget";
 import { PollCard, type Poll } from "@/components/polls/poll-card";
 import { getUserRole } from "@/lib/auth/getUserRole";
 
@@ -292,9 +292,7 @@ export default function HomePage() {
 								<Box className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
 									<Top3PlayersWidget />
 									<NoShowAlertWidget />
-									<Box className="hidden xl:block">
-										<TableTennisGifWidget />
-									</Box>
+									<RivalryMissionsWidget />
 								</Box>
 
 								{/* Second Row: 1 full-width widget */}
