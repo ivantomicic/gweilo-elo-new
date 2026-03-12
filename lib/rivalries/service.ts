@@ -1177,7 +1177,7 @@ export async function generateAndStoreMissionSnapshots(options?: {
 		throw new Error(`Failed to store mission snapshots: ${upsertError.message}`);
 	}
 
-	return rows.map(mapSnapshotRowToSnapshot);
+	return fetchMissionSnapshots({ adminClient });
 }
 
 export async function fetchMissionSnapshots(options?: {
