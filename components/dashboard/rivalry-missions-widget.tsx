@@ -167,7 +167,7 @@ export function RivalryMissionsWidget() {
 					return;
 				}
 
-				const response = await fetch("/api/missions", {
+				const response = await fetch(`/api/missions?ts=${Date.now()}`, {
 					cache: "no-store",
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,

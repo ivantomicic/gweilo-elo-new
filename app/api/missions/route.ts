@@ -8,6 +8,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE_HEADERS = {
+	"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+	Pragma: "no-cache",
+};
+
 export async function GET(request: NextRequest) {
 	try {
 		const authHeader = request.headers.get("authorization");
@@ -16,7 +21,7 @@ export async function GET(request: NextRequest) {
 		if (!authResult) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 },
+				{ status: 401, headers: NO_STORE_HEADERS },
 			);
 		}
 
@@ -40,12 +45,12 @@ export async function GET(request: NextRequest) {
 			});
 		}
 
-		return NextResponse.json({ snapshot });
+		return NextResponse.json({ snapshot }, { headers: NO_STORE_HEADERS });
 	} catch (error) {
 		console.error("Unexpected error in GET /api/missions:", error);
 		return NextResponse.json(
 			{ error: "Failed to load missions" },
-			{ status: 500 },
+			{ status: 500, headers: NO_STORE_HEADERS },
 		);
 	}
 }

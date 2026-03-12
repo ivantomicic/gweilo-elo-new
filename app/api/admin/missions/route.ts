@@ -7,6 +7,11 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE_HEADERS = {
+	"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+	Pragma: "no-cache",
+};
+
 export async function GET(request: NextRequest) {
 	try {
 		const authHeader = request.headers.get("authorization");
@@ -15,19 +20,19 @@ export async function GET(request: NextRequest) {
 		if (!adminUserId) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Admin access required." },
-				{ status: 401 },
+				{ status: 401, headers: NO_STORE_HEADERS },
 			);
 		}
 
 		const adminClient = createAdminClient();
 		const snapshots = await ensureMissionSnapshotsFresh({ adminClient });
 
-		return NextResponse.json({ snapshots });
+		return NextResponse.json({ snapshots }, { headers: NO_STORE_HEADERS });
 	} catch (error) {
 		console.error("Unexpected error in GET /api/admin/missions:", error);
 		return NextResponse.json(
 			{ error: "Failed to load missions" },
-			{ status: 500 },
+			{ status: 500, headers: NO_STORE_HEADERS },
 		);
 	}
 }
@@ -40,7 +45,7 @@ export async function POST(request: NextRequest) {
 		if (!adminUserId) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Admin access required." },
-				{ status: 401 },
+				{ status: 401, headers: NO_STORE_HEADERS },
 			);
 		}
 
@@ -51,12 +56,12 @@ export async function POST(request: NextRequest) {
 			reason: "manual",
 		});
 
-		return NextResponse.json({ snapshots });
+		return NextResponse.json({ snapshots }, { headers: NO_STORE_HEADERS });
 	} catch (error) {
 		console.error("Unexpected error in POST /api/admin/missions:", error);
 		return NextResponse.json(
 			{ error: "Failed to regenerate missions" },
-			{ status: 500 },
+			{ status: 500, headers: NO_STORE_HEADERS },
 		);
 	}
 }
