@@ -12,6 +12,55 @@ import { t } from "@/lib/i18n";
 const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
 const MISSION_CARD_BASE_CLASS =
 	"relative overflow-hidden rounded-[24px] border border-white/10 shadow-sm";
+const MISSION_CACHE_KEY_PREFIX = "rivalry-missions:";
+
+type CachedMissionSnapshot = {
+	snapshot: MissionSnapshot | null;
+	cachedAt: string;
+};
+
+function getMissionCacheKey(userId: string) {
+	return `${MISSION_CACHE_KEY_PREFIX}${userId}`;
+}
+
+function readCachedMissionSnapshot(userId: string) {
+	try {
+		const raw = window.sessionStorage.getItem(getMissionCacheKey(userId));
+		if (!raw) {
+			return null;
+		}
+
+		const parsed = JSON.parse(raw) as CachedMissionSnapshot;
+		return parsed.snapshot || null;
+	} catch {
+		return null;
+	}
+}
+
+function writeCachedMissionSnapshot(
+	userId: string,
+	snapshot: MissionSnapshot | null,
+) {
+	try {
+		window.sessionStorage.setItem(
+			getMissionCacheKey(userId),
+			JSON.stringify({
+				snapshot,
+				cachedAt: new Date().toISOString(),
+			} satisfies CachedMissionSnapshot),
+		);
+	} catch {
+		// Ignore sessionStorage write failures.
+	}
+}
+
+function clearCachedMissionSnapshot(userId: string) {
+	try {
+		window.sessionStorage.removeItem(getMissionCacheKey(userId));
+	} catch {
+		// Ignore sessionStorage cleanup failures.
+	}
+}
 
 function getNumberMetric(
 	metrics: Record<string, number | string | boolean | null>,
@@ -149,9 +198,15 @@ export function RivalryMissionsWidget() {
 	useEffect(() => {
 		let isMounted = true;
 
-		const fetchSnapshot = async () => {
+		const fetchSnapshot = async (options?: {
+			showLoading?: boolean;
+			suppressError?: boolean;
+		}) => {
+			const showLoading = options?.showLoading ?? true;
+			const suppressError = options?.suppressError ?? false;
+
 			try {
-				if (isMounted) {
+				if (isMounted && showLoading) {
 					setLoading(true);
 					setError(null);
 				}
@@ -160,9 +215,12 @@ export function RivalryMissionsWidget() {
 					data: { session },
 				} = await supabase.auth.getSession();
 
-				if (!session?.access_token) {
+				const userId = session?.user?.id;
+
+				if (!session?.access_token || !userId) {
 					if (isMounted) {
 						setSnapshot(null);
+						setLoading(false);
 					}
 					return;
 				}
@@ -181,28 +239,56 @@ export function RivalryMissionsWidget() {
 				const data = await response.json();
 				if (isMounted) {
 					setSnapshot(data.snapshot || null);
+					setError(null);
 				}
+				writeCachedMissionSnapshot(userId, data.snapshot || null);
 			} catch (fetchError) {
 				console.error("Error loading missions:", fetchError);
-				if (isMounted) {
+				if (isMounted && !suppressError) {
 					setError(t.missions.error.fetchFailed);
 				}
 			} finally {
-				if (isMounted) {
+				if (isMounted && showLoading) {
 					setLoading(false);
 				}
 			}
 		};
 
-		fetchSnapshot();
+		const initializeSnapshot = async () => {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+			const userId = session?.user?.id;
+
+			if (!session?.access_token || !userId) {
+				if (isMounted) {
+					setSnapshot(null);
+					setLoading(false);
+				}
+				return;
+			}
+
+			const cachedSnapshot = readCachedMissionSnapshot(userId);
+			if (cachedSnapshot && isMounted) {
+				setSnapshot(cachedSnapshot);
+				setLoading(false);
+			}
+
+			await fetchSnapshot({
+				showLoading: !cachedSnapshot,
+				suppressError: Boolean(cachedSnapshot),
+			});
+		};
+
+		initializeSnapshot();
 
 		const handleWindowFocus = () => {
-			fetchSnapshot();
+			fetchSnapshot({ showLoading: false, suppressError: true });
 		};
 
 		const handleVisibilityChange = () => {
 			if (document.visibilityState === "visible") {
-				fetchSnapshot();
+				fetchSnapshot({ showLoading: false, suppressError: true });
 			}
 		};
 
