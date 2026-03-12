@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 import {
 	ensureMissionSnapshotsFresh,
-	fetchMissionSnapshotForPlayer,
 	generateAndStoreMissionSnapshots,
 } from "@/lib/rivalries/service";
 
@@ -26,23 +25,18 @@ export async function GET(request: NextRequest) {
 		}
 
 		const adminClient = createAdminClient();
-
-		await ensureMissionSnapshotsFresh({ adminClient });
-
-		let snapshot = await fetchMissionSnapshotForPlayer(authResult.userId, {
-			adminClient,
-		});
+		let snapshots = await ensureMissionSnapshotsFresh({ adminClient });
+		let snapshot =
+			snapshots.find((item) => item.playerId === authResult.userId) || null;
 
 		if (!snapshot) {
-			await generateAndStoreMissionSnapshots({
+			snapshots = await generateAndStoreMissionSnapshots({
 				adminClient,
 				generatedBy: authResult.userId,
 				reason: "on_demand",
 			});
-
-			snapshot = await fetchMissionSnapshotForPlayer(authResult.userId, {
-				adminClient,
-			});
+			snapshot =
+				snapshots.find((item) => item.playerId === authResult.userId) || null;
 		}
 
 		return NextResponse.json({ snapshot }, { headers: NO_STORE_HEADERS });
