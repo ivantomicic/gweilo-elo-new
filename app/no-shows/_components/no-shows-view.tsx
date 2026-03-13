@@ -3,9 +3,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Loading } from "@/components/ui/loading";
-import { SummaryCards } from "./summary-cards";
-import { EntriesTable } from "./entries-table";
+import { NoShowDistributionWidget } from "@/components/dashboard/no-show-distribution-widget";
 import { t } from "@/lib/i18n";
+
+type NoShowEntry = {
+	id: string;
+	date: string;
+	reason: string | null;
+};
 
 type NoShowUser = {
 	id: string;
@@ -13,6 +18,7 @@ type NoShowUser = {
 	avatar: string | null;
 	noShowCount: number;
 	lastNoShowDate: string;
+	entries: NoShowEntry[];
 };
 
 type NoShowsViewProps = {
@@ -23,9 +29,8 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 	const [users, setUsers] = useState<NoShowUser[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const tableRefetchRef = useRef<(() => void) | null>(null);
 
-	// Stable fetch function for aggregated stats (for cards)
+	// Stable fetch function for the ranking and date drill-down.
 	const fetchNoShowStats = useCallback(async () => {
 		try {
 			setLoading(true);
@@ -73,9 +78,6 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 	// Combined refetch function
 	const handleRefetch = useCallback(() => {
 		fetchNoShowStats();
-		if (tableRefetchRef.current) {
-			tableRefetchRef.current();
-		}
 	}, [fetchNoShowStats]);
 
 	// Expose refetch function to parent
@@ -109,16 +111,10 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 	}
 
 	return (
-		<div className="space-y-6 px-4 lg:px-6">
-			{/* Summary Cards */}
-			<SummaryCards />
-
-			{/* Entries Table */}
-			<EntriesTable
-				onRefetchReady={(refetch) => {
-					tableRefetchRef.current = refetch;
-				}}
-			/>
+		<div className="px-4 lg:px-6">
+			<div className="mx-auto w-full max-w-5xl">
+				<NoShowDistributionWidget users={users} />
+			</div>
 		</div>
 	);
 }

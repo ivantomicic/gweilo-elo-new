@@ -37,6 +37,7 @@ export const sr = {
 		logout: "Odjavi se",
 		welcome: "Dobrodošao",
 		cancel: "Otkaži",
+		total: "Ukupno",
 	},
 	activeSession: {
 		title: "Aktivan termin u toku",
@@ -321,12 +322,15 @@ export const sr = {
 		noNoShows: "Nema ispala",
 		noShowAlert: "Najviše ispala",
 		last: "Poslednja",
-		miss: "Ispal",
+		miss: "ispala",
 		misses: "ispala",
 		cards: {
 			worstOffender: "Najviše ispalih termina",
-			topOffenders: "Top 5 najgoreg",
+			topOffenders: "Rang lista ispala",
 			noShows: "Ispala",
+			expandHint: "Klikni na igrača da vidiš datume ispala",
+			dateList: "Datumi ispala",
+			noReason: "Bez razloga",
 		},
 		table: {
 			player: "Igrač",

@@ -17,13 +17,25 @@ type NoShowUser = {
 	lastNoShowDate: string;
 };
 
+type NoShowAlertWidgetProps = {
+	users?: NoShowUser[];
+};
+
 const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
 
-export function NoShowAlertWidget() {
-	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(null);
-	const [loading, setLoading] = useState(true);
+export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
+	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(
+		users?.[0] ?? null
+	);
+	const [loading, setLoading] = useState(users === undefined);
 
 	useEffect(() => {
+		if (users !== undefined) {
+			setWorstOffender(users[0] ?? null);
+			setLoading(false);
+			return;
+		}
+
 		const fetchNoShowStats = async () => {
 			try {
 				setLoading(true);
@@ -62,7 +74,7 @@ export function NoShowAlertWidget() {
 		};
 
 		fetchNoShowStats();
-	}, []);
+	}, [users]);
 
 	if (loading) {
 		return (

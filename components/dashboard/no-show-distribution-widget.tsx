@@ -1,20 +1,17 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useState } from "react";
 import { Box } from "@/components/ui/box";
-import { Stack } from "@/components/ui/stack";
-import { Loading } from "@/components/ui/loading";
-import { supabase } from "@/lib/supabase/client";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
-import { PieChart, Pie } from "recharts";
-import {
-	ChartContainer,
-	ChartTooltip,
-	ChartTooltipContent,
-	ChartLegend,
-	ChartLegendContent,
-	type ChartConfig,
-} from "@/components/ui/chart";
+import { cn } from "@/lib/utils";
+
+type NoShowEntry = {
+	id: string;
+	date: string;
+	reason: string | null;
+};
 
 type NoShowUser = {
 	id: string;
@@ -22,174 +19,163 @@ type NoShowUser = {
 	avatar: string | null;
 	noShowCount: number;
 	lastNoShowDate: string;
+	entries: NoShowEntry[];
 };
 
-export function NoShowDistributionWidget() {
-	const [users, setUsers] = useState<NoShowUser[]>([]);
-	const [loading, setLoading] = useState(true);
+type NoShowDistributionWidgetProps = {
+	users: NoShowUser[];
+};
 
-	useEffect(() => {
-		const fetchNoShowStats = async () => {
-			try {
-				setLoading(true);
+const CHART_GRADIENT =
+	"linear-gradient(90deg, hsl(var(--primary)), hsl(var(--chart-1)), hsl(var(--chart-2)))";
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
+function formatDate(dateString: string) {
+	return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
+		year: "numeric",
+		month: "long",
+		day: "numeric",
+	});
+}
 
-				if (!session) {
-					setUsers([]);
-					return;
-				}
-
-				const response = await fetch("/api/no-shows", {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
-				});
-
-				if (!response.ok) {
-					setUsers([]);
-					return;
-				}
-
-				const data = await response.json();
-				const fetchedUsers = data.users || [];
-				setUsers(fetchedUsers);
-			} catch (error) {
-				console.error("Error fetching no-show stats:", error);
-				setUsers([]);
-			} finally {
-				setLoading(false);
-			}
-		};
-
-		fetchNoShowStats();
-	}, []);
-
-	// Prepare data for pie chart - top 5 players
-	const topFive = users.slice(0, 5);
-	
-	// Calculate total for percentage calculation
-	const totalNoShows = users.reduce((sum, user) => sum + user.noShowCount, 0);
-
-	// Chart config for shadcn chart style - using blue shades
-	const chartConfig = useMemo(() => {
-		const config: ChartConfig = {
-			value: {
-				label: t.ispale.cards.noShows,
-			},
-		};
-
-		// Blue shades: vary lightness from 40% to 70% (darker to lighter)
-		const blueShades = [
-			"217 91% 40%", // Darker blue
-			"217 91% 50%", // Medium-dark blue
-			"217 91% 60%", // Primary blue
-			"217 91% 65%", // Medium-light blue
-			"217 91% 70%", // Lighter blue
-		];
-
-		topFive.forEach((user, index) => {
-			// Create a safe key from player name
-			const key = user.name.toLowerCase().replace(/\s+/g, "");
-			config[key] = {
-				label: user.name,
-				color: `hsl(${blueShades[index % blueShades.length]})`,
-			};
-		});
-
-		return config;
-	}, [topFive]);
-
-	const chartData = useMemo(() => {
-		return topFive.map((user) => {
-			const key = user.name.toLowerCase().replace(/\s+/g, "");
-			return {
-				player: key,
-				name: user.name,
-				value: user.noShowCount,
-				fill: `var(--color-${key})`,
-			};
-		});
-	}, [topFive]);
-
-	if (loading) {
-		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
-				<Stack
-					direction="column"
-					alignItems="center"
-					justifyContent="center"
-					className="relative z-10 w-full flex-1"
-				>
-					<Loading inline />
-				</Stack>
-			</Box>
-		);
-	}
+export function NoShowDistributionWidget({
+	users,
+}: NoShowDistributionWidgetProps) {
+	const [selectedEntryByUser, setSelectedEntryByUser] = useState<
+		Record<string, string | null>
+	>({});
+	const maxNoShows = users[0]?.noShowCount ?? 0;
 
 	if (users.length === 0) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
-				<Stack
-					direction="column"
-					alignItems="center"
-					justifyContent="center"
-					className="relative z-10 w-full flex-1"
-				>
-					<Box className="text-center text-muted-foreground">
-						{t.ispale.noNoShows}
-					</Box>
-				</Stack>
+			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 min-h-[18rem] flex items-center justify-center text-center text-muted-foreground">
+					{t.ispale.noNoShows}
 			</Box>
 		);
 	}
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 aspect-[7/5] flex flex-col">
-			<Stack
-				direction="column"
-				alignItems="center"
-				justifyContent="center"
-				className="relative z-10 w-full flex-1"
-			>
-				<Box className="w-full h-full min-h-0">
-					<ChartContainer
-						config={chartConfig}
-						className="w-full h-full"
-					>
-						<PieChart>
-							<ChartTooltip
-								cursor={false}
-								content={
-									<ChartTooltipContent
-										hideLabel
-										formatter={(value: any, name: any, item: any, index: any, payload: any) => {
-											const numValue = typeof value === 'number' ? value : Number(value);
-											const playerKey = typeof name === 'string' ? name : String(name);
-											const dataEntry = chartData.find(
-												(d) => d.player === playerKey
-											);
-											const playerName = dataEntry?.name || playerKey;
-											return `${playerName}: ${numValue} ${numValue === 1 ? t.ispale.miss : t.ispale.misses}`;
-										}}
-									/>
-								}
-							/>
-							<Pie
-								data={chartData}
-								dataKey="value"
-								nameKey="player"
-								stroke="0"
-							/>
-							<ChartLegend
-								content={<ChartLegendContent nameKey="player" />}
-							/>
-						</PieChart>
-					</ChartContainer>
-				</Box>
-			</Stack>
+		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6">
+			<div>
+				{users.map((user, index) => {
+					const relativeWidth =
+						maxNoShows === 0
+							? 0
+							: Math.max((user.noShowCount / maxNoShows) * 100, 10);
+					const isLeader = index === 0;
+					const selectedEntry =
+						user.entries.find(
+							(entry) => entry.id === selectedEntryByUser[user.id]
+						) ?? null;
+
+					return (
+						<details
+							key={user.id}
+							className={cn(
+								"group border-b border-border/50 transition-colors last:border-b-0",
+								isLeader && "border-primary/20"
+							)}
+						>
+							<summary className="cursor-pointer list-none py-4 [&::-webkit-details-marker]:hidden">
+								<div className="flex items-start gap-3">
+									<div
+										className={cn(
+											"flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
+											isLeader
+												? "bg-primary text-primary-foreground"
+												: "bg-background text-foreground/80 ring-1 ring-border/50"
+										)}
+									>
+										{index + 1}
+									</div>
+
+									<div className="min-w-0 flex-1">
+										<div className="flex flex-wrap items-start justify-between gap-3">
+											<div className="min-w-0 flex items-center gap-3">
+												<Avatar className="size-11 border border-border/60">
+													<AvatarImage
+														src={user.avatar || undefined}
+														alt={user.name}
+													/>
+													<AvatarFallback>
+														{user.name.charAt(0).toUpperCase()}
+													</AvatarFallback>
+												</Avatar>
+												<div className="min-w-0">
+													<p className="truncate text-sm font-semibold sm:text-base">
+														{user.name}
+													</p>
+													<p className="text-xs text-muted-foreground sm:text-sm">
+														{t.ispale.last}: {formatDate(user.lastNoShowDate)}
+													</p>
+												</div>
+											</div>
+
+											<div className="flex items-center gap-2">
+												<Box className="rounded-full bg-background/90 px-3 py-1 text-sm font-semibold text-foreground ring-1 ring-border/50">
+													{user.noShowCount} {t.ispale.misses}
+												</Box>
+												<Icon
+													icon="solar:alt-arrow-down-linear"
+													className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+												/>
+											</div>
+										</div>
+
+										<div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+											<div
+												className="h-full rounded-full"
+												style={{
+													width: `${relativeWidth}%`,
+													background: CHART_GRADIENT,
+												}}
+											/>
+										</div>
+									</div>
+								</div>
+							</summary>
+
+							<div className="border-t border-border/50 pb-4 pt-4 pl-12">
+								<p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+									{t.ispale.cards.dateList}
+								</p>
+								<div className="flex flex-wrap gap-2">
+									{user.entries.map((entry) => (
+										<button
+											key={entry.id}
+											type="button"
+											onClick={() => {
+												setSelectedEntryByUser((current) => ({
+													...current,
+													[user.id]:
+														current[user.id] === entry.id
+															? null
+															: entry.id,
+												}));
+											}}
+											className={cn(
+												"rounded-full px-2.5 py-1 text-xs text-foreground ring-1 transition-colors",
+												selectedEntry?.id === entry.id
+													? "bg-primary text-primary-foreground ring-primary/30"
+													: "bg-background ring-border/50 hover:bg-muted"
+											)}
+										>
+											{formatDate(entry.date)}
+										</button>
+									))}
+								</div>
+								{selectedEntry ? (
+									<div className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground">
+										<span className="font-medium">
+											{t.ispale.table.reason}:
+										</span>{" "}
+										{selectedEntry.reason?.trim() || t.ispale.cards.noReason}
+									</div>
+								) : null}
+							</div>
+						</details>
+					);
+				})}
+			</div>
 		</Box>
 	);
 }

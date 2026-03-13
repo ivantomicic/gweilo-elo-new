@@ -20,7 +20,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Uses admin client to fetch user info (since regular users can't query auth.users)
  * 
  * Returns:
- * - Array of user objects with no-show counts and last no-show date
+ * - Array of user objects with no-show counts, last no-show date, and all missed dates with reasons
  */
 export async function GET(request: NextRequest) {
 	try {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
 		// Fetch all no-shows from the database (RLS will enforce read permissions)
 		const { data: noShows, error: noShowsError } = await supabase
 			.from('no_shows')
-			.select('user_id, date')
+			.select('id, user_id, date, reason')
 			.order('date', { ascending: false });
 
 		if (noShowsError) {
@@ -60,13 +60,38 @@ export async function GET(request: NextRequest) {
 		}
 
 		// Aggregate no-shows by user_id
-		const userNoShowsMap = new Map<string, { count: number; lastDate: string }>();
+		const userNoShowsMap = new Map<
+			string,
+			{
+				count: number;
+				lastDate: string;
+				entries: Array<{ id: string; date: string; reason: string | null }>;
+			}
+		>();
 		
 		for (const noShow of noShows || []) {
-			const existing = userNoShowsMap.get(noShow.user_id) || { count: 0, lastDate: '' };
+			const existing = userNoShowsMap.get(noShow.user_id);
+
+			if (existing) {
+				existing.count += 1;
+				existing.entries.push({
+					id: noShow.id,
+					date: noShow.date,
+					reason: noShow.reason,
+				});
+				continue;
+			}
+
 			userNoShowsMap.set(noShow.user_id, {
-				count: existing.count + 1,
-				lastDate: existing.lastDate || noShow.date, // First date is the most recent (ordered DESC)
+				count: 1,
+				lastDate: noShow.date, // First date is the most recent (ordered DESC)
+				entries: [
+					{
+						id: noShow.id,
+						date: noShow.date,
+						reason: noShow.reason,
+					},
+				],
 			});
 		}
 
@@ -101,6 +126,7 @@ export async function GET(request: NextRequest) {
 					avatar: profile.avatar_url || null,
 					noShowCount: stats.count,
 					lastNoShowDate: stats.lastDate,
+					entries: stats.entries,
 				};
 			})
 			.sort((a, b) => b.noShowCount - a.noShowCount); // Sort by count descending
@@ -224,4 +250,3 @@ export async function POST(request: NextRequest) {
 		);
 	}
 }
-
