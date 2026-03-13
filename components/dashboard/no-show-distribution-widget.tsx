@@ -48,7 +48,7 @@ export function NoShowDistributionWidget({
 	if (users.length === 0) {
 		return (
 			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 min-h-[18rem] flex items-center justify-center text-center text-muted-foreground">
-					{t.ispale.noNoShows}
+				{t.ispale.noNoShows}
 			</Box>
 		);
 	}
@@ -76,65 +76,50 @@ export function NoShowDistributionWidget({
 							)}
 						>
 							<summary className="cursor-pointer list-none py-4 [&::-webkit-details-marker]:hidden">
-								<div className="flex items-start gap-3">
-									<div
-										className={cn(
-											"flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-											isLeader
-												? "bg-primary text-primary-foreground"
-												: "bg-background text-foreground/80 ring-1 ring-border/50"
-										)}
-									>
-										{index + 1}
-									</div>
-
-									<div className="min-w-0 flex-1">
-										<div className="flex flex-wrap items-start justify-between gap-3">
-											<div className="min-w-0 flex items-center gap-3">
-												<Avatar className="size-11 border border-border/60">
-													<AvatarImage
-														src={user.avatar || undefined}
-														alt={user.name}
-													/>
-													<AvatarFallback>
-														{user.name.charAt(0).toUpperCase()}
-													</AvatarFallback>
-												</Avatar>
-												<div className="min-w-0">
-													<p className="truncate text-sm font-semibold sm:text-base">
-														{user.name}
-													</p>
-													<p className="text-xs text-muted-foreground sm:text-sm">
-														{t.ispale.last}: {formatDate(user.lastNoShowDate)}
-													</p>
-												</div>
-											</div>
-
-											<div className="flex items-center gap-2">
-												<Box className="rounded-full bg-background/90 px-3 py-1 text-sm font-semibold text-foreground ring-1 ring-border/50">
-													{user.noShowCount} {t.ispale.misses}
-												</Box>
-												<Icon
-													icon="solar:alt-arrow-down-linear"
-													className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
-												/>
-											</div>
-										</div>
-
-										<div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
-											<div
-												className="h-full rounded-full"
-												style={{
-													width: `${relativeWidth}%`,
-													background: CHART_GRADIENT,
-												}}
+								<div className="flex flex-wrap items-start justify-between gap-3">
+									<div className="min-w-0 flex items-center gap-3">
+										<Avatar className="size-11 border border-border/60">
+											<AvatarImage
+												src={user.avatar || undefined}
+												alt={user.name}
 											/>
+											<AvatarFallback>
+												{user.name.charAt(0).toUpperCase()}
+											</AvatarFallback>
+										</Avatar>
+										<div className="min-w-0">
+											<p className="truncate text-sm font-semibold sm:text-base">
+												{user.name}
+											</p>
+											<p className="text-xs text-muted-foreground sm:text-sm">
+												{t.ispale.last}: {formatDate(user.lastNoShowDate)}
+											</p>
 										</div>
 									</div>
+
+									<div className="flex min-w-fit items-center gap-2">
+										<Box className="rounded-full bg-background/90 px-3 py-1 text-sm font-semibold text-foreground ring-1 ring-border/50">
+											{user.noShowCount} {t.ispale.misses}
+										</Box>
+										<Icon
+											icon="solar:alt-arrow-down-linear"
+											className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
+										/>
+									</div>
+								</div>
+
+								<div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+									<div
+										className="h-full rounded-full"
+										style={{
+											width: `${relativeWidth}%`,
+											background: CHART_GRADIENT,
+										}}
+									/>
 								</div>
 							</summary>
 
-							<div className="border-t border-border/50 pb-4 pt-4 pl-12">
+							<div className="border-t border-border/50 pb-4 pt-4">
 								<p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
 									{t.ispale.cards.dateList}
 								</p>
