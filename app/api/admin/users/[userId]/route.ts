@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 
 const VALID_ROLES = ["user", "mod", "admin", "guest"] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
@@ -18,7 +19,7 @@ type ValidRole = (typeof VALID_ROLES)[number];
  * - Display name → updates user_metadata.display_name
  * - Email → uses Supabase email update (requires confirmation)
  * - Avatar → updates user_metadata.avatar_url (assumes URL is already uploaded)
- * - Role → updates user_metadata.role (admin, mod, user, or guest)
+ * - Role → updates app_metadata.role (admin, mod, user, or guest)
  *
  * Limitations:
  * - Email changes require confirmation (Supabase sends confirmation email)
@@ -69,23 +70,33 @@ export async function PATCH(
 		// Build update payload
 		const updateData: {
 			user_metadata?: Record<string, any>;
+			app_metadata?: Record<string, any>;
 			email?: string;
 		} = {};
 
-		// Update user_metadata if name, avatar, or role provided
-		if (name !== undefined || avatar !== undefined || role !== undefined) {
-			// Get current user to preserve existing metadata
-			const {
-				data: { user: currentUser },
-			} = await adminClient.auth.admin.getUserById(userId);
+		// Get current user once so metadata updates preserve unrelated keys.
+		const needsMetadataUpdate =
+			name !== undefined || avatar !== undefined || role !== undefined;
+		let currentUser: Awaited<
+			ReturnType<typeof adminClient.auth.admin.getUserById>
+		>["data"]["user"] | null = null;
 
-			if (!currentUser) {
+		if (needsMetadataUpdate) {
+			// Get current user to preserve existing metadata
+			const { data, error: currentUserError } =
+				await adminClient.auth.admin.getUserById(userId);
+			currentUser = data.user;
+
+			if (currentUserError || !currentUser) {
 				return NextResponse.json(
-					{ error: "User not found" },
-					{ status: 404 },
+					{ error: currentUserError?.message || "User not found" },
+					{ status: currentUserError ? 400 : 404 },
 				);
 			}
+		}
 
+		// Update user_metadata if name or avatar provided
+		if ((name !== undefined || avatar !== undefined) && currentUser) {
 			updateData.user_metadata = {
 				...currentUser.user_metadata,
 			};
@@ -99,9 +110,13 @@ export async function PATCH(
 				updateData.user_metadata.avatar_url = avatar || null;
 			}
 
-			if (role !== undefined) {
-				updateData.user_metadata.role = role as ValidRole;
-			}
+		}
+
+		if (role !== undefined && currentUser) {
+			updateData.app_metadata = {
+				...currentUser.app_metadata,
+				role: role as ValidRole,
+			};
 		}
 
 		// Update email if provided
@@ -134,7 +149,7 @@ export async function PATCH(
 				data.user.email?.split("@")[0] ||
 				"User",
 			avatar: data.user.user_metadata?.avatar_url || null,
-			role: data.user.user_metadata?.role || "user",
+			role: getManagedRoleFromAuthUser(data.user),
 		};
 
 		return NextResponse.json({

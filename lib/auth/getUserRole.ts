@@ -1,18 +1,18 @@
 import { supabase } from "@/lib/supabase/client";
+import { getUserRoleFromAuthUser, type UserRole } from "./roles";
 
-export type UserRole = "admin" | "mod" | "user";
+export type { UserRole } from "./roles";
 
 /**
  * Get current user's role from Supabase auth
  *
- * Role is stored in user_metadata.role and defaults to "user" if not set.
- * This is the ONLY source of truth for user roles - never trust client-side flags.
+ * Role is stored in app_metadata.role and defaults to "user" if not set.
+ * This is the client-side view of the server-issued auth claims.
  *
  * Returns:
  * - "admin" | "mod" | "user" | null (null if not authenticated)
  *
- * Security note: This reads from the JWT token which is verified by Supabase.
- * The role cannot be spoofed on the client because it's part of the signed token.
+ * Security note: This reads from the signed JWT claims managed by Supabase Auth.
  */
 export async function getUserRole(): Promise<UserRole | null> {
 	const {
@@ -23,20 +23,7 @@ export async function getUserRole(): Promise<UserRole | null> {
 		return null;
 	}
 
-	// Role is stored in user_metadata.role
-	// Default to "user" if not set (enforced server-side via trigger)
-	const role = session.user.user_metadata?.role || "user";
-
-	// Validate role value (security: only allow known roles)
-	if (role === "admin") {
-		return "admin";
-	}
-	if (role === "mod") {
-		return "mod";
-	}
-
-	// Default to "user" for any other value (including undefined/null)
-	return "user";
+	return getUserRoleFromAuthUser(session.user);
 }
 
 /**

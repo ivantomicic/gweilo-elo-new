@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthToken } from "../../_utils/auth";
 
@@ -27,28 +28,7 @@ export async function GET(request: NextRequest) {
   const user = data.user;
   const userMetadata = user.user_metadata ?? {};
   const appMetadata = user.app_metadata ?? {};
-
-  const roleFromValue = (value: unknown): "admin" | "mod" | "user" => {
-    if (value === "admin") return "admin";
-    if (value === "mod") return "mod";
-    return "user";
-  };
-
-  const roleFromArray = (metadata?: Record<string, unknown>) => {
-    const roles = metadata?.roles;
-    if (Array.isArray(roles)) {
-      if (roles.includes("admin")) return "admin";
-      if (roles.includes("mod")) return "mod";
-    }
-    return null;
-  };
-
-  const detectedRole =
-    roleFromValue(userMetadata.role) ||
-    roleFromValue(appMetadata.role) ||
-    roleFromArray(userMetadata) ||
-    roleFromArray(appMetadata) ||
-    "user";
+  const detectedRole = getManagedRoleFromAuthUser(user);
 
   return NextResponse.json({
     id: user.id,

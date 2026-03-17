@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyModOrAdmin } from "@/lib/supabase/admin";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { getAuthToken } from "../../_utils/auth";
 
 /**
@@ -10,7 +11,7 @@ import { getAuthToken } from "../../_utils/auth";
  * Security:
  * - Verifies admin or mod role via JWT token
  * - Uses service role key server-side (never exposed to client)
- * - Returns user list with: id, email, user_metadata (name, avatar_url, role)
+ * - Returns user list with: id, email, user_metadata (name, avatar_url), app_metadata.role
  *
  * Supabase Approach:
  * - Uses Admin API (service role) to list all users
@@ -56,10 +57,7 @@ export async function GET(request: NextRequest) {
 		// Format user data for frontend
 		const formattedUsers = users
 			.map((user) => {
-				const role =
-					typeof user.user_metadata?.role === "string"
-						? user.user_metadata.role
-						: "user";
+				const role = getManagedRoleFromAuthUser(user);
 				return {
 					id: user.id,
 					email: user.email || "",

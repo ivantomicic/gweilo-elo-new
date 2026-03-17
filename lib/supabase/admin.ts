@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-
-export type UserRole = "admin" | "mod" | "user";
+import { getUserRoleFromAuthUser, type UserRole } from "@/lib/auth/roles";
+export type { UserRole } from "@/lib/auth/roles";
 
 /**
  * Create Supabase admin client with service role key
@@ -52,42 +52,13 @@ export async function verifyUser(
 		return null;
 	}
 
-	const roleFromValue = (value: unknown): UserRole | null => {
-		if (value === "admin") return "admin";
-		if (value === "mod") return "mod";
-		return null;
-	};
-
-	const roleFromArray = (metadata?: Record<string, unknown>): UserRole | null => {
-		const roles = metadata?.roles;
-		if (Array.isArray(roles)) {
-			if (roles.includes("admin")) return "admin";
-			if (roles.includes("mod")) return "mod";
-		}
-		return null;
-	};
-
-	const role =
-		roleFromValue(user.user_metadata?.role) ||
-		roleFromValue(user.app_metadata?.role) ||
-		roleFromArray(user.user_metadata) ||
-		roleFromArray(user.app_metadata) ||
-		"user";
-
-	let validRole: UserRole = "user";
-	if (role === "admin") {
-		validRole = "admin";
-	} else if (role === "mod") {
-		validRole = "mod";
-	}
-
-	return { userId: user.id, role: validRole };
+	return { userId: user.id, role: getUserRoleFromAuthUser(user) };
 }
 
 /**
  * Verify that the requesting user is an admin
  *
- * This function reads the user's role from their JWT token.
+ * This function reads the user's role from Supabase-managed app metadata.
  * It should be called in API routes to verify admin access.
  *
  * @param authHeader - The Authorization header from the request (Bearer token)
@@ -101,7 +72,9 @@ export async function verifyAdmin(
 		return null;
 	}
 	return result.userId;
-}/**
+}
+
+/**
  * Verify that the requesting user is a mod or admin
  *
  * Mods can start sessions and record results.

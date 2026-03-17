@@ -15,7 +15,6 @@ enum RoleService {
     guard let payload = decodeJWT(token) else { return .user }
 
     let roleValue =
-      (payload["user_metadata"] as? [String: Any])?["role"] as? String ??
       (payload["app_metadata"] as? [String: Any])?["role"] as? String
 
     guard let roleValue else { return .user }

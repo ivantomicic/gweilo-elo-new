@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase/client";
-import type { UserRole } from "./getUserRole";
+import { getUserRoleFromAuthUser, type UserRole } from "./roles";
 
 /**
  * Get current user from Supabase auth session
@@ -8,7 +8,7 @@ import type { UserRole } from "./getUserRole";
  * - name: from user_metadata.display_name (custom) > name (OAuth) > full_name > email fallback
  * - email: from user.email
  * - avatar: from user_metadata.avatar_url or placeholder fallback
- * - role: from user_metadata.role (defaults to "user")
+ * - role: from app_metadata.role (defaults to "user")
  *
  * Note: display_name is used to avoid OAuth provider overwrites of custom names
  */
@@ -36,16 +36,7 @@ export async function getCurrentUser() {
 		user.user_metadata?.avatar_url_google ||
 		null;
 
-	// Role from user_metadata.role, defaults to "user" if not set
-	// This is validated server-side via Supabase trigger
-	const role = user.user_metadata?.role || "user";
-	// Validate role (security: only allow known roles)
-	let validRole: UserRole = "user";
-	if (role === "admin") {
-		validRole = "admin";
-	} else if (role === "mod") {
-		validRole = "mod";
-	}
+	const validRole: UserRole = getUserRoleFromAuthUser(user);
 
 	return {
 		name,

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { RIVALRY_CONFIG, getBasePriority } from "@/lib/rivalries/config";
 import type {
@@ -129,28 +130,7 @@ function toNumber(value: unknown, fallback = 0): number {
 }
 
 function getUserRole(user: AuthUserRecord): string {
-	const readRole = (value: unknown): string | null =>
-		typeof value === "string" ? value : null;
-
-	const readRolesArray = (value: unknown): string | null => {
-		if (!Array.isArray(value)) {
-			return null;
-		}
-
-		if (value.includes("admin")) return "admin";
-		if (value.includes("mod")) return "mod";
-		if (value.includes("guest")) return "guest";
-		if (value.includes("user")) return "user";
-		return null;
-	};
-
-	return (
-		readRole(user.user_metadata?.role) ||
-		readRole(user.app_metadata?.role) ||
-		readRolesArray(user.user_metadata?.roles) ||
-		readRolesArray(user.app_metadata?.roles) ||
-		"user"
-	);
+	return getManagedRoleFromAuthUser(user);
 }
 
 function getPairKey(playerAId: string, playerBId: string) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runMatchEditRecalculation } from "./recalculation";
 
@@ -97,7 +98,7 @@ export async function POST(
 		}
 
 		// Check if user owns the session OR is admin
-		const isAdmin = user.user_metadata?.role === "admin";
+		const isAdmin = getManagedRoleFromAuthUser(user) === "admin";
 		if (session.created_by !== user.id && !isAdmin) {
 			return NextResponse.json(
 				{

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { getAuthToken } from "../../_utils/auth";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -53,8 +54,7 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		// Check if user is admin
-		const isAdmin = user.user_metadata?.role === "admin";
+		const isAdmin = getManagedRoleFromAuthUser(user) === "admin";
 
 		// Build query
 		let query = supabase
