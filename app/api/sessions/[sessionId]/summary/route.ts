@@ -335,7 +335,9 @@ export async function GET(
 				const { data: matchHistory, error: historyError } =
 					await adminClient
 						.from("match_elo_history")
-						.select("*")
+						.select(
+							"match_id, player1_elo_before, player1_elo_after, player1_elo_delta, player2_elo_before, player2_elo_after, player2_elo_delta",
+						)
 						.in(
 							"match_id",
 							singlesMatchIds.length > 0
@@ -732,7 +734,9 @@ export async function GET(
 				const { data: matchHistory, error: historyError } =
 					await adminClient
 						.from("match_elo_history")
-						.select("*")
+						.select(
+							"match_id, team1_elo_before, team1_elo_after, team1_elo_delta, team2_elo_before, team2_elo_after, team2_elo_delta",
+						)
 						.in(
 							"match_id",
 							doublesMatchIds.length > 0

@@ -34,6 +34,11 @@ import { cn } from "@/lib/utils";
 import { EditMatchDrawer } from "./_components/edit-match-drawer";
 import { SessionSummaryTable } from "./_components/session-summary-table";
 import { MatchHistoryCard } from "./_components/match-history-card";
+import {
+	clearSessionSummaryCache,
+	prefetchSessionSummary,
+	type SummaryView,
+} from "./_lib/session-summary-client";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
@@ -102,15 +107,23 @@ function SessionPageContent() {
 	// This controls both the table and the match list
 	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
 	const urlView = searchParams.get("view");
-	let activeView: "singles" | "doubles_player" | "doubles_team" = "singles";
+	let activeView: SummaryView = "singles";
 	if (urlView === "doubles-player") {
 		activeView = "doubles_player";
 	} else if (urlView === "doubles-team") {
 		activeView = "doubles_team";
 	}
+	const summaryPrefetchViewsRef = useRef<SummaryView[]>(
+		Array.from(new Set<SummaryView>(["singles", activeView])),
+	);
+	summaryPrefetchViewsRef.current = Array.from(
+		new Set<SummaryView>(["singles", activeView]),
+	);
+	const activeSummaryViewRef = useRef<SummaryView>(activeView);
+	activeSummaryViewRef.current = activeView;
 
 	const handleViewChange = useCallback(
-		(view: "singles" | "doubles_player" | "doubles_team") => {
+		(view: SummaryView) => {
 			const params = new URLSearchParams(searchParams.toString());
 			if (view === "singles") {
 				params.delete("view");
@@ -197,6 +210,12 @@ function SessionPageContent() {
 	const [terminalLines, setTerminalLines] = useState<TerminalLine[]>([]);
 	const [isTerminalComplete, setIsTerminalComplete] = useState(false);
 	const apiCallCompleteRef = useRef(false);
+
+	useEffect(() => {
+		return () => {
+			clearSessionSummaryCache(sessionId);
+		};
+	}, [sessionId]);
 
 	// Generate terminal lines for ELO calculation visualization
 	const generateTerminalLines = useCallback(
@@ -484,26 +503,59 @@ function SessionPageContent() {
 					},
 				);
 
-				// Bootstrap session page data in parallel
-				const [sessionResult, playersResult, matchesResult] =
-					await Promise.all([
-						supabaseClient
-							.from("sessions")
-							.select(
-								"id, player_count, created_at, status, completed_at",
-							)
-							.eq("id", sessionId)
-							.single(),
-						fetchPlayers(session.access_token),
-						supabaseClient
-							.from("session_matches")
-							.select(
-								"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id",
-							)
-							.eq("session_id", sessionId)
-							.order("round_number", { ascending: true })
-							.order("match_order", { ascending: true }),
-					]);
+				// Bootstrap page data immediately, then overlap summary prefetch
+				// with the remaining session requests for completed sessions.
+				const sessionPromise = supabaseClient
+					.from("sessions")
+					.select("id, player_count, created_at, status, completed_at")
+					.eq("id", sessionId)
+					.single();
+				const playersPromise = fetchPlayers(session.access_token);
+				const matchesPromise = supabaseClient
+					.from("session_matches")
+					.select(
+						"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id",
+					)
+					.eq("session_id", sessionId)
+					.order("round_number", { ascending: true })
+					.order("match_order", { ascending: true });
+
+				const sessionResult = await sessionPromise;
+				let activeSummaryPrefetch: Promise<unknown> | null = null;
+
+				if (
+					!sessionResult.error &&
+					sessionResult.data?.status === "completed"
+				) {
+					const summaryPrefetchPromises = new Map<
+						SummaryView,
+						Promise<unknown>
+					>();
+
+					for (const view of summaryPrefetchViewsRef.current) {
+						const prefetchPromise = prefetchSessionSummary(
+							sessionId,
+							view,
+							session.access_token,
+						);
+						summaryPrefetchPromises.set(view, prefetchPromise);
+						void prefetchPromise.catch((summaryError) => {
+							console.error(
+								`Error prefetching ${view} summary:`,
+								summaryError,
+							);
+						});
+					}
+
+					activeSummaryPrefetch =
+						summaryPrefetchPromises.get(activeSummaryViewRef.current) ??
+						null;
+				}
+
+				const [playersResult, matchesResult] = await Promise.all([
+					playersPromise,
+					matchesPromise,
+				]);
 
 				if (sessionResult.error || !sessionResult.data) {
 					console.error("Error fetching session:", sessionResult.error);
@@ -796,9 +848,9 @@ function SessionPageContent() {
 				const roundNumbers = Object.keys(matchesByRound)
 					.map(Number)
 					.sort((a, b) => a - b);
-				if (roundNumbers.length > 0) {
-					// Find first round that has at least one incomplete match
-					const firstIncompleteRound = roundNumbers.find(
+					if (roundNumbers.length > 0) {
+						// Find first round that has at least one incomplete match
+						const firstIncompleteRound = roundNumbers.find(
 						(roundNum) => {
 							const roundMatches = matchesByRound[roundNum] || [];
 							return roundMatches.some(
@@ -807,14 +859,18 @@ function SessionPageContent() {
 						},
 					);
 					// If all rounds are complete, go to last round; otherwise go to first incomplete
-					const initialRound =
-						firstIncompleteRound ??
-						roundNumbers[roundNumbers.length - 1];
-					setCurrentRound(initialRound);
-				}
-			} catch (err) {
-				console.error("Error fetching session:", err);
-				setError("Failed to load session");
+						const initialRound =
+							firstIncompleteRound ??
+							roundNumbers[roundNumbers.length - 1];
+						setCurrentRound(initialRound);
+					}
+
+					if (activeSummaryPrefetch) {
+						await activeSummaryPrefetch.catch(() => undefined);
+					}
+				} catch (err) {
+					console.error("Error fetching session:", err);
+					setError("Failed to load session");
 			} finally {
 				setLoading(false);
 			}

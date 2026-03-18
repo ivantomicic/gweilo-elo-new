@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	getOrFetchSessionSummary,
+	readCachedSessionSummary,
+	type SessionPlayerSummary,
+	type SessionTeamSummary,
+	type SummaryView,
+} from "../_lib/session-summary-client";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { TeamNameCard } from "@/components/ui/team-name-card";
@@ -18,44 +25,30 @@ import { supabase } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
-type SessionPlayerSummary = {
-	player_id: string;
-	display_name: string;
-	avatar: string | null;
-	elo_before: number;
-	elo_after: number;
-	elo_change: number;
-	matches_played: number;
-	wins: number;
-	losses: number;
-	draws: number;
-};
-
-type SessionTeamSummary = {
-	team_id: string;
-	player1_id: string;
-	player2_id: string;
-	player1_name: string;
-	player2_name: string;
-	player1_avatar: string | null;
-	player2_avatar: string | null;
-	elo_before: number;
-	elo_after: number;
-	elo_change: number;
-	matches_played: number;
-	wins: number;
-	losses: number;
-	draws: number;
-};
-
-type SummaryView = "singles" | "doubles_player" | "doubles_team";
-
 type SessionSummaryTableProps = {
 	sessionId: string;
 	activeView: SummaryView;
 	onPlayerClick?: (playerId: string) => void;
 	selectedPlayerFilter?: string | null;
 };
+
+function getCachedLoadedViews(sessionId: string) {
+	const loadedViews: SummaryView[] = [];
+
+	if (readCachedSessionSummary(sessionId, "singles")?.singles) {
+		loadedViews.push("singles");
+	}
+
+	if (readCachedSessionSummary(sessionId, "doubles_player")?.doubles_player) {
+		loadedViews.push("doubles_player");
+	}
+
+	if (readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team) {
+		loadedViews.push("doubles_team");
+	}
+
+	return new Set<SummaryView>(loadedViews);
+}
 
 export function SessionSummaryTable({
 	sessionId,
@@ -65,13 +58,21 @@ export function SessionSummaryTable({
 }: SessionSummaryTableProps) {
 	const [singlesSummary, setSinglesSummary] = useState<
 		SessionPlayerSummary[] | null
-	>(null);
+	>(() => readCachedSessionSummary(sessionId, "singles")?.singles ?? null);
 	const [doublesPlayerSummary, setDoublesPlayerSummary] = useState<
 		SessionPlayerSummary[] | null
-	>(null);
+	>(
+		() =>
+			readCachedSessionSummary(sessionId, "doubles_player")?.doubles_player ??
+			null,
+	);
 	const [doublesTeamSummary, setDoublesTeamSummary] = useState<
 		SessionTeamSummary[] | null
-	>(null);
+	>(
+		() =>
+			readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team ??
+			null,
+	);
 	const [loadingByView, setLoadingByView] = useState<
 		Record<SummaryView, boolean>
 	>({
@@ -83,7 +84,9 @@ export function SessionSummaryTable({
 		Partial<Record<SummaryView, string>>
 	>({});
 	const accessTokenRef = useRef<string | null>(null);
-	const loadedViewsRef = useRef<Set<SummaryView>>(new Set());
+	const loadedViewsRef = useRef<Set<SummaryView>>(
+		getCachedLoadedViews(sessionId),
+	);
 	const inFlightViewsRef = useRef<Set<SummaryView>>(new Set());
 
 	const getAccessToken = useCallback(async () => {
@@ -119,24 +122,11 @@ export function SessionSummaryTable({
 			});
 
 			try {
-				const accessToken = await getAccessToken();
-				const response = await fetch(
-					`/api/sessions/${sessionId}/summary?type=${view}`,
-					{
-						headers: {
-							Authorization: `Bearer ${accessToken}`,
-						},
-					},
+				const data = await getOrFetchSessionSummary(
+					sessionId,
+					view,
+					getAccessToken,
 				);
-
-				if (!response.ok) {
-					const errorData = await response.json().catch(() => ({}));
-					throw new Error(
-						errorData.error || "Failed to load session summary",
-					);
-				}
-
-				const data = await response.json();
 				if (view === "singles") {
 					setSinglesSummary(data.singles || []);
 				} else if (view === "doubles_player") {
@@ -164,9 +154,17 @@ export function SessionSummaryTable({
 
 	// Reset summary state when session changes.
 	useEffect(() => {
-		setSinglesSummary(null);
-		setDoublesPlayerSummary(null);
-		setDoublesTeamSummary(null);
+		setSinglesSummary(
+			readCachedSessionSummary(sessionId, "singles")?.singles ?? null,
+		);
+		setDoublesPlayerSummary(
+			readCachedSessionSummary(sessionId, "doubles_player")?.doubles_player ??
+				null,
+		);
+		setDoublesTeamSummary(
+			readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team ??
+				null,
+		);
 		setLoadingByView({
 			singles: false,
 			doubles_player: false,
@@ -174,8 +172,8 @@ export function SessionSummaryTable({
 		});
 		setErrorByView({});
 		accessTokenRef.current = null;
-		loadedViewsRef.current.clear();
-		inFlightViewsRef.current.clear();
+		loadedViewsRef.current = getCachedLoadedViews(sessionId);
+		inFlightViewsRef.current = new Set();
 	}, [sessionId]);
 
 	// Load singles immediately for fastest first paint.
