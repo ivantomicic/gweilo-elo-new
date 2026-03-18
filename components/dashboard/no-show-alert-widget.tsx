@@ -6,7 +6,6 @@ import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabase/client";
-import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { t } from "@/lib/i18n";
 import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
 
@@ -83,37 +82,34 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 			<Box
 				className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
 			>
-				{/* Blurred destructive background circle */}
-				<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-destructive/20 blur-[60px] rounded-full pointer-events-none" />
-				<Box className="flex items-center justify-center mb-4 relative z-10">
-					<Box className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-						{t.ispale.noShowAlert}
-					</Box>
+				<Box className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--destructive)/0.18),transparent_58%)] pointer-events-none" />
+				<Box className="absolute -right-10 top-10 size-32 rounded-full bg-destructive/10 blur-3xl pointer-events-none" />
+				<Box className="absolute -left-8 bottom-6 size-24 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+
+				<Box className="relative z-10 flex items-start justify-between gap-4">
+					<Box className="h-4 w-24 rounded-full bg-muted-foreground/20" />
+					<Box className="h-6 w-14 rounded-full bg-muted-foreground/20" />
 				</Box>
 
 				<Stack
 					direction="column"
 					alignItems="center"
 					justifyContent="center"
-					spacing={4}
-					className="relative z-10 w-full flex-1"
+					spacing={5}
+					className="relative z-10 w-full flex-1 pt-6"
 				>
-					{/* Avatar skeleton */}
 					<Box className="relative shrink-0">
-						<Box className="size-20 rounded-full bg-destructive/20 border-2 border-destructive/30 animate-pulse" />
-						<Box className="absolute -bottom-1 -right-1 bg-destructive/50 size-6 rounded-full border-2 border-card animate-pulse" />
+						<Box className="size-24 rounded-full bg-destructive/20 border-2 border-destructive/30 animate-pulse" />
+						<Box className="absolute -bottom-1 -right-1 bg-destructive/50 size-7 rounded-full border-2 border-card animate-pulse" />
 					</Box>
-
-					{/* Content skeleton */}
-					<Stack
-						direction="column"
-						spacing={1}
-						alignItems="center"
-						className="w-full"
-					>
-						<Box className="h-5 w-32 bg-muted-foreground/20 rounded animate-pulse" />
-						<Box className="h-3 w-24 bg-muted-foreground/20 rounded animate-pulse" />
-					</Stack>
+					<Box className="space-y-2 text-center">
+						<Box className="mx-auto h-6 w-28 rounded bg-muted-foreground/20" />
+						<Box className="mx-auto h-3 w-16 rounded bg-muted-foreground/15" />
+					</Box>
+					<Box className="w-full max-w-[15rem] rounded-[28px] border border-destructive/10 bg-white/[0.03] px-6 py-6 text-center">
+						<Box className="mx-auto h-14 w-20 rounded bg-muted-foreground/20" />
+						<Box className="mx-auto mt-3 h-3 w-14 rounded bg-muted-foreground/15" />
+					</Box>
 				</Stack>
 			</Box>
 		);
@@ -123,15 +119,49 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 		return null;
 	}
 
+	const showPointsMode =
+		Math.abs(worstOffender.totalPoints - worstOffender.noShowCount) > 0.001;
+
 	return (
 		<Box
 			className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
 		>
-			{/* Blurred destructive background circle */}
-			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-destructive/20 blur-[60px] rounded-full pointer-events-none" />
-			<Box className="flex items-center justify-center mb-4 relative z-10">
-				<Box className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
-					{t.ispale.noShowAlert}
+			<Box className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--destructive)/0.18),transparent_58%)] pointer-events-none" />
+			<Box className="absolute -right-10 top-10 size-32 rounded-full bg-destructive/10 blur-3xl pointer-events-none" />
+			<Box className="absolute -left-8 bottom-6 size-24 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
+			<Box className="absolute inset-0 bg-gradient-to-br from-destructive/10 via-destructive/5 to-card pointer-events-none" />
+			<Box
+				className="absolute right-[-10px] top-[-52px] text-[286px] font-semibold leading-none tracking-[-0.1em] pointer-events-none select-none md:right-[-14px] md:top-[-66px] md:text-[364px]"
+				aria-hidden="true"
+			>
+				<span
+					className="bg-clip-text text-transparent"
+					style={{
+						backgroundImage:
+							"linear-gradient(135deg, rgba(254,202,202,0.1), rgba(248,113,113,0.06), rgba(127,29,29,0.03))",
+					}}
+				>
+					{formatNoShowPoints(worstOffender.totalPoints)}
+				</span>
+			</Box>
+
+			<Box className="relative z-10 flex items-start justify-between gap-4">
+				<Box className="w-full space-y-2 text-center">
+					<Box className="text-xl font-semibold leading-tight text-foreground">
+						{t.ispale.noShowAlert}
+					</Box>
+					{showPointsMode ? (
+						<Box className="inline-flex items-center gap-2 rounded-full border border-destructive/20 bg-destructive/10 px-2.5 py-1 text-[11px] font-medium text-destructive">
+							<Icon
+								icon="solar:graph-up-bold"
+								className="size-3.5"
+							/>
+							{t.ispale.pointsMode}
+						</Box>
+					) : null}
+				</Box>
+				<Box className="absolute right-0 top-0 rounded-full border border-destructive/20 bg-destructive/10 p-2 text-destructive">
+					<Icon icon="solar:danger-bold" className="size-4" />
 				</Box>
 			</Box>
 
@@ -139,12 +169,13 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 				direction="column"
 				alignItems="center"
 				justifyContent="center"
-				spacing={4}
-				className="relative z-10 w-full flex-1"
+				spacing={5}
+				className="relative z-10 w-full flex-1 pt-6"
 			>
-				{/* Avatar with danger badge */}
 				<Box className="relative shrink-0">
-					<Avatar className="size-20 border-2 border-destructive/30">
+					<Box className="absolute inset-[-10px] rounded-full border border-amber-400/35" />
+					<Box className="absolute inset-[-20px] rounded-full border border-destructive/10" />
+					<Avatar className="size-24 border-2 border-destructive/30 shadow-[0_0_0_6px_rgba(239,68,68,0.08)]">
 						<AvatarImage
 							src={worstOffender.avatar || undefined}
 							alt={worstOffender.name}
@@ -153,31 +184,17 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 							{worstOffender.name.charAt(0).toUpperCase()}
 						</AvatarFallback>
 					</Avatar>
-					<Box className="absolute -bottom-1 -right-1 bg-destructive text-white size-6 rounded-full flex items-center justify-center text-xs border-2 border-card">
-						<Icon icon="solar:danger-bold" />
+					<Box className="absolute -bottom-1 -right-1 bg-destructive text-white size-7 rounded-full flex items-center justify-center text-xs border-2 border-card shadow-lg">
+						<Icon icon="solar:danger-bold" className="size-4" />
 					</Box>
 				</Box>
 
-				{/* Content */}
-				<Stack
-					direction="column"
-					spacing={1}
-					alignItems="center"
-					className="w-full"
-				>
-					<p className="text-lg font-bold text-center">
+				<Box className="space-y-2 text-center">
+					<p className="text-2xl font-bold leading-tight text-balance">
 						{worstOffender.name}
 					</p>
-					<p className="text-xs text-muted-foreground text-center">
-						{t.ispale.last}: {formatRelativeTime(worstOffender.lastNoShowDate)} •{" "}
-						{formatNoShowPoints(worstOffender.totalPoints)}{" "}
-						{t.ispale.points} •{" "}
-						{worstOffender.noShowCount}{" "}
-						{worstOffender.noShowCount === 1
-							? t.ispale.miss
-							: t.ispale.misses}
-					</p>
-				</Stack>
+				</Box>
+
 			</Stack>
 		</Box>
 	);
