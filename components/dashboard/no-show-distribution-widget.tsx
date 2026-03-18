@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { Box } from "@/components/ui/box";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { t } from "@/lib/i18n";
@@ -52,9 +51,6 @@ function formatDate(dateString: string) {
 export function NoShowDistributionWidget({
 	users,
 }: NoShowDistributionWidgetProps) {
-	const [selectedEntryByUser, setSelectedEntryByUser] = useState<
-		Record<string, string | null>
-	>({});
 	const maxPoints = users[0]?.totalPoints ?? 0;
 
 	if (users.length === 0) {
@@ -75,10 +71,6 @@ export function NoShowDistributionWidget({
 							: Math.max((user.totalPoints / maxPoints) * 100, 10);
 					const barGradient = BAR_GRADIENTS[index % BAR_GRADIENTS.length];
 					const isLeader = index === 0;
-					const selectedEntry =
-						user.entries.find(
-							(entry) => entry.id === selectedEntryByUser[user.id]
-						) ?? null;
 
 					return (
 						<details
@@ -134,51 +126,38 @@ export function NoShowDistributionWidget({
 							</summary>
 
 							<div className="border-t border-border/50 pb-4 pt-4">
-								<p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-									{t.ispale.cards.dateList}
-								</p>
-								<div className="flex flex-wrap gap-2">
-									{user.entries.map((entry) => (
-										<button
-											key={entry.id}
-											type="button"
-											onClick={() => {
-												setSelectedEntryByUser((current) => ({
-													...current,
-													[user.id]:
-														current[user.id] === entry.id
-															? null
-															: entry.id,
-												}));
-											}}
-											className={cn(
-												"rounded-full px-2.5 py-1 text-xs text-foreground ring-1 transition-colors",
-												selectedEntry?.id === entry.id
-													? "bg-primary text-primary-foreground ring-primary/30"
-													: "bg-background ring-border/50 hover:bg-muted"
-											)}
-										>
-											{formatDate(entry.date)}
-										</button>
-									))}
+								<div className="overflow-hidden rounded-xl border border-border/50 bg-muted/15">
+									<table className="w-full table-auto border-collapse">
+										<thead>
+											<tr className="border-b border-border/50 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+												<th className="w-px whitespace-nowrap px-3 py-2 text-left">
+													{t.ispale.table.date}
+												</th>
+												<th className="px-3 py-2 text-left">
+													{t.ispale.table.reason}
+												</th>
+											</tr>
+										</thead>
+										<tbody>
+											{user.entries.map((entry) => (
+												<tr
+													key={entry.id}
+													className="border-b border-border/40 text-xs text-foreground last:border-b-0"
+												>
+													<td className="w-px whitespace-nowrap px-3 py-2 align-top text-muted-foreground">
+														<span>{formatDate(entry.date)}</span>
+														<span className="ml-1 text-[10px] text-muted-foreground/80">
+															({formatNoShowPoints(entry.points)})
+														</span>
+													</td>
+													<td className="px-3 py-2 align-top text-muted-foreground">
+														{entry.reason?.trim() || t.ispale.cards.noReason}
+													</td>
+												</tr>
+											))}
+										</tbody>
+									</table>
 								</div>
-								{selectedEntry ? (
-									<div className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground space-y-1">
-										<p>
-											<span className="font-medium">
-												{t.ispale.cards.points}:
-											</span>{" "}
-											{formatNoShowPoints(selectedEntry.points)}{" "}
-											{t.ispale.points}
-										</p>
-										<p>
-											<span className="font-medium">
-												{t.ispale.table.reason}:
-											</span>{" "}
-											{selectedEntry.reason?.trim() || t.ispale.cards.noReason}
-										</p>
-									</div>
-								) : null}
 							</div>
 						</details>
 					);
