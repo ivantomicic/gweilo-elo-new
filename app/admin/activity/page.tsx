@@ -15,6 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Loading } from "@/components/ui/loading";
 import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -185,6 +192,21 @@ const getInitials = (name: string): string =>
 		.map((part) => part[0]?.toUpperCase() ?? "")
 		.join("") || "?";
 
+const getDefaultSelectedUserIds = (
+	users: UserOption[],
+	currentUserId: string | null,
+): string[] => users.filter((user) => user.id !== currentUserId).map((user) => user.id);
+
+const haveSameItems = (a: string[], b: string[]): boolean => {
+	if (a.length !== b.length) {
+		return false;
+	}
+
+	const sortedA = [...a].sort();
+	const sortedB = [...b].sort();
+	return sortedA.every((item, index) => item === sortedB[index]);
+};
+
 function AdminActivityPageContent() {
 	const [events, setEvents] = useState<AnalyticsEvent[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -197,9 +219,8 @@ function AdminActivityPageContent() {
 	const [sessionLabelMap, setSessionLabelMap] = useState<
 		Record<string, string>
 	>({});
-	const [activityView, setActivityView] = useState<"timeline" | "table">(
-		"timeline",
-	);
+	const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+	const [showTable, setShowTable] = useState(false);
 	const [filters, setFilters] = useState<ActivityFilters>({
 		selectedUserIds: [],
 		eventName: "",
@@ -290,9 +311,10 @@ function AdminActivityPageContent() {
 					setUsers(usersWithEvents);
 					setFilters((prev) => ({
 						...prev,
-						selectedUserIds: usersWithEvents
-							.filter((u: UserOption) => u.id !== session.user.id)
-							.map((u: UserOption) => u.id),
+						selectedUserIds: getDefaultSelectedUserIds(
+							usersWithEvents,
+							session.user.id,
+						),
 					}));
 			} catch (error) {
 				console.error("Error fetching users:", error);
@@ -628,7 +650,10 @@ function AdminActivityPageContent() {
 
 	const handleResetFilters = () => {
 		setFilters({
-			selectedUserIds: users.map((user) => user.id),
+			selectedUserIds: getDefaultSelectedUserIds(
+				users,
+				currentUserId,
+			),
 			eventName: "",
 			dateFrom: "",
 			dateTo: "",
@@ -637,8 +662,21 @@ function AdminActivityPageContent() {
 	};
 
 	const totalPages = Math.ceil(totalCount / pageSize);
+	const defaultSelectedUserIds = useMemo(
+		() => getDefaultSelectedUserIds(users, currentUserId),
+		[users, currentUserId],
+	);
 	const allUsersSelected =
 		users.length > 0 && filters.selectedUserIds.length === users.length;
+	const hasUserFilter =
+		users.length > 0 &&
+		!haveSameItems(filters.selectedUserIds, defaultSelectedUserIds);
+	const activeFilterCount = [
+		hasUserFilter,
+		Boolean(filters.eventName),
+		Boolean(filters.dateFrom),
+		Boolean(filters.dateTo),
+	].filter(Boolean).length;
 	const userFilterLabel = loadingUsers
 		? "Loading users..."
 		: users.length === 0
@@ -648,6 +686,15 @@ function AdminActivityPageContent() {
 				: filters.selectedUserIds.length === 0
 					? "No users selected"
 					: `${filters.selectedUserIds.length} users selected`;
+	const filtersSummary = loadingUsers
+		? "Loading filters..."
+		: users.length === 0
+			? "No filters available."
+			: activeFilterCount === 0
+				? "Default filters: all users except you."
+				: `${activeFilterCount} active filter${
+					activeFilterCount === 1 ? "" : "s"
+				}.`;
 
 	// Format date: DD.MM.YYYY
 	const formatDate = (dateString: string): string => {
@@ -828,9 +875,400 @@ function AdminActivityPageContent() {
 								<AdminTabs />
 							</Box>
 
-								{/* Filters */}
-									<Box className="space-y-4 p-4">
-										<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+								{/* Activity Results */}
+								<Box>
+									{loading ? (
+										<Loading label="Loading activity..." />
+									) : (
+										<>
+											<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+												<div className="space-y-1">
+													<div className="text-sm text-muted-foreground">
+														Total: {totalCount} events
+													</div>
+													<div className="text-xs text-muted-foreground">
+														{filtersSummary}
+													</div>
+												</div>
+												<div className="flex flex-wrap items-center gap-2">
+													<Button
+														type="button"
+														variant={
+															activeFilterCount > 0
+																? "secondary"
+																: "outline"
+														}
+														onClick={() =>
+															setIsFiltersOpen(true)
+														}
+													>
+														<Icon
+															icon="solar:filter-bold"
+															className="mr-1.5 size-4"
+														/>
+														Filters
+														{activeFilterCount > 0
+															? ` (${activeFilterCount})`
+															: ""}
+													</Button>
+													<Button
+														type="button"
+														variant={
+															showTable
+																? "secondary"
+																: "outline"
+														}
+														onClick={() =>
+															setShowTable((prev) => !prev)
+														}
+													>
+														{showTable
+															? "Hide table"
+															: "Show table"}
+													</Button>
+												</div>
+											</div>
+
+											<div className="mb-3 text-xs text-muted-foreground">
+												Sessions split on <code>app_loaded</code> or
+												30m inactivity.
+											</div>
+											{timelineGroups.length === 0 ? (
+												<div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
+													No events found
+												</div>
+											) : (
+												<TooltipProvider delayDuration={120}>
+													<div className="space-y-2">
+														{timelineGroups.map((group) => (
+															<div
+																key={group.id}
+																className="rounded-md border p-3"
+															>
+																<div className="flex min-w-0 items-center gap-2.5">
+																	<Avatar className="h-8 w-8 border">
+																		<AvatarImage
+																			src={group.userAvatar || undefined}
+																			alt={group.userName}
+																		/>
+																		<AvatarFallback className="text-[11px] font-semibold">
+																			{getInitials(group.userName)}
+																		</AvatarFallback>
+																	</Avatar>
+																	<p className="truncate text-sm font-medium">
+																		{group.userName}
+																		{group.userId === currentUserId
+																			? " (you)"
+																			: ""}
+																	</p>
+																</div>
+
+																<div className="mt-2 space-y-2">
+																	{group.sessions.map(
+																		(session, index) => (
+																			<div
+																				key={session.id}
+																				className={
+																					index > 0
+																						? "border-t pt-2"
+																						: ""
+																				}
+																			>
+																				<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+																					<Tooltip>
+																						<TooltipTrigger asChild>
+																							<span className="inline-flex cursor-default items-center gap-1">
+																								<Icon
+																									icon="solar:calendar-bold"
+																									className="size-3.5"
+																								/>
+																								{formatDate(
+																									session.startedAt,
+																								)}
+																							</span>
+																						</TooltipTrigger>
+																						<TooltipContent>
+																							Started:{" "}
+																							{formatDateTime(
+																								session.startedAt,
+																							)}
+																						</TooltipContent>
+																					</Tooltip>
+																					<Tooltip>
+																						<TooltipTrigger asChild>
+																							<span className="inline-flex cursor-default items-center gap-1">
+																								<Icon
+																									icon="solar:clock-circle-bold"
+																									className="size-3.5"
+																								/>
+																								{formatDuration(
+																									session.durationMs,
+																								)}
+																							</span>
+																						</TooltipTrigger>
+																						<TooltipContent>
+																							From{" "}
+																							{formatDateTime(
+																								session.startedAt,
+																							)}{" "}
+																							to{" "}
+																							{formatDateTime(
+																								session.endedAt,
+																							)}
+																						</TooltipContent>
+																					</Tooltip>
+																					<span>
+																						{session.eventCount} events
+																					</span>
+																				</div>
+
+																				<div className="mt-1 overflow-x-auto">
+																					<div className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
+																						{session.flow
+																							.slice(0, 10)
+																							.map((step, stepIndex) => (
+																								<span
+																									key={`${session.id}-flow-${stepIndex}`}
+																									className="inline-flex items-center gap-1"
+																								>
+																									<span className="text-[11px] text-foreground/90">
+																										{step}
+																									</span>
+																									{stepIndex <
+																										Math.min(
+																											session.flow.length,
+																											10,
+																										) -
+																											1 && (
+																										<Icon
+																											icon="solar:alt-arrow-right-linear"
+																											className="size-3 text-muted-foreground"
+																										/>
+																									)}
+																								</span>
+																							))}
+																						{session.flow.length > 10 && (
+																							<span className="text-muted-foreground">
+																								+{session.flow.length - 10} more
+																							</span>
+																						)}
+																					</div>
+																				</div>
+																			</div>
+																		),
+																	)}
+																</div>
+															</div>
+														))}
+													</div>
+												</TooltipProvider>
+											)}
+
+											{showTable && (
+												<div className="mt-6 space-y-3">
+													<div className="flex items-center justify-between">
+														<h2 className="text-sm font-medium">
+															Raw events table
+														</h2>
+														<Button
+															type="button"
+															size="sm"
+															variant="ghost"
+															onClick={() =>
+																setShowTable(false)
+															}
+														>
+															Hide
+														</Button>
+													</div>
+													<div className="overflow-x-auto">
+														<Table>
+															<TableHeader>
+																<TableRow>
+																	<TableHead>
+																		User
+																	</TableHead>
+																	<TableHead>
+																		Event
+																	</TableHead>
+																	<TableHead>
+																		Page
+																	</TableHead>
+																	<TableHead>
+																		<Stack
+																			direction="row"
+																			alignItems="center"
+																			spacing={1.5}
+																		>
+																			<Icon
+																				icon="solar:calendar-bold"
+																				className="size-4 text-muted-foreground"
+																			/>
+																			<Icon
+																				icon="solar:clock-circle-bold"
+																				className="size-4 text-muted-foreground"
+																			/>
+																			<span>
+																				Timestamp
+																			</span>
+																		</Stack>
+																	</TableHead>
+																</TableRow>
+															</TableHeader>
+															<TableBody>
+																{events.length === 0 ? (
+																	<TableRow>
+																		<TableCell
+																			colSpan={4}
+																			className="text-center"
+																		>
+																			No events found
+																		</TableCell>
+																	</TableRow>
+																) : (
+																	events.map((event) => (
+																		<TableRow key={event.id}>
+																			<TableCell>
+																				{event.user ? (
+																					<span className="font-medium">
+																						{event.user.name}
+																					</span>
+																				) : event.user_id ? (
+																					<span className="text-muted-foreground">
+																						{event.user_id.slice(0, 8)}
+																						...
+																					</span>
+																				) : (
+																					<span className="text-muted-foreground">
+																						Anonymous
+																					</span>
+																				)}
+																			</TableCell>
+																			<TableCell>
+																				<code className="text-sm">
+																					{event.event_name}
+																				</code>
+																			</TableCell>
+																			<TableCell>
+																				{event.event_name ===
+																					"player_viewed" &&
+																				event.player ? (
+																					<span className="text-sm font-medium">
+																						Player: {event.player.name}
+																					</span>
+																				) : event.page ? (
+																					<span className="text-sm">
+																						{getReadablePathLabel(
+																							event.page,
+																							sessionLabelMap,
+																						)}
+																					</span>
+																				) : (
+																					<span className="text-muted-foreground">
+																						—
+																					</span>
+																				)}
+																			</TableCell>
+																			<TableCell>
+																				<Stack
+																					direction="column"
+																					spacing={1.5}
+																				>
+																					<Stack
+																						direction="row"
+																						alignItems="center"
+																						spacing={2}
+																					>
+																						<Icon
+																							icon="solar:calendar-bold"
+																							className="size-4 text-muted-foreground"
+																						/>
+																						<span>
+																							{formatDate(
+																								event.created_at,
+																							)}
+																						</span>
+																					</Stack>
+																					<Stack
+																						direction="row"
+																						alignItems="center"
+																						spacing={2}
+																					>
+																						<Icon
+																							icon="solar:clock-circle-bold"
+																							className="size-4 text-muted-foreground"
+																						/>
+																						<span>
+																							{formatTime(
+																								event.created_at,
+																							)}
+																						</span>
+																					</Stack>
+																				</Stack>
+																			</TableCell>
+																		</TableRow>
+																	))
+																)}
+															</TableBody>
+														</Table>
+													</div>
+												</div>
+											)}
+
+											{/* Pagination */}
+											{totalPages > 1 && (
+												<div className="mt-4 flex items-center justify-between">
+													<Button
+														variant="outline"
+														onClick={() =>
+															setPage((p) =>
+																Math.max(1, p - 1),
+															)
+														}
+														disabled={page === 1}
+													>
+														Previous
+													</Button>
+													<span className="text-sm text-muted-foreground">
+														Page {page} of {totalPages}
+													</span>
+													<Button
+														variant="outline"
+														onClick={() =>
+															setPage((p) =>
+																Math.min(
+																	totalPages,
+																	p + 1,
+																),
+															)
+														}
+														disabled={
+															page === totalPages
+														}
+													>
+														Next
+													</Button>
+												</div>
+											)}
+										</>
+									)}
+								</Box>
+
+								<Sheet
+									open={isFiltersOpen}
+									onOpenChange={setIsFiltersOpen}
+								>
+									<SheetContent
+										side="right"
+										className="w-full overflow-y-auto sm:max-w-md"
+									>
+										<SheetHeader>
+											<SheetTitle>Filters</SheetTitle>
+											<SheetDescription>
+												Use these only when you want to narrow the activity timeline.
+											</SheetDescription>
+										</SheetHeader>
+										<div className="mt-6 space-y-6">
 											<div className="space-y-2">
 												<div className="flex min-h-5 items-center">
 													<Label htmlFor="filter-user-trigger">
@@ -847,9 +1285,7 @@ function AdminActivityPageContent() {
 																className="w-full justify-between text-left"
 															>
 																<span className="truncate">
-																	{
-																		userFilterLabel
-																	}
+																	{userFilterLabel}
 																</span>
 																<Stack
 																	direction="row"
@@ -875,51 +1311,38 @@ function AdminActivityPageContent() {
 																<div className="px-2 py-3 text-sm text-muted-foreground">
 																	Loading users...
 																</div>
-															) : users.length ===
-															  0 ? (
+															) : users.length === 0 ? (
 																<div className="px-2 py-3 text-sm text-muted-foreground">
 																	No users with activity yet.
 																</div>
 															) : (
 																<div className="max-h-72 overflow-y-auto py-1">
-																	{users.map(
-																		(user) => (
-																			<DropdownMenuCheckboxItem
-																				key={
-																					user.id
-																				}
-																				checked={filters.selectedUserIds.includes(
+																	{users.map((user) => (
+																		<DropdownMenuCheckboxItem
+																			key={user.id}
+																			checked={filters.selectedUserIds.includes(
+																				user.id,
+																			)}
+																			onCheckedChange={(checked) =>
+																				handleUserSelectionChange(
 																					user.id,
-																				)}
-																				onCheckedChange={(
-																					checked,
-																				) =>
-																					handleUserSelectionChange(
-																						user.id,
-																						checked ===
-																							true,
-																					)
-																				}
-																				onSelect={(
-																					event,
-																				) =>
-																					event.preventDefault()
-																				}
-																				>
-																					<div className="flex min-w-0 flex-col">
-																						<span className="truncate">
-																							{
-																								user.name
-																							}
-																							{user.id ===
-																							currentUserId
-																								? " (you)"
-																								: ""}
-																						</span>
-																					</div>
-																				</DropdownMenuCheckboxItem>
-																		),
-																	)}
+																					checked === true,
+																				)
+																			}
+																			onSelect={(event) =>
+																				event.preventDefault()
+																			}
+																		>
+																			<div className="flex min-w-0 flex-col">
+																				<span className="truncate">
+																					{user.name}
+																					{user.id === currentUserId
+																						? " (you)"
+																						: ""}
+																				</span>
+																			</div>
+																		</DropdownMenuCheckboxItem>
+																	))}
 																</div>
 															)}
 														</DropdownMenuContent>
@@ -932,8 +1355,7 @@ function AdminActivityPageContent() {
 														size="sm"
 														onClick={handleSelectAllUsers}
 														disabled={
-															loadingUsers ||
-															users.length === 0
+															loadingUsers || users.length === 0
 														}
 													>
 														All
@@ -944,8 +1366,7 @@ function AdminActivityPageContent() {
 														size="sm"
 														onClick={handleClearUsers}
 														disabled={
-															loadingUsers ||
-															users.length === 0
+															loadingUsers || users.length === 0
 														}
 													>
 														None
@@ -1014,449 +1435,19 @@ function AdminActivityPageContent() {
 													}
 												/>
 											</div>
-										</div>
 
-									<div>
-										<Button
-											type="button"
-											variant="outline"
-											onClick={handleResetFilters}
-										>
-											Reset filters
-										</Button>
-									</div>
-								</Box>
-
-								{/* Activity Results */}
-								<Box>
-									{loading ? (
-										<Loading label="Loading activity..." />
-									) : (
-										<>
-											<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-												<div className="text-sm text-muted-foreground">
-													Total: {totalCount} events
-												</div>
-												<div className="inline-flex w-fit items-center rounded-md border p-1">
-													<Button
-														type="button"
-														size="sm"
-														variant={
-															activityView ===
-															"timeline"
-																? "secondary"
-																: "ghost"
-														}
-														onClick={() =>
-															setActivityView(
-																"timeline",
-															)
-														}
-													>
-														Timeline
-													</Button>
-													<Button
-														type="button"
-														size="sm"
-														variant={
-															activityView ===
-															"table"
-																? "secondary"
-																: "ghost"
-														}
-														onClick={() =>
-															setActivityView(
-																"table",
-															)
-														}
-													>
-														Table
-													</Button>
-												</div>
+											<div>
+												<Button
+													type="button"
+													variant="outline"
+													onClick={handleResetFilters}
+												>
+													Reset filters
+												</Button>
 											</div>
-
-													{activityView === "timeline" ? (
-														<>
-															<div className="mb-3 text-xs text-muted-foreground">
-																Sessions split on{" "}
-																<code>app_loaded</code> or
-																30m inactivity.
-															</div>
-															{timelineGroups.length ===
-															0 ? (
-																<div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
-																	No events found
-																</div>
-															) : (
-																<TooltipProvider delayDuration={120}>
-																	<div className="space-y-2">
-																		{timelineGroups.map(
-																			(group) => (
-																				<div
-																					key={
-																						group.id
-																					}
-																					className="rounded-md border p-3"
-																				>
-																					<div className="flex min-w-0 items-center gap-2.5">
-																						<Avatar className="h-8 w-8 border">
-																							<AvatarImage
-																								src={
-																									group.userAvatar ||
-																									undefined
-																								}
-																								alt={
-																									group.userName
-																								}
-																							/>
-																							<AvatarFallback className="text-[11px] font-semibold">
-																								{getInitials(
-																									group.userName,
-																								)}
-																							</AvatarFallback>
-																						</Avatar>
-																						<p className="truncate text-sm font-medium">
-																							{
-																								group.userName
-																							}
-																							{group.userId ===
-																							currentUserId
-																								? " (you)"
-																								: ""}
-																						</p>
-																					</div>
-
-																					<div className="mt-2 space-y-2">
-																						{group.sessions.map(
-																							(
-																								session,
-																								index,
-																							) => (
-																								<div
-																									key={
-																										session.id
-																									}
-																									className={`${
-																										index >
-																										0
-																											? "border-t pt-2"
-																											: ""
-																									}`}
-																								>
-																									<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-																										<Tooltip>
-																											<TooltipTrigger
-																												asChild
-																											>
-																												<span className="inline-flex cursor-default items-center gap-1">
-																													<Icon
-																														icon="solar:calendar-bold"
-																														className="size-3.5"
-																													/>
-																													{formatDate(
-																														session.startedAt,
-																													)}
-																												</span>
-																											</TooltipTrigger>
-																											<TooltipContent>
-																												Started:{" "}
-																												{formatDateTime(
-																													session.startedAt,
-																												)}
-																											</TooltipContent>
-																										</Tooltip>
-																										<Tooltip>
-																											<TooltipTrigger
-																												asChild
-																											>
-																												<span className="inline-flex cursor-default items-center gap-1">
-																													<Icon
-																														icon="solar:clock-circle-bold"
-																														className="size-3.5"
-																													/>
-																													{formatDuration(
-																														session.durationMs,
-																													)}
-																												</span>
-																											</TooltipTrigger>
-																											<TooltipContent>
-																												From{" "}
-																												{formatDateTime(
-																													session.startedAt,
-																												)}{" "}
-																												to{" "}
-																												{formatDateTime(
-																													session.endedAt,
-																												)}
-																											</TooltipContent>
-																										</Tooltip>
-																										<span>
-																											{
-																												session.eventCount
-																											}{" "}
-																											events
-																										</span>
-																									</div>
-
-																									<div className="mt-1 overflow-x-auto">
-																										<div className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
-																											{session.flow
-																												.slice(
-																													0,
-																													10,
-																												)
-																												.map(
-																													(
-																														step,
-																														stepIndex,
-																													) => (
-																														<span
-																															key={`${session.id}-flow-${stepIndex}`}
-																															className="inline-flex items-center gap-1"
-																														>
-																															<span className="text-[11px] text-foreground/90">
-																																{
-																																	step
-																																}
-																															</span>
-																															{stepIndex <
-																																Math.min(
-																																	session.flow
-																																		.length,
-																																	10,
-																																) -
-																																	1 && (
-																																<Icon
-																																	icon="solar:alt-arrow-right-linear"
-																																	className="size-3 text-muted-foreground"
-																																/>
-																															)}
-																														</span>
-																													),
-																												)}
-																											{session.flow
-																												.length >
-																												10 && (
-																												<span className="text-muted-foreground">
-																													+
-																													{session.flow.length -
-																														10}{" "}
-																													more
-																												</span>
-																											)}
-																										</div>
-																									</div>
-																								</div>
-																							),
-																						)}
-																					</div>
-																				</div>
-																			),
-																		)}
-																	</div>
-																</TooltipProvider>
-															)}
-														</>
-													) : (
-												<div className="overflow-x-auto">
-													<Table>
-														<TableHeader>
-															<TableRow>
-																<TableHead>
-																	User
-																</TableHead>
-																<TableHead>
-																	Event
-																</TableHead>
-																<TableHead>
-																	Page
-																</TableHead>
-																<TableHead>
-																	<Stack
-																		direction="row"
-																		alignItems="center"
-																		spacing={1.5}
-																	>
-																		<Icon
-																			icon="solar:calendar-bold"
-																			className="size-4 text-muted-foreground"
-																		/>
-																		<Icon
-																			icon="solar:clock-circle-bold"
-																			className="size-4 text-muted-foreground"
-																		/>
-																		<span>
-																			Timestamp
-																		</span>
-																	</Stack>
-																</TableHead>
-															</TableRow>
-														</TableHeader>
-														<TableBody>
-															{events.length ===
-															0 ? (
-																<TableRow>
-																	<TableCell
-																		colSpan={4}
-																		className="text-center"
-																	>
-																		No events
-																		found
-																	</TableCell>
-																</TableRow>
-															) : (
-																events.map(
-																	(event) => (
-																		<TableRow
-																			key={
-																				event.id
-																			}
-																		>
-																			<TableCell>
-																				{event.user ? (
-																					<span className="font-medium">
-																						{
-																							event
-																								.user
-																								.name
-																						}
-																					</span>
-																				) : event.user_id ? (
-																					<span className="text-muted-foreground">
-																						{event.user_id.slice(
-																							0,
-																							8,
-																						)}
-																						...
-																					</span>
-																				) : (
-																					<span className="text-muted-foreground">
-																						Anonymous
-																					</span>
-																				)}
-																			</TableCell>
-																			<TableCell>
-																				<code className="text-sm">
-																					{
-																						event.event_name
-																					}
-																				</code>
-																			</TableCell>
-																			<TableCell>
-																				{event.event_name ===
-																					"player_viewed" &&
-																				event.player ? (
-																					<span className="text-sm font-medium">
-																						Player:{" "}
-																						{
-																							event
-																								.player
-																								.name
-																						}
-																					</span>
-																				) : event.page ? (
-																					<span className="text-sm">
-																						{getReadablePathLabel(
-																							event.page,
-																							sessionLabelMap,
-																						)}
-																					</span>
-																				) : (
-																					<span className="text-muted-foreground">
-																						—
-																					</span>
-																				)}
-																			</TableCell>
-																			<TableCell>
-																				<Stack
-																					direction="column"
-																					spacing={
-																						1.5
-																					}
-																				>
-																					<Stack
-																						direction="row"
-																						alignItems="center"
-																						spacing={
-																							2
-																						}
-																					>
-																						<Icon
-																							icon="solar:calendar-bold"
-																							className="size-4 text-muted-foreground"
-																						/>
-																						<span>
-																							{formatDate(
-																								event.created_at,
-																							)}
-																						</span>
-																					</Stack>
-																					<Stack
-																						direction="row"
-																						alignItems="center"
-																						spacing={
-																							2
-																						}
-																					>
-																						<Icon
-																							icon="solar:clock-circle-bold"
-																							className="size-4 text-muted-foreground"
-																						/>
-																						<span>
-																							{formatTime(
-																								event.created_at,
-																							)}
-																						</span>
-																					</Stack>
-																				</Stack>
-																			</TableCell>
-																		</TableRow>
-																	),
-																)
-															)}
-														</TableBody>
-													</Table>
-												</div>
-											)}
-
-											{/* Pagination */}
-											{totalPages > 1 && (
-												<div className="mt-4 flex items-center justify-between">
-													<Button
-														variant="outline"
-														onClick={() =>
-															setPage((p) =>
-																Math.max(1, p - 1),
-															)
-														}
-														disabled={page === 1}
-													>
-														Previous
-													</Button>
-													<span className="text-sm text-muted-foreground">
-														Page {page} of {totalPages}
-													</span>
-													<Button
-														variant="outline"
-														onClick={() =>
-															setPage((p) =>
-																Math.min(
-																	totalPages,
-																	p + 1,
-																),
-															)
-														}
-														disabled={
-															page === totalPages
-														}
-													>
-														Next
-													</Button>
-												</div>
-											)}
-										</>
-									)}
-								</Box>
+										</div>
+									</SheetContent>
+								</Sheet>
 						</div>
 					</div>
 				</div>
