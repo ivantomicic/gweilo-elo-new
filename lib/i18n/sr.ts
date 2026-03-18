@@ -62,7 +62,7 @@ export const sr = {
 		},
 	},
 	user: {
-		account: "Nalog",
+		account: "Podešavanja",
 		notifications: "Notifikacije",
 		logout: "Izloguj se",
 	},

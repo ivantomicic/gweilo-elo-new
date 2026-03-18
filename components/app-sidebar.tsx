@@ -29,14 +29,17 @@ import {
 } from "lucide-react";
 
 import { NavDocuments } from "@/components/nav-documents";
+import { adminNavigationItems } from "@/components/admin/admin-navigation";
 import { NavMain } from "@/components/nav-main";
-import { NavSecondary } from "@/components/nav-secondary";
 import { NavUser } from "@/components/nav-user";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import {
 	Sidebar,
 	SidebarContent,
 	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarMenu,
 	SidebarMenuButton,
@@ -66,16 +69,9 @@ const data = {
 			icon: PlayIcon,
 		},
 		{
-			title: "Ispale",
-			url: "/no-shows",
-			icon: XCircleIcon,
-		},
-	],
-	navSecondary: [
-		{
-			title: "Podešavanja",
-			url: "/settings",
-			icon: SettingsIcon,
+			title: "Kalkulator",
+			url: "/calculator",
+			icon: CalculatorIcon,
 		},
 		{
 			title: "Pravila igre",
@@ -86,6 +82,11 @@ const data = {
 			title: "Anketarijum",
 			url: "/polls",
 			icon: FileTextIcon,
+		},
+		{
+			title: "Ispale",
+			url: "/no-shows",
+			icon: XCircleIcon,
 		},
 	],
 };
@@ -122,23 +123,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 		fetchUser();
 	}, []);
 
-	// Build navSecondary items - conditionally include Admin panel for admins
-	const navSecondaryItems = [...data.navSecondary];
-
-	// Add Admin panel after Anketarijum if user is admin
-	if (user?.role === "admin") {
-		navSecondaryItems.push({
-			title: "Kalkulator",
-			url: "/calculator",
-			icon: CalculatorIcon,
-		});
-		navSecondaryItems.push({
-			title: "Admin panel",
-			url: "/admin",
-			icon: ShieldIcon,
-		});
-	}
-
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
 			<SidebarHeader>
@@ -167,11 +151,32 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			<SidebarContent>
 				<NavMain items={data.navMain} currentPathname={pathname} />
 				{/* <NavDocuments items={data.documents} /> */}
-				<NavSecondary
-					items={navSecondaryItems}
-					currentPathname={pathname}
-					className="mt-auto"
-				/>
+				{user?.role === "admin" && (
+					<SidebarGroup className="mt-auto">
+						<SidebarGroupLabel>Admin panel</SidebarGroupLabel>
+						<SidebarGroupContent>
+							<SidebarMenu>
+								{adminNavigationItems.map((item) => {
+									const isActive = pathname === item.url;
+									return (
+										<SidebarMenuItem key={item.value}>
+											<SidebarMenuButton
+												asChild
+												isActive={isActive}
+												tooltip={item.title}
+											>
+												<Link href={item.url}>
+													<item.icon />
+													<span>{item.title}</span>
+												</Link>
+											</SidebarMenuButton>
+										</SidebarMenuItem>
+									);
+								})}
+							</SidebarMenu>
+						</SidebarGroupContent>
+					</SidebarGroup>
+				)}
 			</SidebarContent>
 			<SidebarFooter>{user && <NavUser user={user} />}</SidebarFooter>
 		</Sidebar>

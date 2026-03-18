@@ -26,8 +26,9 @@ const navItems: NavItem[] = [
 
 const moreNavItems: NavItem[] = [
 	{ titleKey: "videos", url: "/videos", icon: "solar:play-bold" },
-	{ titleKey: "rules", url: "/rules", icon: "solar:info-circle-bold" },
 	{ titleKey: "polls", url: "/polls", icon: "solar:document-bold" },
+	{ titleKey: "calculator", url: "/calculator", icon: "solar:calculator-bold" },
+	{ titleKey: "rules", url: "/rules", icon: "solar:info-circle-bold" },
 ];
 
 const settingsItem: NavItem = {
@@ -40,12 +41,6 @@ const adminItem: NavItem = {
 	titleKey: "admin",
 	url: "/admin",
 	icon: "solar:shield-bold",
-};
-
-const calculatorItem: NavItem = {
-	titleKey: "calculator",
-	url: "/calculator",
-	icon: "solar:calculator-bold",
 };
 
 // Show first 4 items in main nav
@@ -280,72 +275,36 @@ export function MobileNav() {
 
 								{/* Admin (admins only) */}
 								{isAdmin && (
-									<>
-										{(() => {
-											const isActive = pathname.startsWith(
-												calculatorItem.url,
-											);
-											return (
-												<Link
-													href={calculatorItem.url}
-													className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-													onClick={
-														handleMoreItemClick
-													}
+									(() => {
+										const isActive = pathname.startsWith(
+											adminItem.url,
+										);
+										return (
+											<Link
+												href={adminItem.url}
+												className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
+												onClick={handleMoreItemClick}
+											>
+												<Icon
+													icon={adminItem.icon}
+													className={`size-5 transition-colors duration-200 ${
+														isActive
+															? "text-primary"
+															: "text-muted-foreground group-hover:text-foreground"
+													}`}
+												/>
+												<span
+													className={`text-sm transition-colors duration-200 ${
+														isActive
+															? "font-bold text-primary"
+															: "font-medium text-muted-foreground group-hover:text-foreground"
+													}`}
 												>
-													<Icon
-														icon={calculatorItem.icon}
-														className={`size-5 transition-colors duration-200 ${
-															isActive
-																? "text-primary"
-																: "text-muted-foreground group-hover:text-foreground"
-														}`}
-													/>
-													<span
-														className={`text-sm transition-colors duration-200 ${
-															isActive
-																? "font-bold text-primary"
-																: "font-medium text-muted-foreground group-hover:text-foreground"
-														}`}
-													>
-														{t.nav[calculatorItem.titleKey]}
-													</span>
-												</Link>
-											);
-										})()}
-										{(() => {
-											const isActive = pathname.startsWith(
-												adminItem.url,
-											);
-											return (
-												<Link
-													href={adminItem.url}
-													className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation"
-													onClick={
-														handleMoreItemClick
-													}
-												>
-													<Icon
-														icon={adminItem.icon}
-														className={`size-5 transition-colors duration-200 ${
-															isActive
-																? "text-primary"
-																: "text-muted-foreground group-hover:text-foreground"
-														}`}
-													/>
-													<span
-														className={`text-sm transition-colors duration-200 ${
-															isActive
-																? "font-bold text-primary"
-																: "font-medium text-muted-foreground group-hover:text-foreground"
-														}`}
-													>
-														{t.nav[adminItem.titleKey]}
-													</span>
-												</Link>
-											);
-										})()}
-									</>
+													{t.nav[adminItem.titleKey]}
+												</span>
+											</Link>
+										);
+									})()
 								)}
 							</motion.div>
 						)}

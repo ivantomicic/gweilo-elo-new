@@ -3,7 +3,6 @@
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import {
-  BellIcon,
   LogOutIcon,
   MoreVerticalIcon,
   UserCircleIcon,
@@ -106,12 +105,6 @@ export function NavUser({
                 <Link href="/settings">
                   <UserCircleIcon />
                   {t.user.account}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/notifications">
-                  <BellIcon />
-                  {t.user.notifications}
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuGroup>
