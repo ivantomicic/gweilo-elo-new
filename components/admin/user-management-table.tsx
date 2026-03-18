@@ -17,6 +17,10 @@ import { UserEditDrawer } from "@/components/admin/user-edit-drawer";
 import { t } from "@/lib/i18n";
 import { PencilIcon } from "lucide-react";
 import type { UserRole } from "@/lib/supabase/admin";
+import {
+	type SessionsPerWeek,
+	parseSessionsPerWeek,
+} from "@/lib/no-shows/sessions-per-week";
 
 type ManagedUserRole = UserRole | "guest";
 
@@ -26,6 +30,7 @@ type User = {
 	name: string;
 	avatar: string | null;
 	role: ManagedUserRole;
+	sessionsPerWeek: SessionsPerWeek | null;
 };
 
 export function UserManagementTable() {
@@ -69,7 +74,16 @@ export function UserManagementTable() {
 				}
 
 				const data = await response.json();
-				setUsers(data.users);
+				setUsers(
+					(data.users || []).map((user: Omit<User, "sessionsPerWeek"> & {
+						sessionsPerWeek?: unknown;
+					}) => ({
+						...user,
+						sessionsPerWeek: parseSessionsPerWeek(
+							user.sessionsPerWeek,
+						),
+					})),
+				);
 			} catch (err) {
 				console.error("Error fetching users:", err);
 				setError(t.admin.users.error.fetchFailed);
@@ -105,11 +119,15 @@ export function UserManagementTable() {
 							name: updatedUser.name,
 							avatar: updatedUser.avatar,
 							role: updatedUser.role,
+							sessionsPerWeek: updatedUser.sessionsPerWeek,
 						}
 					: u,
 			),
 		);
 	};
+
+	const formatSessionsPerWeek = (value: SessionsPerWeek | null) =>
+		value === null ? t.common.notSet : `${value}x`;
 
 	// Get role badge variant
 	const getRoleBadge = (role: ManagedUserRole) => {
@@ -171,6 +189,9 @@ export function UserManagementTable() {
 								<TableHead>
 									{t.admin.users.table.role}
 								</TableHead>
+								<TableHead>
+									{t.admin.users.table.sessionsPerWeek}
+								</TableHead>
 								<TableHead className="w-[100px]">
 									{t.admin.users.table.actions}
 								</TableHead>
@@ -180,7 +201,7 @@ export function UserManagementTable() {
 							{users.length === 0 ? (
 								<TableRow>
 									<TableCell
-										colSpan={5}
+										colSpan={6}
 										className="text-center py-12 text-muted-foreground"
 									>
 										{t.admin.users.noUsers}
@@ -226,6 +247,15 @@ export function UserManagementTable() {
 										{/* Role */}
 										<TableCell>
 											{getRoleBadge(user.role)}
+										</TableCell>
+
+										{/* Sessions per week */}
+										<TableCell>
+											<span className="text-muted-foreground tabular-nums">
+												{formatSessionsPerWeek(
+													user.sessionsPerWeek,
+												)}
+											</span>
 										</TableCell>
 
 										{/* Actions */}

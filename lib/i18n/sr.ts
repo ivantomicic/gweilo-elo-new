@@ -38,6 +38,7 @@ export const sr = {
 		welcome: "Dobrodošao",
 		cancel: "Otkaži",
 		total: "Ukupno",
+		notSet: "Nije podešeno",
 	},
 	activeSession: {
 		title: "Aktivan termin u toku",
@@ -269,6 +270,7 @@ export const sr = {
 				name: "Ime",
 				email: "Email",
 				role: "Uloga",
+				sessionsPerWeek: "Termina nedeljno",
 				actions: "Akcije",
 			},
 			roles: {
@@ -282,6 +284,9 @@ export const sr = {
 				role: "Uloga",
 				roleDescription:
 					"Moderatori mogu pokretati sesije i unositi rezultate. Gosti imaju samo pregled rezultata.",
+				sessionsPerWeek: "Broj termina nedeljno",
+				sessionsPerWeekDescription:
+					"Koristi se za obračun poena ispala: 1 / broj termina nedeljno.",
 			},
 			success: {
 				updated: "Korisnik je uspešno ažuriran",

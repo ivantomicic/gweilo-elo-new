@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
+import {
+	SESSIONS_PER_WEEK_METADATA_KEY,
+	parseSessionsPerWeek,
+} from "@/lib/no-shows/sessions-per-week";
 
 const VALID_ROLES = ["user", "mod", "admin", "guest"] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
@@ -13,13 +17,14 @@ type ValidRole = (typeof VALID_ROLES)[number];
  * Security:
  * - Verifies admin role via JWT token
  * - Uses service role key server-side
- * - Can update: name, email, avatar_url, role
+ * - Can update: name, email, avatar_url, role, sessions_per_week
  *
  * Update Behavior:
  * - Display name → updates user_metadata.display_name
  * - Email → uses Supabase email update (requires confirmation)
  * - Avatar → updates user_metadata.avatar_url (assumes URL is already uploaded)
  * - Role → updates app_metadata.role (admin, mod, user, or guest)
+ * - Sessions per week → updates user_metadata.sessions_per_week
  *
  * Limitations:
  * - Email changes require confirmation (Supabase sends confirmation email)
@@ -43,13 +48,19 @@ export async function PATCH(
 
 		const { userId } = params;
 		const body = await request.json();
-		const { name, email, avatar, role } = body;
+		const { name, email, avatar, role, sessionsPerWeek } = body;
 
 		// Validate input
-		if (!name && !email && avatar === undefined && role === undefined) {
+		if (
+			!name &&
+			!email &&
+			avatar === undefined &&
+			role === undefined &&
+			sessionsPerWeek === undefined
+		) {
 			return NextResponse.json(
 				{
-					error: "At least one field (name, email, avatar, role) must be provided",
+					error: "At least one field (name, email, avatar, role, sessionsPerWeek) must be provided",
 				},
 				{ status: 400 },
 			);
@@ -60,6 +71,24 @@ export async function PATCH(
 			return NextResponse.json(
 				{
 					error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`,
+				},
+				{ status: 400 },
+			);
+		}
+
+		const parsedSessionsPerWeek =
+			sessionsPerWeek === undefined || sessionsPerWeek === null
+				? sessionsPerWeek ?? null
+				: parseSessionsPerWeek(sessionsPerWeek);
+
+		if (
+			sessionsPerWeek !== undefined &&
+			sessionsPerWeek !== null &&
+			parsedSessionsPerWeek === null
+		) {
+			return NextResponse.json(
+				{
+					error: "Invalid sessionsPerWeek. Must be null or an integer between 1 and 4.",
 				},
 				{ status: 400 },
 			);
@@ -76,7 +105,10 @@ export async function PATCH(
 
 		// Get current user once so metadata updates preserve unrelated keys.
 		const needsMetadataUpdate =
-			name !== undefined || avatar !== undefined || role !== undefined;
+			name !== undefined ||
+			avatar !== undefined ||
+			role !== undefined ||
+			sessionsPerWeek !== undefined;
 		let currentUser: Awaited<
 			ReturnType<typeof adminClient.auth.admin.getUserById>
 		>["data"]["user"] | null = null;
@@ -96,7 +128,12 @@ export async function PATCH(
 		}
 
 		// Update user_metadata if name or avatar provided
-		if ((name !== undefined || avatar !== undefined) && currentUser) {
+		if (
+			(name !== undefined ||
+				avatar !== undefined ||
+				sessionsPerWeek !== undefined) &&
+			currentUser
+		) {
 			updateData.user_metadata = {
 				...currentUser.user_metadata,
 			};
@@ -110,6 +147,10 @@ export async function PATCH(
 				updateData.user_metadata.avatar_url = avatar || null;
 			}
 
+			if (sessionsPerWeek !== undefined) {
+				updateData.user_metadata[SESSIONS_PER_WEEK_METADATA_KEY] =
+					parsedSessionsPerWeek;
+			}
 		}
 
 		if (role !== undefined && currentUser) {
@@ -149,6 +190,9 @@ export async function PATCH(
 				data.user.email?.split("@")[0] ||
 				"User",
 			avatar: data.user.user_metadata?.avatar_url || null,
+			sessionsPerWeek: parseSessionsPerWeek(
+				data.user.user_metadata?.[SESSIONS_PER_WEEK_METADATA_KEY],
+			),
 			role: getManagedRoleFromAuthUser(data.user),
 		};
 

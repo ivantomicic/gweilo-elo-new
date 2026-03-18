@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyModOrAdmin } from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { getAuthToken } from "../../_utils/auth";
+import {
+	SESSIONS_PER_WEEK_METADATA_KEY,
+	parseSessionsPerWeek,
+} from "@/lib/no-shows/sessions-per-week";
 
 /**
  * GET /api/admin/users
@@ -11,7 +15,7 @@ import { getAuthToken } from "../../_utils/auth";
  * Security:
  * - Verifies admin or mod role via JWT token
  * - Uses service role key server-side (never exposed to client)
- * - Returns user list with: id, email, user_metadata (name, avatar_url), app_metadata.role
+ * - Returns user list with: id, email, user_metadata (name, avatar_url, sessions_per_week), app_metadata.role
  *
  * Supabase Approach:
  * - Uses Admin API (service role) to list all users
@@ -68,6 +72,9 @@ export async function GET(request: NextRequest) {
 						user.email?.split("@")[0] ||
 						"User",
 					avatar: user.user_metadata?.avatar_url || null,
+					sessionsPerWeek: parseSessionsPerWeek(
+						user.user_metadata?.[SESSIONS_PER_WEEK_METADATA_KEY],
+					),
 					role,
 					createdAt: user.created_at,
 				};

@@ -21,6 +21,10 @@ import {
 } from "@/components/ui/sheet";
 import { t } from "@/lib/i18n";
 import type { UserRole } from "@/lib/supabase/admin";
+import {
+	SESSIONS_PER_WEEK_OPTIONS,
+	type SessionsPerWeek,
+} from "@/lib/no-shows/sessions-per-week";
 
 type EditableRole = "user" | "mod" | "admin" | "guest";
 
@@ -37,6 +41,7 @@ type User = {
 	name: string;
 	avatar: string | null;
 	role: UserRole | "guest";
+	sessionsPerWeek: SessionsPerWeek | null;
 };
 
 type UserEditDrawerProps = {
@@ -55,6 +60,8 @@ export function UserEditDrawer({
 	const [name, setName] = useState("");
 	const [email, setEmail] = useState("");
 	const [role, setRole] = useState<EditableRole>("user");
+	const [sessionsPerWeek, setSessionsPerWeek] =
+		useState<SessionsPerWeek | null>(null);
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -66,6 +73,7 @@ export function UserEditDrawer({
 			setName(user.name);
 			setEmail(user.email);
 			setRole(toEditableRole(user.role));
+			setSessionsPerWeek(user.sessionsPerWeek);
 			setAvatarPreview(user.avatar);
 			setError(null);
 		}
@@ -176,6 +184,7 @@ export function UserEditDrawer({
 					name: name.trim(),
 					email: email.trim(),
 					avatar: avatarPreview,
+					sessionsPerWeek,
 					...(role !== initialRole ? { role } : {}),
 				}),
 			});
@@ -192,6 +201,10 @@ export function UserEditDrawer({
 			onSave({
 				...data.user,
 				role: data.user.role || user.role, // Preserve role from original user if not in response
+				sessionsPerWeek:
+					data.user.sessionsPerWeek === undefined
+						? user.sessionsPerWeek
+						: data.user.sessionsPerWeek,
 			});
 
 			// Close drawer
@@ -207,6 +220,7 @@ export function UserEditDrawer({
 	const hasChanges =
 		user &&
 		(toEditableRole(user.role) !== role ||
+			user.sessionsPerWeek !== sessionsPerWeek ||
 			name.trim() !== user.name ||
 			email.trim() !== user.email ||
 			avatarPreview !== user.avatar);
@@ -314,6 +328,48 @@ export function UserEditDrawer({
 						</Select>
 						<p className="text-xs text-muted-foreground ml-1">
 							{t.admin.users.drawer.roleDescription}
+						</p>
+					</div>
+
+					{/* Sessions per week */}
+					<div className="space-y-2">
+						<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+							{t.admin.users.drawer.sessionsPerWeek}
+						</label>
+						<Select
+							value={
+								sessionsPerWeek === null
+									? "unset"
+									: String(sessionsPerWeek)
+							}
+							onValueChange={(value) =>
+								setSessionsPerWeek(
+									value === "unset"
+										? null
+										: (Number(value) as SessionsPerWeek),
+								)
+							}
+							disabled={saving}
+						>
+							<SelectTrigger className="w-full">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="unset">
+									{t.common.notSet}
+								</SelectItem>
+								{SESSIONS_PER_WEEK_OPTIONS.map((option) => (
+									<SelectItem
+										key={option}
+										value={String(option)}
+									>
+										{option}x
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						<p className="text-xs text-muted-foreground ml-1">
+							{t.admin.users.drawer.sessionsPerWeekDescription}
 						</p>
 					</div>
 				</div>
