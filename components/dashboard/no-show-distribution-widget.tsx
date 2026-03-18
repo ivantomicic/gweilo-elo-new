@@ -1,5 +1,6 @@
 "use client";
 
+import { useWebHaptics } from "web-haptics/react";
 import { Box } from "@/components/ui/box";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
@@ -61,6 +62,7 @@ export function NoShowDistributionWidget({
 	users,
 }: NoShowDistributionWidgetProps) {
 	const maxPoints = users[0]?.totalPoints ?? 0;
+	const { trigger } = useWebHaptics();
 
 	if (users.length === 0) {
 		return (
@@ -89,7 +91,12 @@ export function NoShowDistributionWidget({
 								isLeader && "border-primary/20"
 							)}
 						>
-							<summary className="cursor-pointer list-none py-4 [&::-webkit-details-marker]:hidden">
+							<summary
+								onClick={() => {
+									void trigger();
+								}}
+								className="cursor-pointer list-none py-4 [&::-webkit-details-marker]:hidden"
+							>
 								<div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
 									<div className="min-w-0 flex items-center gap-3">
 										<Avatar className="size-11 border border-border/60">
