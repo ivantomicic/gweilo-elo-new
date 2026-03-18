@@ -20,6 +20,48 @@ type PlayerStat = {
 };
 
 const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
+const TOP3_CACHE_KEY = "top3players_cache";
+
+type CachedTopPlayers = {
+	players: PlayerStat[];
+	cachedAt: string;
+};
+
+function readCachedTopPlayers() {
+	if (typeof window === "undefined") {
+		return null;
+	}
+
+	try {
+		const raw = window.localStorage.getItem(TOP3_CACHE_KEY);
+		if (!raw) {
+			return null;
+		}
+
+		const parsed = JSON.parse(raw) as CachedTopPlayers;
+		return Array.isArray(parsed.players) ? parsed.players : null;
+	} catch {
+		return null;
+	}
+}
+
+function writeCachedTopPlayers(players: PlayerStat[]) {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	try {
+		window.localStorage.setItem(
+			TOP3_CACHE_KEY,
+			JSON.stringify({
+				players,
+				cachedAt: new Date().toISOString(),
+			} satisfies CachedTopPlayers),
+		);
+	} catch {
+		// Ignore localStorage write failures.
+	}
+}
 
 export function Top3PlayersWidget() {
 	const router = useRouter();
@@ -27,20 +69,28 @@ export function Top3PlayersWidget() {
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
+		let isMounted = true;
+		const cachedTopPlayers = readCachedTopPlayers();
+
+		if (cachedTopPlayers) {
+			setTopPlayers(cachedTopPlayers);
+			setLoading(false);
+		}
+
 		const fetchTopPlayers = async () => {
-			const startTime = performance.now();
 			try {
-				setLoading(true);
+				if (isMounted && !cachedTopPlayers) {
+					setLoading(true);
+				}
 
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
 
-				const authTime = performance.now();
-				console.log(`[Top3Players] Auth check: ${(authTime - startTime).toFixed(0)}ms`);
-
 				if (!session) {
-					setTopPlayers([]);
+					if (isMounted && !cachedTopPlayers) {
+						setTopPlayers([]);
+					}
 					return;
 				}
 
@@ -50,30 +100,36 @@ export function Top3PlayersWidget() {
 					},
 				});
 
-				const fetchTime = performance.now();
-				console.log(`[Top3Players] API fetch: ${(fetchTime - authTime).toFixed(0)}ms`);
-
 				if (!response.ok) {
-					setTopPlayers([]);
+					if (isMounted && !cachedTopPlayers) {
+						setTopPlayers([]);
+					}
 					return;
 				}
 
 				const data = await response.json();
 				// Top 3 players (already sorted by Elo descending from API)
 				const top3 = data.data || [];
-				setTopPlayers(top3);
-
-				const totalTime = performance.now();
-				console.log(`[Top3Players] Total time: ${(totalTime - startTime).toFixed(0)}ms`);
+				writeCachedTopPlayers(top3);
+				if (isMounted) {
+					setTopPlayers(top3);
+				}
 			} catch (error) {
 				console.error("Error fetching top players:", error);
-				setTopPlayers([]);
+				if (isMounted && !cachedTopPlayers) {
+					setTopPlayers([]);
+				}
 			} finally {
-				setLoading(false);
+				if (isMounted) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchTopPlayers();
+		return () => {
+			isMounted = false;
+		};
 	}, []);
 
 	const second = topPlayers[1];
