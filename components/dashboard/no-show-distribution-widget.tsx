@@ -6,11 +6,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
 
 type NoShowEntry = {
 	id: string;
 	date: string;
 	reason: string | null;
+	points: number;
 };
 
 type NoShowUser = {
@@ -18,6 +20,7 @@ type NoShowUser = {
 	name: string;
 	avatar: string | null;
 	noShowCount: number;
+	totalPoints: number;
 	lastNoShowDate: string;
 	entries: NoShowEntry[];
 };
@@ -43,7 +46,7 @@ export function NoShowDistributionWidget({
 	const [selectedEntryByUser, setSelectedEntryByUser] = useState<
 		Record<string, string | null>
 	>({});
-	const maxNoShows = users[0]?.noShowCount ?? 0;
+	const maxPoints = users[0]?.totalPoints ?? 0;
 
 	if (users.length === 0) {
 		return (
@@ -58,9 +61,9 @@ export function NoShowDistributionWidget({
 			<div>
 				{users.map((user, index) => {
 					const relativeWidth =
-						maxNoShows === 0
+						maxPoints === 0
 							? 0
-							: Math.max((user.noShowCount / maxNoShows) * 100, 10);
+							: Math.max((user.totalPoints / maxPoints) * 100, 10);
 					const isLeader = index === 0;
 					const selectedEntry =
 						user.entries.find(
@@ -99,6 +102,10 @@ export function NoShowDistributionWidget({
 
 									<div className="flex min-w-fit items-center gap-2">
 										<Box className="rounded-full bg-background/90 px-3 py-1 text-sm font-semibold text-foreground ring-1 ring-border/50">
+											{formatNoShowPoints(user.totalPoints)}{" "}
+											{t.ispale.points}
+										</Box>
+										<Box className="rounded-full bg-muted/70 px-3 py-1 text-sm font-medium text-muted-foreground ring-1 ring-border/40">
 											{user.noShowCount} {t.ispale.misses}
 										</Box>
 										<Icon
@@ -149,11 +156,20 @@ export function NoShowDistributionWidget({
 									))}
 								</div>
 								{selectedEntry ? (
-									<div className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground">
-										<span className="font-medium">
-											{t.ispale.table.reason}:
-										</span>{" "}
-										{selectedEntry.reason?.trim() || t.ispale.cards.noReason}
+									<div className="mt-3 rounded-xl bg-muted/40 px-3 py-2 text-sm text-foreground space-y-1">
+										<p>
+											<span className="font-medium">
+												{t.ispale.cards.points}:
+											</span>{" "}
+											{formatNoShowPoints(selectedEntry.points)}{" "}
+											{t.ispale.points}
+										</p>
+										<p>
+											<span className="font-medium">
+												{t.ispale.table.reason}:
+											</span>{" "}
+											{selectedEntry.reason?.trim() || t.ispale.cards.noReason}
+										</p>
 									</div>
 								) : null}
 							</div>

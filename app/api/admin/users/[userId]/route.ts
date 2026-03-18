@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import {
-	SESSIONS_PER_WEEK_METADATA_KEY,
+	type SessionsPerWeek,
 	parseSessionsPerWeek,
 } from "@/lib/no-shows/sessions-per-week";
 
@@ -24,7 +24,7 @@ type ValidRole = (typeof VALID_ROLES)[number];
  * - Email → uses Supabase email update (requires confirmation)
  * - Avatar → updates user_metadata.avatar_url (assumes URL is already uploaded)
  * - Role → updates app_metadata.role (admin, mod, user, or guest)
- * - Sessions per week → updates user_metadata.sessions_per_week
+ * - Sessions per week → updates public.player_schedule_settings
  *
  * Limitations:
  * - Email changes require confirmation (Supabase sends confirmation email)
@@ -95,26 +95,15 @@ export async function PATCH(
 		}
 
 		const adminClient = createAdminClient();
+		const needsAuthMetadataUpdate =
+			name !== undefined || avatar !== undefined || role !== undefined;
+		const needsAuthUpdate = needsAuthMetadataUpdate || email !== undefined;
 
-		// Build update payload
-		const updateData: {
-			user_metadata?: Record<string, any>;
-			app_metadata?: Record<string, any>;
-			email?: string;
-		} = {};
-
-		// Get current user once so metadata updates preserve unrelated keys.
-		const needsMetadataUpdate =
-			name !== undefined ||
-			avatar !== undefined ||
-			role !== undefined ||
-			sessionsPerWeek !== undefined;
 		let currentUser: Awaited<
 			ReturnType<typeof adminClient.auth.admin.getUserById>
 		>["data"]["user"] | null = null;
 
-		if (needsMetadataUpdate) {
-			// Get current user to preserve existing metadata
+		if (needsAuthMetadataUpdate || !needsAuthUpdate) {
 			const { data, error: currentUserError } =
 				await adminClient.auth.admin.getUserById(userId);
 			currentUser = data.user;
@@ -127,13 +116,15 @@ export async function PATCH(
 			}
 		}
 
+		// Build update payload
+		const updateData: {
+			user_metadata?: Record<string, any>;
+			app_metadata?: Record<string, any>;
+			email?: string;
+		} = {};
+
 		// Update user_metadata if name or avatar provided
-		if (
-			(name !== undefined ||
-				avatar !== undefined ||
-				sessionsPerWeek !== undefined) &&
-			currentUser
-		) {
+		if ((name !== undefined || avatar !== undefined) && currentUser) {
 			updateData.user_metadata = {
 				...currentUser.user_metadata,
 			};
@@ -145,11 +136,6 @@ export async function PATCH(
 
 			if (avatar !== undefined) {
 				updateData.user_metadata.avatar_url = avatar || null;
-			}
-
-			if (sessionsPerWeek !== undefined) {
-				updateData.user_metadata[SESSIONS_PER_WEEK_METADATA_KEY] =
-					parsedSessionsPerWeek;
 			}
 		}
 
@@ -165,35 +151,103 @@ export async function PATCH(
 			updateData.email = email;
 		}
 
-		// Update user via Admin API
-		const { data, error } = await adminClient.auth.admin.updateUserById(
-			userId,
-			updateData,
-		);
+		let updatedAuthUser = currentUser;
 
-		if (error) {
-			console.error("Error updating user:", error);
+		if (needsAuthUpdate) {
+			const { data, error } = await adminClient.auth.admin.updateUserById(
+				userId,
+				updateData,
+			);
+
+			if (error) {
+				console.error("Error updating user:", error);
+				return NextResponse.json(
+					{ error: error.message || "Failed to update user" },
+					{ status: 400 },
+				);
+			}
+
+			updatedAuthUser = data.user;
+		}
+
+		if (sessionsPerWeek !== undefined) {
+			const scheduleSettingsMutation =
+				parsedSessionsPerWeek === null
+					? adminClient
+							.from("player_schedule_settings")
+							.delete()
+							.eq("user_id", userId)
+					: adminClient.from("player_schedule_settings").upsert(
+							{
+								user_id: userId,
+								sessions_per_week:
+									parsedSessionsPerWeek as SessionsPerWeek,
+							},
+							{ onConflict: "user_id" },
+						);
+
+			const { error: scheduleSettingsError } =
+				await scheduleSettingsMutation;
+
+			if (scheduleSettingsError) {
+				console.error(
+					"Error updating player schedule settings:",
+					scheduleSettingsError,
+				);
+				return NextResponse.json(
+					{ error: "Failed to update player schedule settings" },
+					{ status: 500 },
+				);
+			}
+		}
+
+		if (!updatedAuthUser) {
+			const { data, error: userFetchError } =
+				await adminClient.auth.admin.getUserById(userId);
+			updatedAuthUser = data.user;
+
+			if (userFetchError || !updatedAuthUser) {
+				return NextResponse.json(
+					{ error: userFetchError?.message || "User not found" },
+					{ status: userFetchError ? 400 : 404 },
+				);
+			}
+		}
+
+		const {
+			data: scheduleSettings,
+			error: scheduleSettingsFetchError,
+		} = await adminClient
+			.from("player_schedule_settings")
+			.select("sessions_per_week")
+			.eq("user_id", userId)
+			.maybeSingle();
+
+		if (scheduleSettingsFetchError) {
+			console.error(
+				"Error fetching updated player schedule settings:",
+				scheduleSettingsFetchError,
+			);
 			return NextResponse.json(
-				{ error: error.message || "Failed to update user" },
-				{ status: 400 },
+				{ error: "Failed to fetch updated player schedule settings" },
+				{ status: 500 },
 			);
 		}
 
-		// Format response
 		const updatedUser = {
-			id: data.user.id,
-			email: data.user.email || "",
+			id: updatedAuthUser.id,
+			email: updatedAuthUser.email || "",
 			name:
-				data.user.user_metadata?.display_name ||
-				data.user.user_metadata?.name ||
-				data.user.user_metadata?.full_name ||
-				data.user.email?.split("@")[0] ||
+				updatedAuthUser.user_metadata?.display_name ||
+				updatedAuthUser.user_metadata?.name ||
+				updatedAuthUser.user_metadata?.full_name ||
+				updatedAuthUser.email?.split("@")[0] ||
 				"User",
-			avatar: data.user.user_metadata?.avatar_url || null,
+			avatar: updatedAuthUser.user_metadata?.avatar_url || null,
 			sessionsPerWeek: parseSessionsPerWeek(
-				data.user.user_metadata?.[SESSIONS_PER_WEEK_METADATA_KEY],
+				scheduleSettings?.sessions_per_week,
 			),
-			role: getManagedRoleFromAuthUser(data.user),
+			role: getManagedRoleFromAuthUser(updatedAuthUser),
 		};
 
 		return NextResponse.json({

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyAdmin } from '@/lib/supabase/admin';
+import {
+	DEFAULT_SESSIONS_PER_WEEK,
+	calculateNoShowPoints,
+	parseNoShowPoints,
+	parseSessionsPerWeek,
+} from '@/lib/no-shows/sessions-per-week';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -20,7 +26,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Uses admin client to fetch user info (since regular users can't query auth.users)
  * 
  * Returns:
- * - Array of user objects with no-show counts, last no-show date, and all missed dates with reasons
+ * - Array of user objects with weighted no-show points, raw no-show counts,
+ *   last no-show date, and all missed dates with reasons
  */
 export async function GET(request: NextRequest) {
 	try {
@@ -48,7 +55,7 @@ export async function GET(request: NextRequest) {
 		// Fetch all no-shows from the database (RLS will enforce read permissions)
 		const { data: noShows, error: noShowsError } = await supabase
 			.from('no_shows')
-			.select('id, user_id, date, reason')
+			.select('id, user_id, date, reason, points, sessions_per_week_snapshot')
 			.order('date', { ascending: false });
 
 		if (noShowsError) {
@@ -64,32 +71,48 @@ export async function GET(request: NextRequest) {
 			string,
 			{
 				count: number;
+				totalPoints: number;
 				lastDate: string;
-				entries: Array<{ id: string; date: string; reason: string | null }>;
+				entries: Array<{
+					id: string;
+					date: string;
+					reason: string | null;
+					points: number;
+				}>;
 			}
 		>();
 		
 		for (const noShow of noShows || []) {
+			const resolvedPoints =
+				parseNoShowPoints(noShow.points) ??
+				calculateNoShowPoints(
+					parseSessionsPerWeek(noShow.sessions_per_week_snapshot) ??
+						DEFAULT_SESSIONS_PER_WEEK
+				);
 			const existing = userNoShowsMap.get(noShow.user_id);
 
 			if (existing) {
 				existing.count += 1;
+				existing.totalPoints += resolvedPoints;
 				existing.entries.push({
 					id: noShow.id,
 					date: noShow.date,
 					reason: noShow.reason,
+					points: resolvedPoints,
 				});
 				continue;
 			}
 
 			userNoShowsMap.set(noShow.user_id, {
 				count: 1,
+				totalPoints: resolvedPoints,
 				lastDate: noShow.date, // First date is the most recent (ordered DESC)
 				entries: [
 					{
 						id: noShow.id,
 						date: noShow.date,
 						reason: noShow.reason,
+						points: resolvedPoints,
 					},
 				],
 			});
@@ -125,11 +148,22 @@ export async function GET(request: NextRequest) {
 					name: profile.display_name || 'User',
 					avatar: profile.avatar_url || null,
 					noShowCount: stats.count,
+					totalPoints: Number(stats.totalPoints.toFixed(4)),
 					lastNoShowDate: stats.lastDate,
 					entries: stats.entries,
 				};
 			})
-			.sort((a, b) => b.noShowCount - a.noShowCount); // Sort by count descending
+			.sort((a, b) => {
+				if (b.totalPoints !== a.totalPoints) {
+					return b.totalPoints - a.totalPoints;
+				}
+
+				if (b.noShowCount !== a.noShowCount) {
+					return b.noShowCount - a.noShowCount;
+				}
+
+				return b.lastNoShowDate.localeCompare(a.lastNoShowDate);
+			});
 
 		return NextResponse.json({ users: formattedUsers });
 	} catch (error) {
@@ -209,6 +243,29 @@ export async function POST(request: NextRequest) {
 			},
 		});
 
+		const { data: scheduleSettings, error: scheduleSettingsError } =
+			await supabase
+				.from('player_schedule_settings')
+				.select('sessions_per_week')
+				.eq('user_id', targetUserId)
+				.maybeSingle();
+
+		if (scheduleSettingsError) {
+			console.error(
+				'Error fetching player schedule settings:',
+				scheduleSettingsError
+			);
+			return NextResponse.json(
+				{ error: 'Failed to fetch player schedule settings' },
+				{ status: 500 }
+			);
+		}
+
+		const sessionsPerWeek =
+			parseSessionsPerWeek(scheduleSettings?.sessions_per_week) ??
+			DEFAULT_SESSIONS_PER_WEEK;
+		const points = calculateNoShowPoints(sessionsPerWeek);
+
 		// Insert no-show (RLS policy will verify admin role from JWT)
 		const { data: noShow, error: insertError } = await supabase
 			.from('no_shows')
@@ -216,6 +273,8 @@ export async function POST(request: NextRequest) {
 				user_id: targetUserId,
 				date: date,
 				reason: reason || null,
+				sessions_per_week_snapshot: sessionsPerWeek,
+				points,
 			})
 			.select()
 			.single();

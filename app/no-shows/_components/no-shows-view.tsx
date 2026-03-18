@@ -10,6 +10,7 @@ type NoShowEntry = {
 	id: string;
 	date: string;
 	reason: string | null;
+	points: number;
 };
 
 type NoShowUser = {
@@ -17,6 +18,7 @@ type NoShowUser = {
 	name: string;
 	avatar: string | null;
 	noShowCount: number;
+	totalPoints: number;
 	lastNoShowDate: string;
 	entries: NoShowEntry[];
 };

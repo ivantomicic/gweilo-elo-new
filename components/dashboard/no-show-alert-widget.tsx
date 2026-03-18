@@ -8,12 +8,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { t } from "@/lib/i18n";
+import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
 
 type NoShowUser = {
 	id: string;
 	name: string;
 	avatar: string | null;
 	noShowCount: number;
+	totalPoints: number;
 	lastNoShowDate: string;
 };
 
@@ -62,7 +64,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 
 				const data = await response.json();
 				const users = data.users || [];
-				// Worst offender is the first one (sorted by count descending)
+				// Worst offender is the first one (sorted by weighted points descending)
 				const worst = users[0] || null;
 				setWorstOffender(worst);
 			} catch (error) {
@@ -168,6 +170,8 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 					</p>
 					<p className="text-xs text-muted-foreground text-center">
 						{t.ispale.last}: {formatRelativeTime(worstOffender.lastNoShowDate)} •{" "}
+						{formatNoShowPoints(worstOffender.totalPoints)}{" "}
+						{t.ispale.points} •{" "}
 						{worstOffender.noShowCount}{" "}
 						{worstOffender.noShowCount === 1
 							? t.ispale.miss
