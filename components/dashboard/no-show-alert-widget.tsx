@@ -23,6 +23,57 @@ type NoShowAlertWidgetProps = {
 };
 
 const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
+const NO_SHOW_ALERT_CACHE_KEY = "no_show_alert_cache";
+
+type CachedNoShowAlert = {
+	worstOffender: NoShowUser;
+	cachedAt: string;
+};
+
+function readCachedWorstOffender() {
+	if (typeof window === "undefined") {
+		return null;
+	}
+
+	try {
+		const raw = window.localStorage.getItem(NO_SHOW_ALERT_CACHE_KEY);
+		if (!raw) {
+			return null;
+		}
+
+		const parsed = JSON.parse(raw) as CachedNoShowAlert;
+		if (!parsed.worstOffender || typeof parsed.worstOffender.name !== "string") {
+			return null;
+		}
+
+		return parsed.worstOffender;
+	} catch {
+		return null;
+	}
+}
+
+function writeCachedWorstOffender(worstOffender: NoShowUser | null) {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	try {
+		if (!worstOffender) {
+			window.localStorage.removeItem(NO_SHOW_ALERT_CACHE_KEY);
+			return;
+		}
+
+		window.localStorage.setItem(
+			NO_SHOW_ALERT_CACHE_KEY,
+			JSON.stringify({
+				worstOffender,
+				cachedAt: new Date().toISOString(),
+			} satisfies CachedNoShowAlert)
+		);
+	} catch {
+		// Ignore localStorage write failures.
+	}
+}
 
 export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(
@@ -32,21 +83,35 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 
 	useEffect(() => {
 		if (users !== undefined) {
-			setWorstOffender(users[0] ?? null);
+			const nextWorstOffender = users[0] ?? null;
+			setWorstOffender(nextWorstOffender);
+			writeCachedWorstOffender(nextWorstOffender);
 			setLoading(false);
 			return;
 		}
 
+		let isMounted = true;
+		const cachedWorstOffender = readCachedWorstOffender();
+
+		if (cachedWorstOffender) {
+			setWorstOffender(cachedWorstOffender);
+			setLoading(false);
+		}
+
 		const fetchNoShowStats = async () => {
 			try {
-				setLoading(true);
+				if (isMounted && !cachedWorstOffender) {
+					setLoading(true);
+				}
 
 				const {
 					data: { session },
 				} = await supabase.auth.getSession();
 
 				if (!session) {
-					setWorstOffender(null);
+					if (isMounted && !cachedWorstOffender) {
+						setWorstOffender(null);
+					}
 					return;
 				}
 
@@ -57,7 +122,9 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 				});
 
 				if (!response.ok) {
-					setWorstOffender(null);
+					if (isMounted && !cachedWorstOffender) {
+						setWorstOffender(null);
+					}
 					return;
 				}
 
@@ -65,16 +132,26 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 				const users = data.users || [];
 				// Worst offender is the first one (sorted by weighted points descending)
 				const worst = users[0] || null;
-				setWorstOffender(worst);
+				writeCachedWorstOffender(worst);
+				if (isMounted) {
+					setWorstOffender(worst);
+				}
 			} catch (error) {
 				console.error("Error fetching no-show stats:", error);
-				setWorstOffender(null);
+				if (isMounted && !cachedWorstOffender) {
+					setWorstOffender(null);
+				}
 			} finally {
-				setLoading(false);
+				if (isMounted) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchNoShowStats();
+		return () => {
+			isMounted = false;
+		};
 	}, [users]);
 
 	if (loading) {
