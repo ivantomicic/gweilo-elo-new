@@ -2,6 +2,7 @@
 
 import { Box } from "@/components/ui/box";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
@@ -44,6 +45,14 @@ function formatDate(dateString: string) {
 	return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
 		year: "numeric",
 		month: "long",
+		day: "numeric",
+	});
+}
+
+function formatCompactDate(dateString: string) {
+	return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
+		year: "numeric",
+		month: "short",
 		day: "numeric",
 	});
 }
@@ -96,13 +105,13 @@ export function NoShowDistributionWidget({
 											<p className="truncate text-sm font-semibold sm:text-base">
 												{user.name}
 											</p>
-											<p className="text-xs text-muted-foreground sm:text-sm">
-												{t.ispale.last}: {formatDate(user.lastNoShowDate)}
+											<p className="text-[10px] leading-tight text-muted-foreground/80 sm:text-[11px]">
+												{t.ispale.last}: {formatCompactDate(user.lastNoShowDate)}
 											</p>
 										</div>
 									</div>
 
-									<div className="flex shrink-0 items-center pl-2">
+									<div className="flex shrink-0 items-stretch pl-3">
 										<div className="min-w-[88px] text-right sm:min-w-[96px]">
 											<p className="text-2xl font-black leading-none tracking-tight tabular-nums text-foreground sm:text-3xl">
 												{formatNoShowPoints(user.totalPoints)}
@@ -111,6 +120,13 @@ export function NoShowDistributionWidget({
 												{user.noShowCount} {t.ispale.misses}
 											</p>
 										</div>
+										<Box className="mx-3 w-px self-stretch bg-border/50" />
+										<Box className="flex items-center">
+											<Icon
+												icon="solar:alt-arrow-down-linear"
+												className="size-3.5 text-muted-foreground/80 transition-transform group-open:rotate-180"
+											/>
+										</Box>
 									</div>
 								</div>
 
