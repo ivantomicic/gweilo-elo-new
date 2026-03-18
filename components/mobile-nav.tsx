@@ -5,9 +5,14 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";
-import { getUserRole } from "@/lib/auth/getUserRole";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { t } from "@/lib/i18n";
 
 type NavItem = {
@@ -58,6 +63,8 @@ export function MobileNav() {
 	const pathname = usePathname();
 	const { isAuthenticated } = useAuth();
 	const [isAdmin, setIsAdmin] = useState(false);
+	const [userAvatar, setUserAvatar] = useState<string | null>(null);
+	const [userName, setUserName] = useState("User");
 	const [isIOSSafari26, setIsIOSSafari26] = useState(false);
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
@@ -143,15 +150,19 @@ export function MobileNav() {
 	}, [pathname]);
 
 	useEffect(() => {
-		const checkAdmin = async () => {
+		const loadCurrentUser = async () => {
 			if (!isAuthenticated) {
 				setIsAdmin(false);
+				setUserAvatar(null);
+				setUserName("User");
 				return;
 			}
-			const role = await getUserRole();
-			setIsAdmin(role === "admin");
+			const currentUser = await getCurrentUser();
+			setIsAdmin(currentUser?.role === "admin");
+			setUserAvatar(currentUser?.avatar ?? null);
+			setUserName(currentUser?.name ?? "User");
 		};
-		checkAdmin();
+		loadCurrentUser();
 	}, [isAuthenticated]);
 
 	// Don't render navigation if not authenticated
@@ -385,14 +396,21 @@ export function MobileNav() {
 									}}
 								/>
 							)}
-							<Icon
-								icon="solar:menu-dots-bold"
-								className={`size-6 mb-0.5 transition-colors duration-200 ${
+							<Avatar
+								className={`size-6 mb-0.5 border transition-colors duration-200 ${
 									hasActiveInMore || isMoreOpen
-										? "text-primary"
-										: "text-muted-foreground group-hover:text-foreground"
+										? "border-primary/50"
+										: "border-border/60"
 								}`}
-							/>
+							>
+								<AvatarImage
+									src={userAvatar || undefined}
+									alt={userName}
+								/>
+								<AvatarFallback className="bg-muted text-[10px] font-semibold">
+									{userName.charAt(0).toUpperCase()}
+								</AvatarFallback>
+							</Avatar>
 							<span
 								className={`text-[9px] transition-colors duration-200 ${
 									hasActiveInMore || isMoreOpen
