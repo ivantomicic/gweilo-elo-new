@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Box } from "@/components/ui/box";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
@@ -29,8 +28,18 @@ type NoShowDistributionWidgetProps = {
 	users: NoShowUser[];
 };
 
-const CHART_GRADIENT =
-	"linear-gradient(90deg, hsl(var(--primary)), hsl(var(--chart-1)), hsl(var(--chart-2)))";
+const BAR_GRADIENTS = [
+	"linear-gradient(90deg, hsl(var(--destructive)), hsl(0 66% 34%))",
+	"linear-gradient(90deg, hsl(var(--chart-1)), hsl(221 72% 38%))",
+	"linear-gradient(90deg, hsl(var(--chart-2)), hsl(160 61% 30%))",
+	"linear-gradient(90deg, hsl(var(--chart-3)), hsl(27 74% 38%))",
+	"linear-gradient(90deg, hsl(var(--chart-4)), hsl(278 57% 40%))",
+	"linear-gradient(90deg, hsl(var(--chart-5)), hsl(338 63% 39%))",
+	"linear-gradient(90deg, hsl(188 78% 46%), hsl(196 72% 32%))",
+	"linear-gradient(90deg, hsl(86 70% 46%), hsl(95 64% 30%))",
+	"linear-gradient(90deg, hsl(14 82% 58%), hsl(9 72% 37%))",
+	"linear-gradient(90deg, hsl(48 94% 55%), hsl(39 88% 36%))",
+];
 
 function formatDate(dateString: string) {
 	return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
@@ -57,13 +66,14 @@ export function NoShowDistributionWidget({
 	}
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6">
+		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm px-6 py-4">
 			<div>
 				{users.map((user, index) => {
 					const relativeWidth =
 						maxPoints === 0
 							? 0
 							: Math.max((user.totalPoints / maxPoints) * 100, 10);
+					const barGradient = BAR_GRADIENTS[index % BAR_GRADIENTS.length];
 					const isLeader = index === 0;
 					const selectedEntry =
 						user.entries.find(
@@ -79,7 +89,7 @@ export function NoShowDistributionWidget({
 							)}
 						>
 							<summary className="cursor-pointer list-none py-4 [&::-webkit-details-marker]:hidden">
-								<div className="flex flex-wrap items-start justify-between gap-3">
+								<div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
 									<div className="min-w-0 flex items-center gap-3">
 										<Avatar className="size-11 border border-border/60">
 											<AvatarImage
@@ -100,27 +110,24 @@ export function NoShowDistributionWidget({
 										</div>
 									</div>
 
-									<div className="flex min-w-fit items-center gap-2">
-										<Box className="rounded-full bg-background/90 px-3 py-1 text-sm font-semibold text-foreground ring-1 ring-border/50">
-											{formatNoShowPoints(user.totalPoints)}{" "}
-											{t.ispale.points}
-										</Box>
-										<Box className="rounded-full bg-muted/70 px-3 py-1 text-sm font-medium text-muted-foreground ring-1 ring-border/40">
-											{user.noShowCount} {t.ispale.misses}
-										</Box>
-										<Icon
-											icon="solar:alt-arrow-down-linear"
-											className="size-4 text-muted-foreground transition-transform group-open:rotate-180"
-										/>
+									<div className="flex shrink-0 items-center pl-2">
+										<div className="min-w-[88px] text-right sm:min-w-[96px]">
+											<p className="text-2xl font-black leading-none tracking-tight tabular-nums text-foreground sm:text-3xl">
+												{formatNoShowPoints(user.totalPoints)}
+											</p>
+											<p className="mt-1 text-[11px] text-muted-foreground">
+												{user.noShowCount} {t.ispale.misses}
+											</p>
+										</div>
 									</div>
 								</div>
 
-								<div className="mt-3 h-2.5 overflow-hidden rounded-full bg-muted">
+								<div className="mt-3 h-2.5 rounded-full">
 									<div
 										className="h-full rounded-full"
 										style={{
 											width: `${relativeWidth}%`,
-											background: CHART_GRADIENT,
+											background: barGradient,
 										}}
 									/>
 								</div>
