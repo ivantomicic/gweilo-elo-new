@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient, verifyModOrAdmin } from "@/lib/supabase/admin";
+import {
+	createAdminClient,
+	listAllAuthUsers,
+	verifyModOrAdmin,
+} from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { getAuthToken } from "../../_utils/auth";
 import { parseSessionsPerWeek } from "@/lib/no-shows/sessions-per-week";
@@ -42,26 +46,13 @@ export async function GET(request: NextRequest) {
 		// Create admin client to fetch all users
 		const adminClient = createAdminClient();
 
-		const [
-			{
-				data: { users },
-				error: usersError,
-			},
-			{ data: scheduleSettings, error: scheduleSettingsError },
-		] = await Promise.all([
-			adminClient.auth.admin.listUsers(),
-			adminClient
-				.from("player_schedule_settings")
-				.select("user_id, sessions_per_week"),
-		]);
-
-		if (usersError) {
-			console.error("Error fetching users:", usersError);
-			return NextResponse.json(
-				{ error: "Failed to fetch users" },
-				{ status: 500 },
-			);
-		}
+		const [users, { data: scheduleSettings, error: scheduleSettingsError }] =
+			await Promise.all([
+				listAllAuthUsers(adminClient),
+				adminClient
+					.from("player_schedule_settings")
+					.select("user_id, sessions_per_week"),
+			]);
 
 		if (scheduleSettingsError) {
 			console.error(

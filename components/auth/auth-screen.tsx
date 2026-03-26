@@ -10,7 +10,6 @@ import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
-import { trackEvent } from "@/lib/analytics/track-client";
 
 /**
  * AuthScreen component
@@ -65,12 +64,6 @@ export function AuthScreen() {
 				}
 			} else {
 				setAuthState("idle");
-				// Track user login (fire-and-forget, non-blocking)
-				if (data?.user?.id) {
-					trackEvent("user_logged_in").catch((err) =>
-						console.error("[Analytics] Failed to track login", err)
-					);
-				}
 				// On success, parent component will detect auth change and render dashboard
 			}
 		} catch (err) {

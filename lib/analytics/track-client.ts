@@ -1,6 +1,36 @@
 "use client";
 
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+type TrackEventOptions = {
+	page?: string;
+	player_id?: string;
+	userId?: string | null;
+	accessToken?: string | null;
+};
+
+function getTrackingClient(accessToken?: string | null): SupabaseClient {
+	if (!accessToken || !supabaseUrl || !supabaseAnonKey) {
+		return supabase;
+	}
+
+	return createClient(supabaseUrl, supabaseAnonKey, {
+		global: {
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+			},
+		},
+		auth: {
+			autoRefreshToken: false,
+			persistSession: false,
+			detectSessionInUrl: false,
+		},
+	});
+}
 
 /**
  * Track a client-side event to Supabase analytics_events table
@@ -17,24 +47,28 @@ import { supabase } from "@/lib/supabase/client";
  */
 export async function trackEvent(
 	eventName: string,
-	properties?: { page?: string; player_id?: string }
+	options?: TrackEventOptions,
 ): Promise<void> {
 	try {
-		// Get current user ID (if authenticated)
-		const {
-			data: { session },
-		} = await supabase.auth.getSession();
+		const trackingClient = getTrackingClient(options?.accessToken);
+		let userId = options?.userId ?? null;
 
-		const userId = session?.user?.id || null;
+		if (userId === null && !options?.accessToken) {
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			userId = session?.user?.id || null;
+		}
 
 		// For player_viewed events, store player_id in the page field
 		// This allows us to extract it later for display
-		const pageValue = properties?.player_id 
-			? `/player/${properties.player_id}` 
-			: properties?.page || null;
+		const pageValue = options?.player_id
+			? `/player/${options.player_id}`
+			: options?.page || null;
 
 		// Insert event (fire-and-forget, non-blocking)
-		await supabase.from("analytics_events").insert({
+		await trackingClient.from("analytics_events").insert({
 			user_id: userId,
 			event_name: eventName,
 			page: pageValue,

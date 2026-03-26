@@ -1,6 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getUserRoleFromAuthUser, type UserRole } from "@/lib/auth/roles";
 export type { UserRole } from "@/lib/auth/roles";
+
+export type AuthAdminUser = {
+	id: string;
+	email?: string;
+	created_at?: string;
+	user_metadata?: Record<string, unknown>;
+	app_metadata?: Record<string, unknown>;
+};
 
 /**
  * Create Supabase admin client with service role key
@@ -24,6 +32,38 @@ export function createAdminClient() {
 			persistSession: false,
 		},
 	});
+}
+
+export async function listAllAuthUsers(
+	adminClient: SupabaseClient,
+	perPage = 200,
+): Promise<AuthAdminUser[]> {
+	const allUsers: AuthAdminUser[] = [];
+	let page = 1;
+
+	while (true) {
+		const { data, error } = await adminClient.auth.admin.listUsers({
+			page,
+			perPage,
+		});
+
+		if (error) {
+			throw new Error(`Failed to fetch auth users: ${error.message}`);
+		}
+
+		const users = data.users || [];
+		const nextPage = "nextPage" in data ? data.nextPage : null;
+		const currentUsers = (users || []) as AuthAdminUser[];
+		allUsers.push(...currentUsers);
+
+		if (!nextPage || currentUsers.length === 0) {
+			break;
+		}
+
+		page = nextPage;
+	}
+
+	return allUsers;
 }
 
 /**

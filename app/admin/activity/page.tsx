@@ -70,6 +70,9 @@ type UserOption = {
 	email: string;
 	name: string;
 	avatar: string | null;
+	kind: "user" | "special";
+	includeNullUserId?: boolean;
+	resolvedUserIds?: string[];
 };
 
 type ActivityFilters = {
@@ -102,6 +105,7 @@ type TimelineUserGroup = {
 };
 
 const SESSION_GAP_MS = 30 * 60 * 1000;
+const ANONYMOUS_UNKNOWN_FILTER_ID = "__anonymous_unknown__";
 
 const STATIC_PAGE_LABELS: Record<string, string> = {
 	"/": "Home",
@@ -195,7 +199,12 @@ const getInitials = (name: string): string =>
 const getDefaultSelectedUserIds = (
 	users: UserOption[],
 	currentUserId: string | null,
-): string[] => users.filter((user) => user.id !== currentUserId).map((user) => user.id);
+): string[] =>
+	users
+		.filter(
+			(user) => user.kind === "special" || user.id !== currentUserId,
+		)
+		.map((user) => user.id);
 
 const haveSameItems = (a: string[], b: string[]): boolean => {
 	if (a.length !== b.length) {
@@ -250,32 +259,17 @@ function AdminActivityPageContent() {
 
 				setCurrentUserId(session.user.id);
 
-				// Get unique user IDs from analytics_events
-				const { data: uniqueUserIds, error: uniqueError } =
+				const { count: anonymousEventCount, error: anonymousError } =
 					await supabase
 						.from("analytics_events")
-						.select("user_id")
-						.not("user_id", "is", null);
+						.select("id", { count: "exact", head: true })
+						.is("user_id", null);
 
-					if (uniqueError) {
-						console.error(
-							"Error fetching unique user IDs:",
-							uniqueError,
-						);
-						setUsers([]);
-						setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
-						return;
-					}
-
-				const userIds = [
-					...new Set(
-						(uniqueUserIds || [])
-							.map((e) => e.user_id)
-							.filter(Boolean),
-					),
-				] as string[];
-
-				if (userIds.length === 0) {
+				if (anonymousError) {
+					console.error(
+						"Error fetching anonymous activity count:",
+						anonymousError,
+					);
 					setUsers([]);
 					setFilters((prev) => ({ ...prev, selectedUserIds: [] }));
 					return;
@@ -295,27 +289,42 @@ function AdminActivityPageContent() {
 				}
 
 				const { users: allUsers } = await usersResponse.json();
-				// Filter to only users that have events
-					const usersWithEvents = allUsers
-						.filter((u: UserOption) => userIds.includes(u.id))
-						.map((u: UserOption) => ({
-							id: u.id,
-							email: u.email,
-							name: u.name,
-							avatar: u.avatar ?? null,
-						}))
-						.sort((a: UserOption, b: UserOption) =>
-							a.name.localeCompare(b.name),
-						);
+				const usersWithEvents = (allUsers as UserOption[])
+					.map((u: UserOption) => ({
+						id: u.id,
+						email: u.email,
+						name: u.name,
+						avatar: u.avatar ?? null,
+						kind: "user" as const,
+					}))
+					.sort((a: UserOption, b: UserOption) =>
+						a.name.localeCompare(b.name),
+					);
 
-					setUsers(usersWithEvents);
-					setFilters((prev) => ({
-						...prev,
-						selectedUserIds: getDefaultSelectedUserIds(
-							usersWithEvents,
-							session.user.id,
-						),
-					}));
+				const usersWithAnonymousBucket =
+					(anonymousEventCount || 0) > 0
+						? [
+								...usersWithEvents,
+								{
+									id: ANONYMOUS_UNKNOWN_FILTER_ID,
+									email: "",
+									name: "Anonymous / Unknown",
+									avatar: null,
+									kind: "special" as const,
+									includeNullUserId: true,
+									resolvedUserIds: [],
+								},
+							]
+						: usersWithEvents;
+
+				setUsers(usersWithAnonymousBucket);
+				setFilters((prev) => ({
+					...prev,
+					selectedUserIds: getDefaultSelectedUserIds(
+						usersWithAnonymousBucket,
+						session.user.id,
+					),
+				}));
 			} catch (error) {
 				console.error("Error fetching users:", error);
 				setUsers([]);
@@ -367,7 +376,41 @@ function AdminActivityPageContent() {
 						}
 
 					if (filters.selectedUserIds.length < users.length) {
-						query = query.in("user_id", filters.selectedUserIds);
+						const selectedOptions = users.filter((user) =>
+							filters.selectedUserIds.includes(user.id),
+						);
+						const selectedDatabaseUserIds = [
+							...new Set(
+								selectedOptions.flatMap((user) =>
+									user.kind === "special"
+										? user.resolvedUserIds || []
+										: [user.id],
+								),
+							),
+						];
+						const includeNullUserIds = selectedOptions.some(
+							(user) => user.includeNullUserId,
+						);
+						const userClauses: string[] = [];
+
+						if (selectedDatabaseUserIds.length > 0) {
+							userClauses.push(
+								`user_id.in.(${selectedDatabaseUserIds.join(",")})`,
+							);
+						}
+
+						if (includeNullUserIds) {
+							userClauses.push("user_id.is.null");
+						}
+
+						if (userClauses.length === 0) {
+							setEvents([]);
+							setTotalCount(0);
+							setSessionLabelMap({});
+							return;
+						}
+
+						query = query.or(userClauses.join(","));
 					}
 				}
 				if (filters.eventName) {
@@ -691,7 +734,11 @@ function AdminActivityPageContent() {
 		: users.length === 0
 			? "No filters available."
 			: activeFilterCount === 0
-				? "Default filters: all users except you."
+				? users.some(
+						(user) => user.id === ANONYMOUS_UNKNOWN_FILTER_ID,
+					)
+					? "Default filters: all users except you, plus anonymous/unknown."
+					: "Default filters: all users except you."
 				: `${activeFilterCount} active filter${
 					activeFilterCount === 1 ? "" : "s"
 				}.`;
@@ -1316,7 +1363,7 @@ function AdminActivityPageContent() {
 																	No users with activity yet.
 																</div>
 															) : (
-																<div className="max-h-72 overflow-y-auto py-1">
+												<div className="max-h-72 overflow-y-auto py-1">
 																	{users.map((user) => (
 																		<DropdownMenuCheckboxItem
 																			key={user.id}
@@ -1336,10 +1383,16 @@ function AdminActivityPageContent() {
 																			<div className="flex min-w-0 flex-col">
 																				<span className="truncate">
 																					{user.name}
-																					{user.id === currentUserId
+																					{user.kind === "user" &&
+																					user.id === currentUserId
 																						? " (you)"
 																						: ""}
 																				</span>
+																				{user.kind === "special" ? (
+																					<span className="text-xs text-muted-foreground">
+																						Older events without a resolved user.
+																					</span>
+																				) : null}
 																			</div>
 																		</DropdownMenuCheckboxItem>
 																	))}

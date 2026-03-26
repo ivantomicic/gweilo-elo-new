@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+	createAdminClient,
+	listAllAuthUsers,
+	type AuthAdminUser,
+} from "@/lib/supabase/admin";
 import { RIVALRY_CONFIG, getBasePriority } from "@/lib/rivalries/config";
 import type {
 	GeneratedMission,
@@ -13,13 +17,6 @@ import type {
 	MissionType,
 	PlayerTier,
 } from "@/lib/rivalries/types";
-
-type AuthUserRecord = {
-	id: string;
-	email?: string;
-	user_metadata?: Record<string, unknown>;
-	app_metadata?: Record<string, unknown>;
-};
 
 type ProfileRecord = {
 	id: string;
@@ -129,7 +126,7 @@ function toNumber(value: unknown, fallback = 0): number {
 	return fallback;
 }
 
-function getUserRole(user: AuthUserRecord): string {
+function getUserRole(user: AuthAdminUser): string {
 	return getManagedRoleFromAuthUser(user);
 }
 
@@ -248,18 +245,10 @@ function candidateToMission(candidate: MissionCandidate): GeneratedMission {
 }
 
 async function listEligiblePlayers(adminClient: SupabaseClient) {
-	const {
-		data: { users },
-		error: usersError,
-	} = await adminClient.auth.admin.listUsers();
-
-	if (usersError) {
-		throw new Error(`Failed to fetch auth users: ${usersError.message}`);
-	}
+	const users = await listAllAuthUsers(adminClient);
 
 	const eligibleUsers = (users || [])
-		.filter((user) => getUserRole(user as AuthUserRecord) !== "guest")
-		.map((user) => user as AuthUserRecord);
+		.filter((user) => getUserRole(user) !== "guest");
 
 	const playerIds = eligibleUsers.map((user) => user.id);
 	if (playerIds.length === 0) {
