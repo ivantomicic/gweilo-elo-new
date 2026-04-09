@@ -116,6 +116,18 @@ export const sr = {
 			fetchFailed: "Greška pri učitavanju statistike",
 		},
 	},
+	teamPage: {
+		loading: "Učitavanje tima...",
+		notEnoughData: "Nema dovoljno mečeva za prikaz grafikona.",
+		stats: {
+			overview: "Pregled tima",
+			sets: "Setovi",
+		},
+		error: {
+			notFound: "Tim nije pronađen",
+			fetchFailed: "Greška pri učitavanju tima",
+		},
+	},
 	performanceTrend: {
 		title: "Istorija",
 		loading: "Učitavanje...",

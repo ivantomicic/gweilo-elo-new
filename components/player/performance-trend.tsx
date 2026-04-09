@@ -32,6 +32,11 @@ type PerformanceTrendProps = {
 	playerId?: string;
 	secondaryPlayerId?: string;
 	primaryPlayerName?: string;
+	historyUrl?: string;
+	secondaryHistoryUrl?: string;
+	primaryCacheKey?: string;
+	secondaryCacheKey?: string;
+	emptyStateLabel?: string;
 };
 
 type CombinedDataPoint = {
@@ -45,7 +50,16 @@ type CombinedDataPoint = {
 
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerName: primaryPlayerNameProp }: PerformanceTrendProps) {
+export function PerformanceTrend({
+	playerId,
+	secondaryPlayerId,
+	primaryPlayerName: primaryPlayerNameProp,
+	historyUrl,
+	secondaryHistoryUrl,
+	primaryCacheKey,
+	secondaryCacheKey,
+	emptyStateLabel,
+}: PerformanceTrendProps) {
 	const [eloHistory, setEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [secondaryEloHistory, setSecondaryEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [currentElo, setCurrentElo] = useState<number>(1500);
@@ -102,15 +116,27 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 				}
 
 				// Cache keys based on player IDs
-				const primaryCacheKey = playerId
-					? `elo_history_${playerId}`
-					: `elo_history_${session.user.id}`;
-				const secondaryCacheKey = secondaryPlayerId
-					? `elo_history_${secondaryPlayerId}`
+				const resolvedPrimaryCacheKey =
+					primaryCacheKey ||
+					(playerId
+						? `elo_history_${playerId}`
+						: `elo_history_${session.user.id}`);
+				const resolvedSecondaryCacheKey = secondaryPlayerId
+					? secondaryCacheKey || `elo_history_${secondaryPlayerId}`
 					: null;
+				const primaryUrl =
+					historyUrl ||
+					(playerId
+						? `/api/player/elo-history?playerId=${encodeURIComponent(playerId)}`
+						: "/api/player/elo-history");
+				const resolvedSecondaryHistoryUrl =
+					secondaryHistoryUrl ||
+					(secondaryPlayerId
+						? `/api/player/elo-history?playerId=${encodeURIComponent(secondaryPlayerId)}`
+						: null);
 
 				// Try to get primary player data from cache
-				const primaryCachedData = localStorage.getItem(primaryCacheKey);
+				const primaryCachedData = localStorage.getItem(resolvedPrimaryCacheKey);
 				if (primaryCachedData) {
 					try {
 						const { data, currentElo: cachedElo, timestamp } = JSON.parse(primaryCachedData);
@@ -125,10 +151,6 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 						}
 					} catch (e) {
 						// Invalid cache or expired, fetch fresh data
-						const primaryUrl = playerId
-							? `/api/player/elo-history?playerId=${encodeURIComponent(playerId)}`
-							: "/api/player/elo-history";
-
 						const primaryResponse = await fetch(primaryUrl, {
 							headers: {
 								Authorization: `Bearer ${session.access_token}`,
@@ -142,7 +164,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 
 							// Cache the data
 							localStorage.setItem(
-								primaryCacheKey,
+								resolvedPrimaryCacheKey,
 								JSON.stringify({
 									data: primaryData.data || [],
 									currentElo: primaryData.currentElo || 1500,
@@ -155,10 +177,6 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 					}
 				} else {
 					// No cache, fetch fresh data
-					const primaryUrl = playerId
-						? `/api/player/elo-history?playerId=${encodeURIComponent(playerId)}`
-						: "/api/player/elo-history";
-
 					const primaryResponse = await fetch(primaryUrl, {
 						headers: {
 							Authorization: `Bearer ${session.access_token}`,
@@ -172,7 +190,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 
 						// Cache the data
 						localStorage.setItem(
-							primaryCacheKey,
+							resolvedPrimaryCacheKey,
 							JSON.stringify({
 								data: primaryData.data || [],
 								currentElo: primaryData.currentElo || 1500,
@@ -185,9 +203,15 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 				}
 
 				// Fetch secondary player history if provided
-				if (secondaryPlayerId && secondaryCacheKey) {
+				if (
+					secondaryPlayerId &&
+					resolvedSecondaryCacheKey &&
+					resolvedSecondaryHistoryUrl
+				) {
 					// Try to get secondary player data from cache
-					const secondaryCachedData = localStorage.getItem(secondaryCacheKey);
+					const secondaryCachedData = localStorage.getItem(
+						resolvedSecondaryCacheKey
+					);
 					if (secondaryCachedData) {
 						try {
 							const { data, currentElo: cachedElo, timestamp } = JSON.parse(secondaryCachedData);
@@ -202,8 +226,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 							}
 						} catch (e) {
 							// Invalid cache or expired, fetch fresh data
-							const secondaryUrl = `/api/player/elo-history?playerId=${encodeURIComponent(secondaryPlayerId)}`;
-							const secondaryResponse = await fetch(secondaryUrl, {
+							const secondaryResponse = await fetch(resolvedSecondaryHistoryUrl, {
 								headers: {
 									Authorization: `Bearer ${session.access_token}`,
 								},
@@ -216,7 +239,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 
 								// Cache the data
 								localStorage.setItem(
-									secondaryCacheKey,
+									resolvedSecondaryCacheKey,
 									JSON.stringify({
 										data: secondaryData.data || [],
 										currentElo: secondaryData.currentElo || 1500,
@@ -229,8 +252,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 						}
 					} else {
 						// No cache, fetch fresh data
-						const secondaryUrl = `/api/player/elo-history?playerId=${encodeURIComponent(secondaryPlayerId)}`;
-						const secondaryResponse = await fetch(secondaryUrl, {
+						const secondaryResponse = await fetch(resolvedSecondaryHistoryUrl, {
 							headers: {
 								Authorization: `Bearer ${session.access_token}`,
 							},
@@ -243,7 +265,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 
 							// Cache the data
 							localStorage.setItem(
-								secondaryCacheKey,
+								resolvedSecondaryCacheKey,
 								JSON.stringify({
 									data: secondaryData.data || [],
 									currentElo: secondaryData.currentElo || 1500,
@@ -267,7 +289,15 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 		};
 
 		fetchEloHistory();
-	}, [playerId, secondaryPlayerId, primaryPlayerNameProp]);
+	}, [
+		playerId,
+		secondaryPlayerId,
+		primaryPlayerNameProp,
+		historyUrl,
+		secondaryHistoryUrl,
+		primaryCacheKey,
+		secondaryCacheKey,
+	]);
 
 	// Check scroll position to show/hide fade masks
 	const checkScrollPosition = () => {
@@ -312,7 +342,7 @@ export function PerformanceTrend({ playerId, secondaryPlayerId, primaryPlayerNam
 		return (
 			<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[300px] flex items-center justify-center">
 				<p className="text-muted-foreground text-center">
-					Not enough match data to display chart
+					{emptyStateLabel || "Not enough match data to display chart"}
 				</p>
 			</Box>
 		);

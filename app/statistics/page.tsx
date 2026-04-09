@@ -117,6 +117,11 @@ function StatisticsPageContent() {
 		router.push(`/player/${playerId}`);
 	};
 
+	const handleTeamClick = (teamId: string) => {
+		void trigger();
+		window.location.assign(`/team/${teamId}`);
+	};
+
 	const [statistics, setStatistics] = useState<StatisticsData>({
 		singles: [],
 		doublesPlayers: [],
@@ -486,56 +491,65 @@ function StatisticsPageContent() {
 																		</TableCell>
 																		<TableCell>
 																			<div className="flex items-center gap-3">
-																				<TeamNameCard
-																					player1={{
-																						name: team
-																							.player1
-																							.display_name,
-																						avatar: team
-																							.player1
-																							.avatar,
-																						id: team
-																							.player1
-																							.id,
-																					}}
-																					player2={{
-																						name: team
-																							.player2
-																							.display_name,
-																						avatar: team
-																							.player2
-																							.avatar,
-																						id: team
-																							.player2
-																							.id,
-																					}}
-																					size="md"
-																					addon={
-																						<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-																							<span className="text-emerald-500">
-																								{
-																									team.wins
-																								}
-																							</span>
-																							{
-																								" / "
-																							}
-																							<span className="text-red-500">
-																								{
-																									team.losses
-																								}
-																							</span>
-																							{
-																								" / "
-																							}
-																							<span className="text-muted-foreground">
-																								{
-																									team.draws
-																								}
-																							</span>
-																						</span>
+																				<Box
+																					onClick={() =>
+																						handleTeamClick(
+																							team.team_id
+																						)
 																					}
-																				/>
+																					className="cursor-pointer hover:opacity-80 transition-opacity"
+																				>
+																					<TeamNameCard
+																						player1={{
+																							name: team
+																								.player1
+																								.display_name,
+																							avatar: team
+																								.player1
+																								.avatar,
+																							id: team
+																								.player1
+																								.id,
+																						}}
+																						player2={{
+																							name: team
+																								.player2
+																								.display_name,
+																							avatar: team
+																								.player2
+																								.avatar,
+																							id: team
+																								.player2
+																								.id,
+																						}}
+																						size="md"
+																						addon={
+																							<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
+																								<span className="text-emerald-500">
+																									{
+																										team.wins
+																									}
+																								</span>
+																								{
+																									" / "
+																								}
+																								<span className="text-red-500">
+																									{
+																										team.losses
+																									}
+																								</span>
+																								{
+																									" / "
+																								}
+																								<span className="text-muted-foreground">
+																									{
+																										team.draws
+																									}
+																								</span>
+																							</span>
+																						}
+																					/>
+																				</Box>
 																				{team.rank_movement !==
 																					undefined &&
 																					team.rank_movement !==
