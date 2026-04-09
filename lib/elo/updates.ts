@@ -1,6 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { normalizePlayerPair, getOrCreateDoubleTeam } from "./double-teams";
-import { calculateEloDelta, type MatchResult } from "./calculation";
+import {
+	calculateDoublesPlayerDeltas,
+	calculateEloDelta,
+	type MatchResult,
+} from "./calculation";
 
 /**
  * Update player ratings for a singles match
@@ -121,7 +125,7 @@ export async function updateSinglesRatings(
  *    - Expected score: average(player1_doubles_elo, player2_doubles_elo) vs average(player3_doubles_elo, player4_doubles_elo)
  *    - K-factor: Based on average of the two players' match counts
  *    - Delta: Calculated from player-average expected score
- *    - Both players on the same team receive the same delta
+ *    - This delta is independent from the team delta in double_team_ratings
  *
  * These systems are completely independent - changes to one do not affect the other.
  *
@@ -294,13 +298,7 @@ export async function updateDoublesRatings(
 	const player3DoublesElo = player3DoublesRating?.elo ?? 1500;
 	const player4DoublesElo = player4DoublesRating?.elo ?? 1500;
 
-	// Calculate team averages from player doubles Elo
-	// This is used for expected score calculation (NOT team Elo)
-	const team1PlayerAverageElo = (player1DoublesElo + player2DoublesElo) / 2;
-	const team2PlayerAverageElo = (player3DoublesElo + player4DoublesElo) / 2;
-
 	// Get player doubles match counts for K-factor calculation
-	// Each player uses their own match count for K-factor
 	const player1DoublesMatchCount =
 		(player1DoublesRating?.wins ?? 0) +
 		(player1DoublesRating?.losses ?? 0) +
@@ -318,6 +316,27 @@ export async function updateDoublesRatings(
 		(player4DoublesRating?.losses ?? 0) +
 		(player4DoublesRating?.draws ?? 0);
 
+	const doublesPlayerDeltaResult = calculateDoublesPlayerDeltas(
+		[
+			{ elo: player1DoublesElo, matchCount: player1DoublesMatchCount },
+			{ elo: player2DoublesElo, matchCount: player2DoublesMatchCount },
+		],
+		[
+			{ elo: player3DoublesElo, matchCount: player3DoublesMatchCount },
+			{ elo: player4DoublesElo, matchCount: player4DoublesMatchCount },
+		],
+		team1Result as MatchResult
+	);
+
+	const {
+		team1AverageElo: team1PlayerAverageElo,
+		team2AverageElo: team2PlayerAverageElo,
+		team1AverageMatchCount: team1PlayerAverageMatchCount,
+		team2AverageMatchCount: team2PlayerAverageMatchCount,
+		team1Delta: playerDoublesTeam1Delta,
+		team2Delta: playerDoublesTeam2Delta,
+	} = doublesPlayerDeltaResult;
+
 	// Log player doubles expectation input source
 	console.log(
 		JSON.stringify({
@@ -330,28 +349,6 @@ export async function updateDoublesRatings(
 			team2_average_elo: team2PlayerAverageElo,
 			source: "player_double_ratings.elo (averaged)",
 		})
-	);
-
-	// Calculate player doubles Elo deltas using player-average expected score
-	// Both players on the same team receive the same delta
-	// K-factor is calculated using the average of the two players' match counts
-	// (This ensures consistent delta application while respecting individual player experience)
-	const team1PlayerAverageMatchCount =
-		(player1DoublesMatchCount + player2DoublesMatchCount) / 2;
-	const team2PlayerAverageMatchCount =
-		(player3DoublesMatchCount + player4DoublesMatchCount) / 2;
-
-	const playerDoublesTeam1Delta = calculateEloDelta(
-		team1PlayerAverageElo,
-		team2PlayerAverageElo,
-		team1Result as MatchResult,
-		team1PlayerAverageMatchCount
-	);
-	const playerDoublesTeam2Delta = calculateEloDelta(
-		team2PlayerAverageElo,
-		team1PlayerAverageElo,
-		team2Result as MatchResult,
-		team2PlayerAverageMatchCount
 	);
 
 	// Log player doubles Elo calculation
@@ -488,10 +485,7 @@ export async function updateDoublesRatings(
 
 	// Update individual player double ratings
 	// CRITICAL: This uses player-average expected score delta, NOT team delta
-	// Both players on the same team receive the same delta (calculated from player averages)
-	// This ensures player_double_ratings represents partner-independent skill
-
-	// Team 1 players - use player doubles delta (both get same delta)
+	// Team 1 players use the player_double_ratings delta derived from team-average player Elo
 	const { error: team1Player1Error } = await supabase.rpc(
 		"upsert_player_double_rating",
 		{
@@ -538,7 +532,7 @@ export async function updateDoublesRatings(
 		);
 	}
 
-	// Team 2 players - use player doubles delta (both get same delta)
+	// Team 2 players use the player_double_ratings delta derived from team-average player Elo
 	const { error: team2Player1Error } = await supabase.rpc(
 		"upsert_player_double_rating",
 		{

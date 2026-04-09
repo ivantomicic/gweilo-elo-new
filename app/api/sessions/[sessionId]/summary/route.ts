@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { replayDoublesPlayerMatches } from "@/lib/elo/session-baseline";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -145,7 +146,7 @@ async function loadSnapshots(
 /**
  * GET /api/sessions/[sessionId]/summary?type=singles|doubles_player|doubles_team
  *
- * Get session-only summary statistics using snapshot + aggregation (NO REPLAY)
+ * Get session-only summary statistics.
  *
  * Query params:
  * - type (optional): "singles" | "doubles_player" | "doubles_team"
@@ -153,7 +154,7 @@ async function loadSnapshots(
  *
  * Returns:
  * - singles: Player summary for singles matches only
- * - doubles_player: Player summary for player_double_ratings (doubles matches)
+ * - doubles_player: Player summary for player_double_ratings (replayed from player-doubles baseline)
  * - doubles_team: Team summary for double_team_ratings
  */
 export async function GET(
@@ -507,7 +508,7 @@ export async function GET(
 			}
 		}
 
-		// 2. DOUBLES PLAYER SUMMARY - Using snapshot + aggregation (NO REPLAY)
+		// 2. DOUBLES PLAYER SUMMARY - Replayed from player_double_ratings baseline
 		if (!type || type === "doubles_player") {
 			if (doublesMatches.length > 0) {
 				// Collect all players who played doubles matches
@@ -526,126 +527,42 @@ export async function GET(
 					Array.from(doublesPlayerIds)
 				);
 
-				// Get match Elo history for doubles matches
-				const doublesMatchIds = doublesMatches.map((m) => m.id);
-				const { data: matchHistory, error: historyError } =
-					await adminClient
-						.from("match_elo_history")
-						.select("match_id, team1_id, team2_id, team1_elo_delta, team2_elo_delta")
-						.in(
-							"match_id",
-							doublesMatchIds.length > 0
-								? doublesMatchIds
-								: ["00000000-0000-0000-0000-000000000000"]
-						);
-
-				if (historyError) {
-					console.error("Error fetching match history:", historyError);
-				}
-
-				// Map match IDs to match data for player team lookup
-				const matchMap = new Map(
-					doublesMatches.map((m) => [m.id, m])
-				);
-
-				// Aggregate deltas per player (player doubles delta = team delta)
-				const playerDeltaMap = new Map<string, number>();
-				const playerStatsMap = new Map<
+				const baselineState = new Map<
 					string,
-					{ matchesPlayed: number; wins: number; losses: number; draws: number }
+					{
+						elo: number;
+						matches_played: number;
+						wins: number;
+						losses: number;
+						draws: number;
+					}
 				>();
-
 				for (const playerId of doublesPlayerIds) {
-					playerDeltaMap.set(playerId, 0);
-					playerStatsMap.set(playerId, {
-						matchesPlayed: 0,
-						wins: 0,
-						losses: 0,
-						draws: 0,
+					const baseline = baselineSnapshots.get(playerId);
+					baselineState.set(playerId, {
+						elo: baseline?.elo ?? 1500,
+						matches_played: baseline?.matches_played ?? 0,
+						wins: baseline?.wins ?? 0,
+						losses: baseline?.losses ?? 0,
+						draws: baseline?.draws ?? 0,
 					});
 				}
 
-				// Aggregate deltas: map team deltas to players based on match player_ids
-				for (const history of matchHistory || []) {
-					const match = matchMap.get(history.match_id);
-					if (
-						!match ||
-						match.team1_score === null ||
-						match.team2_score === null ||
-						!match.player_ids ||
-						(match.player_ids as string[]).length < 4
-					)
-						continue;
+				const postSessionState = await replayDoublesPlayerMatches(
+					sessionId,
+					baselineState
+				);
 
-					const playerIds = match.player_ids as string[];
-					const team1Players = [playerIds[0], playerIds[1]];
-					const team2Players = [playerIds[2], playerIds[3]];
-
-					// Team1 delta applies to team1 players
-					if (history.team1_elo_delta !== null && history.team1_elo_delta !== undefined) {
-						const team1Delta =
-							typeof history.team1_elo_delta === "string"
-								? parseFloat(history.team1_elo_delta)
-								: Number(history.team1_elo_delta);
-						for (const playerId of team1Players) {
-							if (doublesPlayerIds.has(playerId)) {
-								playerDeltaMap.set(
-									playerId,
-									(playerDeltaMap.get(playerId) ?? 0) + team1Delta
-								);
-
-								const stats = playerStatsMap.get(playerId)!;
-								stats.matchesPlayed += 1;
-								if (match.team1_score > match.team2_score) {
-									stats.wins += 1;
-								} else if (match.team1_score < match.team2_score) {
-									stats.losses += 1;
-								} else {
-									stats.draws += 1;
-								}
-							}
-						}
-					}
-
-					// Team2 delta applies to team2 players
-					if (history.team2_elo_delta !== null && history.team2_elo_delta !== undefined) {
-						const team2Delta =
-							typeof history.team2_elo_delta === "string"
-								? parseFloat(history.team2_elo_delta)
-								: Number(history.team2_elo_delta);
-						for (const playerId of team2Players) {
-							if (doublesPlayerIds.has(playerId)) {
-								playerDeltaMap.set(
-									playerId,
-									(playerDeltaMap.get(playerId) ?? 0) + team2Delta
-								);
-
-								const stats = playerStatsMap.get(playerId)!;
-								stats.matchesPlayed += 1;
-								if (match.team2_score > match.team1_score) {
-									stats.wins += 1;
-								} else if (match.team2_score < match.team1_score) {
-									stats.losses += 1;
-								} else {
-									stats.draws += 1;
-								}
-							}
-						}
-					}
-				}
-
-				// Build summary: elo_before from snapshot, elo_after calculated as elo_before + elo_change, elo_change from this session only
-				// Note: match_elo_history only stores team values for doubles, not individual player values
-				// So we use snapshots for elo_before and calculate elo_after as elo_before + elo_change
 				const doublesPlayerSummary: SessionPlayerSummary[] = [];
 				for (const playerId of doublesPlayerIds) {
-					const baseline = baselineSnapshots.get(playerId);
-					const eloBefore = baseline?.elo ?? 1500;
-					const totalDelta = playerDeltaMap.get(playerId) ?? 0;
-					const eloChange = totalDelta; // Change in this session only
-					const eloAfter = eloBefore + eloChange; // Elo after this session
-
-					const stats = playerStatsMap.get(playerId)!;
+					const before = baselineState.get(playerId) ?? {
+						elo: 1500,
+						matches_played: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+					};
+					const after = postSessionState.get(playerId) ?? before;
 					const userInfo = userMap.get(playerId);
 					if (!userInfo) continue;
 
@@ -653,13 +570,14 @@ export async function GET(
 						player_id: playerId,
 						display_name: userInfo.display_name,
 						avatar: userInfo.avatar,
-						elo_before: eloBefore,
-						elo_after: eloAfter,
-						elo_change: eloChange,
-						matches_played: stats.matchesPlayed,
-						wins: stats.wins,
-						losses: stats.losses,
-						draws: stats.draws,
+						elo_before: before.elo,
+						elo_after: after.elo,
+						elo_change: after.elo - before.elo,
+						matches_played:
+							after.matches_played - before.matches_played,
+						wins: after.wins - before.wins,
+						losses: after.losses - before.losses,
+						draws: after.draws - before.draws,
 					});
 				}
 

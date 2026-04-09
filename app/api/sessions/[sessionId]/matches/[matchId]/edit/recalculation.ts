@@ -10,6 +10,7 @@ import {
 	getDoublesTeamBaseline,
 } from "@/lib/elo/session-baseline";
 import {
+	calculateDoublesPlayerDeltas,
 	calculateEloDelta,
 	calculateKFactor,
 	calculateExpectedScore,
@@ -1644,46 +1645,35 @@ export async function runMatchEditRecalculation({
 					playerIds[3],
 				)!;
 
-				// Calculate team averages from player doubles Elo (from current replay state)
-				// CRITICAL: Both teams must use values from the same replay-state snapshot
-				const team1PlayerAverageElo =
-					(player1DoublesState.elo + player2DoublesState.elo) / 2;
-				const team2PlayerAverageElo =
-					(player3DoublesState.elo + player4DoublesState.elo) / 2;
-
-				// Calculate player doubles match counts for K-factor
-				// CRITICAL: K-factor must be based on matches_played BEFORE this match
-				// matches_played hasn't been incremented yet for this match, so current value is correct
-				const player1MatchesPlayedBefore =
-					player1DoublesState.matches_played;
-				const player2MatchesPlayedBefore =
-					player2DoublesState.matches_played;
-				const player3MatchesPlayedBefore =
-					player3DoublesState.matches_played;
-				const player4MatchesPlayedBefore =
-					player4DoublesState.matches_played;
-
-				const team1PlayerAverageMatchCount =
-					(player1MatchesPlayedBefore +
-						player2MatchesPlayedBefore) /
-					2;
-				const team2PlayerAverageMatchCount =
-					(player3MatchesPlayedBefore +
-						player4MatchesPlayedBefore) /
-					2;
-
-				// Calculate player doubles delta using player-average expected score
-				const playerDoublesTeam1Delta = calculateEloDelta(
-					team1PlayerAverageElo,
-					team2PlayerAverageElo,
+				const {
+					team1AverageElo: team1PlayerAverageElo,
+					team2AverageElo: team2PlayerAverageElo,
+					team1AverageMatchCount: team1PlayerAverageMatchCount,
+					team2AverageMatchCount: team2PlayerAverageMatchCount,
+					team1Delta: playerDoublesTeam1Delta,
+					team2Delta: playerDoublesTeam2Delta,
+				} = calculateDoublesPlayerDeltas(
+					[
+						{
+							elo: player1DoublesState.elo,
+							matchCount: player1DoublesState.matches_played,
+						},
+						{
+							elo: player2DoublesState.elo,
+							matchCount: player2DoublesState.matches_played,
+						},
+					],
+					[
+						{
+							elo: player3DoublesState.elo,
+							matchCount: player3DoublesState.matches_played,
+						},
+						{
+							elo: player4DoublesState.elo,
+							matchCount: player4DoublesState.matches_played,
+						},
+					],
 					team1Result,
-					team1PlayerAverageMatchCount,
-				);
-				const playerDoublesTeam2Delta = calculateEloDelta(
-					team2PlayerAverageElo,
-					team1PlayerAverageElo,
-					team2Result,
-					team2PlayerAverageMatchCount,
 				);
 
 				// Validation: Sum of deltas must equal 0 (team1Delta + team2Delta = 0)
@@ -2215,7 +2205,7 @@ export async function runMatchEditRecalculation({
 
 		// Persist player double ratings
 		// CRITICAL: Persist ALL players who participated in replayed doubles matches
-		// Player doubles Elo is derived from team deltas, so players are not in replayedPlayerIds
+		// Player doubles Elo is replayed from player_double_ratings state, not inferred from team deltas
 		// Source of truth: playersInReplayedDoublesMatches (collected during replay)
 		// ONLY persist if at least one doubles match was replayed
 		if (replayedAnyDoublesMatches) {

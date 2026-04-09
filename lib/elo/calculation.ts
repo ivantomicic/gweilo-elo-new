@@ -6,6 +6,19 @@
  */
 
 export type MatchResult = "win" | "loss" | "draw";
+export type DoublesPlayerParticipant = {
+	elo: number;
+	matchCount: number;
+};
+
+export type DoublesPlayerDeltaResult = {
+	team1AverageElo: number;
+	team2AverageElo: number;
+	team1AverageMatchCount: number;
+	team2AverageMatchCount: number;
+	team1Delta: number;
+	team2Delta: number;
+};
 
 /**
  * Calculate K-factor based on total matches played
@@ -84,3 +97,55 @@ export function calculateEloDelta(
 	return delta; // Return decimal delta - no rounding
 }
 
+function getOpposingResult(result: MatchResult): MatchResult {
+	switch (result) {
+		case "win":
+			return "loss";
+		case "loss":
+			return "win";
+		case "draw":
+			return "draw";
+	}
+}
+
+/**
+ * Calculate player_double_ratings deltas for a doubles match.
+ *
+ * This is intentionally separate from double_team_ratings:
+ * - team ratings use the pair's own team Elo
+ * - player doubles ratings use the average of each team's individual doubles Elo
+ *
+ * Both players on the same team receive the same player-doubles delta.
+ */
+export function calculateDoublesPlayerDeltas(
+	team1: [DoublesPlayerParticipant, DoublesPlayerParticipant],
+	team2: [DoublesPlayerParticipant, DoublesPlayerParticipant],
+	team1Result: MatchResult
+): DoublesPlayerDeltaResult {
+	const team2Result = getOpposingResult(team1Result);
+	const team1AverageElo = (team1[0].elo + team1[1].elo) / 2;
+	const team2AverageElo = (team2[0].elo + team2[1].elo) / 2;
+	const team1AverageMatchCount =
+		(team1[0].matchCount + team1[1].matchCount) / 2;
+	const team2AverageMatchCount =
+		(team2[0].matchCount + team2[1].matchCount) / 2;
+
+	return {
+		team1AverageElo,
+		team2AverageElo,
+		team1AverageMatchCount,
+		team2AverageMatchCount,
+		team1Delta: calculateEloDelta(
+			team1AverageElo,
+			team2AverageElo,
+			team1Result,
+			team1AverageMatchCount
+		),
+		team2Delta: calculateEloDelta(
+			team2AverageElo,
+			team1AverageElo,
+			team2Result,
+			team2AverageMatchCount
+		),
+	};
+}

@@ -785,8 +785,11 @@ function SessionPageContent() {
 								team2Change = delta;
 							}
 
-							// For doubles matches, use team deltas (override player deltas)
+							// For doubles-team view, use team deltas from match history.
+							// Doubles-player deltas are calculated from player_double_ratings,
+							// so we avoid showing team deltas there.
 							if (
+								activeView === "doubles_team" &&
 								history.team1_elo_delta !== null &&
 								history.team1_elo_delta !== undefined
 							) {
@@ -798,6 +801,7 @@ function SessionPageContent() {
 							}
 
 							if (
+								activeView === "doubles_team" &&
 								history.team2_elo_delta !== null &&
 								history.team2_elo_delta !== undefined
 							) {
@@ -879,7 +883,7 @@ function SessionPageContent() {
 		if (sessionId) {
 			fetchSession();
 		}
-	}, [sessionId, fetchPlayers]);
+	}, [sessionId, fetchPlayers, activeView]);
 
 	// Check if user is admin and if session is deletable
 	useEffect(() => {

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getDoublesPlayerBaseline } from "@/lib/elo/session-baseline";
 
 export type RankMovementEntityType =
 	| "player_singles"
@@ -164,75 +165,29 @@ async function getPreviousRankingByReversingLatestSession({
 			}
 		}
 	} else if (entityType === "player_doubles") {
-		const { data: sessionMatches, error: matchesError } = await adminClient
-			.from("session_matches")
-			.select("id, player_ids")
-			.eq("session_id", latestSessionId)
-			.eq("status", "completed")
-			.eq("match_type", "doubles");
+		const baselineState = await getDoublesPlayerBaseline(latestSessionId);
+		const previousEntities = currentEntities
+			.map((entity) => {
+				const baseline = baselineState.get(entity.entityId);
+				if (!baseline) {
+					return null;
+				}
 
-		if (matchesError) {
-			console.error("[RANK] Failed to fetch latest doubles matches:", matchesError);
-			return buildRankingMap(currentEntities);
-		}
-
-		const matchIds = (sessionMatches || []).map((match) => match.id);
-		if (matchIds.length === 0) {
-			return buildRankingMap(currentEntities);
-		}
-
-		const { data: matchHistory, error: historyError } = await adminClient
-			.from("match_elo_history")
-			.select("match_id, team1_elo_delta, team2_elo_delta")
-			.in("match_id", matchIds);
-
-		if (historyError) {
-			console.error(
-				"[RANK] Failed to fetch latest doubles match history:",
-				historyError
+				return {
+					entityId: entity.entityId,
+					elo: baseline.elo,
+				};
+			})
+			.filter(
+				(
+					entity
+				): entity is {
+					entityId: string;
+					elo: number;
+				} => entity !== null
 			);
-			return buildRankingMap(currentEntities);
-		}
 
-		const historyMap = new Map(
-			(matchHistory || []).map((entry) => [entry.match_id, entry])
-		);
-
-		for (const match of sessionMatches || []) {
-			const playerIds = (match.player_ids as string[]) || [];
-			if (playerIds.length < 4) {
-				continue;
-			}
-
-			for (const playerId of playerIds) {
-				const state = deltaState.get(playerId);
-				if (state) {
-					state.sessionMatchesPlayed += 1;
-				}
-			}
-
-			const historyEntry = historyMap.get(match.id);
-			if (!historyEntry) {
-				continue;
-			}
-
-			const team1Delta = toNumber(historyEntry.team1_elo_delta);
-			const team2Delta = toNumber(historyEntry.team2_elo_delta);
-
-			for (const playerId of playerIds.slice(0, 2)) {
-				const state = deltaState.get(playerId);
-				if (state) {
-					state.eloDelta += team1Delta;
-				}
-			}
-
-			for (const playerId of playerIds.slice(2, 4)) {
-				const state = deltaState.get(playerId);
-				if (state) {
-					state.eloDelta += team2Delta;
-				}
-			}
-		}
+		return buildRankingMap(previousEntities);
 	} else {
 		const { data: sessionMatches, error: matchesError } = await adminClient
 			.from("session_matches")

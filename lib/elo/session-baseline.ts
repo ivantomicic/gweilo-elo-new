@@ -1,5 +1,9 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calculateEloDelta, type MatchResult } from "./calculation";
+import {
+	calculateDoublesPlayerDeltas,
+	calculateEloDelta,
+	type MatchResult,
+} from "./calculation";
 import { getOrCreateDoubleTeam } from "./double-teams";
 
 /**
@@ -411,10 +415,6 @@ export async function getDoublesPlayerBaseline(
 			const player3State = baselineState.get(playerIds[2])!;
 			const player4State = baselineState.get(playerIds[3])!;
 
-			// Calculate team averages from player doubles Elo
-			const team1PlayerAverageElo = (player1State.elo + player2State.elo) / 2;
-			const team2PlayerAverageElo = (player3State.elo + player4State.elo) / 2;
-
 			// Determine result
 			const team1Result: "win" | "loss" | "draw" =
 				score1 > score2
@@ -428,28 +428,33 @@ export async function getDoublesPlayerBaseline(
 					: score2 < score1
 					? "loss"
 					: "draw";
-
-			// Calculate player doubles match counts for K-factor (before this match)
-			const team1PlayerAverageMatchCount =
-				(player1State.matches_played + player2State.matches_played) / 2;
-			const team2PlayerAverageMatchCount =
-				(player3State.matches_played + player4State.matches_played) / 2;
-
-			// Calculate player doubles deltas using player-average expected score
-			const playerDoublesTeam1Delta = calculateEloDelta(
-				team1PlayerAverageElo,
-				team2PlayerAverageElo,
-				team1Result as MatchResult,
-				team1PlayerAverageMatchCount
+			const {
+				team1Delta: playerDoublesTeam1Delta,
+				team2Delta: playerDoublesTeam2Delta,
+			} = calculateDoublesPlayerDeltas(
+				[
+					{
+						elo: player1State.elo,
+						matchCount: player1State.matches_played,
+					},
+					{
+						elo: player2State.elo,
+						matchCount: player2State.matches_played,
+					},
+				],
+				[
+					{
+						elo: player3State.elo,
+						matchCount: player3State.matches_played,
+					},
+					{
+						elo: player4State.elo,
+						matchCount: player4State.matches_played,
+					},
+				],
+				team1Result as MatchResult
 			);
-			const playerDoublesTeam2Delta = calculateEloDelta(
-				team2PlayerAverageElo,
-				team1PlayerAverageElo,
-				team2Result as MatchResult,
-				team2PlayerAverageMatchCount
-			);
 
-			// Apply deltas (both players on same team get same delta)
 			player1State.elo += playerDoublesTeam1Delta;
 			player2State.elo += playerDoublesTeam1Delta;
 			player3State.elo += playerDoublesTeam2Delta;
@@ -554,10 +559,6 @@ export async function replayDoublesPlayerMatches(
 		const player3State = postSessionState.get(playerIds[2])!;
 		const player4State = postSessionState.get(playerIds[3])!;
 
-		// Calculate team averages from player doubles Elo
-		const team1PlayerAverageElo = (player1State.elo + player2State.elo) / 2;
-		const team2PlayerAverageElo = (player3State.elo + player4State.elo) / 2;
-
 		// Determine result
 		const team1Result: "win" | "loss" | "draw" =
 			score1 > score2
@@ -571,28 +572,33 @@ export async function replayDoublesPlayerMatches(
 				: score2 < score1
 				? "loss"
 				: "draw";
-
-		// Calculate player doubles match counts for K-factor (before this match)
-		const team1PlayerAverageMatchCount =
-			(player1State.matches_played + player2State.matches_played) / 2;
-		const team2PlayerAverageMatchCount =
-			(player3State.matches_played + player4State.matches_played) / 2;
-
-		// Calculate player doubles deltas using player-average expected score
-		const playerDoublesTeam1Delta = calculateEloDelta(
-			team1PlayerAverageElo,
-			team2PlayerAverageElo,
-			team1Result as MatchResult,
-			team1PlayerAverageMatchCount
+		const {
+			team1Delta: playerDoublesTeam1Delta,
+			team2Delta: playerDoublesTeam2Delta,
+		} = calculateDoublesPlayerDeltas(
+			[
+				{
+					elo: player1State.elo,
+					matchCount: player1State.matches_played,
+				},
+				{
+					elo: player2State.elo,
+					matchCount: player2State.matches_played,
+				},
+			],
+			[
+				{
+					elo: player3State.elo,
+					matchCount: player3State.matches_played,
+				},
+				{
+					elo: player4State.elo,
+					matchCount: player4State.matches_played,
+				},
+			],
+			team1Result as MatchResult
 		);
-		const playerDoublesTeam2Delta = calculateEloDelta(
-			team2PlayerAverageElo,
-			team1PlayerAverageElo,
-			team2Result as MatchResult,
-			team2PlayerAverageMatchCount
-		);
 
-		// Apply deltas (both players on same team get same delta)
 		player1State.elo += playerDoublesTeam1Delta;
 		player2State.elo += playerDoublesTeam1Delta;
 		player3State.elo += playerDoublesTeam2Delta;
