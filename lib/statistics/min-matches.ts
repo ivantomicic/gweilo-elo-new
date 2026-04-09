@@ -1,2 +1,3 @@
 export const MIN_SINGLES_MATCHES = 15;
 export const MIN_DOUBLES_PLAYER_MATCHES = 6;
+export const MAX_SINGLES_INACTIVITY_DAYS = 28;

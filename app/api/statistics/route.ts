@@ -5,6 +5,7 @@ import {
 	computeRankMovements,
 } from "@/lib/elo/rank-movements";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
+import { MAX_SINGLES_INACTIVITY_DAYS } from "@/lib/statistics/min-matches";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +94,14 @@ type SessionSnapshotRecord = {
 	sets_won: number | null;
 	sets_lost: number | null;
 	elo: number | string | null;
+};
+
+type RecentSessionRecord = {
+	id: string;
+};
+
+type RecentSinglesMatchRecord = {
+	player_ids: string[] | null;
 };
 
 function buildProfilesMap(profiles: ProfileRecord[]) {
@@ -187,11 +196,72 @@ const getCachedLatestCompletedSessions = unstable_cache(
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
 );
 
+const getCachedActiveSinglesPlayerIds = unstable_cache(
+	async (): Promise<string[] | null> => {
+		const adminClient = createAdminClient();
+		const cutoffDate = new Date(
+			Date.now() - MAX_SINGLES_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
+		).toISOString();
+
+		const { data: recentSessions, error: sessionsError } = await adminClient
+			.from("sessions")
+			.select("id")
+			.eq("status", "completed")
+			.gte("completed_at", cutoffDate);
+
+		if (sessionsError) {
+			console.error(
+				"Error fetching recent completed sessions for singles activity:",
+				sessionsError
+			);
+			return null;
+		}
+
+		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
+			(session) => session.id
+		);
+
+		if (sessionIds.length === 0) {
+			return [];
+		}
+
+		const { data: recentSinglesMatches, error: matchesError } =
+			await adminClient
+				.from("session_matches")
+				.select("player_ids")
+				.eq("match_type", "singles")
+				.eq("status", "completed")
+				.in("session_id", sessionIds);
+
+		if (matchesError) {
+			console.error(
+				"Error fetching recent singles matches for activity filter:",
+				matchesError
+			);
+			return null;
+		}
+
+		const activePlayerIds = new Set<string>();
+		for (const match of (recentSinglesMatches || []) as RecentSinglesMatchRecord[]) {
+			const playerIds = (match.player_ids as string[] | null) || [];
+			for (const playerId of playerIds.slice(0, 2)) {
+				if (playerId) {
+					activePlayerIds.add(playerId);
+				}
+			}
+		}
+
+		return Array.from(activePlayerIds);
+	},
+	["statistics-active-singles-players"],
+	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
+);
+
 const getCachedSinglesStats = unstable_cache(
 	async (): Promise<PlayerStats[]> => {
 		const adminClient = createAdminClient();
 
-		const [ratingsResult, profiles, [latestSessionId]] =
+		const [ratingsResult, profiles, [latestSessionId], activeSinglesPlayerIds] =
 			await Promise.all([
 				adminClient
 					.from("player_ratings")
@@ -201,6 +271,7 @@ const getCachedSinglesStats = unstable_cache(
 					.order("elo", { ascending: false }),
 				getCachedProfiles(),
 				getCachedLatestCompletedSessions(),
+				getCachedActiveSinglesPlayerIds(),
 			]);
 
 		if (ratingsResult.error) {
@@ -226,22 +297,30 @@ const getCachedSinglesStats = unstable_cache(
 					}))
 				: ((ratingsResult.data || []) as SinglesRatingRecord[]);
 
-		const singlesStats = sourceRows.map((rating) => {
-			const profile = profilesMap.get(rating.player_id);
-			return {
-				player_id: rating.player_id,
-				display_name: profile?.display_name || "User",
-				avatar: profile?.avatar || null,
-				matches_played: rating.matches_played ?? 0,
-				wins: rating.wins ?? 0,
-				losses: rating.losses ?? 0,
-				draws: rating.draws ?? 0,
-				sets_won: rating.sets_won ?? 0,
-				sets_lost: rating.sets_lost ?? 0,
-				elo: toNumber(rating.elo, 1500),
-				rank_movement: 0,
-			};
-		});
+		const activeSinglesPlayerSet =
+			activeSinglesPlayerIds === null
+				? null
+				: new Set(activeSinglesPlayerIds);
+		const singlesStats = sourceRows
+			.filter((rating) =>
+				activeSinglesPlayerSet ? activeSinglesPlayerSet.has(rating.player_id) : true
+			)
+			.map((rating) => {
+				const profile = profilesMap.get(rating.player_id);
+				return {
+					player_id: rating.player_id,
+					display_name: profile?.display_name || "User",
+					avatar: profile?.avatar || null,
+					matches_played: rating.matches_played ?? 0,
+					wins: rating.wins ?? 0,
+					losses: rating.losses ?? 0,
+					draws: rating.draws ?? 0,
+					sets_won: rating.sets_won ?? 0,
+					sets_lost: rating.sets_lost ?? 0,
+					elo: toNumber(rating.elo, 1500),
+					rank_movement: 0,
+				};
+			});
 
 		if (latestSessionId) {
 			const rankMovements = await computeRankMovements(
