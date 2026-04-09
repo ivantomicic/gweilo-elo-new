@@ -5,7 +5,11 @@ import {
 	computeRankMovements,
 } from "@/lib/elo/rank-movements";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
-import { MAX_SINGLES_INACTIVITY_DAYS } from "@/lib/statistics/min-matches";
+import {
+	MAX_DOUBLES_TEAM_INACTIVITY_DAYS,
+	MAX_SINGLES_INACTIVITY_DAYS,
+	MIN_DOUBLES_TEAM_MATCHES,
+} from "@/lib/statistics/min-matches";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +106,11 @@ type RecentSessionRecord = {
 
 type RecentSinglesMatchRecord = {
 	player_ids: string[] | null;
+};
+
+type RecentDoublesTeamMatchRecord = {
+	team_1_id: string | null;
+	team_2_id: string | null;
 };
 
 function buildProfilesMap(profiles: ProfileRecord[]) {
@@ -254,6 +263,66 @@ const getCachedActiveSinglesPlayerIds = unstable_cache(
 		return Array.from(activePlayerIds);
 	},
 	["statistics-active-singles-players"],
+	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
+);
+
+const getCachedActiveDoublesTeamIds = unstable_cache(
+	async (): Promise<string[] | null> => {
+		const adminClient = createAdminClient();
+		const cutoffDate = new Date(
+			Date.now() - MAX_DOUBLES_TEAM_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
+		).toISOString();
+
+		const { data: recentSessions, error: sessionsError } = await adminClient
+			.from("sessions")
+			.select("id")
+			.eq("status", "completed")
+			.gte("completed_at", cutoffDate);
+
+		if (sessionsError) {
+			console.error(
+				"Error fetching recent completed sessions for doubles team activity:",
+				sessionsError
+			);
+			return null;
+		}
+
+		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
+			(session) => session.id
+		);
+
+		if (sessionIds.length === 0) {
+			return [];
+		}
+
+		const { data: recentDoublesMatches, error: matchesError } =
+			await adminClient
+				.from("session_matches")
+				.select("team_1_id, team_2_id")
+				.eq("match_type", "doubles")
+				.eq("status", "completed")
+				.in("session_id", sessionIds);
+
+		if (matchesError) {
+			console.error(
+				"Error fetching recent doubles matches for team activity filter:",
+				matchesError
+			);
+			return null;
+		}
+
+		const activeTeamIds = new Set<string>();
+		for (const match of (recentDoublesMatches || []) as RecentDoublesTeamMatchRecord[]) {
+			for (const teamId of [match.team_1_id, match.team_2_id]) {
+				if (teamId) {
+					activeTeamIds.add(teamId);
+				}
+			}
+		}
+
+		return Array.from(activeTeamIds);
+	},
+	["statistics-active-doubles-teams"],
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
 );
 
@@ -434,6 +503,7 @@ const getCachedDoublesTeamStats = unstable_cache(
 			teams,
 			profiles,
 			[latestSessionId],
+			activeDoublesTeamIds,
 		] = await Promise.all([
 			adminClient
 				.from("double_team_ratings")
@@ -444,6 +514,7 @@ const getCachedDoublesTeamStats = unstable_cache(
 			getCachedDoubleTeams(),
 			getCachedProfiles(),
 			getCachedLatestCompletedSessions(),
+			getCachedActiveDoublesTeamIds(),
 		]);
 
 		if (ratingsResult.error) {
@@ -477,7 +548,19 @@ const getCachedDoublesTeamStats = unstable_cache(
 						elo: toNumber(row.elo, 1500),
 					}))
 				: ((ratingsResult.data || []) as DoublesTeamRatingRecord[]);
+		const activeDoublesTeamSet =
+			activeDoublesTeamIds === null ? null : new Set(activeDoublesTeamIds);
 		const doublesTeamStats = sourceRows
+			.filter((rating) => {
+				const matchesPlayed = rating.matches_played ?? 0;
+				const passesMatchMinimum =
+					matchesPlayed >= MIN_DOUBLES_TEAM_MATCHES;
+				const passesActivity =
+					activeDoublesTeamSet === null ||
+					activeDoublesTeamSet.has(rating.team_id);
+
+				return passesMatchMinimum && passesActivity;
+			})
 			.map((rating) => {
 				const team = teamsMap.get(rating.team_id);
 				if (!team) {

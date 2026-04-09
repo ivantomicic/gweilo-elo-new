@@ -29,6 +29,7 @@ import { ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import {
+	MIN_DOUBLES_TEAM_MATCHES,
 	MIN_DOUBLES_PLAYER_MATCHES,
 	MIN_SINGLES_MATCHES,
 } from "@/lib/statistics/min-matches";
@@ -336,7 +337,7 @@ function StatisticsPageContent() {
 											? MIN_SINGLES_MATCHES
 											: activeView === "doubles_player"
 											? MIN_DOUBLES_PLAYER_MATCHES
-											: null;
+											: MIN_DOUBLES_TEAM_MATCHES;
 
 									const filteredData =
 										minMatches === null
