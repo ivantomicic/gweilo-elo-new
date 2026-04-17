@@ -188,6 +188,7 @@ function StatisticsPageContent() {
 			const response = await fetch(
 				`/api/statistics?view=${encodeURIComponent(apiView)}`,
 				{
+					cache: "no-store",
 					headers: {
 						Authorization: `Bearer ${session.access_token}`,
 					},

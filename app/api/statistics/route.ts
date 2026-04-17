@@ -144,6 +144,16 @@ function toNumber(value: unknown, fallback = 0): number {
 	return fallback;
 }
 
+function jsonNoStore(body: unknown, init?: ResponseInit) {
+	return NextResponse.json(body, {
+		...init,
+		headers: {
+			"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+			...init?.headers,
+		},
+	});
+}
+
 async function getSessionSnapshotRows(
 	sessionId: string,
 	entityType: "player_singles" | "player_doubles" | "double_team"
@@ -205,14 +215,11 @@ const getCachedDoubleTeams = unstable_cache(
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
 );
 
-const getCachedLatestCompletedSessions = unstable_cache(
-	async () => getLatestTwoCompletedSessions(),
-	["statistics-latest-two-completed-sessions"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+async function getLatestCompletedSessionsFresh() {
+	return getLatestTwoCompletedSessions();
+}
 
-const getCachedActiveSinglesPlayerIds = unstable_cache(
-	async (): Promise<string[] | null> => {
+async function getActiveSinglesPlayerIdsFresh(): Promise<string[] | null> {
 		const adminClient = createAdminClient();
 		const cutoffDate = new Date(
 			Date.now() - MAX_SINGLES_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
@@ -267,13 +274,9 @@ const getCachedActiveSinglesPlayerIds = unstable_cache(
 		}
 
 		return Array.from(activePlayerIds);
-	},
-	["statistics-active-singles-players"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+}
 
-const getCachedActiveDoublesTeamIds = unstable_cache(
-	async (): Promise<string[] | null> => {
+async function getActiveDoublesTeamIdsFresh(): Promise<string[] | null> {
 		const adminClient = createAdminClient();
 		const cutoffDate = new Date(
 			Date.now() - MAX_DOUBLES_TEAM_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
@@ -327,13 +330,9 @@ const getCachedActiveDoublesTeamIds = unstable_cache(
 		}
 
 		return Array.from(activeTeamIds);
-	},
-	["statistics-active-doubles-teams"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+}
 
-const getCachedActiveDoublesPlayerIds = unstable_cache(
-	async (): Promise<string[] | null> => {
+async function getActiveDoublesPlayerIdsFresh(): Promise<string[] | null> {
 		const adminClient = createAdminClient();
 		const cutoffDate = new Date(
 			Date.now() - MAX_DOUBLES_PLAYER_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
@@ -388,13 +387,9 @@ const getCachedActiveDoublesPlayerIds = unstable_cache(
 		}
 
 		return Array.from(activePlayerIds);
-	},
-	["statistics-active-doubles-players"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+}
 
-const getCachedSinglesStats = unstable_cache(
-	async (): Promise<PlayerStats[]> => {
+async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
 		const [ratingsResult, profiles, [latestSessionId], activeSinglesPlayerIds] =
@@ -406,8 +401,8 @@ const getCachedSinglesStats = unstable_cache(
 					)
 					.order("elo", { ascending: false }),
 				getCachedProfiles(),
-				getCachedLatestCompletedSessions(),
-				getCachedActiveSinglesPlayerIds(),
+				getLatestCompletedSessionsFresh(),
+				getActiveSinglesPlayerIdsFresh(),
 			]);
 
 		if (ratingsResult.error) {
@@ -475,13 +470,9 @@ const getCachedSinglesStats = unstable_cache(
 		}
 
 		return singlesStats;
-	},
-	["statistics-singles"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+}
 
-const getCachedDoublesPlayerStats = unstable_cache(
-	async (): Promise<PlayerStats[]> => {
+async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
@@ -498,8 +489,8 @@ const getCachedDoublesPlayerStats = unstable_cache(
 					)
 					.order("elo", { ascending: false }),
 				getCachedProfiles(),
-				getCachedLatestCompletedSessions(),
-				getCachedActiveDoublesPlayerIds(),
+				getLatestCompletedSessionsFresh(),
+				getActiveDoublesPlayerIdsFresh(),
 			]);
 
 		if (ratingsResult.error) {
@@ -577,13 +568,9 @@ const getCachedDoublesPlayerStats = unstable_cache(
 		}
 
 		return doublesPlayerStats;
-	},
-	["statistics-doubles-player"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+}
 
-const getCachedDoublesTeamStats = unstable_cache(
-	async (): Promise<TeamStats[]> => {
+async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
@@ -601,8 +588,8 @@ const getCachedDoublesTeamStats = unstable_cache(
 				.order("elo", { ascending: false }),
 			getCachedDoubleTeams(),
 			getCachedProfiles(),
-			getCachedLatestCompletedSessions(),
-			getCachedActiveDoublesTeamIds(),
+			getLatestCompletedSessionsFresh(),
+			getActiveDoublesTeamIdsFresh(),
 		]);
 
 		if (ratingsResult.error) {
@@ -699,10 +686,7 @@ const getCachedDoublesTeamStats = unstable_cache(
 		}
 
 		return doublesTeamStats;
-	},
-	["statistics-doubles-team"],
-	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] }
-);
+}
 
 function isViewMode(value: string): value is ViewMode {
 	return (
@@ -733,7 +717,7 @@ export async function GET(request: NextRequest) {
 		const user = await verifyUser(authHeader);
 
 		if (!user) {
-			return NextResponse.json(
+			return jsonNoStore(
 				{ error: "Unauthorized. Authentication required." },
 				{ status: 401 }
 			);
@@ -743,7 +727,7 @@ export async function GET(request: NextRequest) {
 		const viewParam = searchParams.get("view") || "all";
 
 		if (!isViewMode(viewParam)) {
-			return NextResponse.json(
+			return jsonNoStore(
 				{ error: "Invalid view parameter." },
 				{ status: 400 }
 			);
@@ -757,26 +741,26 @@ export async function GET(request: NextRequest) {
 
 		if (viewParam === "all") {
 			const [singles, doublesPlayers, doublesTeams] = await Promise.all([
-				getCachedSinglesStats(),
-				getCachedDoublesPlayerStats(),
-				getCachedDoublesTeamStats(),
+				getFreshSinglesStats(),
+				getFreshDoublesPlayerStats(),
+				getFreshDoublesTeamStats(),
 			]);
 
 			responseBody.singles = singles;
 			responseBody.doublesPlayers = doublesPlayers;
 			responseBody.doublesTeams = doublesTeams;
 		} else if (viewParam === "singles") {
-			responseBody.singles = await getCachedSinglesStats();
+			responseBody.singles = await getFreshSinglesStats();
 		} else if (viewParam === "doubles_player") {
-			responseBody.doublesPlayers = await getCachedDoublesPlayerStats();
+			responseBody.doublesPlayers = await getFreshDoublesPlayerStats();
 		} else {
-			responseBody.doublesTeams = await getCachedDoublesTeamStats();
+			responseBody.doublesTeams = await getFreshDoublesTeamStats();
 		}
 
-		return NextResponse.json(responseBody);
+		return jsonNoStore(responseBody);
 	} catch (error) {
 		console.error("Unexpected error in GET /api/statistics:", error);
-		return NextResponse.json(
+		return jsonNoStore(
 			{ error: "Internal server error" },
 			{ status: 500 }
 		);
