@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { useWebHaptics } from "web-haptics/react";
 import {
 	Avatar,
 	AvatarFallback,
@@ -69,19 +68,24 @@ export function MobileNav() {
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
 	const shouldReduceMotion = useReducedMotion();
-	const { trigger } = useWebHaptics();
 
 	const triggerNavHaptic = () => {
-		void trigger();
+		try {
+			if (typeof navigator !== "undefined" && navigator.vibrate) {
+				navigator.vibrate(10);
+			}
+		} catch {
+			// Ignore haptic failures. Navigation should never depend on them.
+		}
 	};
 
 	const handleMoreToggle = () => {
-		void trigger();
+		triggerNavHaptic();
 		setIsMoreOpen((prev) => !prev);
 	};
 
 	const handleMoreItemClick = () => {
-		void trigger();
+		triggerNavHaptic();
 		setIsMoreOpen(false);
 	};
 

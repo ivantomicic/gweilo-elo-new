@@ -25,9 +25,11 @@ interface MaintenanceStatus {
  */
 export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 	const [maintenanceStatus, setMaintenanceStatus] =
-		useState<MaintenanceStatus | null>(null);
+		useState<MaintenanceStatus>({
+			enabled: false,
+			message: null,
+		});
 	const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-	const [isLoading, setIsLoading] = useState(true);
 	const pathname = usePathname();
 
 	useEffect(() => {
@@ -39,38 +41,28 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 					getUserRole(),
 				]);
 
-				setMaintenanceStatus(maintenanceResponse);
+				setMaintenanceStatus({
+					enabled: maintenanceResponse?.enabled ?? false,
+					message: maintenanceResponse?.message ?? null,
+				});
 				setIsAdmin(role === "admin");
 			} catch (error) {
 				console.error("Error checking maintenance status:", error);
-				// On error, assume maintenance is off to not block users
+				// Fail open so a stale browser state cannot lock users on a blank shell.
 				setMaintenanceStatus({ enabled: false, message: null });
 				setIsAdmin(false);
-			} finally {
-				setIsLoading(false);
 			}
 		};
 
 		checkMaintenanceAndRole();
 	}, []);
 
-	// Show nothing while loading to prevent flash
-	if (isLoading) {
-		return (
-			<Box className="min-h-screen bg-background flex items-center justify-center">
-				<Box className="animate-pulse text-muted-foreground">
-					Loading...
-				</Box>
-			</Box>
-		);
-	}
-
 	// Allow access if:
 	// - Maintenance mode is off
 	// - User is admin
 	// - User is on the maintenance page itself
 	const allowAccess =
-		!maintenanceStatus?.enabled ||
+		!maintenanceStatus.enabled ||
 		isAdmin === true ||
 		pathname === "/maintenance";
 
@@ -79,7 +71,7 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 	}
 
 	// Show maintenance page
-	return <MaintenanceScreen message={maintenanceStatus?.message} />;
+	return <MaintenanceScreen message={maintenanceStatus.message} />;
 }
 
 /**

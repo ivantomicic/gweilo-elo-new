@@ -1,10 +1,22 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
-import { MobileNav } from "@/components/mobile-nav";
-import { AppTracker } from "@/components/analytics/app-tracker";
 import { MaintenanceGuard } from "@/components/maintenance/maintenance-guard";
+
+const AppTracker = dynamic(
+	() =>
+		import("@/components/analytics/app-tracker").then(
+			(mod) => mod.AppTracker
+		),
+	{ ssr: false }
+);
+
+const MobileNav = dynamic(
+	() => import("@/components/mobile-nav").then((mod) => mod.MobileNav),
+	{ ssr: false }
+);
 
 const spaceGrotesk = Space_Grotesk({
 	subsets: ["latin"],

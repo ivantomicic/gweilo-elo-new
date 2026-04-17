@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { getSessionSafely, supabase } from "@/lib/supabase/client";
 
 /**
  * Centralized auth state hook
@@ -21,11 +21,9 @@ export function useAuth() {
 	useEffect(() => {
 		// Check initial auth state
 		const checkAuth = async () => {
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-			setIsAuthenticated(!!session);
-			setSession(session);
+			const nextSession = await getSessionSafely();
+			setIsAuthenticated(!!nextSession);
+			setSession(nextSession);
 		};
 		checkAuth();
 
@@ -42,4 +40,3 @@ export function useAuth() {
 
 	return { isAuthenticated, session };
 }
-

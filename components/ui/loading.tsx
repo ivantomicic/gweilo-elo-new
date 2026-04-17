@@ -1,7 +1,6 @@
 'use client'
 
 import { Stack } from './stack'
-import { Icon } from './icon'
 import { cn } from '@/lib/utils'
 
 export interface LoadingProps {
@@ -27,6 +26,16 @@ export interface LoadingProps {
  * Inline: Renders inline without full-screen centering
  */
 export function Loading({ label, inline = false, className }: LoadingProps) {
+	const spinner = (
+		<div
+			aria-hidden="true"
+			className={cn(
+				"rounded-full border-2 border-border border-t-primary animate-spin",
+				inline ? "size-6" : "size-8"
+			)}
+		/>
+	)
+
 	if (inline) {
 		return (
 			<Stack
@@ -36,10 +45,7 @@ export function Loading({ label, inline = false, className }: LoadingProps) {
 				spacing={2}
 				className={className}
 			>
-				<Icon
-					icon="solar:refresh-bold"
-					className="size-6 animate-spin text-muted-foreground"
-				/>
+				{spinner}
 				{label && (
 					<p className="text-sm text-muted-foreground">{label}</p>
 				)}
@@ -55,14 +61,10 @@ export function Loading({ label, inline = false, className }: LoadingProps) {
 			spacing={2}
 			className={cn('min-h-[60vh]', className)}
 		>
-			<Icon
-				icon="solar:refresh-bold"
-				className="size-8 animate-spin text-muted-foreground"
-			/>
+			{spinner}
 			{label && (
 				<p className="text-muted-foreground">{label}</p>
 			)}
 		</Stack>
 	)
 }
-

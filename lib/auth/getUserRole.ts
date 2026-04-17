@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase/client";
+import { getSessionSafely } from "@/lib/supabase/client";
 import { getUserRoleFromAuthUser, type UserRole } from "./roles";
 
 export type { UserRole } from "./roles";
@@ -15,9 +15,7 @@ export type { UserRole } from "./roles";
  * Security note: This reads from the signed JWT claims managed by Supabase Auth.
  */
 export async function getUserRole(): Promise<UserRole | null> {
-	const {
-		data: { session },
-	} = await supabase.auth.getSession();
+	const session = await getSessionSafely();
 
 	if (!session?.user) {
 		return null;
