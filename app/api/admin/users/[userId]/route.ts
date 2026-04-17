@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import {
+	getEffectiveAvatar,
+	getProviderAvatarFromMetadata,
+} from "@/lib/profile-avatar";
+import {
 	type SessionsPerWeek,
 	parseSessionsPerWeek,
 } from "@/lib/no-shows/sessions-per-week";
@@ -102,6 +106,15 @@ export async function PATCH(
 		let currentUser: Awaited<
 			ReturnType<typeof adminClient.auth.admin.getUserById>
 		>["data"]["user"] | null = null;
+		let currentProfile:
+			| {
+					display_name: string | null;
+					avatar_url: string | null;
+					manual_avatar_url: string | null;
+					provider_avatar_url: string | null;
+					email: string | null;
+			  }
+			| null = null;
 
 		if (needsAuthMetadataUpdate || !needsAuthUpdate) {
 			const { data, error: currentUserError } =
@@ -116,6 +129,26 @@ export async function PATCH(
 			}
 		}
 
+		if (name !== undefined || avatar !== undefined || email !== undefined) {
+			const { data: profileData, error: profileError } = await adminClient
+				.from("profiles")
+				.select(
+					"display_name, avatar_url, manual_avatar_url, provider_avatar_url, email"
+				)
+				.eq("id", userId)
+				.maybeSingle();
+
+			if (profileError) {
+				console.error("Error fetching current profile:", profileError);
+				return NextResponse.json(
+					{ error: "Failed to fetch current profile" },
+					{ status: 500 },
+				);
+			}
+
+			currentProfile = profileData;
+		}
+
 		// Build update payload
 		const updateData: {
 			user_metadata?: Record<string, any>;
@@ -124,7 +157,7 @@ export async function PATCH(
 		} = {};
 
 		// Update user_metadata if name or avatar provided
-		if ((name !== undefined || avatar !== undefined) && currentUser) {
+		if (name !== undefined && currentUser) {
 			updateData.user_metadata = {
 				...currentUser.user_metadata,
 			};
@@ -132,10 +165,6 @@ export async function PATCH(
 			if (name !== undefined) {
 				// Use display_name to avoid OAuth provider overwrites
 				updateData.user_metadata.display_name = name;
-			}
-
-			if (avatar !== undefined) {
-				updateData.user_metadata.avatar_url = avatar || null;
 			}
 		}
 
@@ -201,6 +230,52 @@ export async function PATCH(
 			}
 		}
 
+		if (name !== undefined || avatar !== undefined || email !== undefined) {
+			const providerAvatarUrl =
+				currentProfile?.provider_avatar_url ||
+				getProviderAvatarFromMetadata(currentUser?.user_metadata);
+			const nextManualAvatarUrl =
+				avatar !== undefined
+					? avatar || null
+					: currentProfile?.manual_avatar_url || null;
+			const nextAvatarUrl = getEffectiveAvatar(
+				nextManualAvatarUrl,
+				providerAvatarUrl
+			);
+
+			const { error: profileUpdateError } = await adminClient
+				.from("profiles")
+				.upsert(
+					{
+						id: userId,
+						display_name:
+							name !== undefined
+								? name
+								: currentProfile?.display_name ||
+								  currentUser?.user_metadata?.display_name ||
+								  currentUser?.user_metadata?.name ||
+								  currentUser?.user_metadata?.full_name ||
+								  currentUser?.email?.split("@")[0] ||
+								  "User",
+						email:
+							email !== undefined
+								? email
+								: currentProfile?.email || currentUser?.email || null,
+						manual_avatar_url: nextManualAvatarUrl,
+						avatar_url: nextAvatarUrl,
+					},
+					{ onConflict: "id" }
+				);
+
+			if (profileUpdateError) {
+				console.error("Error updating profile:", profileUpdateError);
+				return NextResponse.json(
+					{ error: "Failed to update profile" },
+					{ status: 500 },
+				);
+			}
+		}
+
 		if (!updatedAuthUser) {
 			const { data, error: userFetchError } =
 				await adminClient.auth.admin.getUserById(userId);
@@ -212,6 +287,21 @@ export async function PATCH(
 					{ status: userFetchError ? 400 : 404 },
 				);
 			}
+		}
+
+		const { data: updatedProfile, error: updatedProfileError } =
+			await adminClient
+				.from("profiles")
+				.select("display_name, avatar_url")
+				.eq("id", userId)
+				.maybeSingle();
+
+		if (updatedProfileError) {
+			console.error("Error fetching updated profile:", updatedProfileError);
+			return NextResponse.json(
+				{ error: "Failed to fetch updated profile" },
+				{ status: 500 },
+			);
 		}
 
 		const {
@@ -238,12 +328,16 @@ export async function PATCH(
 			id: updatedAuthUser.id,
 			email: updatedAuthUser.email || "",
 			name:
+				updatedProfile?.display_name ||
 				updatedAuthUser.user_metadata?.display_name ||
 				updatedAuthUser.user_metadata?.name ||
 				updatedAuthUser.user_metadata?.full_name ||
 				updatedAuthUser.email?.split("@")[0] ||
 				"User",
-			avatar: updatedAuthUser.user_metadata?.avatar_url || null,
+			avatar:
+				updatedProfile?.avatar_url ||
+				getProviderAvatarFromMetadata(updatedAuthUser.user_metadata) ||
+				null,
 			sessionsPerWeek: parseSessionsPerWeek(
 				scheduleSettings?.sessions_per_week,
 			),

@@ -1,4 +1,8 @@
-import { getSessionSafely } from "@/lib/supabase/client";
+import { getSessionSafely, supabase } from "@/lib/supabase/client";
+import {
+	getEffectiveAvatar,
+	getProviderAvatarFromMetadata,
+} from "@/lib/profile-avatar";
 import { getUserRoleFromAuthUser, type UserRole } from "./roles";
 
 /**
@@ -20,19 +24,25 @@ export async function getCurrentUser() {
 	}
 
 	const user = session.user;
+	const { data: profile } = await supabase
+		.from("profiles")
+		.select("display_name, avatar_url, provider_avatar_url")
+		.eq("id", user.id)
+		.maybeSingle();
+
 	// Prefer display_name (custom) over name (OAuth-provided) to avoid OAuth overwrites
 	const name =
+		profile?.display_name ||
 		user.user_metadata?.display_name ||
 		user.user_metadata?.name ||
 		user.user_metadata?.full_name ||
 		user.email?.split("@")[0] ||
 		"User";
 	const email = user.email || "";
-	// Use avatar from metadata, or Google avatar, or null (UI will handle placeholder)
-	const avatar =
-		user.user_metadata?.avatar_url ||
-		user.user_metadata?.avatar_url_google ||
-		null;
+	const avatar = getEffectiveAvatar(
+		profile?.avatar_url,
+		profile?.provider_avatar_url || getProviderAvatarFromMetadata(user.user_metadata)
+	);
 
 	const validRole: UserRole = getUserRoleFromAuthUser(user);
 

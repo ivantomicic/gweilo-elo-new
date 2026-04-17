@@ -1,4 +1,8 @@
 import { supabase } from "./client";
+import {
+	getEffectiveAvatar,
+	getProviderAvatarFromMetadata,
+} from "@/lib/profile-avatar";
 
 /**
  * Update user display name in metadata
@@ -15,6 +19,18 @@ export async function updateDisplayName(name: string) {
 	});
 
 	if (error) throw error;
+
+	if (user) {
+		const { error: profileError } = await supabase
+			.from("profiles")
+			.update({ display_name: name })
+			.eq("id", user.id);
+
+		if (profileError) {
+			throw profileError;
+		}
+	}
+
 	return user;
 }
 
@@ -56,7 +72,7 @@ export async function updatePassword(newPassword: string) {
 }
 
 /**
- * Upload avatar to Supabase Storage and update user metadata
+ * Upload avatar to Supabase Storage and update the canonical profile avatar.
  */
 export async function uploadAvatar(file: File): Promise<string> {
 	// Validate file type
@@ -84,7 +100,7 @@ export async function uploadAvatar(file: File): Promise<string> {
 	const filePath = fileName;
 
 	// Upload to storage
-	const { error: uploadError, data: uploadData } = await supabase.storage
+	const { error: uploadError } = await supabase.storage
 		.from("avatars")
 		.upload(filePath, file, {
 			cacheControl: "3600",
@@ -109,17 +125,18 @@ export async function uploadAvatar(file: File): Promise<string> {
 		data: { publicUrl },
 	} = supabase.storage.from("avatars").getPublicUrl(filePath);
 
-	// Update user metadata with new avatar URL
-	const { error: updateError } = await supabase.auth.updateUser({
-		data: {
-			avatar_url: publicUrl,
-		},
-	});
+	const providerAvatarUrl = getProviderAvatarFromMetadata(user.user_metadata);
+	const { error: profileError } = await supabase
+		.from("profiles")
+		.update({
+			manual_avatar_url: publicUrl,
+			avatar_url: getEffectiveAvatar(publicUrl, providerAvatarUrl),
+		})
+		.eq("id", user.id);
 
-	if (updateError) {
+	if (profileError) {
 		throw new Error("UPDATE_FAILED");
 	}
 
 	return publicUrl;
 }
-

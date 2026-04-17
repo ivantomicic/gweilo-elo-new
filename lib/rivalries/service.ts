@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
+import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 import {
 	createAdminClient,
 	listAllAuthUsers,
@@ -296,9 +297,7 @@ async function listEligiblePlayers(adminClient: SupabaseClient) {
 				"User";
 			const avatarUrl =
 				profile?.avatar_url ||
-				(typeof user.user_metadata?.avatar_url === "string"
-					? user.user_metadata.avatar_url
-					: null);
+				getProviderAvatarFromMetadata(user.user_metadata);
 			const elo = toNumber(rating?.elo, 1500);
 			const matchesPlayed = rating?.matches_played ?? 0;
 

@@ -5,6 +5,7 @@ import {
 	verifyModOrAdmin,
 } from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
+import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 import { getAuthToken } from "../../_utils/auth";
 import { parseSessionsPerWeek } from "@/lib/no-shows/sessions-per-week";
 
@@ -71,21 +72,43 @@ export async function GET(request: NextRequest) {
 				parseSessionsPerWeek(setting.sessions_per_week),
 			]),
 		);
+		const userIds = users.map((user) => user.id);
+		const { data: profiles, error: profilesError } = await adminClient
+			.from("profiles")
+			.select("id, display_name, avatar_url")
+			.in("id", userIds);
+
+		if (profilesError) {
+			console.error("Error fetching profiles:", profilesError);
+			return NextResponse.json(
+				{ error: "Failed to fetch profiles" },
+				{ status: 500 },
+			);
+		}
+
+		const profilesByUserId = new Map(
+			(profiles || []).map((profile) => [profile.id, profile]),
+		);
 
 		// Format user data for frontend
 		const formattedUsers = users
 			.map((user) => {
 				const role = getManagedRoleFromAuthUser(user);
+				const profile = profilesByUserId.get(user.id);
 				return {
 					id: user.id,
 					email: user.email || "",
 					name:
+						profile?.display_name ||
 						user.user_metadata?.display_name ||
 						user.user_metadata?.name ||
 						user.user_metadata?.full_name ||
 						user.email?.split("@")[0] ||
 						"User",
-					avatar: user.user_metadata?.avatar_url || null,
+					avatar:
+						profile?.avatar_url ||
+						getProviderAvatarFromMetadata(user.user_metadata) ||
+						null,
 					sessionsPerWeek:
 						sessionsPerWeekByUserId.get(user.id) ?? null,
 					role,
