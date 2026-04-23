@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -11,6 +12,7 @@ import {
 	SidebarProvider,
 } from "@/components/vendor/shadcn/sidebar";
 import { t } from "@/lib/i18n";
+import { BasePlayerSection } from "@/app/calculator/_components/base-player-section";
 import { OpponentPickerSection } from "@/app/calculator/_components/opponent-picker-section";
 import { SelectedOpponentsSection } from "@/app/calculator/_components/selected-opponents-section";
 import { useCalculatorData } from "@/app/calculator/_hooks/use-calculator-data";
@@ -40,6 +42,7 @@ function StatusCard({
 
 function CalculatorPageContent() {
 	const {
+		players,
 		currentPlayer,
 		availableOpponents,
 		selectedOpponents,
@@ -47,12 +50,14 @@ function CalculatorPageContent() {
 		predictedResults,
 		loading,
 		error,
+		selectPlayer,
 		toggleOpponent,
 		removeOpponent,
 		setPredictionForOpponent,
 		getOpponentDelta,
 		totalProjectedDelta,
 	} = useCalculatorData();
+	const [isBasePlayerPickerOpen, setIsBasePlayerPickerOpen] = useState(false);
 
 	const {
 		scrollRef,
@@ -94,7 +99,7 @@ function CalculatorPageContent() {
 								/>
 							) : !currentPlayer ? (
 								<StatusCard
-									message="Nema podataka za trenutno prijavljenog igrača."
+									message="Nema dostupnih igrača za kalkulator."
 									error
 								/>
 							) : (
@@ -102,6 +107,25 @@ function CalculatorPageContent() {
 									direction="column"
 									spacing={6}
 								>
+									<BasePlayerSection
+										currentPlayer={currentPlayer}
+										availablePlayers={players.filter(
+											(player) =>
+												player.id !== currentPlayer.id,
+										)}
+										isPickerOpen={
+											isBasePlayerPickerOpen
+										}
+										onTogglePicker={() =>
+											setIsBasePlayerPickerOpen(
+												(previous) => !previous,
+											)
+										}
+										onSelectPlayer={(playerId) => {
+											selectPlayer(playerId);
+											setIsBasePlayerPickerOpen(false);
+										}}
+									/>
 									<OpponentPickerSection
 										availableOpponents={
 											availableOpponents
