@@ -62,7 +62,7 @@ export function BasePlayerSection({
 						className="overflow-hidden"
 					>
 						<div className="pt-3">
-							<div className="ml-auto w-full max-w-sm rounded-2xl border border-border/50 bg-card p-2">
+							<div className="w-full rounded-2xl border border-border/50 bg-card p-2">
 								<div className="flex flex-col">
 									{availablePlayers.map((player) => (
 										<button
