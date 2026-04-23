@@ -1,6 +1,6 @@
 "use client";
 
-import { AdminGuard } from "@/components/auth/admin-guard";
+import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { Box } from "@/components/ui/box";
@@ -122,8 +122,8 @@ function CalculatorPageContent() {
 
 export default function CalculatorPage() {
 	return (
-		<AdminGuard>
+		<AuthGuard>
 			<CalculatorPageContent />
-		</AdminGuard>
+		</AuthGuard>
 	);
 }

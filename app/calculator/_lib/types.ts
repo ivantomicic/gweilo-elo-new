@@ -1,11 +1,9 @@
 import type { MatchResult } from "@/lib/elo/calculation";
 
-export type AdminUser = {
+export type CalculatorPlayer = {
 	id: string;
 	name: string;
 	avatar: string | null;
-	email: string;
-	role?: string;
 };
 
 export type PlayerRating = {
@@ -24,7 +22,6 @@ export type PlayerWithRating = {
 	id: string;
 	name: string;
 	avatar: string | null;
-	email: string;
 	elo: number;
 	matchesPlayed: number;
 };

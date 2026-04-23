@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { calculateEloDelta, type MatchResult } from "@/lib/elo/calculation";
 import { supabase } from "@/lib/supabase/client";
 import type {
-	AdminUser,
+	CalculatorPlayer,
 	PlayerRating,
 	PlayerWithRating,
 	PredictedResults,
@@ -57,11 +57,11 @@ export function useCalculatorData(): UseCalculatorDataResult {
 				setCurrentUserId(session.user.id);
 
 				const usersResponse = await fetch(
-					"/api/admin/users?excludeGuests=true",
+					"/api/calculator/players",
 					{
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
+						headers: {
+							Authorization: `Bearer ${session.access_token}`,
+						},
 					},
 				);
 
@@ -70,11 +70,9 @@ export function useCalculatorData(): UseCalculatorDataResult {
 					return;
 				}
 
-				const { users } = await usersResponse.json();
-				const adminUsers = ((users || []) as AdminUser[]).filter(
-					(user) => user.role !== "guest",
-				);
-				const userIds = adminUsers.map((user) => user.id);
+				const { players } = await usersResponse.json();
+				const calculatorPlayers = (players || []) as CalculatorPlayer[];
+				const userIds = calculatorPlayers.map((player) => player.id);
 
 				const [ratingsResult, profilesResult] = await Promise.all([
 					supabase
@@ -97,19 +95,14 @@ export function useCalculatorData(): UseCalculatorDataResult {
 					profilesMap.set(profile.id, profile as ProfileRow);
 				});
 
-				const mergedPlayers = adminUsers
-					.map((user) => {
-						const rating = ratingsMap.get(user.id);
-						const profile = profilesMap.get(user.id);
+				const mergedPlayers = calculatorPlayers
+					.map((player) => {
+						const rating = ratingsMap.get(player.id);
+						const profile = profilesMap.get(player.id);
 						return {
-							id: user.id,
-							name:
-								profile?.display_name ||
-								user.name ||
-								user.email.split("@")[0] ||
-								"User",
-							avatar: profile?.avatar_url || user.avatar || null,
-							email: user.email,
+							id: player.id,
+							name: profile?.display_name || player.name || "User",
+							avatar: profile?.avatar_url || player.avatar || null,
 							elo: rating?.elo ?? 1500,
 							matchesPlayed: rating?.matches_played ?? 0,
 						};
