@@ -48,6 +48,22 @@ type ScheduleBuildResult = {
 	isManuallyManagingRounds: boolean;
 };
 
+type SixPlayerTeamKey = "A" | "B" | "C";
+
+const getSixPlayerCandidateTeams = (
+	players: Player[],
+): Record<SixPlayerTeamKey, [string, string]> | null => {
+	if (players.length !== 6) {
+		return null;
+	}
+
+	return {
+		A: [players[0].id, players[1].id],
+		B: [players[2].id, players[3].id],
+		C: [players[4].id, players[5].id],
+	};
+};
+
 /**
  * Generate schedule for 2 players
  *
@@ -267,7 +283,10 @@ const generateScheduleFor5Players = (players: Player[]): Round[] => {
  * - Each doubles team plays exactly one internal singles match (A vs B within team)
  * - All players play every round
  */
-const generateScheduleFor6Players = (players: Player[]): Round[] => {
+const generateScheduleFor6Players = (
+	players: Player[],
+	round5SinglesTeam: SixPlayerTeamKey = "C",
+): Round[] => {
 	if (players.length !== 6) return [];
 
 	// Organize players into teams (based on selection order from Step 2):
@@ -275,6 +294,19 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
 	// Team B: players[2], players[3]
 	// Team C: players[4], players[5]
 	const [A, B, C, D, E, F] = players;
+	const teams: Record<SixPlayerTeamKey, [Player, Player]> = {
+		A: [A, B],
+		B: [C, D],
+		C: [E, F],
+	};
+	const round5SinglesPlayers = teams[round5SinglesTeam];
+	const doublesTeamKeys = (["A", "B", "C"] as SixPlayerTeamKey[]).filter(
+		(teamKey) => teamKey !== round5SinglesTeam,
+	);
+	const round5DoublesTeam1Key = doublesTeamKeys[0];
+	const round5DoublesTeam2Key = doublesTeamKeys[1];
+	const round5DoublesTeam1Players = teams[round5DoublesTeam1Key];
+	const round5DoublesTeam2Players = teams[round5DoublesTeam2Key];
 
 	const rounds: Round[] = [];
 
@@ -331,13 +363,19 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
 	// Each round: 1 doubles match + 1 singles match (internal to the remaining team)
 	// Each doubles team plays exactly one doubles match and one internal singles match
 
-	// Round 5: Team A vs Team B (doubles), Team C internal (singles)
+	// Round 5: two teams play doubles, remaining team plays internal singles
 	rounds.push({
 		id: "5",
 		roundNumber: 5,
 		matches: [
-			{ type: "doubles", players: [A, B, C, D] }, // Team A vs Team B
-			{ type: "singles", players: [E, F] }, // Team C internal
+			{
+				type: "doubles",
+				players: [
+					...round5DoublesTeam1Players,
+					...round5DoublesTeam2Players,
+				],
+			},
+			{ type: "singles", players: [...round5SinglesPlayers] },
 		],
 	});
 
@@ -348,8 +386,14 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
 		id: "6",
 		roundNumber: 6,
 		matches: [
-			{ type: "doubles", players: [A, B, E, F] }, // Placeholder - will be updated dynamically
-			{ type: "singles", players: [C, D] }, // Team B internal (placeholder)
+			{
+				type: "doubles",
+				players: [
+					...round5DoublesTeam1Players,
+					...round5SinglesPlayers,
+				],
+			},
+			{ type: "singles", players: [...round5DoublesTeam2Players] },
 		],
 		isDynamic: true, // Flag to indicate this round will be updated dynamically
 	});
@@ -360,8 +404,14 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
 		id: "7",
 		roundNumber: 7,
 		matches: [
-			{ type: "doubles", players: [C, D, E, F] }, // Placeholder - will be updated dynamically
-			{ type: "singles", players: [A, B] }, // Placeholder - will be updated dynamically
+			{
+				type: "doubles",
+				players: [
+					...round5DoublesTeam2Players,
+					...round5SinglesPlayers,
+				],
+			},
+			{ type: "singles", players: [...round5DoublesTeam1Players] },
 		],
 		isDynamic: true,
 		dynamicNote: {
@@ -377,7 +427,12 @@ const generateScheduleFor6Players = (players: Player[]): Round[] => {
 /**
  * Generate schedule based on player count
  */
-const generateSchedule = (players: Player[]): Round[] => {
+const generateSchedule = (
+	players: Player[],
+	options?: {
+		sixPlayerRound5SinglesTeam?: SixPlayerTeamKey;
+	},
+): Round[] => {
 	if (players.length === 2) {
 		return generateScheduleFor2Players(players);
 	}
@@ -395,7 +450,10 @@ const generateSchedule = (players: Player[]): Round[] => {
 	}
 
 	if (players.length === 6) {
-		return generateScheduleFor6Players(players);
+		return generateScheduleFor6Players(
+			players,
+			options?.sixPlayerRound5SinglesTeam,
+		);
 	}
 
 	return [];
@@ -564,12 +622,20 @@ function SchedulePageContent() {
 		}
 		return null;
 	})();
+	const [sixPlayerRound5SinglesTeam, setSixPlayerRound5SinglesTeam] =
+		useState<SixPlayerTeamKey>("C");
+	const [isLoadingSixPlayerRound5Team, setIsLoadingSixPlayerRound5Team] =
+		useState(playerCount === 6);
 
 	const selectedPlayerIdsKey = selectedPlayers.map((player) => player.id).join(",");
+	const scheduleSeedKey = `${selectedPlayerIdsKey}:${sixPlayerRound5SinglesTeam}`;
 	const initialScheduleState =
-		selectedPlayers.length === playerCount
+		selectedPlayers.length === playerCount &&
+		(playerCount !== 6 || !isLoadingSixPlayerRound5Team)
 			? (() => {
-					const baseSchedule = generateSchedule(selectedPlayers);
+					const baseSchedule = generateSchedule(selectedPlayers, {
+						sixPlayerRound5SinglesTeam,
+					});
 					return {
 						originalSchedule: baseSchedule,
 						...buildRandomizedSchedule(
@@ -599,24 +665,101 @@ function SchedulePageContent() {
 	const [isManuallyManagingRounds, setIsManuallyManagingRounds] = useState(
 		initialScheduleState.isManuallyManagingRounds,
 	);
-	const [initializedPlayersKey, setInitializedPlayersKey] = useState(
-		selectedPlayerIdsKey,
+	const [initializedScheduleSeedKey, setInitializedScheduleSeedKey] = useState(
+		initialScheduleState.rounds.length > 0 ? scheduleSeedKey : "",
 	);
+
+	useEffect(() => {
+		if (playerCount !== 6 || selectedPlayers.length !== playerCount) {
+			setIsLoadingSixPlayerRound5Team(false);
+			return;
+		}
+
+		let cancelled = false;
+
+		const loadPreferredRound5Team = async () => {
+			try {
+				setIsLoadingSixPlayerRound5Team(true);
+
+				const {
+					data: { session },
+				} = await supabase.auth.getSession();
+
+				if (!session) {
+					return;
+				}
+
+				const candidateTeams = getSixPlayerCandidateTeams(selectedPlayers);
+				if (!candidateTeams) {
+					return;
+				}
+
+				const response = await fetch("/api/sessions/6-player-round5-team", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${session.access_token}`,
+					},
+					body: JSON.stringify({ candidateTeams }),
+				});
+
+				if (!response.ok) {
+					const errorData = await response.json().catch(() => null);
+					console.error(
+						"Failed to fetch preferred 6-player round 5 team:",
+						errorData?.error || response.statusText,
+					);
+					return;
+				}
+
+				const data = (await response.json()) as {
+					preferredSinglesTeam?: SixPlayerTeamKey;
+				};
+
+				if (
+					!cancelled &&
+					(data.preferredSinglesTeam === "A" ||
+						data.preferredSinglesTeam === "B" ||
+						data.preferredSinglesTeam === "C")
+				) {
+					setSixPlayerRound5SinglesTeam(data.preferredSinglesTeam);
+				}
+			} catch (error) {
+				console.error(
+					"Error fetching preferred 6-player round 5 team:",
+					error,
+				);
+			} finally {
+				if (!cancelled) {
+					setIsLoadingSixPlayerRound5Team(false);
+				}
+			}
+		};
+
+		void loadPreferredRound5Team();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [playerCount, selectedPlayers]);
 
 	// Update shuffled players and original schedule when selected players change
 	useEffect(() => {
 		if (
 			selectedPlayers.length === playerCount &&
-			selectedPlayerIdsKey !== initializedPlayersKey
+			(playerCount !== 6 || !isLoadingSixPlayerRound5Team) &&
+			scheduleSeedKey !== initializedScheduleSeedKey
 		) {
-			const baseSchedule = generateSchedule(selectedPlayers);
+			const baseSchedule = generateSchedule(selectedPlayers, {
+				sixPlayerRound5SinglesTeam,
+			});
 			const randomizedSchedule = buildRandomizedSchedule(
 				selectedPlayers,
 				playerCount,
 				baseSchedule,
 			);
 
-			setInitializedPlayersKey(selectedPlayerIdsKey);
+			setInitializedScheduleSeedKey(scheduleSeedKey);
 			setOriginalSchedule(baseSchedule);
 			setShuffledPlayers(randomizedSchedule.shuffledPlayers);
 			setRounds(randomizedSchedule.rounds);
@@ -627,8 +770,10 @@ function SchedulePageContent() {
 	}, [
 		selectedPlayers,
 		playerCount,
-		selectedPlayerIdsKey,
-		initializedPlayersKey,
+		scheduleSeedKey,
+		initializedScheduleSeedKey,
+		isLoadingSixPlayerRound5Team,
+		sixPlayerRound5SinglesTeam,
 	]);
 
 	// Generate schedule from shuffled players
@@ -738,6 +883,7 @@ function SchedulePageContent() {
 		!playerCount ||
 		playerCount < 2 ||
 		playerCount > 6 ||
+		(playerCount === 6 && isLoadingSixPlayerRound5Team) ||
 		rounds.length === 0
 	) {
 		return null;
