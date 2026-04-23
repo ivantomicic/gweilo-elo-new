@@ -4,6 +4,7 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { Box } from "@/components/ui/box";
+import { Loading } from "@/components/ui/loading";
 import { Stack } from "@/components/ui/stack";
 import {
 	SidebarInset,
@@ -60,6 +61,24 @@ function CalculatorPageContent() {
 		updateScrollIndicators,
 	} = useHorizontalScrollIndicators(availableOpponents.length);
 
+	if (loading) {
+		return (
+			<SidebarProvider>
+				<AppSidebar variant="inset" />
+				<SidebarInset>
+					<SiteHeader title={t.pages.calculator} />
+					<div className="flex flex-1 flex-col">
+						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
+							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+								<Loading label="Učitavanje kalkulatora..." />
+							</div>
+						</div>
+					</div>
+				</SidebarInset>
+			</SidebarProvider>
+		);
+	}
+
 	return (
 		<SidebarProvider>
 			<AppSidebar variant="inset" />
@@ -68,9 +87,7 @@ function CalculatorPageContent() {
 				<div className="flex flex-1 flex-col min-w-0">
 					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav min-w-0">
 						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6 min-w-0">
-							{loading ? (
-								<StatusCard message="Učitavanje kalkulatora..." />
-							) : error ? (
+							{error ? (
 								<StatusCard
 									message={error}
 									error

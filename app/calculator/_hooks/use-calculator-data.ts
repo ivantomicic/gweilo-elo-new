@@ -3,10 +3,8 @@ import { calculateEloDelta, type MatchResult } from "@/lib/elo/calculation";
 import { supabase } from "@/lib/supabase/client";
 import type {
 	CalculatorPlayer,
-	PlayerRating,
 	PlayerWithRating,
 	PredictedResults,
-	ProfileRow,
 } from "@/app/calculator/_lib/types";
 
 type UseCalculatorDataResult = {
@@ -71,42 +69,7 @@ export function useCalculatorData(): UseCalculatorDataResult {
 				}
 
 				const { players } = await usersResponse.json();
-				const calculatorPlayers = (players || []) as CalculatorPlayer[];
-				const userIds = calculatorPlayers.map((player) => player.id);
-
-				const [ratingsResult, profilesResult] = await Promise.all([
-					supabase
-						.from("player_ratings")
-						.select("player_id, elo, matches_played")
-						.in("player_id", userIds),
-					supabase
-						.from("profiles")
-						.select("id, display_name, avatar_url")
-						.in("id", userIds),
-				]);
-
-				const ratingsMap = new Map<string, PlayerRating>();
-				(ratingsResult.data || []).forEach((rating: any) => {
-					ratingsMap.set(rating.player_id, rating as PlayerRating);
-				});
-
-				const profilesMap = new Map<string, ProfileRow>();
-				(profilesResult.data || []).forEach((profile: any) => {
-					profilesMap.set(profile.id, profile as ProfileRow);
-				});
-
-				const mergedPlayers = calculatorPlayers
-					.map((player) => {
-						const rating = ratingsMap.get(player.id);
-						const profile = profilesMap.get(player.id);
-						return {
-							id: player.id,
-							name: profile?.display_name || player.name || "User",
-							avatar: profile?.avatar_url || player.avatar || null,
-							elo: rating?.elo ?? 1500,
-							matchesPlayed: rating?.matches_played ?? 0,
-						};
-					})
+				const mergedPlayers = ((players || []) as CalculatorPlayer[])
 					.sort((a, b) => b.elo - a.elo);
 
 				setPlayers(mergedPlayers);

@@ -4,18 +4,8 @@ export type CalculatorPlayer = {
 	id: string;
 	name: string;
 	avatar: string | null;
-};
-
-export type PlayerRating = {
-	player_id: string;
 	elo: number;
-	matches_played: number;
-};
-
-export type ProfileRow = {
-	id: string;
-	display_name: string | null;
-	avatar_url: string | null;
+	matchesPlayed: number;
 };
 
 export type PlayerWithRating = {

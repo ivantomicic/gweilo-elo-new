@@ -26,7 +26,7 @@ export async function getCurrentUser() {
 	const user = session.user;
 	const { data: profile } = await supabase
 		.from("profiles")
-		.select("display_name, avatar_url, provider_avatar_url")
+		.select("display_name, avatar_url")
 		.eq("id", user.id)
 		.maybeSingle();
 
@@ -41,7 +41,7 @@ export async function getCurrentUser() {
 	const email = user.email || "";
 	const avatar = getEffectiveAvatar(
 		profile?.avatar_url,
-		profile?.provider_avatar_url || getProviderAvatarFromMetadata(user.user_metadata)
+		getProviderAvatarFromMetadata(user.user_metadata)
 	);
 
 	const validRole: UserRole = getUserRoleFromAuthUser(user);
