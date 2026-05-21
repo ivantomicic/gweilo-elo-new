@@ -39,8 +39,13 @@ type EditMatchDrawerProps = {
 	match: Match | null;
 	team1Players: Player[];
 	team2Players: Player[];
-	onSave: (team1Score: number, team2Score: number, reason?: string) => Promise<void>;
+	onSave: (
+		team1Score: number,
+		team2Score: number,
+		reason?: string,
+	) => Promise<void>;
 	isSaving?: boolean;
+	isEloDeferred?: boolean;
 };
 
 export function EditMatchDrawer({
@@ -51,6 +56,7 @@ export function EditMatchDrawer({
 	team2Players,
 	onSave,
 	isSaving = false,
+	isEloDeferred = false,
 }: EditMatchDrawerProps) {
 	const [team1Score, setTeam1Score] = useState<string>("");
 	const [team2Score, setTeam2Score] = useState<string>("");
@@ -230,7 +236,9 @@ export function EditMatchDrawer({
 					<Box className="p-3 bg-muted/50 rounded-lg border border-border/50">
 						<p className="text-xs text-muted-foreground">
 							<Icon icon="lucide:info" className="inline size-3 mr-1" />
-							Editing this match will recalculate Elo ratings for all matches of the same type in this session.
+							{isEloDeferred
+								? "Editing this match will update the saved half score. Elo is calculated when the matching second-half round is submitted."
+								: "Editing this match will recalculate Elo ratings for all matches of the same type in this session."}
 						</p>
 					</Box>
 				</Box>

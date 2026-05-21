@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthToken } from "@/app/api/_utils/auth";
+import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -114,15 +115,22 @@ export async function GET(request: NextRequest) {
 				)
 				.map((authUser) => authUser.id),
 		);
+		const authUsersById = new Map(
+			(authUsersResults || []).map((authUser) => [authUser.id, authUser]),
+		);
 
 		const players = (profiles || [])
 			.filter((profile) => visiblePlayerIds.has(profile.id))
 			.map((profile) => {
 				const rating = ratingsByPlayerId.get(profile.id);
+				const authUser = authUsersById.get(profile.id);
 				return {
 					id: profile.id,
 					name: profile.display_name || "User",
-					avatar: profile.avatar_url || null,
+					avatar:
+						profile.avatar_url ||
+						getProviderAvatarFromMetadata(authUser?.user_metadata) ||
+						null,
 					elo: rating?.elo ?? 1500,
 					matchesPlayed: rating?.matchesPlayed ?? 0,
 				};

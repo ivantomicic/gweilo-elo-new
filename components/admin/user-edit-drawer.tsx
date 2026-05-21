@@ -51,6 +51,14 @@ type UserEditDrawerProps = {
 	onSave: (updatedUser: User) => void;
 };
 
+type UserUpdatePayload = {
+	name?: string;
+	email?: string;
+	avatar?: string | null;
+	role?: EditableRole;
+	sessionsPerWeek?: SessionsPerWeek | null;
+};
+
 export function UserEditDrawer({
 	user,
 	open,
@@ -173,6 +181,30 @@ export function UserEditDrawer({
 				return;
 			}
 
+			const trimmedName = name.trim();
+			const trimmedEmail = email.trim();
+			const updatePayload: UserUpdatePayload = {};
+
+			if (trimmedName !== user.name) {
+				updatePayload.name = trimmedName;
+			}
+
+			if (trimmedEmail !== user.email) {
+				updatePayload.email = trimmedEmail;
+			}
+
+			if (avatarPreview !== user.avatar) {
+				updatePayload.avatar = avatarPreview;
+			}
+
+			if (sessionsPerWeek !== user.sessionsPerWeek) {
+				updatePayload.sessionsPerWeek = sessionsPerWeek;
+			}
+
+			if (role !== initialRole) {
+				updatePayload.role = role;
+			}
+
 			// Update user via API
 			const response = await fetch(`/api/admin/users/${user.id}`, {
 				method: "PATCH",
@@ -180,13 +212,7 @@ export function UserEditDrawer({
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${session.access_token}`,
 				},
-				body: JSON.stringify({
-					name: name.trim(),
-					email: email.trim(),
-					avatar: avatarPreview,
-					sessionsPerWeek,
-					...(role !== initialRole ? { role } : {}),
-				}),
+				body: JSON.stringify(updatePayload),
 			});
 
 			if (!response.ok) {

@@ -156,6 +156,7 @@ export function CalculationTerminal({
 		<Box
 			className={cn(
 				"bg-[#0d1117] border border-border/30 rounded-xl overflow-hidden shadow-2xl",
+				"flex h-full min-h-0 flex-col",
 				"transition-all duration-300 ease-out",
 				isEntering
 					? "opacity-0 scale-95 translate-y-4"
@@ -187,42 +188,44 @@ export function CalculationTerminal({
 			{/* Terminal content */}
 			<Box
 				ref={containerRef}
-				className="p-4 font-mono text-sm leading-relaxed max-h-[350px] overflow-y-auto scrollbar-thin scrollbar-thumb-border/30"
+				className="min-h-0 flex-1 overflow-y-auto p-4 font-mono text-sm leading-relaxed scrollbar-thin scrollbar-thumb-border/30"
 			>
-				{/* Completed lines - stable, no re-animation */}
-				{completedLines.map((line) => (
-					<Box
-						key={line.id}
-						className="flex items-start gap-2 min-h-[1.5rem]"
-					>
-						<span className="text-primary/60 select-none shrink-0">❯</span>
-						<span className={cn("break-all", getLineColor(line.type))}>
-							{line.text}
-						</span>
-					</Box>
-				))}
+				<Box className="flex min-h-full flex-col justify-end">
+					{/* Completed lines - stable, no re-animation */}
+					{completedLines.map((line) => (
+						<Box
+							key={line.id}
+							className="flex min-h-[1.5rem] items-start gap-2"
+						>
+							<span className="shrink-0 select-none text-primary/60">❯</span>
+							<span className={cn("break-words", getLineColor(line.type))}>
+								{line.text}
+							</span>
+						</Box>
+					))}
 
-				{/* Currently typing line */}
-				{currentTypingLine && (
-					<Box
-						key={currentTypingLine.id}
-						className="flex items-start gap-2 min-h-[1.5rem] animate-in fade-in-0 slide-in-from-left-2 duration-150"
-					>
-						<span className="text-primary/60 select-none shrink-0">❯</span>
-						<span className={cn("break-all", getLineColor(currentTypingLine.type))}>
-							{currentTypingText}
-							<span className="inline-block w-2 h-4 bg-primary/80 ml-0.5 animate-pulse" />
-						</span>
-					</Box>
-				)}
+					{/* Currently typing line */}
+					{currentTypingLine && (
+						<Box
+							key={currentTypingLine.id}
+							className="flex min-h-[1.5rem] animate-in items-start gap-2 fade-in-0 duration-150"
+						>
+							<span className="shrink-0 select-none text-primary/60">❯</span>
+							<span className={cn("break-words", getLineColor(currentTypingLine.type))}>
+								{currentTypingText}
+								<span className="ml-0.5 inline-block h-4 w-2 animate-pulse bg-primary/80" />
+							</span>
+						</Box>
+					)}
 
-				{/* Blinking cursor when done typing but waiting */}
-				{!isTyping && !isComplete && (
-					<Box className="flex items-start gap-2 min-h-[1.5rem]">
-						<span className="text-primary/60 select-none">❯</span>
-						<span className="inline-block w-2 h-4 bg-primary/80 animate-pulse" />
-					</Box>
-				)}
+					{/* Blinking cursor when done typing but waiting */}
+					{!isTyping && !isComplete && (
+						<Box className="flex min-h-[1.5rem] items-start gap-2">
+							<span className="select-none text-primary/60">❯</span>
+							<span className="inline-block h-4 w-2 animate-pulse bg-primary/80" />
+						</Box>
+					)}
+				</Box>
 			</Box>
 		</Box>
 	);
@@ -264,7 +267,7 @@ export function TerminalModal({
 	return (
 		<Box
 			className={cn(
-				"fixed inset-0 z-50 flex items-center justify-center p-4",
+				"fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6",
 				"transition-all duration-300 ease-out",
 				isAnimatingOut
 					? "bg-black/0 backdrop-blur-none"
@@ -273,7 +276,8 @@ export function TerminalModal({
 		>
 			<Box
 				className={cn(
-					"w-full max-w-lg transition-all duration-300 ease-out",
+					"h-[calc(100dvh-1.5rem)] w-full max-w-2xl sm:h-[min(560px,calc(100dvh-2rem))] md:h-[560px]",
+					"transition-all duration-300 ease-out",
 					isAnimatingOut
 						? "opacity-0 scale-95 translate-y-4"
 						: "opacity-100 scale-100 translate-y-0"

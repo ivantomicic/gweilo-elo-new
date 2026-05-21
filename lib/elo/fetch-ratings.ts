@@ -1,4 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
+import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 
 /**
  * Player data with Elo ratings
@@ -76,6 +77,40 @@ export async function fetchPlayersWithRatings(
 
 	// Create map of player_id -> profile for requested players
 	const profilesMap = new Map((profiles || []).map((p) => [p.id, p]));
+	const authUsersById = new Map<
+		string,
+		{ user_metadata?: Record<string, unknown> | null }
+	>();
+	const missingAvatarProfileIds = playerIds.filter((playerId) => {
+		const profile = profilesMap.get(playerId);
+		return !profile?.avatar_url;
+	});
+
+	if (missingAvatarProfileIds.length > 0) {
+		const authUsers = await Promise.all(
+			missingAvatarProfileIds.map(async (playerId) => {
+				const { data, error } = await supabase.auth.admin.getUserById(
+					playerId,
+				);
+
+				if (error || !data.user) {
+					console.error(
+						`Error fetching auth user avatar fallback for ${playerId}:`,
+						error,
+					);
+					return null;
+				}
+
+				return data.user;
+			}),
+		);
+
+		authUsers.forEach((authUser) => {
+			if (authUser) {
+				authUsersById.set(authUser.id, authUser);
+			}
+		});
+	}
 
 	// Create maps for fast lookup
 	// Convert elo to number in case it's returned as string from NUMERIC type
@@ -95,8 +130,12 @@ export async function fetchPlayersWithRatings(
 	// Combine profile data with ratings (fallback to defaults if profile missing)
 	const playersWithRatings: PlayerWithRatings[] = playerIds.map((playerId) => {
 		const profile = profilesMap.get(playerId);
+		const authUser = authUsersById.get(playerId);
 		const displayName = profile?.display_name || "User";
-		const avatar = profile?.avatar_url || null;
+		const avatar =
+			profile?.avatar_url ||
+			getProviderAvatarFromMetadata(authUser?.user_metadata) ||
+			null;
 		const singlesElo = singlesMap.get(playerId) ?? 1500;
 		const doublesElo = includeDoublesElo
 			? (doublesMap.get(playerId) ?? 1500)

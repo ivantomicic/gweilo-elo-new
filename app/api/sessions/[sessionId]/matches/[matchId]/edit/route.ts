@@ -86,7 +86,7 @@ export async function POST(
 		// Verify user owns the session
 		const { data: session, error: sessionError } = await supabase
 			.from("sessions")
-			.select("created_by, recalc_status, status, completed_at")
+			.select("created_by, recalc_status, status, completed_at, player_count")
 			.eq("id", sessionId)
 			.single();
 
@@ -158,6 +158,109 @@ export async function POST(
 				{ error: "team1Score and team2Score must be valid numbers" },
 				{ status: 400 },
 			);
+		}
+
+		if (session.player_count === 5) {
+			const { data: sessionMatches, error: sessionMatchesError } =
+				await adminClient
+					.from("session_matches")
+					.select("id, round_number, match_order")
+					.eq("session_id", sessionId)
+					.order("round_number", { ascending: true });
+
+			if (sessionMatchesError) {
+				return NextResponse.json(
+					{ error: "Failed to verify 5-player session state" },
+					{ status: 500 },
+				);
+			}
+
+			const maxRoundNumber = (sessionMatches ?? []).reduce(
+				(max, match) => Math.max(max, match.round_number),
+				0,
+			);
+
+			if (maxRoundNumber >= 10) {
+				const matchBeingEdited = (sessionMatches ?? []).find(
+					(match) => match.id === matchId,
+				);
+
+				if (!matchBeingEdited) {
+					return NextResponse.json(
+						{ error: "Match not found in session" },
+						{ status: 404 },
+					);
+				}
+
+				const settlementMatch =
+					matchBeingEdited.round_number <= 5
+						? (sessionMatches ?? []).find(
+								(match) =>
+									match.round_number ===
+										matchBeingEdited.round_number + 5 &&
+									match.match_order === matchBeingEdited.match_order,
+							)
+						: matchBeingEdited;
+				let hasSettlementHistory = false;
+
+				if (settlementMatch) {
+					const { data: existingHistory, error: historyLookupError } =
+						await adminClient
+							.from("match_elo_history")
+							.select("match_id")
+							.eq("match_id", settlementMatch.id)
+							.limit(1);
+
+					if (historyLookupError) {
+						console.error(
+							"Error checking existing Elo history:",
+							historyLookupError,
+						);
+						return NextResponse.json(
+							{ error: "Failed to verify Elo history state" },
+							{ status: 500 },
+						);
+					}
+
+					hasSettlementHistory = Boolean(existingHistory?.length);
+				}
+
+				if (!hasSettlementHistory && session.status === "active") {
+					const { error: updateError } = await adminClient
+						.from("session_matches")
+						.update({
+							team1_score: team1Score,
+							team2_score: team2Score,
+						})
+						.eq("id", matchId)
+						.eq("session_id", sessionId);
+
+					if (updateError) {
+						console.error(
+							"Error updating deferred 5-player match score:",
+							updateError,
+						);
+						return NextResponse.json(
+							{ error: "Failed to update match score" },
+							{ status: 500 },
+						);
+					}
+
+					return NextResponse.json({
+						success: true,
+						message: "Match score updated",
+						ratingsDeferred: true,
+					});
+				}
+
+				return NextResponse.json(
+					{
+						error:
+							"This paired 5-player result has already been rated. Edit an unsettled pair before submitting its second-half round.",
+					},
+					{ status: 409 },
+				);
+			}
 		}
 
 		// Step 1: Acquire lock

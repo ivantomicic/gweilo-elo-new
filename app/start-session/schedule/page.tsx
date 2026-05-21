@@ -199,20 +199,21 @@ const generateScheduleFor4Players = (players: Player[]): Round[] => {
 /**
  * Generate schedule for 5 players
  *
- * Total rounds: 5
+ * Total rounds: 10
  * Each round: 2 singles matches (4 players play, 1 rests - not shown)
- * Every player rests exactly once
- * Every player plays 4 matches total
- * No duplicate matchups (each pairing happens exactly once)
+ * The first 5-round rotation is repeated for the second hour
+ * Every player rests exactly twice
+ * Every player plays 8 matches total
+ * Every pairing happens twice across the full session
  */
 const generateScheduleFor5Players = (players: Player[]): Round[] => {
 	if (players.length !== 5) return [];
 
 	const [A, B, C, D, E] = players;
-	const rounds: Round[] = [];
+	const firstRotation: Round[] = [];
 
 	// Round 1: A rests → BC, DE
-	rounds.push({
+	firstRotation.push({
 		id: "1",
 		roundNumber: 1,
 		matches: [
@@ -222,7 +223,7 @@ const generateScheduleFor5Players = (players: Player[]): Round[] => {
 	});
 
 	// Round 2: B rests → AD, CE (using A, C, D, E)
-	rounds.push({
+	firstRotation.push({
 		id: "2",
 		roundNumber: 2,
 		matches: [
@@ -232,7 +233,7 @@ const generateScheduleFor5Players = (players: Player[]): Round[] => {
 	});
 
 	// Round 3: C rests → AE, BD (using A, B, D, E)
-	rounds.push({
+	firstRotation.push({
 		id: "3",
 		roundNumber: 3,
 		matches: [
@@ -242,7 +243,7 @@ const generateScheduleFor5Players = (players: Player[]): Round[] => {
 	});
 
 	// Round 4: D rests → AC, BE (using A, B, C, E)
-	rounds.push({
+	firstRotation.push({
 		id: "4",
 		roundNumber: 4,
 		matches: [
@@ -252,7 +253,7 @@ const generateScheduleFor5Players = (players: Player[]): Round[] => {
 	});
 
 	// Round 5: E rests → AB, CD (using A, B, C, D)
-	rounds.push({
+	firstRotation.push({
 		id: "5",
 		roundNumber: 5,
 		matches: [
@@ -261,7 +262,17 @@ const generateScheduleFor5Players = (players: Player[]): Round[] => {
 		],
 	});
 
-	return rounds;
+	const secondRotation = firstRotation.map((round) => ({
+		...round,
+		id: String(round.roundNumber + 5),
+		roundNumber: round.roundNumber + 5,
+		matches: round.matches.map((match) => ({
+			...match,
+			players: [...match.players],
+		})),
+	}));
+
+	return [...firstRotation, ...secondRotation];
 };
 
 /**

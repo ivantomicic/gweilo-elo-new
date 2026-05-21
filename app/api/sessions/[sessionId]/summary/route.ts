@@ -40,6 +40,64 @@ type SessionTeamSummary = {
 	draws: number;
 };
 
+const isValidScore = (score: unknown): score is number => {
+	return typeof score === "number" && !isNaN(score);
+};
+
+function getCombinedFivePlayerScore(
+	match: any,
+	allMatches: any[],
+): { team1Score: number; team2Score: number } | null {
+	if (
+		match.match_type !== "singles" ||
+		match.round_number < 6 ||
+		!isValidScore(match.team1_score) ||
+		!isValidScore(match.team2_score)
+	) {
+		return null;
+	}
+
+	const firstHalfMatch = allMatches.find(
+		(candidate) =>
+			candidate.round_number === match.round_number - 5 &&
+			candidate.match_order === match.match_order &&
+			candidate.match_type === "singles",
+	);
+
+	if (
+		!firstHalfMatch ||
+		!isValidScore(firstHalfMatch.team1_score) ||
+		!isValidScore(firstHalfMatch.team2_score)
+	) {
+		return null;
+	}
+
+	const firstHalfPlayers = (firstHalfMatch.player_ids as string[]) || [];
+	const secondHalfPlayers = (match.player_ids as string[]) || [];
+
+	if (
+		firstHalfPlayers[0] === secondHalfPlayers[0] &&
+		firstHalfPlayers[1] === secondHalfPlayers[1]
+	) {
+		return {
+			team1Score: firstHalfMatch.team1_score + match.team1_score,
+			team2Score: firstHalfMatch.team2_score + match.team2_score,
+		};
+	}
+
+	if (
+		firstHalfPlayers[0] === secondHalfPlayers[1] &&
+		firstHalfPlayers[1] === secondHalfPlayers[0]
+	) {
+		return {
+			team1Score: firstHalfMatch.team2_score + match.team1_score,
+			team2Score: firstHalfMatch.team1_score + match.team2_score,
+		};
+	}
+
+	return null;
+}
+
 /**
  * Get the previous completed session ID (Session N-1) for a given session
  * Returns null if no previous session exists
@@ -212,7 +270,7 @@ export async function GET(
 		// Verify session exists
 		const { data: session, error: sessionError } = await adminClient
 			.from("sessions")
-			.select("id, status")
+			.select("id, status, player_count")
 			.eq("id", sessionId)
 			.single();
 
@@ -292,6 +350,12 @@ export async function GET(
 			]),
 		);
 		const sessionMatches = sessionMatchesResult.data;
+		const maxRoundNumber = (sessionMatches || []).reduce(
+			(max, match) => Math.max(max, match.round_number),
+			0,
+		);
+		const isTenRoundFivePlayerSession =
+			session.player_count === 5 && maxRoundNumber >= 10;
 
 		const singlesMatches =
 			sessionMatches?.filter((m) => m.match_type === "singles") || [];
@@ -382,6 +446,16 @@ export async function GET(
 
 					const history = historyMap.get(match.id);
 					if (!history) continue;
+					const effectiveScore =
+						isTenRoundFivePlayerSession
+							? getCombinedFivePlayerScore(match, sortedSinglesMatches) ?? {
+									team1Score: match.team1_score,
+									team2Score: match.team2_score,
+								}
+							: {
+									team1Score: match.team1_score,
+									team2Score: match.team2_score,
+								};
 
 					// Process player1
 					const player1Id = playerIds[0];
@@ -415,9 +489,9 @@ export async function GET(
 						// Update stats
 						const stats = playerStatsMap.get(player1Id)!;
 						stats.matchesPlayed += 1;
-						if (match.team1_score > match.team2_score) {
+						if (effectiveScore.team1Score > effectiveScore.team2Score) {
 							stats.wins += 1;
-						} else if (match.team1_score < match.team2_score) {
+						} else if (effectiveScore.team1Score < effectiveScore.team2Score) {
 							stats.losses += 1;
 						} else {
 							stats.draws += 1;
@@ -456,9 +530,9 @@ export async function GET(
 						// Update stats
 						const stats = playerStatsMap.get(player2Id)!;
 						stats.matchesPlayed += 1;
-						if (match.team2_score > match.team1_score) {
+						if (effectiveScore.team2Score > effectiveScore.team1Score) {
 							stats.wins += 1;
-						} else if (match.team2_score < match.team1_score) {
+						} else if (effectiveScore.team2Score < effectiveScore.team1Score) {
 							stats.losses += 1;
 						} else {
 							stats.draws += 1;

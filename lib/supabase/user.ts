@@ -126,13 +126,26 @@ export async function uploadAvatar(file: File): Promise<string> {
 	} = supabase.storage.from("avatars").getPublicUrl(filePath);
 
 	const providerAvatarUrl = getProviderAvatarFromMetadata(user.user_metadata);
-	const { error: profileError } = await supabase
+	let { error: profileError } = await supabase
 		.from("profiles")
 		.update({
 			manual_avatar_url: publicUrl,
 			avatar_url: getEffectiveAvatar(publicUrl, providerAvatarUrl),
 		})
 		.eq("id", user.id);
+
+	if (
+		profileError &&
+		(profileError.code === "42703" ||
+			profileError.code === "PGRST204" ||
+			profileError.message.includes("manual_avatar_url"))
+	) {
+		const fallbackResult = await supabase
+			.from("profiles")
+			.update({ avatar_url: publicUrl })
+			.eq("id", user.id);
+		profileError = fallbackResult.error;
+	}
 
 	if (profileError) {
 		throw new Error("UPDATE_FAILED");

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { MIN_SINGLES_MATCHES } from "@/lib/statistics/min-matches";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -91,14 +93,51 @@ export async function GET(request: NextRequest) {
 		const profilesMap = new Map(
 			(profiles || []).map((p) => [p.id, p])
 		);
+		const missingAvatarIds = playerIds.filter(
+			(playerId) => !profilesMap.get(playerId)?.avatar_url,
+		);
+		const authUsersById = new Map<
+			string,
+			{ user_metadata?: Record<string, unknown> | null }
+		>();
+
+		if (missingAvatarIds.length > 0) {
+			const adminClient = createAdminClient();
+			const authUsers = await Promise.all(
+				missingAvatarIds.map(async (playerId) => {
+					const { data, error } =
+						await adminClient.auth.admin.getUserById(playerId);
+
+					if (error || !data.user) {
+						console.error(
+							`Error fetching top 3 avatar fallback for ${playerId}:`,
+							error,
+						);
+						return null;
+					}
+
+					return data.user;
+				}),
+			);
+
+			authUsers.forEach((authUser) => {
+				if (authUser) {
+					authUsersById.set(authUser.id, authUser);
+				}
+			});
+		}
 
 		// Build response with top 3 players
 		const top3Stats = singlesRatings.map((rating) => {
 			const profile = profilesMap.get(rating.player_id);
+			const authUser = authUsersById.get(rating.player_id);
 			return {
 				player_id: rating.player_id,
 				display_name: profile?.display_name || "User",
-				avatar: profile?.avatar_url || null,
+				avatar:
+					profile?.avatar_url ||
+					getProviderAvatarFromMetadata(authUser?.user_metadata) ||
+					null,
 				elo: rating.elo ?? 1500,
 			};
 		});

@@ -183,6 +183,13 @@ export const sr = {
 			upNext: "Sledeći set",
 			submitting: "Slanje...",
 			vs: "VS",
+			pairedFirstHalfScore: (
+				_round: number,
+				score1: number,
+				score2: number,
+			) => `${score1}-${score2}`,
+			pairedTotalScore: (score1: number, score2: number) =>
+				`Ukupno ${score1}-${score2}`,
 			elo: "Elo",
 			teamElo: "Tim Elo",
 			playerDoublesElo: "Player doubles Elo",
@@ -530,6 +537,7 @@ export const sr = {
 	},
 	terminal: {
 		initializing: "Pokrećem ELO kalkulator...",
+		initializingScorekeeper: "Pokrećem zapisnik...",
 		loadingPlayers: "Učitavam podatke igrača...",
 		processingRound: (round: number, matchCount: number) =>
 			`Obrađujem rundu ${round} · ${matchCount} ${matchCount === 1 ? "meč" : matchCount >= 2 && matchCount <= 4 ? "meča" : "mečeva"}`,
@@ -548,12 +556,17 @@ export const sr = {
 			score2: number,
 		) => `Meč ${current}: ${team1} vs ${team2}  [${score1}-${score2}]`,
 		calculating: "Računam rejtinge...",
+		recordingScore: "Čuvam rezultat bez Elo obračuna...",
+		combiningScore: (round: number) =>
+			`Sabiram rezultat sa rundom ${round}...`,
 		eloChange: (name: string, delta: number) => {
 			const sign = delta >= 0 ? "+" : "";
 			return `  → ${name}: ${sign}${delta.toFixed(1)}`;
 		},
 		matchDone: (num: number) => `Meč ${num} ✓`,
 		saving: "Čuvam rezultate...",
+		deferredDone: (round: number) =>
+			`Runda ${round} sačuvana. Elo se računa uz revanš rundu.`,
 		done: (round: number) => `Runda ${round} uspešno završena!`,
 		running: "radi",
 	},

@@ -91,6 +91,12 @@ type SessionData = {
 
 type Scores = Record<string, { team1: number | null; team2: number | null }>;
 
+type PairedFirstHalfScore = {
+	roundNumber: number;
+	team1Score: number;
+	team2Score: number;
+};
+
 const pageTransition = {
 	duration: 0.2,
 	ease: [0.25, 0.46, 0.45, 0.94] as const,
@@ -229,6 +235,19 @@ function SessionPageContent() {
 		): TerminalLine[] => {
 			const lines: TerminalLine[] = [];
 			const players = sessionData?.players || [];
+			const maxRoundNumber = sessionData
+				? Math.max(
+						...Object.keys(sessionData.matchesByRound).map(Number),
+					)
+				: roundNumber;
+			const isDeferredFivePlayerRound =
+				sessionData?.session.player_count === 5 &&
+				maxRoundNumber >= 10 &&
+				roundNumber <= 5;
+			const isPairedFivePlayerSecondHalfRound =
+				sessionData?.session.player_count === 5 &&
+				maxRoundNumber >= 10 &&
+				roundNumber >= 6;
 
 			// Get player by ID
 			const getPlayer = (playerId: string): Player | undefined => {
@@ -253,7 +272,9 @@ function SessionPageContent() {
 
 			// Intro
 			lines.push({
-				text: t.terminal.initializing,
+				text: isDeferredFivePlayerRound
+					? t.terminal.initializingScorekeeper
+					: t.terminal.initializing,
 				type: "dim",
 				delay: 0,
 			});
@@ -273,8 +294,42 @@ function SessionPageContent() {
 				const isSingles = match.match_type === "singles";
 				const matchDelay = 180 + index * 250;
 				const matchScore = matchScores[match.id];
-				const team1Score = matchScore?.team1 ?? 0;
-				const team2Score = matchScore?.team2 ?? 0;
+				let team1Score = matchScore?.team1 ?? 0;
+				let team2Score = matchScore?.team2 ?? 0;
+				const pairedFirstHalfRound = roundNumber - 5;
+				const firstHalfMatch = isPairedFivePlayerSecondHalfRound
+					? sessionData?.matchesByRound[pairedFirstHalfRound]?.find(
+						(firstHalfCandidate) =>
+							firstHalfCandidate.match_order === match.match_order,
+					)
+					: undefined;
+				const hasCombinedFivePlayerScore =
+					Boolean(firstHalfMatch) &&
+					firstHalfMatch?.match_type === "singles" &&
+					match.match_type === "singles" &&
+					typeof firstHalfMatch.team1_score === "number" &&
+					!isNaN(firstHalfMatch.team1_score) &&
+					typeof firstHalfMatch.team2_score === "number" &&
+					!isNaN(firstHalfMatch.team2_score);
+				let combinedWithFirstHalf = false;
+
+				if (hasCombinedFivePlayerScore && firstHalfMatch) {
+					if (
+						firstHalfMatch.player_ids[0] === match.player_ids[0] &&
+						firstHalfMatch.player_ids[1] === match.player_ids[1]
+					) {
+						team1Score += firstHalfMatch.team1_score ?? 0;
+						team2Score += firstHalfMatch.team2_score ?? 0;
+						combinedWithFirstHalf = true;
+					} else if (
+						firstHalfMatch.player_ids[0] === match.player_ids[1] &&
+						firstHalfMatch.player_ids[1] === match.player_ids[0]
+					) {
+						team1Score += firstHalfMatch.team2_score ?? 0;
+						team2Score += firstHalfMatch.team1_score ?? 0;
+						combinedWithFirstHalf = true;
+					}
+				}
 
 				if (isSingles) {
 					const player1 = getPlayer(match.player_ids[0]);
@@ -320,6 +375,26 @@ function SessionPageContent() {
 						type: "info",
 						delay: matchDelay,
 					});
+					if (isDeferredFivePlayerRound) {
+						lines.push({
+							text: t.terminal.recordingScore,
+							type: "dim",
+							delay: 60,
+						});
+						lines.push({
+							text: t.terminal.matchDone(index + 1),
+							type: "success",
+							delay: 60,
+						});
+						return;
+					}
+					if (combinedWithFirstHalf) {
+						lines.push({
+							text: t.terminal.combiningScore(pairedFirstHalfRound),
+							type: "dim",
+							delay: 60,
+						});
+					}
 					lines.push({
 						text: t.terminal.calculating,
 						type: "dim",
@@ -392,6 +467,26 @@ function SessionPageContent() {
 						type: "info",
 						delay: matchDelay,
 					});
+					if (isDeferredFivePlayerRound) {
+						lines.push({
+							text: t.terminal.recordingScore,
+							type: "dim",
+							delay: 60,
+						});
+						lines.push({
+							text: t.terminal.matchDone(index + 1),
+							type: "success",
+							delay: 60,
+						});
+						return;
+					}
+					if (combinedWithFirstHalf) {
+						lines.push({
+							text: t.terminal.combiningScore(pairedFirstHalfRound),
+							type: "dim",
+							delay: 60,
+						});
+					}
 					lines.push({
 						text: t.terminal.calculating,
 						type: "dim",
@@ -428,14 +523,16 @@ function SessionPageContent() {
 				delay: 180,
 			});
 			lines.push({
-				text: t.terminal.done(roundNumber),
+				text: isDeferredFivePlayerRound
+					? t.terminal.deferredDone(roundNumber)
+					: t.terminal.done(roundNumber),
 				type: "success",
 				delay: 120,
 			});
 
 			return lines;
 		},
-		[sessionData?.players],
+		[sessionData],
 	);
 
 	// Refs for score inputs to enable auto-focus
@@ -937,6 +1034,54 @@ function SessionPageContent() {
 			.map(Number)
 			.sort((a, b) => a - b);
 	}, [sessionData]);
+	const isFivePlayerPairedSession =
+		sessionData?.session.status === "active" &&
+		sessionData.session.player_count === 5 &&
+		roundNumbers.length >= 10;
+	const isFivePlayerScoreOnlyEdit = useCallback(
+		(match: Match | null | undefined): boolean => {
+			if (!sessionData || !match || !isFivePlayerPairedSession) {
+				return false;
+			}
+
+			if (match.round_number <= 5) {
+				const settlementMatch = sessionData.matchesByRound[
+					match.round_number + 5
+				]?.find(
+					(candidate) =>
+						candidate.match_order === match.match_order,
+				);
+
+				return settlementMatch?.status !== "completed";
+			}
+
+			return match.status !== "completed";
+		},
+		[sessionData, isFivePlayerPairedSession],
+	);
+	const isSettledFivePlayerFirstHalfMatch = useCallback(
+		(match: Match): boolean => {
+			if (
+				!sessionData ||
+				sessionData.session.player_count !== 5 ||
+				roundNumbers.length < 10 ||
+				match.round_number > 5
+			) {
+				return false;
+			}
+
+			const settlementMatch = sessionData.matchesByRound[
+				match.round_number + 5
+			]?.find(
+				(candidate) =>
+					candidate.match_order === match.match_order &&
+					candidate.status === "completed",
+			);
+
+			return Boolean(settlementMatch);
+		},
+		[sessionData, roundNumbers.length],
+	);
 
 	// Get current round matches
 	const currentRoundMatches = useMemo(() => {
@@ -957,6 +1102,131 @@ function SessionPageContent() {
 	const isValidScore = useCallback(
 		(score: number | null | undefined): boolean => {
 			return score !== null && score !== undefined && !isNaN(score);
+		},
+		[],
+	);
+	const getPairedFirstHalfScore = useCallback(
+		(match: Match): PairedFirstHalfScore | null => {
+			if (
+				!sessionData ||
+				sessionData.session.player_count !== 5 ||
+				roundNumbers.length < 10 ||
+				match.round_number < 6 ||
+				match.match_type !== "singles"
+			) {
+				return null;
+			}
+
+			const firstHalfRoundNumber = match.round_number - 5;
+			const firstHalfMatch = sessionData.matchesByRound[
+				firstHalfRoundNumber
+			]?.find(
+				(candidate) =>
+					candidate.match_order === match.match_order &&
+					candidate.match_type === "singles",
+			);
+
+			if (
+				!firstHalfMatch ||
+				!isValidScore(firstHalfMatch.team1_score) ||
+				!isValidScore(firstHalfMatch.team2_score)
+			) {
+				return null;
+			}
+
+			if (
+				firstHalfMatch.player_ids[0] === match.player_ids[0] &&
+				firstHalfMatch.player_ids[1] === match.player_ids[1]
+			) {
+				return {
+					roundNumber: firstHalfRoundNumber,
+					team1Score: firstHalfMatch.team1_score!,
+					team2Score: firstHalfMatch.team2_score!,
+				};
+			}
+
+			if (
+				firstHalfMatch.player_ids[0] === match.player_ids[1] &&
+				firstHalfMatch.player_ids[1] === match.player_ids[0]
+			) {
+				return {
+					roundNumber: firstHalfRoundNumber,
+					team1Score: firstHalfMatch.team2_score!,
+					team2Score: firstHalfMatch.team1_score!,
+				};
+			}
+
+			return null;
+		},
+		[sessionData, roundNumbers.length, isValidScore],
+	);
+	const renderPairedScoreReminder = useCallback(
+		(
+			pairedScore: PairedFirstHalfScore | null,
+			currentTeam1Score?: number | null,
+			currentTeam2Score?: number | null,
+		) => {
+			if (!pairedScore) {
+				return null;
+			}
+
+			const showTotal =
+				isValidScore(currentTeam1Score) && isValidScore(currentTeam2Score);
+			const totalTeam1Score =
+				pairedScore.team1Score + (currentTeam1Score ?? 0);
+			const totalTeam2Score =
+				pairedScore.team2Score + (currentTeam2Score ?? 0);
+
+			return (
+				<Box className="inline-flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[10px] font-bold text-primary shadow-sm">
+					<span>
+						{t.sessions.session.pairedFirstHalfScore(
+							pairedScore.roundNumber,
+							pairedScore.team1Score,
+							pairedScore.team2Score,
+						)}
+					</span>
+					{showTotal && (
+						<>
+							<span className="h-3 w-px bg-primary/25" />
+							<span>
+								{t.sessions.session.pairedTotalScore(
+									totalTeam1Score,
+									totalTeam2Score,
+								)}
+							</span>
+						</>
+					)}
+				</Box>
+			);
+		},
+		[isValidScore],
+	);
+	const getPairedDisplayScore = useCallback(
+		(
+			match: Match,
+			pairedScore: PairedFirstHalfScore | null,
+		): { team1Score: number | null; team2Score: number | null } => {
+			const team1Score = match.team1_score;
+			const team2Score = match.team2_score;
+
+			if (
+				!pairedScore ||
+				typeof team1Score !== "number" ||
+				isNaN(team1Score) ||
+				typeof team2Score !== "number" ||
+				isNaN(team2Score)
+			) {
+				return {
+					team1Score: team1Score ?? null,
+					team2Score: team2Score ?? null,
+				};
+			}
+
+			return {
+				team1Score: pairedScore.team1Score + team1Score,
+				team2Score: pairedScore.team2Score + team2Score,
+			};
 		},
 		[],
 	);
@@ -1566,7 +1836,7 @@ function SessionPageContent() {
 			}
 
 			setIsEditingMatch(true);
-			const toastId = toast.loading("Recalculating session...", {
+			const toastId = toast.loading("Saving match...", {
 				description: "This may take a moment",
 			});
 
@@ -1603,6 +1873,51 @@ function SessionPageContent() {
 						id: toastId,
 					});
 					setIsEditingMatch(false);
+					return;
+				}
+
+				const editResult = await response.json().catch(() => null);
+				if (editResult?.ratingsDeferred) {
+					setSessionData((prev) => {
+						if (!prev) return prev;
+
+						const updatedMatchesByRound = { ...prev.matchesByRound };
+						for (const [roundKey, roundMatches] of Object.entries(
+							updatedMatchesByRound,
+						)) {
+							if (!roundMatches.some((match) => match.id === targetMatchId)) {
+								continue;
+							}
+
+							updatedMatchesByRound[Number(roundKey)] = roundMatches.map(
+								(match) =>
+									match.id === targetMatchId
+										? {
+												...match,
+												team1_score: team1Score,
+												team2_score: team2Score,
+												status: "completed" as const,
+											}
+										: match,
+							);
+							break;
+						}
+
+						return {
+							...prev,
+							matchesByRound: updatedMatchesByRound,
+						};
+					});
+					setScores((prev) => ({
+						...prev,
+						[targetMatchId]: {
+							team1: team1Score,
+							team2: team2Score,
+						},
+					}));
+					toast.success("Match score updated", { id: toastId });
+					setIsEditDrawerOpen(false);
+					setSelectedMatchForEdit(null);
 					return;
 				}
 
@@ -1748,11 +2063,13 @@ function SessionPageContent() {
 				});
 			}
 
-			// Close drawer if no match result edit (video-only save)
-			if (!scoresChanged) {
+			// Unsettled 5-player pair edits do not trigger a recalculation reload.
+			if (
+				!scoresChanged ||
+				isFivePlayerScoreOnlyEdit(selectedMatchForVideo)
+			) {
 				handleCloseVideoDrawer();
 			}
-			// If scores changed, the page will reload after recalculation
 		} catch (err) {
 			console.error("Error saving match data:", err);
 			setError("Failed to save changes");
@@ -1768,6 +2085,7 @@ function SessionPageContent() {
 		sessionData,
 		handleEditMatch,
 		handleCloseVideoDrawer,
+		isFivePlayerScoreOnlyEdit,
 	]);
 
 	// Format session date for header title
@@ -1845,7 +2163,10 @@ function SessionPageContent() {
 		// Calculate total matches
 		const totalMatches = roundNumbersList.reduce(
 			(sum, roundNum) =>
-				sum + (sessionData.matchesByRound[roundNum]?.length || 0),
+				sum +
+				(sessionData.matchesByRound[roundNum] || []).filter(
+					(match) => !isSettledFivePlayerFirstHalfMatch(match),
+				).length,
 			0,
 		);
 
@@ -2042,6 +2363,13 @@ function SessionPageContent() {
 																	!matchesView
 																)
 																	return false;
+																if (
+																	isSettledFivePlayerFirstHalfMatch(
+																		match,
+																	)
+																) {
+																	return false;
+																}
 
 																// Filter by selected player if applicable
 																if (
@@ -2113,6 +2441,55 @@ function SessionPageContent() {
 																matchEloHistory[
 																	match.id
 																];
+															const pairedFirstHalfScore =
+																getPairedFirstHalfScore(
+																	match,
+																);
+															const displayScore =
+																getPairedDisplayScore(
+																	match,
+																	pairedFirstHalfScore,
+																);
+															const shouldPlaceSelectedPlayerLeft =
+																selectedPlayerFilter !==
+																	null &&
+																team2PlayerIds.includes(
+																	selectedPlayerFilter,
+																) &&
+																!team1PlayerIds.includes(
+																	selectedPlayerFilter,
+																);
+															const displayTeam1Players =
+																shouldPlaceSelectedPlayerLeft
+																	? team2Players
+																	: team1Players;
+															const displayTeam2Players =
+																shouldPlaceSelectedPlayerLeft
+																	? team1Players
+																	: team2Players;
+															const displayTeam1Score =
+																shouldPlaceSelectedPlayerLeft
+																	? displayScore.team2Score
+																	: displayScore.team1Score;
+															const displayTeam2Score =
+																shouldPlaceSelectedPlayerLeft
+																	? displayScore.team1Score
+																	: displayScore.team2Score;
+															const displayPairedFirstHalfScore =
+																pairedFirstHalfScore
+																	? {
+																			roundNumber:
+																				pairedFirstHalfScore.roundNumber,
+																			team1Score:
+																				shouldPlaceSelectedPlayerLeft
+																					? pairedFirstHalfScore.team2Score
+																					: pairedFirstHalfScore.team1Score,
+																			team2Score:
+																				shouldPlaceSelectedPlayerLeft
+																					? pairedFirstHalfScore.team1Score
+																					: pairedFirstHalfScore.team2Score,
+																		}
+																	: undefined;
 															return (
 																<MatchHistoryCard
 																	key={
@@ -2121,7 +2498,7 @@ function SessionPageContent() {
 																	matchType={
 																		match.match_type
 																	}
-																	team1Players={team1Players.map(
+																	team1Players={displayTeam1Players.map(
 																		(
 																			p,
 																		) => ({
@@ -2130,7 +2507,7 @@ function SessionPageContent() {
 																			avatar: p.avatar,
 																		}),
 																	)}
-																	team2Players={team2Players.map(
+																	team2Players={displayTeam2Players.map(
 																		(
 																			p,
 																		) => ({
@@ -2140,18 +2517,23 @@ function SessionPageContent() {
 																		}),
 																	)}
 																	team1Score={
-																		match.team1_score ??
-																		null
+																		displayTeam1Score
 																	}
 																	team2Score={
-																		match.team2_score ??
-																		null
+																		displayTeam2Score
+																	}
+																	pairedFirstHalfScore={
+																		displayPairedFirstHalfScore
 																	}
 																	team1EloChange={
-																		eloHistory?.team1EloChange
+																		shouldPlaceSelectedPlayerLeft
+																			? eloHistory?.team2EloChange
+																			: eloHistory?.team1EloChange
 																	}
 																	team2EloChange={
-																		eloHistory?.team2EloChange
+																		shouldPlaceSelectedPlayerLeft
+																			? eloHistory?.team1EloChange
+																			: eloHistory?.team2EloChange
 																	}
 																	onClick={() =>
 																		isAdmin &&
@@ -2233,6 +2615,8 @@ function SessionPageContent() {
 										: `${team2Players[0]?.name || ""} & ${
 												team2Players[1]?.name || ""
 											}`.trim();
+									const pairedFirstHalfScore =
+										getPairedFirstHalfScore(match);
 
 									return (
 										<>
@@ -2280,6 +2664,15 @@ function SessionPageContent() {
 																.matchResult
 														}
 													</label>
+													{pairedFirstHalfScore && (
+														<Box className="mb-3 flex justify-center">
+															{renderPairedScoreReminder(
+																pairedFirstHalfScore,
+																match.team1_score,
+																match.team2_score,
+															)}
+														</Box>
+													)}
 													<Stack
 														direction="row"
 														spacing={3}
@@ -2567,6 +2960,9 @@ function SessionPageContent() {
 						}
 						onSave={handleEditMatch}
 						isSaving={isEditingMatch}
+						isEloDeferred={isFivePlayerScoreOnlyEdit(
+							selectedMatchForEdit,
+						)}
 					/>
 				)}
 
@@ -2794,6 +3190,8 @@ function SessionPageContent() {
 											const isMatchCompleted =
 												match.status === "completed";
 											const isReadOnly = isMatchCompleted;
+											const pairedFirstHalfScore =
+												getPairedFirstHalfScore(match);
 
 											// Get players for each team
 											const team1PlayerIds = isSingles
@@ -3232,6 +3630,16 @@ function SessionPageContent() {
 															<Box className="h-px bg-border flex-1" />
 														</Box>
 
+														{pairedFirstHalfScore && (
+															<Box className="flex justify-center pb-1">
+																{renderPairedScoreReminder(
+																	pairedFirstHalfScore,
+																	matchScores.team1,
+																	matchScores.team2,
+																)}
+															</Box>
+														)}
+
 														{/* Team 2 - Mobile */}
 														<Stack
 															direction="row"
@@ -3543,83 +3951,94 @@ function SessionPageContent() {
 
 														{/* Score Inputs */}
 														<Stack
-															direction="row"
+															direction="column"
 															alignItems="center"
-															spacing={3}
+															spacing={2}
 															className="shrink-0"
 														>
-															<Input
-																ref={(el) => {
-																	scoreInputRefs.current[
-																		`${match.id}-team1-desktop`
-																	] = el;
-																}}
-																type="number"
-																inputMode="numeric"
-																pattern="[0-9]*"
-																placeholder="0"
-																value={
-																	matchScores.team1 ??
-																	""
-																}
-																onChange={(e) =>
-																	handleScoreChange(
-																		match.id,
-																		"team1",
-																		e.target
-																			.value,
-																		matchIndex,
-																	)
-																}
-																disabled={
-																	isReadOnly
-																}
-																readOnly={
-																	isReadOnly
-																}
-																className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
-															/>
-															<Box className="px-1">
-																<span className="text-xs font-black text-muted-foreground">
-																	{
-																		t
-																			.sessions
-																			.session
-																			.vs
+															{renderPairedScoreReminder(
+																pairedFirstHalfScore,
+																matchScores.team1,
+																matchScores.team2,
+															)}
+															<Stack
+																direction="row"
+																alignItems="center"
+																spacing={3}
+															>
+																<Input
+																	ref={(el) => {
+																		scoreInputRefs.current[
+																			`${match.id}-team1-desktop`
+																		] = el;
+																	}}
+																	type="number"
+																	inputMode="numeric"
+																	pattern="[0-9]*"
+																	placeholder="0"
+																	value={
+																		matchScores.team1 ??
+																		""
 																	}
-																</span>
-															</Box>
-															<Input
-																ref={(el) => {
-																	scoreInputRefs.current[
-																		`${match.id}-team2-desktop`
-																	] = el;
-																}}
-																type="number"
-																inputMode="numeric"
-																pattern="[0-9]*"
-																placeholder="0"
-																value={
-																	matchScores.team2 ??
-																	""
-																}
-																onChange={(e) =>
-																	handleScoreChange(
-																		match.id,
-																		"team2",
-																		e.target
-																			.value,
-																		matchIndex,
-																	)
-																}
-																disabled={
-																	isReadOnly
-																}
-																readOnly={
-																	isReadOnly
-																}
-																className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
-															/>
+																	onChange={(e) =>
+																		handleScoreChange(
+																			match.id,
+																			"team1",
+																			e.target
+																				.value,
+																			matchIndex,
+																		)
+																	}
+																	disabled={
+																		isReadOnly
+																	}
+																	readOnly={
+																		isReadOnly
+																	}
+																	className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+																/>
+																<Box className="px-1">
+																	<span className="text-xs font-black text-muted-foreground">
+																		{
+																			t
+																				.sessions
+																				.session
+																				.vs
+																		}
+																	</span>
+																</Box>
+																<Input
+																	ref={(el) => {
+																		scoreInputRefs.current[
+																			`${match.id}-team2-desktop`
+																		] = el;
+																	}}
+																	type="number"
+																	inputMode="numeric"
+																	pattern="[0-9]*"
+																	placeholder="0"
+																	value={
+																		matchScores.team2 ??
+																		""
+																	}
+																	onChange={(e) =>
+																		handleScoreChange(
+																			match.id,
+																			"team2",
+																			e.target
+																				.value,
+																			matchIndex,
+																		)
+																	}
+																	disabled={
+																		isReadOnly
+																	}
+																	readOnly={
+																		isReadOnly
+																	}
+																	className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
+																/>
+															</Stack>
 														</Stack>
 
 														{/* Team 2 */}
@@ -4102,6 +4521,7 @@ function SessionPageContent() {
 					}
 					onSave={handleEditMatch}
 					isSaving={isEditingMatch}
+					isEloDeferred={isFivePlayerScoreOnlyEdit(selectedMatchForEdit)}
 				/>
 			)}
 

@@ -13,6 +13,27 @@ import {
 const VALID_ROLES = ["user", "mod", "admin", "guest"] as const;
 type ValidRole = (typeof VALID_ROLES)[number];
 
+type CurrentProfile = {
+	display_name: string | null;
+	avatar_url: string | null;
+	manual_avatar_url?: string | null;
+	provider_avatar_url?: string | null;
+	email: string | null;
+};
+
+function isMissingProfileAvatarColumnError(
+	error: { code?: string; message?: string } | null,
+) {
+	const message = error?.message?.toLowerCase() || "";
+
+	return (
+		error?.code === "42703" ||
+		error?.code === "PGRST204" ||
+		message.includes("manual_avatar_url") ||
+		message.includes("provider_avatar_url")
+	);
+}
+
 /**
  * PATCH /api/admin/users/[userId]
  *
@@ -99,22 +120,14 @@ export async function PATCH(
 		}
 
 		const adminClient = createAdminClient();
-		const needsAuthMetadataUpdate =
-			name !== undefined || avatar !== undefined || role !== undefined;
+		const needsAuthMetadataUpdate = name !== undefined || role !== undefined;
 		const needsAuthUpdate = needsAuthMetadataUpdate || email !== undefined;
 
 		let currentUser: Awaited<
 			ReturnType<typeof adminClient.auth.admin.getUserById>
 		>["data"]["user"] | null = null;
-		let currentProfile:
-			| {
-					display_name: string | null;
-					avatar_url: string | null;
-					manual_avatar_url: string | null;
-					provider_avatar_url: string | null;
-					email: string | null;
-			  }
-			| null = null;
+		let currentProfile: CurrentProfile | null = null;
+		let supportsProfileAvatarPrecedence = false;
 
 		if (needsAuthMetadataUpdate || !needsAuthUpdate) {
 			const { data, error: currentUserError } =
@@ -132,9 +145,7 @@ export async function PATCH(
 		if (name !== undefined || avatar !== undefined || email !== undefined) {
 			const { data: profileData, error: profileError } = await adminClient
 				.from("profiles")
-				.select(
-					"display_name, avatar_url, manual_avatar_url, provider_avatar_url, email"
-				)
+				.select("display_name, avatar_url, email")
 				.eq("id", userId)
 				.maybeSingle();
 
@@ -147,6 +158,40 @@ export async function PATCH(
 			}
 
 			currentProfile = profileData;
+
+			if (avatar !== undefined) {
+				const {
+					data: avatarProfileData,
+					error: avatarProfileError,
+				} = await adminClient
+					.from("profiles")
+					.select("manual_avatar_url, provider_avatar_url")
+					.eq("id", userId)
+					.maybeSingle();
+
+				if (avatarProfileError) {
+					if (!isMissingProfileAvatarColumnError(avatarProfileError)) {
+						console.error(
+							"Error fetching current profile avatar fields:",
+							avatarProfileError,
+						);
+						return NextResponse.json(
+							{ error: "Failed to fetch current profile" },
+							{ status: 500 },
+						);
+					}
+				} else {
+					supportsProfileAvatarPrecedence = true;
+					currentProfile = {
+						...(currentProfile ?? {
+							display_name: null,
+							avatar_url: null,
+							email: null,
+						}),
+						...(avatarProfileData ?? {}),
+					};
+				}
+			}
 		}
 
 		// Build update payload
@@ -156,7 +201,7 @@ export async function PATCH(
 			email?: string;
 		} = {};
 
-		// Update user_metadata if name or avatar provided
+		// Update user_metadata if name is provided
 		if (name !== undefined && currentUser) {
 			updateData.user_metadata = {
 				...currentUser.user_metadata,
@@ -234,38 +279,59 @@ export async function PATCH(
 			const providerAvatarUrl =
 				currentProfile?.provider_avatar_url ||
 				getProviderAvatarFromMetadata(currentUser?.user_metadata);
-			const nextManualAvatarUrl =
-				avatar !== undefined
-					? avatar || null
-					: currentProfile?.manual_avatar_url || null;
-			const nextAvatarUrl = getEffectiveAvatar(
-				nextManualAvatarUrl,
-				providerAvatarUrl
-			);
+			const profileUpdateData: {
+				id: string;
+				display_name: string;
+				email: string | null;
+				avatar_url?: string | null;
+				manual_avatar_url?: string | null;
+			} = {
+				id: userId,
+				display_name:
+					name !== undefined
+						? name
+						: currentProfile?.display_name ||
+						  currentUser?.user_metadata?.display_name ||
+						  currentUser?.user_metadata?.name ||
+						  currentUser?.user_metadata?.full_name ||
+						  currentUser?.email?.split("@")[0] ||
+						  "User",
+				email:
+					email !== undefined
+						? email
+						: currentProfile?.email || currentUser?.email || null,
+			};
 
-			const { error: profileUpdateError } = await adminClient
+			if (avatar !== undefined) {
+				const nextManualAvatarUrl = avatar || null;
+
+				if (supportsProfileAvatarPrecedence) {
+					profileUpdateData.manual_avatar_url = nextManualAvatarUrl;
+					profileUpdateData.avatar_url = getEffectiveAvatar(
+						nextManualAvatarUrl,
+						providerAvatarUrl,
+					);
+				} else {
+					profileUpdateData.avatar_url = nextManualAvatarUrl;
+				}
+			}
+
+			let { error: profileUpdateError } = await adminClient
 				.from("profiles")
-				.upsert(
-					{
-						id: userId,
-						display_name:
-							name !== undefined
-								? name
-								: currentProfile?.display_name ||
-								  currentUser?.user_metadata?.display_name ||
-								  currentUser?.user_metadata?.name ||
-								  currentUser?.user_metadata?.full_name ||
-								  currentUser?.email?.split("@")[0] ||
-								  "User",
-						email:
-							email !== undefined
-								? email
-								: currentProfile?.email || currentUser?.email || null,
-						manual_avatar_url: nextManualAvatarUrl,
-						avatar_url: nextAvatarUrl,
-					},
-					{ onConflict: "id" }
-				);
+				.upsert(profileUpdateData, { onConflict: "id" });
+
+			if (
+				profileUpdateError &&
+				isMissingProfileAvatarColumnError(profileUpdateError) &&
+				"manual_avatar_url" in profileUpdateData
+			) {
+				const fallbackProfileUpdateData = { ...profileUpdateData };
+				delete fallbackProfileUpdateData.manual_avatar_url;
+				const fallbackResult = await adminClient
+					.from("profiles")
+					.upsert(fallbackProfileUpdateData, { onConflict: "id" });
+				profileUpdateError = fallbackResult.error;
+			}
 
 			if (profileUpdateError) {
 				console.error("Error updating profile:", profileUpdateError);

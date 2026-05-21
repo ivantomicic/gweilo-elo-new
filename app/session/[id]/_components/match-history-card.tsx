@@ -19,6 +19,11 @@ type MatchHistoryCardProps = {
 	team2Players: Player[];
 	team1Score: number | null;
 	team2Score: number | null;
+	pairedFirstHalfScore?: {
+		roundNumber: number;
+		team1Score: number;
+		team2Score: number;
+	};
 	team1EloChange?: number;
 	team2EloChange?: number;
 	onClick?: () => void;
@@ -31,6 +36,7 @@ export function MatchHistoryCard({
 	team2Players,
 	team1Score,
 	team2Score,
+	pairedFirstHalfScore,
 	team1EloChange,
 	team2EloChange,
 	onClick,
@@ -130,6 +136,17 @@ export function MatchHistoryCard({
 						<span className="text-lg font-bold font-mono text-muted-foreground">
 							-
 						</span>
+					)}
+					{pairedFirstHalfScore && (
+						<Box className="mt-1 flex flex-col items-center gap-0.5">
+							<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
+								{t.sessions.session.pairedFirstHalfScore(
+									pairedFirstHalfScore.roundNumber,
+									pairedFirstHalfScore.team1Score,
+									pairedFirstHalfScore.team2Score,
+								)}
+							</span>
+						</Box>
 					)}
 				</Box>
 
