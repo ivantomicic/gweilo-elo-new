@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { calculateEloDelta, type MatchResult } from "@/lib/elo/calculation";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import type {
 	CalculatorPlayer,
 	PlayerWithRating,
@@ -28,6 +28,9 @@ type UseCalculatorDataResult = {
 };
 
 export function useCalculatorData(): UseCalculatorDataResult {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
+	const userId = session?.user.id;
 	const [players, setPlayers] = useState<PlayerWithRating[]>([]);
 	const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 	const [selectedOpponentIds, setSelectedOpponentIds] = useState<string[]>(
@@ -45,11 +48,7 @@ export function useCalculatorData(): UseCalculatorDataResult {
 				setLoading(true);
 				setError(null);
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError("Niste prijavljeni.");
 					return;
 				}
@@ -58,7 +57,7 @@ export function useCalculatorData(): UseCalculatorDataResult {
 					"/api/calculator/players",
 					{
 						headers: {
-							Authorization: `Bearer ${session.access_token}`,
+							Authorization: `Bearer ${accessToken}`,
 						},
 					},
 				);
@@ -83,10 +82,10 @@ export function useCalculatorData(): UseCalculatorDataResult {
 
 					if (
 						mergedPlayers.some(
-							(player) => player.id === session.user.id,
+							(player) => player.id === userId,
 						)
 					) {
-						return session.user.id;
+						return userId ?? null;
 					}
 
 					return mergedPlayers[0]?.id ?? null;
@@ -100,7 +99,7 @@ export function useCalculatorData(): UseCalculatorDataResult {
 		};
 
 		fetchData();
-	}, []);
+	}, [accessToken, userId]);
 
 	const currentPlayer = useMemo(
 		() => players.find((player) => player.id === selectedPlayerId) || null,

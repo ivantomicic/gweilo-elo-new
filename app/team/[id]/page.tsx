@@ -9,7 +9,7 @@ import { Loading } from "@/components/ui/loading";
 import { Stack } from "@/components/ui/stack";
 import { TeamNameCard } from "@/components/ui/team-name-card";
 import { PerformanceTrend } from "@/components/player/performance-trend";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { formatElo } from "@/lib/elo/format";
 import { t } from "@/lib/i18n";
 
@@ -38,6 +38,8 @@ type TeamData = {
 function TeamPageContent() {
 	const params = useParams();
 	const teamId = params.id as string;
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [teamData, setTeamData] = useState<TeamData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -48,18 +50,14 @@ function TeamPageContent() {
 				setLoading(true);
 				setError(null);
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError(t.statistics.error.notAuthenticated);
 					return;
 				}
 
 				const response = await fetch(`/api/team/${teamId}`, {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -85,7 +83,7 @@ function TeamPageContent() {
 		if (teamId) {
 			void fetchTeamData();
 		}
-	}, [teamId]);
+	}, [accessToken, teamId]);
 
 	return (
 		<AppShell title={teamData?.display_name ?? t.statistics.table.team}>

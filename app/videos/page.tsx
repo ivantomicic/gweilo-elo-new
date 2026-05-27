@@ -5,10 +5,12 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { VideoCard, type VideoItem } from "./_components/video-card";
 
 function VideosPageContent() {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [videos, setVideos] = useState<VideoItem[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -33,11 +35,7 @@ function VideosPageContent() {
 				setLoading(true);
 				setError(null);
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError("Not authenticated");
 					setLoading(false);
 					return;
@@ -45,7 +43,7 @@ function VideosPageContent() {
 
 				const response = await fetch("/api/videos", {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -67,7 +65,7 @@ function VideosPageContent() {
 		};
 
 		fetchVideos();
-	}, []);
+	}, [accessToken]);
 
 	return (
 		<AppShell title="Video">

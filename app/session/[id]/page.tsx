@@ -28,6 +28,7 @@ import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { calculateEloChange } from "@/lib/elo";
 import { formatEloDelta } from "@/lib/elo/format";
+import { useAuth } from "@/lib/auth/useAuth";
 import { getUserRole } from "@/lib/auth/getUserRole";
 import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
@@ -107,6 +108,8 @@ function SessionPageContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const sessionId = params.id as string;
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const shouldReduceMotion = useReducedMotion();
 
 	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
@@ -125,8 +128,6 @@ function SessionPageContent() {
 	summaryPrefetchViewsRef.current = Array.from(
 		new Set<SummaryView>(["singles", activeView]),
 	);
-	const activeSummaryViewRef = useRef<SummaryView>(activeView);
-	activeSummaryViewRef.current = activeView;
 
 	const handleViewChange = useCallback(
 		(view: SummaryView) => {
@@ -177,6 +178,8 @@ function SessionPageContent() {
 		Record<
 			string,
 			{
+				player1EloChange?: number;
+				player2EloChange?: number;
 				team1EloChange?: number;
 				team2EloChange?: number;
 			}
@@ -579,11 +582,7 @@ function SessionPageContent() {
 				setLoading(true);
 				setError(null);
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError(t.sessions.session.error.notAuthenticated);
 					return;
 				}
@@ -594,7 +593,7 @@ function SessionPageContent() {
 					{
 						global: {
 							headers: {
-								Authorization: `Bearer ${session.access_token}`,
+								Authorization: `Bearer ${accessToken}`,
 							},
 						},
 					},
@@ -607,7 +606,7 @@ function SessionPageContent() {
 					.select("id, player_count, created_at, status, completed_at")
 					.eq("id", sessionId)
 					.single();
-				const playersPromise = fetchPlayers(session.access_token);
+				const playersPromise = fetchPlayers(accessToken);
 				const matchesPromise = supabaseClient
 					.from("session_matches")
 					.select(
@@ -618,24 +617,17 @@ function SessionPageContent() {
 					.order("match_order", { ascending: true });
 
 				const sessionResult = await sessionPromise;
-				let activeSummaryPrefetch: Promise<unknown> | null = null;
 
 				if (
 					!sessionResult.error &&
 					sessionResult.data?.status === "completed"
 				) {
-					const summaryPrefetchPromises = new Map<
-						SummaryView,
-						Promise<unknown>
-					>();
-
 					for (const view of summaryPrefetchViewsRef.current) {
 						const prefetchPromise = prefetchSessionSummary(
 							sessionId,
 							view,
-							session.access_token,
+							accessToken,
 						);
-						summaryPrefetchPromises.set(view, prefetchPromise);
 						void prefetchPromise.catch((summaryError) => {
 							console.error(
 								`Error prefetching ${view} summary:`,
@@ -643,10 +635,6 @@ function SessionPageContent() {
 							);
 						});
 					}
-
-					activeSummaryPrefetch =
-						summaryPrefetchPromises.get(activeSummaryViewRef.current) ??
-						null;
 				}
 
 				const [playersResult, matchesResult] = await Promise.all([
@@ -847,71 +835,38 @@ function SessionPageContent() {
 					const eloHistoryMap: Record<
 						string,
 						{
+							player1EloChange?: number;
+							player2EloChange?: number;
 							team1EloChange?: number;
 							team2EloChange?: number;
 						}
 					> = {};
 
+					const parseDelta = (value: unknown) => {
+						if (value === null || value === undefined) {
+							return undefined;
+						}
+
+						return typeof value === "string"
+							? parseFloat(value)
+							: Number(value);
+					};
+
 					if (eloHistory) {
 						for (const history of eloHistory) {
-							let team1Change: number | undefined;
-							let team2Change: number | undefined;
-
-							// For singles matches, use player deltas
-							if (
-								history.player1_elo_delta !== null &&
-								history.player1_elo_delta !== undefined
-							) {
-								const delta =
-									typeof history.player1_elo_delta ===
-									"string"
-										? parseFloat(history.player1_elo_delta)
-										: Number(history.player1_elo_delta);
-								team1Change = delta;
-							}
-
-							if (
-								history.player2_elo_delta !== null &&
-								history.player2_elo_delta !== undefined
-							) {
-								const delta =
-									typeof history.player2_elo_delta ===
-									"string"
-										? parseFloat(history.player2_elo_delta)
-										: Number(history.player2_elo_delta);
-								team2Change = delta;
-							}
-
-							// For doubles-team view, use team deltas from match history.
-							// Doubles-player deltas are calculated from player_double_ratings,
-							// so we avoid showing team deltas there.
-							if (
-								activeView === "doubles_team" &&
-								history.team1_elo_delta !== null &&
-								history.team1_elo_delta !== undefined
-							) {
-								const delta =
-									typeof history.team1_elo_delta === "string"
-										? parseFloat(history.team1_elo_delta)
-										: Number(history.team1_elo_delta);
-								team1Change = delta;
-							}
-
-							if (
-								activeView === "doubles_team" &&
-								history.team2_elo_delta !== null &&
-								history.team2_elo_delta !== undefined
-							) {
-								const delta =
-									typeof history.team2_elo_delta === "string"
-										? parseFloat(history.team2_elo_delta)
-										: Number(history.team2_elo_delta);
-								team2Change = delta;
-							}
-
 							eloHistoryMap[history.match_id] = {
-								team1EloChange: team1Change,
-								team2EloChange: team2Change,
+								player1EloChange: parseDelta(
+									history.player1_elo_delta,
+								),
+								player2EloChange: parseDelta(
+									history.player2_elo_delta,
+								),
+								team1EloChange: parseDelta(
+									history.team1_elo_delta,
+								),
+								team2EloChange: parseDelta(
+									history.team2_elo_delta,
+								),
 							};
 						}
 					}
@@ -966,9 +921,6 @@ function SessionPageContent() {
 						setCurrentRound(initialRound);
 					}
 
-					if (activeSummaryPrefetch) {
-						await activeSummaryPrefetch.catch(() => undefined);
-					}
 				} catch (err) {
 					console.error("Error fetching session:", err);
 					setError("Failed to load session");
@@ -980,7 +932,7 @@ function SessionPageContent() {
 		if (sessionId) {
 			fetchSession();
 		}
-	}, [sessionId, fetchPlayers, activeView]);
+	}, [accessToken, sessionId, fetchPlayers]);
 
 	// Check if user is admin and if session is deletable
 	useEffect(() => {
@@ -2441,6 +2393,16 @@ function SessionPageContent() {
 																matchEloHistory[
 																	match.id
 																];
+															const team1EloChange =
+																activeView ===
+																"doubles_team"
+																	? eloHistory?.team1EloChange
+																	: eloHistory?.player1EloChange;
+															const team2EloChange =
+																activeView ===
+																"doubles_team"
+																	? eloHistory?.team2EloChange
+																	: eloHistory?.player2EloChange;
 															const pairedFirstHalfScore =
 																getPairedFirstHalfScore(
 																	match,
@@ -2527,13 +2489,13 @@ function SessionPageContent() {
 																	}
 																	team1EloChange={
 																		shouldPlaceSelectedPlayerLeft
-																			? eloHistory?.team2EloChange
-																			: eloHistory?.team1EloChange
+																			? team2EloChange
+																			: team1EloChange
 																	}
 																	team2EloChange={
 																		shouldPlaceSelectedPlayerLeft
-																			? eloHistory?.team1EloChange
-																			: eloHistory?.team2EloChange
+																			? team1EloChange
+																			: team2EloChange
 																	}
 																	onClick={() =>
 																		isAdmin &&

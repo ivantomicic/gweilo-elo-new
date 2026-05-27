@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { Loading } from "@/components/ui/loading";
 import { Box } from "@/components/ui/box";
-import { PollCard, type Poll, type PollOption } from "@/components/polls/poll-card";
+import { PollCard, type Poll } from "@/components/polls/poll-card";
 import { t } from "@/lib/i18n";
-import { getUserRole } from "@/lib/auth/getUserRole";
 import { EditPollDrawer } from "./edit-poll-drawer";
 import { toast } from "sonner";
 
@@ -17,7 +16,9 @@ type PollsViewProps = {
 };
 
 export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: PollsViewProps) {
-	const [isAdmin, setIsAdmin] = useState(false);
+	const { session, role } = useAuth();
+	const accessToken = session?.access_token;
+	const isAdmin = role === "admin";
 	const [editDrawerOpen, setEditDrawerOpen] = useState(false);
 	const [selectedPoll, setSelectedPoll] = useState<Poll | null>(null);
 	const [polls, setPolls] = useState<Poll[]>([]);
@@ -30,11 +31,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 			setLoading(true);
 			setError(null);
 
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-
-			if (!session) {
+			if (!accessToken) {
 				setError(t.polls.error.notAuthenticated);
 				return;
 			}
@@ -43,12 +40,12 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 			const [activeResponse, completedResponse] = await Promise.all([
 				fetch(`/api/polls?status=active`, {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				}),
 				fetch(`/api/polls?status=completed`, {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				}),
 			]);
@@ -101,16 +98,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 		} finally {
 			setLoading(false);
 		}
-	}, []);
-
-	// Check if user is admin
-	useEffect(() => {
-		const checkAdmin = async () => {
-			const role = await getUserRole();
-			setIsAdmin(role === "admin");
-		};
-		checkAdmin();
-	}, []);
+	}, [accessToken, initialPollId]);
 
 	// Fetch polls on mount
 	useEffect(() => {
@@ -140,11 +128,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 	const handleAnswer = useCallback(
 		async (pollId: string, optionId: string) => {
 			try {
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError(t.polls.error.notAuthenticated);
 					return;
 				}
@@ -153,7 +137,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 					method: "POST",
 					headers: {
 						"Content-Type": "application/json",
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 					body: JSON.stringify({ optionId }),
 				});
@@ -171,7 +155,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 				setError(t.polls.error.answerFailed);
 			}
 		},
-		[fetchPolls]
+		[accessToken, fetchPolls]
 	);
 
 	// Handle edit
@@ -184,11 +168,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 	const handleDelete = useCallback(
 		async (pollId: string) => {
 			try {
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError(t.polls.error.notAuthenticated);
 					return;
 				}
@@ -196,7 +176,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 				const response = await fetch(`/api/polls/${pollId}`, {
 					method: "DELETE",
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -219,7 +199,7 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 				toast.error(errorMessage);
 			}
 		},
-		[fetchPolls]
+		[accessToken, fetchPolls]
 	);
 
 	if (loading && polls.length === 0) {

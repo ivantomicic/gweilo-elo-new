@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { Loading } from "@/components/ui/loading";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { formatElo } from "@/lib/elo/format";
 import { t } from "@/lib/i18n";
 
@@ -46,6 +46,8 @@ export function PlayerComparison({
 	viewedPlayerId,
 	currentUserId,
 }: PlayerComparisonProps) {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [data, setData] = useState<HeadToHeadData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -56,11 +58,7 @@ export function PlayerComparison({
 				setLoading(true);
 				setError(null);
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError(t.playerComparison.error);
 					return;
 				}
@@ -69,7 +67,7 @@ export function PlayerComparison({
 					`/api/player/${viewedPlayerId}/head-to-head?opponentId=${currentUserId}`,
 					{
 						headers: {
-							Authorization: `Bearer ${session.access_token}`,
+							Authorization: `Bearer ${accessToken}`,
 						},
 					}
 				);
@@ -98,7 +96,7 @@ export function PlayerComparison({
 		} else {
 			setLoading(false);
 		}
-	}, [viewedPlayerId, currentUserId]);
+	}, [accessToken, viewedPlayerId, currentUserId]);
 
 	// Don't show if viewing own profile
 	if (viewedPlayerId === currentUserId) {

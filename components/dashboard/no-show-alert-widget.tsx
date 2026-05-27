@@ -5,7 +5,7 @@ import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
 
@@ -76,6 +76,8 @@ function writeCachedWorstOffender(worstOffender: NoShowUser | null) {
 }
 
 export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [worstOffender, setWorstOffender] = useState<NoShowUser | null>(
 		users?.[0] ?? null
 	);
@@ -104,11 +106,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 					setLoading(true);
 				}
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					if (isMounted && !cachedWorstOffender) {
 						setWorstOffender(null);
 					}
@@ -117,7 +115,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 
 				const response = await fetch("/api/no-shows", {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -152,7 +150,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 		return () => {
 			isMounted = false;
 		};
-	}, [users]);
+	}, [accessToken, users]);
 
 	if (loading) {
 		return (

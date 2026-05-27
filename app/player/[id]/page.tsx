@@ -8,7 +8,7 @@ import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { PlayerComparison } from "@/components/player/player-comparison";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 
 type PlayerData = {
@@ -20,8 +20,10 @@ type PlayerData = {
 function PlayerPageContent() {
 	const params = useParams();
 	const playerId = params.id as string;
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
+	const currentUserId = session?.user.id ?? null;
 	const [playerData, setPlayerData] = useState<PlayerData | null>(null);
-	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -31,21 +33,14 @@ function PlayerPageContent() {
 				setLoading(true);
 				setError(null);
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					setError(t.statistics.error.notAuthenticated);
 					return;
 				}
 
-				// Get current user ID for comparison
-				setCurrentUserId(session.user.id);
-
 				const response = await fetch(`/api/player/${playerId}`, {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -77,7 +72,7 @@ function PlayerPageContent() {
 		if (playerId) {
 			fetchPlayerData();
 		}
-	}, [playerId]);
+	}, [accessToken, playerId]);
 
 	return (
 		<AppShell title={playerData?.display_name ?? t.statistics.table.player}>

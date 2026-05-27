@@ -5,7 +5,7 @@ import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { Loading } from "@/components/ui/loading";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { formatElo, formatEloDelta } from "@/lib/elo/format";
 import { t } from "@/lib/i18n";
 import {
@@ -60,6 +60,8 @@ export function PerformanceTrend({
 	secondaryCacheKey,
 	emptyStateLabel,
 }: PerformanceTrendProps) {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [eloHistory, setEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [secondaryEloHistory, setSecondaryEloHistory] = useState<EloHistoryDataPoint[]>([]);
 	const [currentElo, setCurrentElo] = useState<number>(1500);
@@ -75,11 +77,8 @@ export function PerformanceTrend({
 		const fetchEloHistory = async () => {
 			try {
 				setLoading(true);
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
 
-				if (!session) {
+				if (!accessToken || !session) {
 					setEloHistory([]);
 					setSecondaryEloHistory([]);
 					return;
@@ -92,7 +91,7 @@ export function PerformanceTrend({
 						try {
 							const playerResponse = await fetch(`/api/player/${playerId}`, {
 								headers: {
-									Authorization: `Bearer ${session.access_token}`,
+									Authorization: `Bearer ${accessToken}`,
 								},
 							});
 							if (playerResponse.ok) {
@@ -153,7 +152,7 @@ export function PerformanceTrend({
 						// Invalid cache or expired, fetch fresh data
 						const primaryResponse = await fetch(primaryUrl, {
 							headers: {
-								Authorization: `Bearer ${session.access_token}`,
+								Authorization: `Bearer ${accessToken}`,
 							},
 						});
 
@@ -179,7 +178,7 @@ export function PerformanceTrend({
 					// No cache, fetch fresh data
 					const primaryResponse = await fetch(primaryUrl, {
 						headers: {
-							Authorization: `Bearer ${session.access_token}`,
+							Authorization: `Bearer ${accessToken}`,
 						},
 					});
 
@@ -228,7 +227,7 @@ export function PerformanceTrend({
 							// Invalid cache or expired, fetch fresh data
 							const secondaryResponse = await fetch(resolvedSecondaryHistoryUrl, {
 								headers: {
-									Authorization: `Bearer ${session.access_token}`,
+									Authorization: `Bearer ${accessToken}`,
 								},
 							});
 
@@ -254,7 +253,7 @@ export function PerformanceTrend({
 						// No cache, fetch fresh data
 						const secondaryResponse = await fetch(resolvedSecondaryHistoryUrl, {
 							headers: {
-								Authorization: `Bearer ${session.access_token}`,
+								Authorization: `Bearer ${accessToken}`,
 							},
 						});
 
@@ -297,6 +296,8 @@ export function PerformanceTrend({
 		secondaryHistoryUrl,
 		primaryCacheKey,
 		secondaryCacheKey,
+		accessToken,
+		session,
 	]);
 
 	// Check scroll position to show/hide fade masks

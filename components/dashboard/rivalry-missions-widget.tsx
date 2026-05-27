@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import type { MissionSnapshot } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
@@ -191,6 +191,9 @@ function renderHighlightedBody(
 }
 
 export function RivalryMissionsWidget() {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
+	const userId = session?.user.id;
 	const [snapshot, setSnapshot] = useState<MissionSnapshot | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -211,13 +214,7 @@ export function RivalryMissionsWidget() {
 					setError(null);
 				}
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				const userId = session?.user?.id;
-
-				if (!session?.access_token || !userId) {
+				if (!accessToken || !userId) {
 					if (isMounted) {
 						setSnapshot(null);
 						setLoading(false);
@@ -228,7 +225,7 @@ export function RivalryMissionsWidget() {
 				const response = await fetch(`/api/missions?ts=${Date.now()}`, {
 					cache: "no-store",
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -255,12 +252,7 @@ export function RivalryMissionsWidget() {
 		};
 
 		const initializeSnapshot = async () => {
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-			const userId = session?.user?.id;
-
-			if (!session?.access_token || !userId) {
+			if (!accessToken || !userId) {
 				if (isMounted) {
 					setSnapshot(null);
 					setLoading(false);
@@ -300,7 +292,7 @@ export function RivalryMissionsWidget() {
 			window.removeEventListener("focus", handleWindowFocus);
 			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
-	}, []);
+	}, [accessToken, userId]);
 
 	if (loading) {
 		return (

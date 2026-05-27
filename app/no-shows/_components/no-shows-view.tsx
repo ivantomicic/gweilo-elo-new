@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { Loading } from "@/components/ui/loading";
 import { NoShowDistributionWidget } from "@/components/dashboard/no-show-distribution-widget";
 import { t } from "@/lib/i18n";
@@ -28,6 +28,8 @@ type NoShowsViewProps = {
 };
 
 export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [users, setUsers] = useState<NoShowUser[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -38,18 +40,14 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 			setLoading(true);
 			setError(null);
 
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-
-			if (!session) {
+			if (!accessToken) {
 				setError(t.ispale.error.notAuthenticated);
 				return;
 			}
 
 			const response = await fetch("/api/no-shows", {
 				headers: {
-					Authorization: `Bearer ${session.access_token}`,
+					Authorization: `Bearer ${accessToken}`,
 				},
 			});
 
@@ -70,7 +68,7 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 		} finally {
 			setLoading(false);
 		}
-	}, []);
+	}, [accessToken]);
 
 	// Fetch stats on mount
 	useEffect(() => {

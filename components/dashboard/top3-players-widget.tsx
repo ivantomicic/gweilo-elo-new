@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { formatElo } from "@/lib/elo/format";
 
 type PlayerStat = {
@@ -65,6 +65,8 @@ function writeCachedTopPlayers(players: PlayerStat[]) {
 
 export function Top3PlayersWidget() {
 	const router = useRouter();
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
 	const [loading, setLoading] = useState(true);
 
@@ -83,11 +85,7 @@ export function Top3PlayersWidget() {
 					setLoading(true);
 				}
 
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
-
-				if (!session) {
+				if (!accessToken) {
 					if (isMounted && !cachedTopPlayers) {
 						setTopPlayers([]);
 					}
@@ -96,7 +94,7 @@ export function Top3PlayersWidget() {
 
 				const response = await fetch("/api/statistics/top3", {
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				});
 
@@ -130,7 +128,7 @@ export function Top3PlayersWidget() {
 		return () => {
 			isMounted = false;
 		};
-	}, []);
+	}, [accessToken]);
 
 	const second = topPlayers[1];
 	const first = topPlayers[0];

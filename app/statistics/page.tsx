@@ -19,7 +19,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { supabase } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth/useAuth";
 import { ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -81,6 +81,8 @@ type StatisticsData = {
 function StatisticsPageContent() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
+	const { session } = useAuth();
+	const accessToken = session?.access_token;
 	const shouldReduceMotion = useReducedMotion();
 	const { trigger } = useWebHaptics();
 
@@ -162,11 +164,7 @@ function StatisticsPageContent() {
 			setLoading((prev) => ({ ...prev, [viewKey]: true }));
 			setError(null);
 
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-
-			if (!session) {
+			if (!accessToken) {
 				setError(t.statistics.error.notAuthenticated);
 				return;
 			}
@@ -185,7 +183,7 @@ function StatisticsPageContent() {
 				{
 					cache: "no-store",
 					headers: {
-						Authorization: `Bearer ${session.access_token}`,
+						Authorization: `Bearer ${accessToken}`,
 					},
 				}
 			);
@@ -216,7 +214,7 @@ function StatisticsPageContent() {
 		} finally {
 			setLoading((prev) => ({ ...prev, [viewKey]: false }));
 		}
-	}, [loaded]);
+	}, [accessToken, loaded]);
 
 	// Load initial statistics for active view
 	useEffect(() => {
