@@ -2,15 +2,10 @@
 
 import { useState } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { Stack } from "@/components/ui/stack";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
 import { t } from "@/lib/i18n";
 import { BasePlayerSection } from "@/app/calculator/_components/base-player-section";
 import { OpponentPickerSection } from "@/app/calculator/_components/opponent-picker-section";
@@ -66,43 +61,25 @@ function CalculatorPageContent() {
 		updateScrollIndicators,
 	} = useHorizontalScrollIndicators(availableOpponents.length);
 
-	if (loading) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title={t.pages.calculator} />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Loading label="Učitavanje kalkulatora..." />
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
-	}
-
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset className="overflow-x-hidden">
-				<SiteHeader title={t.pages.calculator} />
-				<div className="flex flex-1 flex-col min-w-0">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav min-w-0">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6 min-w-0">
-							{error ? (
+		<AppShell
+			title={t.pages.calculator}
+			insetClassName="overflow-x-hidden"
+			contentClassName="min-w-0"
+		>
+			{loading ? (
+				<Loading label="Učitavanje kalkulatora..." />
+			) : error ? (
 								<StatusCard
 									message={error}
 									error
 								/>
-							) : !currentPlayer ? (
+			) : !currentPlayer ? (
 								<StatusCard
 									message="Nema dostupnih igrača za kalkulator."
 									error
 								/>
-							) : (
+			) : (
 								<Stack
 									direction="column"
 									spacing={6}
@@ -152,12 +129,8 @@ function CalculatorPageContent() {
 										getOpponentDelta={getOpponentDelta}
 									/>
 								</Stack>
-							)}
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+			)}
+		</AppShell>
 	);
 }
 

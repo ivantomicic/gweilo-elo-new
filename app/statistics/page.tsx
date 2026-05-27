@@ -5,12 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
@@ -233,50 +228,24 @@ function StatisticsPageContent() {
 
 	if (isInitialLoading) {
 		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title={t.statistics.title} />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Loading label={t.statistics.loading} />
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
+			<AppShell title={t.statistics.title}>
+				<Loading label={t.statistics.loading} />
+			</AppShell>
 		);
 	}
 
 	if (error) {
 		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title={t.statistics.title} />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-destructive">{error}</p>
-								</Box>
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
+			<AppShell title={t.statistics.title}>
+				<Box>
+					<p className="text-destructive">{error}</p>
+				</Box>
+			</AppShell>
 		);
 	}
 
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title={t.statistics.title} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+		<AppShell title={t.statistics.title}>
 							{/* Page-level Navigation Tabs */}
 							<Box className="mb-4">
 								<Tabs
@@ -757,11 +726,7 @@ function StatisticsPageContent() {
 									);
 								})()}
 							</Box>
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+		</AppShell>
 	);
 }
 

@@ -1,79 +1,34 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
-import { Loading } from "@/components/ui/loading";
+import { AppShell } from "@/components/app-shell";
 import { NoShowsView } from "./_components/no-shows-view";
 import { AddNoShowDrawer } from "./_components/add-no-show-drawer";
 import { t } from "@/lib/i18n";
-import { getUserRole } from "@/lib/auth/getUserRole";
+import { useAuth } from "@/lib/auth/useAuth";
 
 function NoShowsPageContent() {
-	const [isAdmin, setIsAdmin] = useState(false);
-	const [loadingAdmin, setLoadingAdmin] = useState(true);
+	const { role } = useAuth();
+	const isAdmin = role === "admin";
 	const [drawerOpen, setDrawerOpen] = useState(false);
 	const [refetchNoShows, setRefetchNoShows] = useState<(() => void) | null>(
 		null
 	);
 
-	// Check if user is admin
-	useEffect(() => {
-		const checkAdmin = async () => {
-			const role = await getUserRole();
-			setIsAdmin(role === "admin");
-			setLoadingAdmin(false);
-		};
-		checkAdmin();
-	}, []);
-
-	if (loadingAdmin) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title={t.ispale.title} />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Loading />
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
-	}
-
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader
-					title={t.ispale.title}
-					actionLabel={isAdmin ? t.ispale.addNoShow : undefined}
-					actionOnClick={
-						isAdmin ? () => setDrawerOpen(true) : undefined
-					}
-					actionIcon="solar:add-circle-bold"
-				/>
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-							<NoShowsView
-								onRefetchReady={(refetch) => {
-									setRefetchNoShows(() => refetch);
-								}}
-							/>
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
+		<AppShell
+			title={t.ispale.title}
+			actionLabel={isAdmin ? t.ispale.addNoShow : undefined}
+			actionOnClick={isAdmin ? () => setDrawerOpen(true) : undefined}
+			actionIcon="solar:add-circle-bold"
+			contentClassName="px-0 lg:px-0"
+		>
+			<NoShowsView
+				onRefetchReady={(refetch) => {
+					setRefetchNoShows(() => refetch);
+				}}
+			/>
 			{/* Add No-Show Drawer */}
 			{isAdmin && (
 				<AddNoShowDrawer
@@ -86,7 +41,7 @@ function NoShowsPageContent() {
 					}}
 				/>
 			)}
-		</SidebarProvider>
+		</AppShell>
 	);
 }
 

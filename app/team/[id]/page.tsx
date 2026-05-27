@@ -3,12 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { Stack } from "@/components/ui/stack";
@@ -92,54 +87,18 @@ function TeamPageContent() {
 		}
 	}, [teamId]);
 
-	if (loading) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title={t.statistics.table.team} />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Loading label={t.teamPage.loading} />
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
-	}
-
-	if (error || !teamData) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title={t.statistics.table.team} />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-destructive">
-										{error || t.teamPage.error.notFound}
-									</p>
-								</Box>
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
-	}
-
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title={teamData.display_name} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
+		<AppShell title={teamData?.display_name ?? t.statistics.table.team}>
+			{loading ? (
+				<Loading label={t.teamPage.loading} />
+			) : error || !teamData ? (
+				<Box>
+					<p className="text-destructive">
+						{error || t.teamPage.error.notFound}
+					</p>
+				</Box>
+			) : (
+				<>
 							<Box className="bg-card rounded-[24px] border border-border/50 p-6">
 								<Stack direction="column" spacing={5}>
 									<Stack direction="column" spacing={2}>
@@ -220,11 +179,9 @@ function TeamPageContent() {
 								primaryCacheKey={`team_elo_history_${teamId}`}
 								emptyStateLabel={t.teamPage.notEnoughData}
 							/>
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+				</>
+			)}
+		</AppShell>
 	);
 }
 

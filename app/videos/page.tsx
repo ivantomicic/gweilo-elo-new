@@ -2,12 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase/client";
@@ -74,84 +69,37 @@ function VideosPageContent() {
 		fetchVideos();
 	}, []);
 
-	if (loading) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title="Video" />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Loading />
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
-	}
-
-	if (error) {
-		return (
-			<SidebarProvider>
-				<AppSidebar variant="inset" />
-				<SidebarInset>
-					<SiteHeader title="Video" />
-					<div className="flex flex-1 flex-col">
-						<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-							<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-								<Box>
-									<p className="text-destructive">{error}</p>
-								</Box>
-							</div>
-						</div>
-					</div>
-				</SidebarInset>
-			</SidebarProvider>
-		);
-	}
-
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title="Video" />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Videos List */}
-							{videos.length === 0 ? (
-								<Box>
-									<p className="text-muted-foreground">
-										No videos available yet.
-									</p>
-								</Box>
-							) : (
-								<div
-									className="grid gap-4 md:gap-6"
-									style={{
-										gridTemplateColumns:
-											"repeat(auto-fill, minmax(350px, 1fr))",
-									}}
-								>
-									{videos.map((video) => (
-										<VideoCard
-											key={video.matchId}
-											video={video}
-											formatDateWeekday={
-												formatDateWeekday
-											}
-											formatDateShort={formatDateShort}
-										/>
-									))}
-								</div>
-							)}
-						</div>
-					</div>
+		<AppShell title="Video">
+			{loading ? (
+				<Loading />
+			) : error ? (
+				<Box>
+					<p className="text-destructive">{error}</p>
+				</Box>
+			) : videos.length === 0 ? (
+				<Box>
+					<p className="text-muted-foreground">No videos available yet.</p>
+				</Box>
+			) : (
+				<div
+					className="grid gap-4 md:gap-6"
+					style={{
+						gridTemplateColumns:
+							"repeat(auto-fill, minmax(350px, 1fr))",
+					}}
+				>
+					{videos.map((video) => (
+						<VideoCard
+							key={video.matchId}
+							video={video}
+							formatDateWeekday={formatDateWeekday}
+							formatDateShort={formatDateShort}
+						/>
+					))}
 				</div>
-			</SidebarInset>
-		</SidebarProvider>
+			)}
+		</AppShell>
 	);
 }
 
