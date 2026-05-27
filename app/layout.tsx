@@ -4,6 +4,7 @@ import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
 import { MaintenanceGuard } from "@/components/maintenance/maintenance-guard";
+import { AuthProvider } from "@/lib/auth/useAuth";
 
 const AppTracker = dynamic(
 	() =>
@@ -68,11 +69,13 @@ export default function RootLayout({
 			className={`dark ${spaceGrotesk.variable} ${manrope.variable}`}
 		>
 			<body>
-				<AppTracker />
-				<MaintenanceGuard>
-					{children}
-					<MobileNav />
-				</MaintenanceGuard>
+				<AuthProvider>
+					<AppTracker />
+					<MaintenanceGuard>
+						{children}
+						<MobileNav />
+					</MaintenanceGuard>
+				</AuthProvider>
 			</body>
 		</html>
 	);

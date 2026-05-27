@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { getUserRole } from "@/lib/auth/getUserRole";
+import { useAuth } from "@/lib/auth/useAuth";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { t } from "@/lib/i18n";
@@ -29,32 +29,28 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 			enabled: false,
 			message: null,
 		});
-	const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+	const { role } = useAuth();
 	const pathname = usePathname();
 
 	useEffect(() => {
-		const checkMaintenanceAndRole = async () => {
+		const checkMaintenance = async () => {
 			try {
-				// Check maintenance status and user role in parallel
-				const [maintenanceResponse, role] = await Promise.all([
-					fetch("/api/maintenance").then((res) => res.json()),
-					getUserRole(),
-				]);
+				const maintenanceResponse = await fetch("/api/maintenance").then(
+					(res) => res.json(),
+				);
 
 				setMaintenanceStatus({
 					enabled: maintenanceResponse?.enabled ?? false,
 					message: maintenanceResponse?.message ?? null,
 				});
-				setIsAdmin(role === "admin");
 			} catch (error) {
 				console.error("Error checking maintenance status:", error);
 				// Fail open so a stale browser state cannot lock users on a blank shell.
 				setMaintenanceStatus({ enabled: false, message: null });
-				setIsAdmin(false);
 			}
 		};
 
-		checkMaintenanceAndRole();
+		checkMaintenance();
 	}, []);
 
 	// Allow access if:
@@ -63,7 +59,7 @@ export function MaintenanceGuard({ children }: { children: React.ReactNode }) {
 	// - User is on the maintenance page itself
 	const allowAccess =
 		!maintenanceStatus.enabled ||
-		isAdmin === true ||
+		role === "admin" ||
 		pathname === "/maintenance";
 
 	if (allowAccess) {

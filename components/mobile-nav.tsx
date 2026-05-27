@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { t } from "@/lib/i18n";
 
 type NavItem = {
@@ -60,14 +59,14 @@ const mainNavItems = navItems.slice(0, 4);
  */
 export function MobileNav() {
 	const pathname = usePathname();
-	const { isAuthenticated } = useAuth();
-	const [isAdmin, setIsAdmin] = useState(false);
-	const [userAvatar, setUserAvatar] = useState<string | null>(null);
-	const [userName, setUserName] = useState("User");
+	const { isAuthenticated, user, role } = useAuth();
 	const [isIOSSafari26, setIsIOSSafari26] = useState(false);
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
 	const shouldReduceMotion = useReducedMotion();
+	const isAdmin = role === "admin";
+	const userAvatar = user?.avatar ?? null;
+	const userName = user?.name ?? "User";
 
 	const triggerNavHaptic = () => {
 		try {
@@ -152,22 +151,6 @@ export function MobileNav() {
 	useEffect(() => {
 		setIsMoreOpen(false);
 	}, [pathname]);
-
-	useEffect(() => {
-		const loadCurrentUser = async () => {
-			if (!isAuthenticated) {
-				setIsAdmin(false);
-				setUserAvatar(null);
-				setUserName("User");
-				return;
-			}
-			const currentUser = await getCurrentUser();
-			setIsAdmin(currentUser?.role === "admin");
-			setUserAvatar(currentUser?.avatar ?? null);
-			setUserName(currentUser?.name ?? "User");
-		};
-		loadCurrentUser();
-	}, [isAuthenticated]);
 
 	// Don't render navigation if not authenticated
 	if (isAuthenticated === null) {

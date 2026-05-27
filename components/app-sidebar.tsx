@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -32,7 +31,7 @@ import { NavDocuments } from "@/components/nav-documents";
 import { adminNavigationItems } from "@/components/admin/admin-navigation";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import { useAuth } from "@/lib/auth/useAuth";
 import {
 	Sidebar,
 	SidebarContent,
@@ -93,35 +92,7 @@ const data = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 	const pathname = usePathname();
-	const [user, setUser] = useState<{
-		name: string;
-		email: string;
-		avatar: string | null;
-		role: "admin" | "user";
-	} | null>(null);
-
-	useEffect(() => {
-		const fetchUser = async () => {
-			const currentUser = await getCurrentUser();
-			if (currentUser) {
-				setUser({
-					name: currentUser.name,
-					email: currentUser.email,
-					avatar: currentUser.avatar,
-					role: currentUser.role as "admin" | "user",
-				});
-			} else {
-				// Fallback if no user found
-				setUser({
-					name: "User",
-					email: "",
-					avatar: null,
-					role: "user",
-				});
-			}
-		};
-		fetchUser();
-	}, []);
+	const { user, role } = useAuth();
 
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
@@ -151,7 +122,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 			<SidebarContent>
 				<NavMain items={data.navMain} currentPathname={pathname} />
 				{/* <NavDocuments items={data.documents} /> */}
-				{user?.role === "admin" && (
+				{role === "admin" && (
 					<SidebarGroup className="mt-auto">
 						<SidebarGroupLabel>Admin panel</SidebarGroupLabel>
 						<SidebarGroupContent>

@@ -17,14 +17,12 @@ import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
-import { supabase } from "@/lib/supabase/client";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { Top3PlayersWidget } from "@/components/dashboard/top3-players-widget";
 import { NoShowAlertWidget } from "@/components/dashboard/no-show-alert-widget";
 import { RivalryMissionsWidget } from "@/components/dashboard/rivalry-missions-widget";
 import { PollCard, type Poll } from "@/components/polls/poll-card";
-import { getUserRole } from "@/lib/auth/getUserRole";
 
 type ActiveSession = {
 	id: string;
@@ -102,12 +100,12 @@ function UnansweredPollsBanner({ count }: { count: number }) {
  * Automatically updates UI on login/logout via onAuthStateChange.
  */
 export default function HomePage() {
-	const { isAuthenticated } = useAuth();
+	const { isAuthenticated, session, role } = useAuth();
 	const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
 	const [loadingSession, setLoadingSession] = useState(true);
 	const [unansweredPolls, setUnansweredPolls] = useState<Poll[]>([]);
 	const [loadingPolls, setLoadingPolls] = useState(true);
-	const [isAdmin, setIsAdmin] = useState(false);
+	const isAdmin = role === "admin";
 
 	// Fetch active session
 	useEffect(() => {
@@ -120,9 +118,6 @@ export default function HomePage() {
 
 			try {
 				setLoadingSession(true);
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
 
 				if (!session) {
 					setActiveSession(null);
@@ -152,7 +147,7 @@ export default function HomePage() {
 		};
 
 		fetchActiveSession();
-	}, [isAuthenticated]);
+	}, [isAuthenticated, session]);
 
 	// Fetch unanswered polls
 	useEffect(() => {
@@ -165,9 +160,6 @@ export default function HomePage() {
 
 			try {
 				setLoadingPolls(true);
-				const {
-					data: { session },
-				} = await supabase.auth.getSession();
 
 				if (!session) {
 					setUnansweredPolls([]);
@@ -197,28 +189,11 @@ export default function HomePage() {
 		};
 
 		fetchUnansweredPolls();
-	}, [isAuthenticated]);
-
-	// Check if user is admin
-	useEffect(() => {
-		const checkAdmin = async () => {
-			if (!isAuthenticated) {
-				setIsAdmin(false);
-				return;
-			}
-			const role = await getUserRole();
-			setIsAdmin(role === "admin");
-		};
-		checkAdmin();
-	}, [isAuthenticated]);
+	}, [isAuthenticated, session]);
 
 	// Handle poll answer submission
 	const handlePollAnswer = async (pollId: string, optionId: string) => {
 		try {
-			const {
-				data: { session },
-			} = await supabase.auth.getSession();
-
 			if (!session) {
 				return;
 			}
