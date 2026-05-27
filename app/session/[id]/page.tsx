@@ -188,6 +188,7 @@ function SessionPageContent() {
 	const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<
 		string | null
 	>(null);
+	const [sessionReloadKey, setSessionReloadKey] = useState(0);
 
 	const viewAvailability = useMemo(() => {
 		if (!sessionData) return null;
@@ -932,7 +933,7 @@ function SessionPageContent() {
 		if (sessionId) {
 			fetchSession();
 		}
-	}, [accessToken, sessionId, fetchPlayers]);
+	}, [accessToken, sessionId, fetchPlayers, sessionReloadKey]);
 
 	// Check if user is admin and if session is deletable
 	useEffect(() => {
@@ -1886,8 +1887,8 @@ function SessionPageContent() {
 						toast.success("Session recalculated successfully", {
 							id: toastId,
 						});
-						// Reload session data
-						window.location.reload();
+						clearSessionSummaryCache(sessionId);
+						setSessionReloadKey((value) => value + 1);
 					} else if (latestStatus === "failed") {
 						clearInterval(pollInterval);
 						isManualRecalcPollingRef.current = false;

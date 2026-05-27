@@ -117,7 +117,7 @@ function StatisticsPageContent() {
 
 	const handleTeamClick = (teamId: string) => {
 		void trigger();
-		window.location.assign(`/team/${teamId}`);
+		router.push(`/team/${teamId}`);
 	};
 
 	const [statistics, setStatistics] = useState<StatisticsData>({
