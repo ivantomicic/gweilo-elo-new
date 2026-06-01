@@ -18,7 +18,7 @@ type PlayerStat = {
 
 const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
 const LEGACY_TOP3_CACHE_KEY = "top3players_cache";
-const TOP3_CACHE_VERSION = 2;
+const TOP3_CACHE_VERSION = 3;
 const TOP3_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 function getTop3CacheKey(userId: string) {
