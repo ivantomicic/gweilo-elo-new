@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
@@ -28,6 +28,7 @@ import {
 	MIN_DOUBLES_PLAYER_MATCHES,
 	MIN_SINGLES_MATCHES,
 } from "@/lib/statistics/min-matches";
+import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
 
 const MotionTableRow = motion(TableRow);
 
@@ -78,18 +79,75 @@ type StatisticsData = {
 	doublesTeams: TeamStats[];
 };
 
+type StatisticsView = "singles" | "doubles_player" | "doubles_team";
+
+type StatisticsLoaded = {
+	singles: boolean;
+	doublesPlayers: boolean;
+	doublesTeams: boolean;
+};
+
+type StatisticsCache = {
+	statistics: StatisticsData;
+	loaded: StatisticsLoaded;
+};
+
+const EMPTY_STATISTICS: StatisticsData = {
+	singles: [],
+	doublesPlayers: [],
+	doublesTeams: [],
+};
+
+const EMPTY_LOADED: StatisticsLoaded = {
+	singles: false,
+	doublesPlayers: false,
+	doublesTeams: false,
+};
+
+const STATISTICS_CACHE_VERSION = 1;
+const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const STATISTICS_VIEWS: StatisticsView[] = [
+	"singles",
+	"doubles_player",
+	"doubles_team",
+];
+
+function getStatisticsCacheKey(userId: string) {
+	return `statistics-page:${userId}`;
+}
+
+function readCachedStatistics(userId: string | undefined) {
+	if (!userId) {
+		return null;
+	}
+
+	return readStaleCache<StatisticsCache>(getStatisticsCacheKey(userId), {
+		maxAgeMs: STATISTICS_CACHE_MAX_AGE_MS,
+		version: STATISTICS_CACHE_VERSION,
+	});
+}
+
+function getViewKey(view: StatisticsView): keyof StatisticsLoaded {
+	return view === "singles"
+		? "singles"
+		: view === "doubles_player"
+		? "doublesPlayers"
+		: "doublesTeams";
+}
+
 function StatisticsPageContent() {
 	const searchParams = useSearchParams();
 	const router = useRouter();
 	const { session } = useAuth();
 	const accessToken = session?.access_token;
+	const userId = session?.user.id;
 	const shouldReduceMotion = useReducedMotion();
 	const { trigger } = useWebHaptics();
 
 	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
 	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
 	const urlView = searchParams.get("view");
-	let activeView: "singles" | "doubles_player" | "doubles_team" = "singles";
+	let activeView: StatisticsView = "singles";
 	if (urlView === "doubles-player") {
 		activeView = "doubles_player";
 	} else if (urlView === "doubles-team") {
@@ -97,7 +155,7 @@ function StatisticsPageContent() {
 	}
 
 	const handleViewChange = (
-		view: "singles" | "doubles_player" | "doubles_team"
+		view: StatisticsView
 	) => {
 		const params = new URLSearchParams(searchParams.toString());
 		if (view === "singles") {
@@ -120,48 +178,53 @@ function StatisticsPageContent() {
 		router.push(`/team/${teamId}`);
 	};
 
-	const [statistics, setStatistics] = useState<StatisticsData>({
-		singles: [],
-		doublesPlayers: [],
-		doublesTeams: [],
-	});
-	const [loading, setLoading] = useState<{
-		singles: boolean;
-		doublesPlayers: boolean;
-		doublesTeams: boolean;
-	}>({
-		singles: true,
-		doublesPlayers: false,
-		doublesTeams: false,
-	});
-	const [loaded, setLoaded] = useState<{
-		singles: boolean;
-		doublesPlayers: boolean;
-		doublesTeams: boolean;
-	}>({
-		singles: false,
-		doublesPlayers: false,
-		doublesTeams: false,
-	});
+	const cachedStatistics = readCachedStatistics(userId);
+	const [statistics, setStatistics] = useState<StatisticsData>(
+		() => cachedStatistics?.statistics ?? EMPTY_STATISTICS,
+	);
+	const [loading, setLoading] = useState<StatisticsLoaded>(() => ({
+		singles:
+			getViewKey(activeView) === "singles" &&
+			!cachedStatistics?.loaded.singles,
+		doublesPlayers:
+			getViewKey(activeView) === "doublesPlayers" &&
+			!cachedStatistics?.loaded.doublesPlayers,
+		doublesTeams:
+			getViewKey(activeView) === "doublesTeams" &&
+			!cachedStatistics?.loaded.doublesTeams,
+	}));
+	const [loaded, setLoaded] = useState<StatisticsLoaded>(
+		() => cachedStatistics?.loaded ?? EMPTY_LOADED,
+	);
 	const [error, setError] = useState<string | null>(null);
+	const statisticsRef = useRef(statistics);
+	const loadedRef = useRef(loaded);
+	const prefetchedViewsRef = useRef(new Set<StatisticsView>());
+
+	useEffect(() => {
+		statisticsRef.current = statistics;
+	}, [statistics]);
+
+	useEffect(() => {
+		loadedRef.current = loaded;
+	}, [loaded]);
 
 	// Fetch statistics for a specific view
 	const fetchStatistics = useCallback(async (
-		view: "singles" | "doubles_player" | "doubles_team"
+		view: StatisticsView,
+		options?: { force?: boolean; showLoading?: boolean },
 	) => {
-		// Check if already loaded
-		const viewKey =
-			view === "singles"
-				? "singles"
-				: view === "doubles_player"
-				? "doublesPlayers"
-				: "doublesTeams";
-		if (loaded[viewKey]) {
+		const viewKey = getViewKey(view);
+		const currentLoaded = loadedRef.current[viewKey];
+		if (currentLoaded && !options?.force) {
 			return; // Already loaded, skip
 		}
 
 		try {
-			setLoading((prev) => ({ ...prev, [viewKey]: true }));
+			const showLoading = options?.showLoading ?? !currentLoaded;
+			if (showLoading) {
+				setLoading((prev) => ({ ...prev, [viewKey]: true }));
+			}
 			setError(null);
 
 			if (!accessToken) {
@@ -201,28 +264,107 @@ function StatisticsPageContent() {
 			}
 
 			const data = await response.json();
-			setStatistics((prev) => ({
-				...prev,
-				singles: data.singles || prev.singles,
-				doublesPlayers: data.doublesPlayers || prev.doublesPlayers,
-				doublesTeams: data.doublesTeams || prev.doublesTeams,
-			}));
-			setLoaded((prev) => ({ ...prev, [viewKey]: true }));
+			const currentStatistics = statisticsRef.current;
+			const nextStatistics = {
+				...currentStatistics,
+				singles: data.singles || currentStatistics.singles,
+				doublesPlayers:
+					data.doublesPlayers || currentStatistics.doublesPlayers,
+				doublesTeams: data.doublesTeams || currentStatistics.doublesTeams,
+			};
+			const nextLoaded = {
+				...loadedRef.current,
+				[viewKey]: true,
+			};
+
+			statisticsRef.current = nextStatistics;
+			loadedRef.current = nextLoaded;
+			setStatistics(nextStatistics);
+			setLoaded(nextLoaded);
+
+			if (userId) {
+				writeStaleCache<StatisticsCache>(
+					getStatisticsCacheKey(userId),
+					{ statistics: nextStatistics, loaded: nextLoaded },
+					{ version: STATISTICS_CACHE_VERSION },
+				);
+			}
 		} catch (err) {
 			console.error("Error fetching statistics:", err);
-			setError(t.statistics.error.fetchFailed);
+			if (options?.showLoading !== false) {
+				setError(t.statistics.error.fetchFailed);
+			}
 		} finally {
 			setLoading((prev) => ({ ...prev, [viewKey]: false }));
 		}
-	}, [accessToken, loaded]);
+	}, [accessToken, userId]);
+
+	useEffect(() => {
+		if (!userId) {
+			return;
+		}
+
+		const cached = readCachedStatistics(userId);
+		if (cached) {
+			statisticsRef.current = cached.statistics;
+			loadedRef.current = cached.loaded;
+			setStatistics(cached.statistics);
+			setLoaded(cached.loaded);
+			setLoading({
+				singles: false,
+				doublesPlayers: false,
+				doublesTeams: false,
+			});
+		} else {
+			statisticsRef.current = EMPTY_STATISTICS;
+			loadedRef.current = EMPTY_LOADED;
+			setStatistics(EMPTY_STATISTICS);
+			setLoaded(EMPTY_LOADED);
+			setLoading({
+				singles: false,
+				doublesPlayers: false,
+				doublesTeams: false,
+			});
+		}
+		prefetchedViewsRef.current = new Set();
+	}, [userId]);
 
 	// Load initial statistics for active view
 	useEffect(() => {
-		fetchStatistics(activeView);
+		const viewKey = getViewKey(activeView);
+		const hasCachedData = loadedRef.current[viewKey];
+		fetchStatistics(activeView, {
+			force: hasCachedData,
+			showLoading: !hasCachedData,
+		});
 	}, [activeView, fetchStatistics]);
 
-	const isLoading = loading.singles || loading.doublesPlayers || loading.doublesTeams;
-	const isInitialLoading = loading.singles && !loaded.singles;
+	useEffect(() => {
+		const activeViewKey = getViewKey(activeView);
+		if (!accessToken || !loaded[activeViewKey]) {
+			return;
+		}
+
+		const timeoutId = window.setTimeout(() => {
+			for (const view of STATISTICS_VIEWS) {
+				if (
+					view === activeView ||
+					loadedRef.current[getViewKey(view)] ||
+					prefetchedViewsRef.current.has(view)
+				) {
+					continue;
+				}
+
+				prefetchedViewsRef.current.add(view);
+				void fetchStatistics(view, { showLoading: false });
+			}
+		}, 300);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [accessToken, activeView, fetchStatistics, loaded]);
+
+	const isInitialLoading =
+		loading[getViewKey(activeView)] && !loaded[getViewKey(activeView)];
 
 	if (isInitialLoading) {
 		return (

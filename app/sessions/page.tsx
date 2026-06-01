@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { motion, useReducedMotion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -10,6 +11,8 @@ import { supabase } from "@/lib/supabase/client";
 import { SessionCard } from "./_components/session-card";
 import { SessionsLayout, SessionsState } from "./_components/sessions-layout";
 import { t } from "@/lib/i18n";
+import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
+import { prefetchSessionSummary } from "@/app/session/[id]/_lib/session-summary-client";
 
 const listTransition = {
 	duration: 0.2,
@@ -37,23 +40,54 @@ type Session = {
 };
 
 const PAGE_SIZE = 5;
+const SESSIONS_CACHE_VERSION = 1;
+const SESSIONS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+type SessionsCache = {
+	sessions: Session[];
+	hasMore: boolean;
+};
+
+function getSessionsCacheKey(userId: string) {
+	return `sessions-page:${userId}`;
+}
+
+function readCachedSessions(userId: string | undefined) {
+	if (!userId) {
+		return null;
+	}
+
+	return readStaleCache<SessionsCache>(getSessionsCacheKey(userId), {
+		maxAgeMs: SESSIONS_CACHE_MAX_AGE_MS,
+		version: SESSIONS_CACHE_VERSION,
+	});
+}
 
 function SessionsPageContent() {
 	const { session: authSession } = useAuth();
+	const router = useRouter();
 	const shouldReduceMotion = useReducedMotion();
-	const [sessions, setSessions] = useState<Session[]>([]);
-	const [loading, setLoading] = useState(true);
+	const userId = authSession?.user.id;
+	const cachedSessions = readCachedSessions(userId);
+	const [sessions, setSessions] = useState<Session[]>(
+		() => cachedSessions?.sessions ?? [],
+	);
+	const [loading, setLoading] = useState(() => !cachedSessions);
 	const [loadingMore, setLoadingMore] = useState(false);
-	const [hasMore, setHasMore] = useState(true);
+	const [hasMore, setHasMore] = useState(() => cachedSessions?.hasMore ?? true);
 	const [error, setError] = useState<string | null>(null);
 
 	// Fetch sessions with pagination
 	const fetchSessions = useCallback(
-		async (offset: number = 0, append: boolean = false) => {
+		async (
+			offset: number = 0,
+			append: boolean = false,
+			options?: { showLoading?: boolean },
+		) => {
 			try {
 				if (append) {
 					setLoadingMore(true);
-				} else {
+				} else if (options?.showLoading ?? true) {
 					setLoading(true);
 				}
 				setError(null);
@@ -80,11 +114,19 @@ function SessionsPageContent() {
 				}
 
 				const newSessions = sessionsData || [];
+				const nextHasMore = newSessions.length === PAGE_SIZE;
 
 					// If no sessions, skip match count fetching
 					if (newSessions.length === 0) {
 						if (!append) {
 							setSessions([]);
+							if (userId) {
+								writeStaleCache<SessionsCache>(
+									getSessionsCacheKey(userId),
+									{ sessions: [], hasMore: false },
+									{ version: SESSIONS_CACHE_VERSION },
+								);
+							}
 						}
 						setHasMore(false);
 						return;
@@ -211,35 +253,78 @@ function SessionsPageContent() {
 
 				// Show sessions immediately (best/worst data from database if available)
 				if (append) {
-					setSessions((prev) => [...prev, ...sessionsWithCounts]);
+					setSessions((prev) => {
+						const nextSessions = [...prev, ...sessionsWithCounts];
+						if (userId) {
+							writeStaleCache<SessionsCache>(
+								getSessionsCacheKey(userId),
+								{ sessions: nextSessions, hasMore: nextHasMore },
+								{ version: SESSIONS_CACHE_VERSION },
+							);
+						}
+						return nextSessions;
+					});
 				} else {
 					setSessions(sessionsWithCounts);
+					if (userId) {
+						writeStaleCache<SessionsCache>(
+							getSessionsCacheKey(userId),
+							{ sessions: sessionsWithCounts, hasMore: nextHasMore },
+							{ version: SESSIONS_CACHE_VERSION },
+						);
+					}
 				}
 
 				// Check if there are more items to load
-				setHasMore(newSessions.length === PAGE_SIZE);
+				setHasMore(nextHasMore);
 			} catch (err) {
 				console.error("Error fetching sessions:", err);
-				setError(t.sessions.error.fetchFailed);
+				if (options?.showLoading !== false) {
+					setError(t.sessions.error.fetchFailed);
+				}
 			} finally {
 				setLoading(false);
 				setLoadingMore(false);
 			}
 		},
-		[authSession]
+		[authSession, userId]
 	);
 
 	// Initial load and refetch when user changes
 	useEffect(() => {
-		if (authSession?.user?.id) {
-			// Reset state when user changes
-			setSessions([]);
+		if (userId) {
+			const cached = readCachedSessions(userId);
+			if (cached) {
+				setSessions(cached.sessions);
+				setHasMore(cached.hasMore);
+				setLoading(false);
+			} else {
+				setSessions([]);
+				setHasMore(true);
+				setLoading(true);
+			}
 			setError(null);
-			setHasMore(true);
-			// Fetch sessions for new user
-			fetchSessions(0, false);
+			fetchSessions(0, false, { showLoading: !cached });
 		}
-	}, [authSession?.user?.id, fetchSessions]);
+	}, [userId, fetchSessions]);
+
+	useEffect(() => {
+		const latestSession = sessions[0];
+		const accessToken = authSession?.access_token;
+		if (!latestSession || !accessToken) {
+			return;
+		}
+
+		router.prefetch(`/session/${latestSession.id}`);
+
+		if (latestSession.status === "completed") {
+			prefetchSessionSummary(latestSession.id, "singles", accessToken).catch(
+				(error) => {
+					console.error("Error prefetching latest session summary:", error);
+				},
+			);
+		}
+	}, [authSession?.access_token, router, sessions]);
 
 	// Load more handler
 	const handleLoadMore = useCallback(() => {
