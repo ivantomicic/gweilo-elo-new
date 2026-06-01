@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/useAuth";
 import { AuthScreen } from "@/components/auth/auth-screen";
@@ -18,11 +19,39 @@ import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
-import { PerformanceTrend } from "@/components/player/performance-trend";
-import { Top3PlayersWidget } from "@/components/dashboard/top3-players-widget";
-import { NoShowAlertWidget } from "@/components/dashboard/no-show-alert-widget";
-import { RivalryMissionsWidget } from "@/components/dashboard/rivalry-missions-widget";
 import { PollCard, type Poll } from "@/components/polls/poll-card";
+
+const RivalryMissionsWidget = dynamic(
+	() =>
+		import("@/components/dashboard/rivalry-missions-widget").then(
+			(mod) => mod.RivalryMissionsWidget,
+		),
+	{ ssr: false },
+);
+
+const Top3PlayersWidget = dynamic(
+	() =>
+		import("@/components/dashboard/top3-players-widget").then(
+			(mod) => mod.Top3PlayersWidget,
+		),
+	{ ssr: false },
+);
+
+const NoShowAlertWidget = dynamic(
+	() =>
+		import("@/components/dashboard/no-show-alert-widget").then(
+			(mod) => mod.NoShowAlertWidget,
+		),
+	{ ssr: false },
+);
+
+const PerformanceTrend = dynamic(
+	() =>
+		import("@/components/player/performance-trend").then(
+			(mod) => mod.PerformanceTrend,
+		),
+	{ ssr: false },
+);
 
 type ActiveSession = {
 	id: string;
@@ -101,11 +130,29 @@ function UnansweredPollsBanner({ count }: { count: number }) {
  */
 export default function HomePage() {
 	const { isAuthenticated, session, role } = useAuth();
+	const router = useRouter();
 	const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
 	const [loadingSession, setLoadingSession] = useState(true);
 	const [unansweredPolls, setUnansweredPolls] = useState<Poll[]>([]);
 	const [loadingPolls, setLoadingPolls] = useState(true);
+	const [showDashboardWidgets, setShowDashboardWidgets] = useState(false);
 	const isAdmin = role === "admin";
+
+	useEffect(() => {
+		if (!isAuthenticated) {
+			setShowDashboardWidgets(false);
+			return;
+		}
+
+		router.prefetch("/statistics");
+		router.prefetch("/sessions");
+
+		const timeoutId = window.setTimeout(() => {
+			setShowDashboardWidgets(true);
+		}, 500);
+
+		return () => window.clearTimeout(timeoutId);
+	}, [isAuthenticated, router]);
 
 	// Fetch active session
 	useEffect(() => {
@@ -261,18 +308,19 @@ export default function HomePage() {
 								<UnansweredPollsBanner count={unansweredPolls.length} />
 							)}
 
-							{/* Widget Grid */}
-							<Stack direction="column" spacing={4}>
-								{/* First Row: 2 widgets on md, 3 on xl+ (min 325px per widget) */}
-								<Box className="grid items-stretch grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-									<RivalryMissionsWidget />
-									<Top3PlayersWidget />
-									<NoShowAlertWidget />
-								</Box>
+							{showDashboardWidgets && (
+								<Stack direction="column" spacing={4}>
+									{/* First Row: 2 widgets on md, 3 on xl+ (min 325px per widget) */}
+									<Box className="grid items-stretch grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+										<RivalryMissionsWidget />
+										<Top3PlayersWidget />
+										<NoShowAlertWidget />
+									</Box>
 
-								{/* Second Row: 1 full-width widget */}
-								<PerformanceTrend />
-							</Stack>
+									{/* Second Row: 1 full-width widget */}
+									<PerformanceTrend />
+								</Stack>
+							)}
 						</div>
 					</div>
 				</div>
