@@ -6,6 +6,7 @@ import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth/useAuth";
+import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
 import { formatElo } from "@/lib/elo/format";
 
 type PlayerStat = {
@@ -13,53 +14,47 @@ type PlayerStat = {
 	display_name: string;
 	avatar: string | null;
 	elo: number;
-	matches_played: number;
-	wins: number;
-	losses: number;
-	draws: number;
 };
 
 const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
-const TOP3_CACHE_KEY = "top3players_cache";
+const LEGACY_TOP3_CACHE_KEY = "top3players_cache";
+const TOP3_CACHE_VERSION = 2;
+const TOP3_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
-type CachedTopPlayers = {
-	players: PlayerStat[];
-	cachedAt: string;
-};
-
-function readCachedTopPlayers() {
-	if (typeof window === "undefined") {
-		return null;
-	}
-
-	try {
-		const raw = window.localStorage.getItem(TOP3_CACHE_KEY);
-		if (!raw) {
-			return null;
-		}
-
-		const parsed = JSON.parse(raw) as CachedTopPlayers;
-		return Array.isArray(parsed.players) ? parsed.players : null;
-	} catch {
-		return null;
-	}
+function getTop3CacheKey(userId: string) {
+	return `top3players:${userId}`;
 }
 
-function writeCachedTopPlayers(players: PlayerStat[]) {
+function readCachedTopPlayers(userId: string | undefined) {
+	if (!userId) {
+		return null;
+	}
+
+	return readStaleCache<PlayerStat[]>(getTop3CacheKey(userId), {
+		maxAgeMs: TOP3_CACHE_MAX_AGE_MS,
+		version: TOP3_CACHE_VERSION,
+	});
+}
+
+function writeCachedTopPlayers(userId: string | undefined, players: PlayerStat[]) {
+	if (!userId) {
+		return;
+	}
+
+	writeStaleCache<PlayerStat[]>(getTop3CacheKey(userId), players, {
+		version: TOP3_CACHE_VERSION,
+	});
+}
+
+function clearLegacyTopPlayersCache() {
 	if (typeof window === "undefined") {
 		return;
 	}
 
 	try {
-		window.localStorage.setItem(
-			TOP3_CACHE_KEY,
-			JSON.stringify({
-				players,
-				cachedAt: new Date().toISOString(),
-			} satisfies CachedTopPlayers),
-		);
+		window.localStorage.removeItem(LEGACY_TOP3_CACHE_KEY);
 	} catch {
-		// Ignore localStorage write failures.
+		// Ignore localStorage failures.
 	}
 }
 
@@ -67,12 +62,14 @@ export function Top3PlayersWidget() {
 	const router = useRouter();
 	const { session } = useAuth();
 	const accessToken = session?.access_token;
+	const userId = session?.user.id;
 	const [topPlayers, setTopPlayers] = useState<PlayerStat[]>([]);
 	const [loading, setLoading] = useState(true);
 
 	useEffect(() => {
 		let isMounted = true;
-		const cachedTopPlayers = readCachedTopPlayers();
+		clearLegacyTopPlayersCache();
+		const cachedTopPlayers = readCachedTopPlayers(userId);
 
 		if (cachedTopPlayers) {
 			setTopPlayers(cachedTopPlayers);
@@ -85,7 +82,7 @@ export function Top3PlayersWidget() {
 					setLoading(true);
 				}
 
-				if (!accessToken) {
+				if (!accessToken || !userId) {
 					if (isMounted && !cachedTopPlayers) {
 						setTopPlayers([]);
 					}
@@ -108,7 +105,7 @@ export function Top3PlayersWidget() {
 				const data = await response.json();
 				// Top 3 players (already sorted by Elo descending from API)
 				const top3 = data.data || [];
-				writeCachedTopPlayers(top3);
+				writeCachedTopPlayers(userId, top3);
 				if (isMounted) {
 					setTopPlayers(top3);
 				}
@@ -128,7 +125,7 @@ export function Top3PlayersWidget() {
 		return () => {
 			isMounted = false;
 		};
-	}, [accessToken]);
+	}, [accessToken, userId]);
 
 	const second = topPlayers[1];
 	const first = topPlayers[0];

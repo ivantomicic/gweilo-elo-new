@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { MIN_SINGLES_MATCHES } from "@/lib/statistics/min-matches";
+import {
+	MAX_SINGLES_INACTIVITY_DAYS,
+	MIN_SINGLES_MATCHES,
+} from "@/lib/statistics/min-matches";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 
@@ -10,6 +13,14 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseAnonKey) {
 	throw new Error("Missing Supabase environment variables");
 }
+
+type RecentSessionRecord = {
+	id: string;
+};
+
+type RecentSinglesMatchRecord = {
+	player_ids: string[] | null;
+};
 
 /**
  * GET /api/statistics/top3
@@ -56,11 +67,74 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
+		const cutoffDate = new Date(
+			Date.now() - MAX_SINGLES_INACTIVITY_DAYS * 24 * 60 * 60 * 1000,
+		).toISOString();
+
+		const { data: recentSessions, error: sessionsError } = await supabase
+			.from("sessions")
+			.select("id")
+			.eq("status", "completed")
+			.gte("completed_at", cutoffDate);
+
+		if (sessionsError) {
+			console.error(
+				"Error fetching recent completed sessions for top 3:",
+				sessionsError,
+			);
+			return NextResponse.json(
+				{ error: "Failed to fetch top players" },
+				{ status: 500 },
+			);
+		}
+
+		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
+			(session) => session.id,
+		);
+
+		if (sessionIds.length === 0) {
+			return NextResponse.json({ data: [] });
+		}
+
+		const { data: recentSinglesMatches, error: matchesError } = await supabase
+			.from("session_matches")
+			.select("player_ids")
+			.eq("match_type", "singles")
+			.eq("status", "completed")
+			.in("session_id", sessionIds);
+
+		if (matchesError) {
+			console.error(
+				"Error fetching recent singles matches for top 3:",
+				matchesError,
+			);
+			return NextResponse.json(
+				{ error: "Failed to fetch top players" },
+				{ status: 500 },
+			);
+		}
+
+		const activePlayerIds = new Set<string>();
+		for (const match of (recentSinglesMatches ||
+			[]) as RecentSinglesMatchRecord[]) {
+			const playerIds = match.player_ids || [];
+			for (const playerId of playerIds.slice(0, 2)) {
+				if (playerId) {
+					activePlayerIds.add(playerId);
+				}
+			}
+		}
+
+		if (activePlayerIds.size === 0) {
+			return NextResponse.json({ data: [] });
+		}
+
 		// Fetch top 3 eligible players by Elo (singles only)
 		const { data: singlesRatings, error: singlesError } = await supabase
 			.from("player_ratings")
 			.select("player_id, elo, matches_played")
 			.gte("matches_played", MIN_SINGLES_MATCHES)
+			.in("player_id", Array.from(activePlayerIds))
 			.order("elo", { ascending: false })
 			.limit(3);
 
