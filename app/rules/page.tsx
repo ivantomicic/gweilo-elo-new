@@ -3,7 +3,10 @@
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
-import { SidebarInset, SidebarProvider } from "@/components/vendor/shadcn/sidebar";
+import {
+	SidebarInset,
+	SidebarProvider,
+} from "@/components/vendor/shadcn/sidebar";
 import { t } from "@/lib/i18n";
 import {
 	MAX_DOUBLES_PLAYER_INACTIVITY_DAYS,
@@ -26,10 +29,6 @@ const rankingRules = [
 	{
 		title: "Dubl timovi",
 		description: `Tim se prikazuje na tabeli dubl timova kada ima najmanje ${MIN_DOUBLES_TEAM_MATCHES} odigranih dubl mečeva kao tim i kada je igrao u poslednjih ${MAX_DOUBLES_TEAM_INACTIVITY_DAYS} dana.`,
-	},
-	{
-		title: "Top 3 na početnoj",
-		description: "Podijum na početnoj strani koristi ista pravila kao singl tabela.",
 	},
 	{
 		title: "Povratak na tabelu",
@@ -55,9 +54,11 @@ export default function RulesPage() {
 												Pravila prikaza na tabelama
 											</h1>
 											<p className="max-w-3xl text-sm leading-6 text-muted-foreground">
-												Ova pravila određuju ko se vidi u statistici i na Top 3
-												podijumu. Rezultati i Elo se ne brišu ako igrač ili tim
-												trenutno ne ispunjava uslove.
+												Ova pravila određuju ko se vidi
+												u statistici i na Top 3
+												podijumu. Rezultati i Elo se ne
+												brišu ako igrač ili tim trenutno
+												ne ispunjava uslove.
 											</p>
 										</div>
 
