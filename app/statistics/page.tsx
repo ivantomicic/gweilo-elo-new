@@ -49,6 +49,8 @@ type PlayerStats = {
 	sets_lost: number;
 	elo: number;
 	rank_movement?: number;
+	rank_duration_days?: number | null;
+	rank_duration_capped?: boolean;
 };
 
 type TeamStats = {
@@ -71,6 +73,8 @@ type TeamStats = {
 	sets_lost: number;
 	elo: number;
 	rank_movement?: number;
+	rank_duration_days?: number | null;
+	rank_duration_capped?: boolean;
 };
 
 type StatisticsData = {
@@ -104,13 +108,32 @@ const EMPTY_LOADED: StatisticsLoaded = {
 	doublesTeams: false,
 };
 
-const STATISTICS_CACHE_VERSION = 1;
+const STATISTICS_CACHE_VERSION = 3;
 const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const STATISTICS_VIEWS: StatisticsView[] = [
 	"singles",
 	"doubles_player",
 	"doubles_team",
 ];
+
+function formatRankDuration(
+	days: number | null | undefined,
+	_capped: boolean | undefined
+) {
+	if (typeof days !== "number") {
+		return "-";
+	}
+
+	const durationDays = Math.max(1, days);
+	const usesSingularDay =
+		durationDays % 10 === 1 && durationDays % 100 !== 11;
+
+	return `${durationDays} ${
+		usesSingularDay
+			? t.statistics.table.day
+			: t.statistics.table.days
+	}`;
+}
 
 function getStatisticsCacheKey(userId: string) {
 	return `statistics-page:${userId}`;
@@ -522,6 +545,13 @@ function StatisticsPageContent() {
 														<TableHead className="text-left">
 															{headerLabel}
 														</TableHead>
+														<TableHead className="text-center w-[72px] px-2 whitespace-nowrap">
+															{
+																t.statistics
+																	.table
+																	.rankDuration
+															}
+														</TableHead>
 														<TableHead className="text-center hidden md:table-cell">
 															{
 																t.statistics
@@ -676,6 +706,12 @@ function StatisticsPageContent() {
 																					)}
 																			</div>
 																		</TableCell>
+																		<TableCell className="text-center w-[72px] px-2 font-medium text-muted-foreground whitespace-nowrap">
+																			{formatRankDuration(
+																				team.rank_duration_days,
+																				team.rank_duration_capped
+																			)}
+																		</TableCell>
 																		<TableCell className="text-center font-medium hidden md:table-cell">
 																			{
 																				team.matches_played
@@ -811,6 +847,12 @@ function StatisticsPageContent() {
 																					</>
 																				)}
 																		</div>
+																	</TableCell>
+																	<TableCell className="text-center w-[72px] px-2 font-medium text-muted-foreground whitespace-nowrap">
+																		{formatRankDuration(
+																			player.rank_duration_days,
+																			player.rank_duration_capped
+																		)}
 																	</TableCell>
 																	<TableCell className="text-center hidden md:table-cell font-medium">
 																		{

@@ -4,6 +4,7 @@ import {
 	getLatestTwoCompletedSessions,
 	computeRankMovements,
 } from "@/lib/elo/rank-movements";
+import { computeCurrentRankDurations } from "@/lib/elo/rank-duration";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 import {
 	MAX_DOUBLES_PLAYER_INACTIVITY_DAYS,
@@ -11,6 +12,7 @@ import {
 	MAX_SINGLES_INACTIVITY_DAYS,
 	MIN_DOUBLES_PLAYER_MATCHES,
 	MIN_DOUBLES_TEAM_MATCHES,
+	MIN_SINGLES_MATCHES,
 } from "@/lib/statistics/min-matches";
 
 export const dynamic = "force-dynamic";
@@ -67,6 +69,8 @@ type PlayerStats = {
 	sets_lost: number;
 	elo: number;
 	rank_movement: number;
+	rank_duration_days: number | null;
+	rank_duration_capped: boolean;
 };
 
 type TeamStats = {
@@ -89,6 +93,8 @@ type TeamStats = {
 	sets_lost: number;
 	elo: number;
 	rank_movement: number;
+	rank_duration_days: number | null;
+	rank_duration_capped: boolean;
 };
 
 type SessionSnapshotRecord = {
@@ -436,7 +442,7 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 			.filter((rating) =>
 				activeSinglesPlayerSet ? activeSinglesPlayerSet.has(rating.player_id) : true
 			)
-			.map((rating) => {
+			.map((rating): PlayerStats => {
 				const profile = profilesMap.get(rating.player_id);
 				return {
 					player_id: rating.player_id,
@@ -450,6 +456,8 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 					sets_lost: rating.sets_lost ?? 0,
 					elo: toNumber(rating.elo, 1500),
 					rank_movement: 0,
+					rank_duration_days: null,
+					rank_duration_capped: false,
 				};
 			});
 
@@ -468,6 +476,28 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 				stat.rank_movement = rankMovements.get(stat.player_id) ?? 0;
 			});
 		}
+
+		const rankedSinglesStats = singlesStats.filter(
+			(stat) => stat.matches_played >= MIN_SINGLES_MATCHES
+		);
+		const rankDurations = await computeCurrentRankDurations({
+			currentEntities: rankedSinglesStats.map((stat) => ({
+				entityId: stat.player_id,
+				elo: stat.elo,
+			})),
+			entityType: "player_singles",
+			minMatches: MIN_SINGLES_MATCHES,
+		});
+
+		singlesStats.forEach((stat) => {
+			const rankDuration = rankDurations.get(stat.player_id);
+			if (!rankDuration) {
+				return;
+			}
+
+			stat.rank_duration_days = rankDuration.days;
+			stat.rank_duration_capped = false;
+		});
 
 		return singlesStats;
 }
@@ -534,7 +564,7 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 
 				return passesMatchMinimum && passesActivity;
 			})
-			.map((rating) => {
+			.map((rating): PlayerStats => {
 				const profile = profilesMap.get(rating.player_id);
 				return {
 					player_id: rating.player_id,
@@ -548,6 +578,8 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 					sets_lost: rating.sets_lost ?? 0,
 					elo: toNumber(rating.elo, 1500),
 					rank_movement: 0,
+					rank_duration_days: null,
+					rank_duration_capped: false,
 				};
 			});
 
@@ -566,6 +598,25 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 				stat.rank_movement = rankMovements.get(stat.player_id) ?? 0;
 			});
 		}
+
+		const rankDurations = await computeCurrentRankDurations({
+			currentEntities: doublesPlayerStats.map((stat) => ({
+				entityId: stat.player_id,
+				elo: stat.elo,
+			})),
+			entityType: "player_doubles",
+			minMatches: MIN_DOUBLES_PLAYER_MATCHES,
+		});
+
+		doublesPlayerStats.forEach((stat) => {
+			const rankDuration = rankDurations.get(stat.player_id);
+			if (!rankDuration) {
+				return;
+			}
+
+			stat.rank_duration_days = rankDuration.days;
+			stat.rank_duration_capped = false;
+		});
 
 		return doublesPlayerStats;
 }
@@ -636,7 +687,7 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 
 				return passesMatchMinimum && passesActivity;
 			})
-			.map((rating) => {
+			.map((rating): TeamStats | null => {
 				const team = teamsMap.get(rating.team_id);
 				if (!team) {
 					return null;
@@ -665,6 +716,8 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 					sets_lost: rating.sets_lost ?? 0,
 					elo: toNumber(rating.elo, 1500),
 					rank_movement: 0,
+					rank_duration_days: null,
+					rank_duration_capped: false,
 				};
 			})
 			.filter((team): team is TeamStats => team !== null);
@@ -684,6 +737,25 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 				stat.rank_movement = rankMovements.get(stat.team_id) ?? 0;
 			});
 		}
+
+		const rankDurations = await computeCurrentRankDurations({
+			currentEntities: doublesTeamStats.map((stat) => ({
+				entityId: stat.team_id,
+				elo: stat.elo,
+			})),
+			entityType: "double_team",
+			minMatches: MIN_DOUBLES_TEAM_MATCHES,
+		});
+
+		doublesTeamStats.forEach((stat) => {
+			const rankDuration = rankDurations.get(stat.team_id);
+			if (!rankDuration) {
+				return;
+			}
+
+			stat.rank_duration_days = rankDuration.days;
+			stat.rank_duration_capped = false;
+		});
 
 		return doublesTeamStats;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
@@ -12,6 +12,8 @@ import {
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
+import { supabase } from "@/lib/supabase/client";
+import { clearAllCaches } from "@/lib/utils/clear-cache";
 
 type NavItem = {
 	titleKey: keyof typeof t.nav;
@@ -59,9 +61,11 @@ const mainNavItems = navItems.slice(0, 4);
  */
 export function MobileNav() {
 	const pathname = usePathname();
+	const router = useRouter();
 	const { isAuthenticated, user, role } = useAuth();
 	const [isIOSSafari26, setIsIOSSafari26] = useState(false);
 	const [isMoreOpen, setIsMoreOpen] = useState(false);
+	const [isLoggingOut, setIsLoggingOut] = useState(false);
 	const moreButtonRef = useRef<HTMLButtonElement>(null);
 	const shouldReduceMotion = useReducedMotion();
 	const isAdmin = role === "admin";
@@ -86,6 +90,23 @@ export function MobileNav() {
 	const handleMoreItemClick = () => {
 		triggerNavHaptic();
 		setIsMoreOpen(false);
+	};
+
+	const handleLogout = async () => {
+		if (isLoggingOut) return;
+
+		triggerNavHaptic();
+		setIsMoreOpen(false);
+		setIsLoggingOut(true);
+
+		try {
+			clearAllCaches();
+			await supabase.auth.signOut();
+			router.push("/");
+		} catch (error) {
+			console.error("Failed to log out:", error);
+			setIsLoggingOut(false);
+		}
 	};
 
 	// All hooks must be called before any conditional returns
@@ -304,6 +325,23 @@ export function MobileNav() {
 										);
 									})()
 								)}
+
+								{/* Account actions */}
+								<div className="h-px bg-border/50 mx-2 my-1" />
+								<button
+									type="button"
+									className="flex w-full items-center gap-3 px-4 py-3 rounded-xl hover:bg-card transition-colors duration-200 group touch-manipulation text-left disabled:opacity-60 disabled:pointer-events-none"
+									onClick={handleLogout}
+									disabled={isLoggingOut}
+								>
+									<Icon
+										icon="solar:logout-2-bold"
+										className="size-5 text-muted-foreground transition-colors duration-200 group-hover:text-foreground"
+									/>
+									<span className="text-sm font-medium text-muted-foreground transition-colors duration-200 group-hover:text-foreground">
+										{t.user.logout}
+									</span>
+								</button>
 							</motion.div>
 						)}
 					</AnimatePresence>
