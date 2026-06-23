@@ -1,36 +1,20 @@
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
+import {
+	ParticipantNameCard,
+	type ParticipantNameCardSize,
+	type ParticipantNameCardVariant,
+	type ParticipantIdentity,
+} from "@/components/ui/participant-name-card";
 
 type TeamNameCardProps = {
-	player1: {
-		name: string;
-		avatar: string | null;
-		id?: string;
-	};
-	player2: {
-		name: string;
-		avatar: string | null;
-		id?: string;
-	};
-	size?: "sm" | "md" | "lg";
-	variant?: "horizontal" | "vertical";
+	player1: ParticipantIdentity;
+	player2: ParticipantIdentity;
+	size?: ParticipantNameCardSize;
+	variant?: ParticipantNameCardVariant;
 	reverse?: boolean;
 	className?: string;
 	addon?: React.ReactNode;
-};
-
-const sizeClasses = {
-	sm: "h-8 w-8",
-	md: "h-10 w-10",
-	lg: "h-16 w-16",
-};
-
-const textSizeClasses = {
-	sm: "text-xs",
-	md: "text-sm",
-	lg: "text-base",
 };
 
 export function TeamNameCard({
@@ -42,84 +26,14 @@ export function TeamNameCard({
 	className,
 	addon,
 }: TeamNameCardProps) {
-	const avatarSize = sizeClasses[size];
-	const textSize = textSizeClasses[size];
-
-	if (variant === "vertical") {
-		return (
-			<div className={cn("flex flex-col items-center gap-2", className)}>
-				{/* Stacked avatars */}
-				<div className="relative flex items-center">
-					<Avatar className={avatarSize}>
-						<AvatarImage
-							src={player1.avatar || undefined}
-							alt={player1.name}
-						/>
-						<AvatarFallback
-							className={size === "lg" ? "text-lg" : ""}
-						>
-							{player1.name.charAt(0).toUpperCase()}
-						</AvatarFallback>
-					</Avatar>
-					<Avatar className={cn(avatarSize, "-ml-2")}>
-						<AvatarImage
-							src={player2.avatar || undefined}
-							alt={player2.name}
-						/>
-						<AvatarFallback
-							className={size === "lg" ? "text-lg" : ""}
-						>
-							{player2.name.charAt(0).toUpperCase()}
-						</AvatarFallback>
-					</Avatar>
-				</div>
-				{/* Names */}
-				<div className="flex flex-col items-center">
-					<span className={cn("font-semibold text-center", textSize)}>
-						{player1.name} & {player2.name}
-					</span>
-					{addon}
-				</div>
-			</div>
-		);
-	}
-
 	return (
-		<div
-			className={cn(
-				"flex items-center gap-3",
-				reverse && "flex-row-reverse",
-				className
-			)}
-		>
-			{/* Stacked avatars */}
-			<div className="relative flex items-center">
-				<Avatar className={avatarSize}>
-					<AvatarImage
-						src={player1.avatar || undefined}
-						alt={player1.name}
-					/>
-					<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
-						{player1.name.charAt(0).toUpperCase()}
-					</AvatarFallback>
-				</Avatar>
-				<Avatar className={cn(avatarSize, "-ml-2")}>
-					<AvatarImage
-						src={player2.avatar || undefined}
-						alt={player2.name}
-					/>
-					<AvatarFallback className={size === "lg" ? "text-lg" : ""}>
-						{player2.name.charAt(0).toUpperCase()}
-					</AvatarFallback>
-				</Avatar>
-			</div>
-			{/* Names */}
-			<div className={cn("flex flex-col", reverse && "items-end")}>
-				<span className={cn("font-medium", textSize)}>
-					{player1.name} & {player2.name}
-				</span>
-				<div className={cn(reverse && "text-right")}>{addon}</div>
-			</div>
-		</div>
+		<ParticipantNameCard
+			participants={[player1, player2]}
+			size={size}
+			variant={variant}
+			reverse={reverse}
+			className={className}
+			addon={addon}
+		/>
 	);
 }
