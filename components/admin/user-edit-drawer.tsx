@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -12,13 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import {
-	Sheet,
-	SheetContent,
-	SheetHeader,
-	SheetTitle,
-	SheetFooter,
-} from "@/components/ui/sheet";
+import { SheetForm } from "@/components/ui/sheet-form";
 import { t } from "@/lib/i18n";
 import type { UserRole } from "@/lib/supabase/admin";
 import {
@@ -254,168 +247,143 @@ export function UserEditDrawer({
 	if (!user) return null;
 
 	return (
-		<Sheet open={open} onOpenChange={(open) => !open && onClose()}>
-			<SheetContent side="right" className="w-full sm:max-w-md">
-				<SheetHeader>
-					<SheetTitle>{t.admin.users.drawer.title}</SheetTitle>
-				</SheetHeader>
-
-				<div className="mt-6 space-y-6">
-					{/* Error message */}
-					{error && (
-						<div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm text-red-600 dark:text-red-400">
-							{error}
-						</div>
-					)}
-
-					{/* Avatar */}
-					<div className="space-y-2">
-						<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
-							{t.settings.avatar}
-						</label>
-						<div className="flex items-center gap-4">
-							<Avatar className="h-16 w-16">
-								<AvatarImage
-									src={avatarPreview || undefined}
-									alt={name}
-								/>
-								<AvatarFallback>
-									{name.charAt(0).toUpperCase()}
-								</AvatarFallback>
-							</Avatar>
-							<div className="flex-1">
-								<Input
-									type="file"
-									accept="image/*"
-									onChange={handleAvatarChange}
-									disabled={uploadingAvatar || saving}
-									className="cursor-pointer"
-								/>
-								{uploadingAvatar && (
-									<p className="text-xs text-muted-foreground mt-1">
-										{t.settings.saving}
-									</p>
-								)}
-							</div>
-						</div>
-					</div>
-
-					{/* Display Name */}
-					<Input
-						label={t.settings.displayName}
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-						disabled={saving}
-					/>
-
-					{/* Email */}
-					<div className="space-y-2">
-						<Input
-							label={t.settings.email}
-							type="email"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							disabled={saving}
+		<SheetForm
+			open={open}
+			onClose={onClose}
+			title={t.admin.users.drawer.title}
+			error={error}
+			onSubmit={handleSave}
+			cancelLabel={t.common.cancel || "Otkaži"}
+			submitLabel={t.settings.save}
+			submittingLabel={t.settings.saving}
+			submitting={saving}
+			submitDisabled={!hasChanges}
+		>
+			{/* Avatar */}
+			<div className="space-y-2">
+				<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+					{t.settings.avatar}
+				</label>
+				<div className="flex items-center gap-4">
+					<Avatar className="h-16 w-16">
+						<AvatarImage
+							src={avatarPreview || undefined}
+							alt={name}
 						/>
-						<p className="text-xs text-muted-foreground ml-1">
-							{t.settings.emailConfirmationNotice}
-						</p>
-					</div>
-
-					{/* Role */}
-					<div className="space-y-2">
-						<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
-							{t.admin.users.drawer.role}
-						</label>
-						<Select
-							value={role}
-							onValueChange={(value: EditableRole) =>
-								setRole(value)
-							}
-							disabled={saving}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="user">
-									{t.admin.users.roles.user}
-								</SelectItem>
-								<SelectItem value="mod">
-									{t.admin.users.roles.mod}
-								</SelectItem>
-								<SelectItem value="admin">
-									{t.admin.users.roles.admin}
-								</SelectItem>
-								<SelectItem value="guest">
-									{t.admin.users.roles.guest}
-								</SelectItem>
-							</SelectContent>
-						</Select>
-						<p className="text-xs text-muted-foreground ml-1">
-							{t.admin.users.drawer.roleDescription}
-						</p>
-					</div>
-
-					{/* Sessions per week */}
-					<div className="space-y-2">
-						<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
-							{t.admin.users.drawer.sessionsPerWeek}
-						</label>
-						<Select
-							value={
-								sessionsPerWeek === null
-									? "unset"
-									: String(sessionsPerWeek)
-							}
-							onValueChange={(value) =>
-								setSessionsPerWeek(
-									value === "unset"
-										? null
-										: (Number(value) as SessionsPerWeek),
-								)
-							}
-							disabled={saving}
-						>
-							<SelectTrigger className="w-full">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="unset">
-									{t.common.notSet}
-								</SelectItem>
-								{SESSIONS_PER_WEEK_OPTIONS.map((option) => (
-									<SelectItem
-										key={option}
-										value={String(option)}
-									>
-										{option}x
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						<p className="text-xs text-muted-foreground ml-1">
-							{t.admin.users.drawer.sessionsPerWeekDescription}
-						</p>
+						<AvatarFallback>
+							{name.charAt(0).toUpperCase()}
+						</AvatarFallback>
+					</Avatar>
+					<div className="flex-1">
+						<Input
+							type="file"
+							accept="image/*"
+							onChange={handleAvatarChange}
+							disabled={uploadingAvatar || saving}
+							className="cursor-pointer"
+						/>
+						{uploadingAvatar && (
+							<p className="text-xs text-muted-foreground mt-1">
+								{t.settings.saving}
+							</p>
+						)}
 					</div>
 				</div>
+			</div>
 
-				<SheetFooter className="mt-8">
-					<Button
-						variant="outline"
-						onClick={onClose}
-						disabled={saving}
-					>
-						{t.common.cancel || "Otkaži"}
-					</Button>
-					<Button
-						onClick={handleSave}
-						disabled={saving || !hasChanges}
-					>
-						{saving ? t.settings.saving : t.settings.save}
-					</Button>
-				</SheetFooter>
-			</SheetContent>
-		</Sheet>
+			{/* Display Name */}
+			<Input
+				label={t.settings.displayName}
+				value={name}
+				onChange={(e) => setName(e.target.value)}
+				disabled={saving}
+			/>
+
+			{/* Email */}
+			<div className="space-y-2">
+				<Input
+					label={t.settings.email}
+					type="email"
+					value={email}
+					onChange={(e) => setEmail(e.target.value)}
+					disabled={saving}
+				/>
+				<p className="text-xs text-muted-foreground ml-1">
+					{t.settings.emailConfirmationNotice}
+				</p>
+			</div>
+
+			{/* Role */}
+			<div className="space-y-2">
+				<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+					{t.admin.users.drawer.role}
+				</label>
+				<Select
+					value={role}
+					onValueChange={(value: EditableRole) => setRole(value)}
+					disabled={saving}
+				>
+					<SelectTrigger className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="user">
+							{t.admin.users.roles.user}
+						</SelectItem>
+						<SelectItem value="mod">
+							{t.admin.users.roles.mod}
+						</SelectItem>
+						<SelectItem value="admin">
+							{t.admin.users.roles.admin}
+						</SelectItem>
+						<SelectItem value="guest">
+							{t.admin.users.roles.guest}
+						</SelectItem>
+					</SelectContent>
+				</Select>
+				<p className="text-xs text-muted-foreground ml-1">
+					{t.admin.users.drawer.roleDescription}
+				</p>
+			</div>
+
+			{/* Sessions per week */}
+			<div className="space-y-2">
+				<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+					{t.admin.users.drawer.sessionsPerWeek}
+				</label>
+				<Select
+					value={
+						sessionsPerWeek === null
+							? "unset"
+							: String(sessionsPerWeek)
+					}
+					onValueChange={(value) =>
+						setSessionsPerWeek(
+							value === "unset"
+								? null
+								: (Number(value) as SessionsPerWeek),
+						)
+					}
+					disabled={saving}
+				>
+					<SelectTrigger className="w-full">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="unset">
+							{t.common.notSet}
+						</SelectItem>
+						{SESSIONS_PER_WEEK_OPTIONS.map((option) => (
+							<SelectItem key={option} value={String(option)}>
+								{option}x
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+				<p className="text-xs text-muted-foreground ml-1">
+					{t.admin.users.drawer.sessionsPerWeekDescription}
+				</p>
+			</div>
+		</SheetForm>
 	);
 }

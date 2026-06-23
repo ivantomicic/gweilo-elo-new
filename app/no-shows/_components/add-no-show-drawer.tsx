@@ -2,15 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-	Sheet,
-	SheetContent,
-	SheetHeader,
-	SheetTitle,
-	SheetFooter,
-} from "@/components/ui/sheet";
+import { SheetForm } from "@/components/ui/sheet-form";
 import {
 	Select,
 	SelectContent,
@@ -160,93 +153,68 @@ export function AddNoShowDrawer({
 	const hasChanges = selectedUserId !== "" && date !== "";
 
 	return (
-		<Sheet open={open} onOpenChange={(open) => !open && onClose()}>
-			<SheetContent side="right" className="w-full sm:max-w-md">
-				<SheetHeader>
-					<SheetTitle>{t.ispale.drawer.title}</SheetTitle>
-				</SheetHeader>
-
-				<div className="mt-6 space-y-6">
-					{/* Error message */}
-					{error && (
-						<div className="rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm text-red-600 dark:text-red-400">
-							{error}
-						</div>
-					)}
-
-					{/* Player Select */}
-					<div className="space-y-2">
-						<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
-							{t.ispale.drawer.player}
-						</label>
-						<Select
-							value={selectedUserId}
-							onValueChange={setSelectedUserId}
-							disabled={saving || loadingUsers}
-						>
-							<SelectTrigger>
-								<SelectValue
-									placeholder={
-										t.ispale.drawer.playerPlaceholder
-									}
-								/>
-							</SelectTrigger>
-							<SelectContent>
-								{loadingUsers ? (
-									<SelectItem value="loading" disabled>
-										{t.ispale.loading}
-									</SelectItem>
-								) : (
-									users.map((user) => (
-										<SelectItem
-											key={user.id}
-											value={user.id}
-										>
-											{user.name}
-										</SelectItem>
-									))
-								)}
-							</SelectContent>
-						</Select>
-					</div>
-
-					{/* Date */}
-					<Input
-						label={t.ispale.drawer.date}
-						type="date"
-						value={date}
-						onChange={(e) => setDate(e.target.value)}
-						disabled={saving}
-					/>
-
-					{/* Reason */}
-					<div className="space-y-2">
-						<Input
-							label={t.ispale.drawer.reason}
-							value={reason}
-							onChange={(e) => setReason(e.target.value)}
-							placeholder={t.ispale.drawer.reasonPlaceholder}
-							disabled={saving}
+		<SheetForm
+			open={open}
+			onClose={onClose}
+			title={t.ispale.drawer.title}
+			error={error}
+			onSubmit={handleSave}
+			cancelLabel={t.common.cancel}
+			submitLabel={t.settings.save}
+			submittingLabel={t.settings.saving}
+			submitting={saving}
+			submitDisabled={!hasChanges}
+		>
+			{/* Player Select */}
+			<div className="space-y-2">
+				<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+					{t.ispale.drawer.player}
+				</label>
+				<Select
+					value={selectedUserId}
+					onValueChange={setSelectedUserId}
+					disabled={saving || loadingUsers}
+				>
+					<SelectTrigger>
+						<SelectValue
+							placeholder={t.ispale.drawer.playerPlaceholder}
 						/>
-					</div>
-				</div>
+					</SelectTrigger>
+					<SelectContent>
+						{loadingUsers ? (
+							<SelectItem value="loading" disabled>
+								{t.ispale.loading}
+							</SelectItem>
+						) : (
+							users.map((user) => (
+								<SelectItem key={user.id} value={user.id}>
+									{user.name}
+								</SelectItem>
+							))
+						)}
+					</SelectContent>
+				</Select>
+			</div>
 
-				<SheetFooter className="mt-8">
-					<Button
-						variant="outline"
-						onClick={onClose}
-						disabled={saving}
-					>
-						{t.common.cancel}
-					</Button>
-					<Button
-						onClick={handleSave}
-						disabled={saving || !hasChanges}
-					>
-						{saving ? t.settings.saving : t.settings.save}
-					</Button>
-				</SheetFooter>
-			</SheetContent>
-		</Sheet>
+			{/* Date */}
+			<Input
+				label={t.ispale.drawer.date}
+				type="date"
+				value={date}
+				onChange={(e) => setDate(e.target.value)}
+				disabled={saving}
+			/>
+
+			{/* Reason */}
+			<div className="space-y-2">
+				<Input
+					label={t.ispale.drawer.reason}
+					value={reason}
+					onChange={(e) => setReason(e.target.value)}
+					placeholder={t.ispale.drawer.reasonPlaceholder}
+					disabled={saving}
+				/>
+			</div>
+		</SheetForm>
 	);
 }
