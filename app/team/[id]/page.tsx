@@ -6,6 +6,7 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { TeamNameCard } from "@/components/ui/team-name-card";
 import { PerformanceTrend } from "@/components/player/performance-trend";
@@ -97,7 +98,7 @@ function TeamPageContent() {
 				</Box>
 			) : (
 				<>
-							<Box className="bg-card rounded-[24px] border border-border/50 p-6">
+							<SurfaceCard>
 								<Stack direction="column" spacing={5}>
 									<Stack direction="column" spacing={2}>
 										<p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
@@ -169,7 +170,7 @@ function TeamPageContent() {
 										</Box>
 									</div>
 								</Stack>
-							</Box>
+							</SurfaceCard>
 
 							<PerformanceTrend
 								primaryPlayerName={teamData.display_name}

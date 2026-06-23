@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useWebHaptics } from "web-haptics/react";
 import { Box } from "@/components/ui/box";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
@@ -54,12 +55,14 @@ export function SessionCard({
 			bestWorst.worst_player_delta !== null);
 
 	return (
-		<Box
+		<SurfaceCard
+			variant="interactive"
+			padding="sm"
 			onClick={() => {
 				void trigger();
 				router.push(`/session/${session.id}`);
 			}}
-			className="group relative bg-card rounded-[24px] border border-border/50 p-4 transition-[transform,background-color] duration-150 cursor-pointer shadow-sm touch-safe hover-only active:scale-[0.98] active:bg-accent/50"
+			className="transition-[transform,background-color] duration-150 active:bg-accent/50"
 		>
 			<Stack direction="row" alignItems="center" spacing={4}>
 				{/* Date Section */}
@@ -185,6 +188,6 @@ export function SessionCard({
 					className="size-4 text-muted-foreground/50"
 				/>
 			</Stack>
-		</Box>
+		</SurfaceCard>
 	);
 }

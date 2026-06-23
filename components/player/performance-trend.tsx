@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Box } from "@/components/ui/box";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { Loading } from "@/components/ui/loading";
@@ -332,20 +333,20 @@ export function PerformanceTrend({
 
 	if (loading) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[300px]">
+			<SurfaceCard className="min-h-[300px]">
 				<Loading label={t.performanceTrend.loading} inline />
-			</Box>
+			</SurfaceCard>
 		);
 	}
 
 	// If no data or only one point, show placeholder
 	if (eloHistory.length === 0 || eloHistory.length === 1) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 p-6 min-h-[300px] flex items-center justify-center">
+			<SurfaceCard className="min-h-[300px] flex items-center justify-center">
 				<p className="text-muted-foreground text-center">
 					{emptyStateLabel || "Not enough match data to display chart"}
 				</p>
-			</Box>
+			</SurfaceCard>
 		);
 	}
 
@@ -453,7 +454,7 @@ export function PerformanceTrend({
 		allEloValues.length > 0 ? [minElo, maxElo] : [1500, 1500];
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 p-6 relative overflow-hidden">
+		<SurfaceCard clipped>
 			<Stack direction="column" spacing={4}>
 				{/* Header */}
 				<Stack direction="column" spacing={3}>
@@ -766,6 +767,6 @@ export function PerformanceTrend({
 					</ResponsiveContainer>
 				</Box>
 			</Stack>
-		</Box>
+		</SurfaceCard>
 	);
 }

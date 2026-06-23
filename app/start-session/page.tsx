@@ -9,6 +9,7 @@ import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import {
 	Sheet,
 	SheetContent,
@@ -111,8 +112,10 @@ function StartSessionPageContent() {
 					onOpenChange={setIsDatePickerOpen}
 				>
 					<SheetTrigger asChild>
-						<Box
-							className="bg-card rounded-[24px] p-5 border border-border/50 flex items-center justify-between group active:scale-[0.98] transition-all cursor-pointer"
+						<SurfaceCard
+							variant="interactive"
+							padding="md"
+							className="flex items-center justify-between"
 							onClick={() => void trigger()}
 						>
 							<Stack
@@ -145,7 +148,7 @@ function StartSessionPageContent() {
 								icon="solar:pen-bold"
 								className="size-5 text-muted-foreground group-active:text-primary transition-colors"
 							/>
-						</Box>
+						</SurfaceCard>
 					</SheetTrigger>
 					<SheetContent>
 						<SheetHeader>
@@ -246,19 +249,21 @@ function StartSessionPageContent() {
 						const isSelected =
 							selectedPlayers === num;
 						return (
-							<Box
+							<SurfaceCard
 								key={num}
 								component="button"
-								onClick={() => {
-									void trigger();
-									setSelectedPlayers(num);
-								}}
-								className={cn(
-									"rounded-[24px] p-6 border flex flex-col items-center justify-center gap-2 relative overflow-hidden active:scale-95 transition-all cursor-pointer",
-									isSelected
-										? "bg-primary border-2 border-primary shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-										: "bg-card border-border/50"
-								)}
+								variant="interactive"
+								clipped
+									onClick={() => {
+										void trigger();
+										setSelectedPlayers(num);
+									}}
+									className={cn(
+										"flex flex-col items-center justify-center gap-2",
+										isSelected
+											? "bg-primary border-2 border-primary shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+											: undefined,
+									)}
 							>
 								{isSelected && (
 									<Box className="absolute top-0 right-0 p-2">
@@ -288,7 +293,7 @@ function StartSessionPageContent() {
 								>
 									{t.startSession.players}
 								</span>
-							</Box>
+							</SurfaceCard>
 						);
 					})}
 				</Box>

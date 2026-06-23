@@ -2,6 +2,7 @@
 
 import { useWebHaptics } from "web-haptics/react";
 import { Box } from "@/components/ui/box";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
@@ -66,14 +67,17 @@ export function NoShowDistributionWidget({
 
 	if (users.length === 0) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 min-h-[18rem] flex items-center justify-center text-center text-muted-foreground">
+			<SurfaceCard
+				variant="elevated"
+				className="min-h-[18rem] flex items-center justify-center text-center text-muted-foreground"
+			>
 				{t.ispale.noNoShows}
-			</Box>
+			</SurfaceCard>
 		);
 	}
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm px-6 py-4">
+		<SurfaceCard variant="elevated" padding="none" className="px-6 py-4">
 			<div>
 				{users.map((user, index) => {
 					const relativeWidth =
@@ -186,6 +190,6 @@ export function NoShowDistributionWidget({
 					);
 				})}
 			</div>
-		</Box>
+		</SurfaceCard>
 	);
 }

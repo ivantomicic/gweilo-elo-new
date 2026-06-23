@@ -1,6 +1,7 @@
 "use client";
 
 import { Box } from "@/components/ui/box";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
@@ -60,11 +61,13 @@ export function VideoCard({
 	const isSingles = video.matchType === "singles";
 
 	return (
-		<Box
+		<SurfaceCard
+			variant="interactive"
+			padding="none"
+			clipped
 			onClick={() => {
 				window.open(video.videoUrl, "_blank", "noopener,noreferrer");
 			}}
-			className="group relative bg-card rounded-[24px] border border-border/50 overflow-hidden shadow-sm touch-safe active:scale-[0.98] transition-all cursor-pointer hover-only"
 		>
 			{/* Thumbnail Section */}
 			<Box className="aspect-video relative w-full overflow-hidden">
@@ -170,6 +173,6 @@ export function VideoCard({
 					</Box>
 				) : null}
 			</Box>
-		</Box>
+		</SurfaceCard>
 	);
 }

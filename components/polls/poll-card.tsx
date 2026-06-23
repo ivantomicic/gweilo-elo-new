@@ -1,9 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Box } from "@/components/ui/box";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { t } from "@/lib/i18n";
@@ -211,14 +211,14 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 	if (poll.hasUserAnswered) {
 		return (
 			<>
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 relative overflow-hidden">
-				<div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
-				<div className="flex items-center justify-between mb-4 relative z-10 gap-2 flex-wrap">
-					<span className="flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase text-emerald-500 shrink-0">
-						<Icon icon="solar:check-circle-bold" className="size-3.5" />
-						{poll.isActive ? t.polls.card.answered : t.polls.card.completed}
-					</span>
-					<div className="flex items-center gap-2 shrink-0">
+				<SurfaceCard variant="elevated" clipped>
+					<div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
+					<div className="flex items-center justify-between mb-4 relative z-10 gap-2 flex-wrap">
+						<span className="flex items-center gap-1.5 bg-emerald-500/10 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase text-emerald-500 shrink-0">
+							<Icon icon="solar:check-circle-bold" className="size-3.5" />
+							{poll.isActive ? t.polls.card.answered : t.polls.card.completed}
+						</span>
+						<div className="flex items-center gap-2 shrink-0">
 						{poll.endDate && (
 							<span className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono whitespace-nowrap">
 								{poll.isActive && timeRemaining ? (
@@ -362,7 +362,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 							);
 						})}
 				</div>
-			</Box>
+			</SurfaceCard>
 			{/* Avatars Sheet */}
 			<Sheet open={showAvatarsSheet} onOpenChange={setShowAvatarsSheet}>
 				<SheetContent side="bottom" className="max-h-[80vh] bg-card">
@@ -396,7 +396,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						}
 					}}
 				>
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4 shadow-2xl">
+					<SurfaceCard variant="modal">
 						<Stack direction="column" spacing={4}>
 							<Box>
 								<h2 className="text-2xl font-bold font-heading text-destructive">
@@ -433,7 +433,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								</Button>
 							</Stack>
 						</Stack>
-					</Box>
+					</SurfaceCard>
 				</div>
 			)}
 		</>
@@ -444,7 +444,11 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 	if (!poll.isActive) {
 		return (
 			<>
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 relative overflow-hidden opacity-80">
+			<SurfaceCard
+				variant="elevated"
+				clipped
+				className="opacity-80"
+			>
 				<div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
 					<span className="bg-secondary px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase text-muted-foreground shrink-0">
 						{t.polls.card.pollEnded}
@@ -547,7 +551,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 							);
 						})}
 				</div>
-			</Box>
+			</SurfaceCard>
 			{/* Avatars Sheet */}
 			<Sheet open={showAvatarsSheet} onOpenChange={setShowAvatarsSheet}>
 				<SheetContent side="bottom" className="max-h-[80vh] bg-card">
@@ -581,7 +585,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						}
 					}}
 				>
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4 shadow-2xl">
+					<SurfaceCard variant="modal">
 						<Stack direction="column" spacing={4}>
 							<Box>
 								<h2 className="text-2xl font-bold font-heading text-destructive">
@@ -618,7 +622,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								</Button>
 							</Stack>
 						</Stack>
-					</Box>
+					</SurfaceCard>
 				</div>
 			)}
 		</>
@@ -632,7 +636,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 
 	return (
 		<>
-			<Box className="bg-card rounded-[24px] border border-border/50 shadow-sm p-6 relative overflow-hidden">
+			<SurfaceCard variant="elevated" clipped>
 				<div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-[60px] rounded-full pointer-events-none" />
 				<div className="flex items-center justify-between mb-4 relative z-10 gap-2 flex-wrap">
 					<span className="bg-primary/10 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wide uppercase text-primary shrink-0">
@@ -802,12 +806,12 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						);
 					})}
 				</div>
-			</Box>
+			</SurfaceCard>
 
 			{/* Confirmation Dialog */}
 			{showConfirmDialog && (
 				<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+					<SurfaceCard variant="modal">
 						<Stack direction="column" spacing={4}>
 							<Box>
 								<h2 className="text-2xl font-bold font-heading">
@@ -842,7 +846,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								</Button>
 							</Stack>
 						</Stack>
-					</Box>
+					</SurfaceCard>
 				</Box>
 			)}
 
@@ -880,7 +884,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 						}
 					}}
 				>
-					<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4 shadow-2xl">
+					<SurfaceCard variant="modal">
 						<Stack direction="column" spacing={4}>
 							<Box>
 								<h2 className="text-2xl font-bold font-heading text-destructive">
@@ -917,7 +921,7 @@ export function PollCard({ poll, onAnswer, isAdmin = false, onEdit, onDelete, au
 								</Button>
 							</Stack>
 						</Stack>
-					</Box>
+					</SurfaceCard>
 				</div>
 			)}
 		</>

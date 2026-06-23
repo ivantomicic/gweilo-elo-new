@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DashboardCard } from "@/components/dashboard/dashboard-card";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
@@ -22,7 +23,6 @@ type NoShowAlertWidgetProps = {
 	users?: NoShowUser[];
 };
 
-const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
 const NO_SHOW_ALERT_CACHE_KEY = "no_show_alert_cache";
 
 type CachedNoShowAlert = {
@@ -154,9 +154,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 
 	if (loading) {
 		return (
-			<Box
-				className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
-			>
+			<DashboardCard>
 				<Box className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--destructive)/0.18),transparent_58%)] pointer-events-none" />
 				<Box className="absolute -right-10 top-10 size-32 rounded-full bg-destructive/10 blur-3xl pointer-events-none" />
 				<Box className="absolute -left-8 bottom-6 size-24 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
@@ -166,25 +164,25 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 					<Box className="h-6 w-14 rounded-full bg-muted-foreground/20" />
 				</Box>
 
-			<Stack
-				direction="column"
-				alignItems="center"
-				justifyContent="center"
-				spacing={5}
-				className="relative z-10 w-full flex-1 pt-6"
-			>
-				<Box className="relative shrink-0">
-					<Box className="absolute inset-[-10px] rounded-full border border-amber-400/35" />
-					<Box className="absolute inset-[-20px] rounded-full border border-destructive/10" />
-					<Box className="size-24 rounded-full border-2 border-destructive/30 bg-destructive/20 animate-pulse shadow-[0_0_0_6px_rgba(239,68,68,0.08)]" />
-					<Box className="absolute -bottom-1 -right-1 bg-destructive/50 size-7 rounded-full border-2 border-card animate-pulse" />
-				</Box>
-				<Box className="space-y-2 text-center">
-					<Box className="mx-auto h-8 w-32 rounded bg-muted-foreground/20" />
-				</Box>
-			</Stack>
-		</Box>
-	);
+				<Stack
+					direction="column"
+					alignItems="center"
+					justifyContent="center"
+					spacing={5}
+					className="relative z-10 w-full flex-1 pt-6"
+				>
+					<Box className="relative shrink-0">
+						<Box className="absolute inset-[-10px] rounded-full border border-amber-400/35" />
+						<Box className="absolute inset-[-20px] rounded-full border border-destructive/10" />
+						<Box className="size-24 rounded-full border-2 border-destructive/30 bg-destructive/20 animate-pulse shadow-[0_0_0_6px_rgba(239,68,68,0.08)]" />
+						<Box className="absolute -bottom-1 -right-1 bg-destructive/50 size-7 rounded-full border-2 border-card animate-pulse" />
+					</Box>
+					<Box className="space-y-2 text-center">
+						<Box className="mx-auto h-8 w-32 rounded bg-muted-foreground/20" />
+					</Box>
+				</Stack>
+			</DashboardCard>
+		);
 	}
 
 	if (!worstOffender) {
@@ -195,9 +193,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 		Math.abs(worstOffender.totalPoints - worstOffender.noShowCount) > 0.001;
 
 	return (
-		<Box
-			className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
-		>
+		<DashboardCard>
 			<Box className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--destructive)/0.18),transparent_58%)] pointer-events-none" />
 			<Box className="absolute -right-10 top-10 size-32 rounded-full bg-destructive/10 blur-3xl pointer-events-none" />
 			<Box className="absolute -left-8 bottom-6 size-24 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
@@ -268,6 +264,6 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 				</Box>
 
 			</Stack>
-		</Box>
+		</DashboardCard>
 	);
 }

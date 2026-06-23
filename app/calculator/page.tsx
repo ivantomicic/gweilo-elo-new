@@ -5,6 +5,7 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { t } from "@/lib/i18n";
 import { BasePlayerSection } from "@/app/calculator/_components/base-player-section";
@@ -21,17 +22,11 @@ function StatusCard({
 	error?: boolean;
 }) {
 	return (
-		<Box
-			className={
-				error
-					? "bg-card rounded-[24px] p-6 border border-destructive/40"
-					: "bg-card rounded-[24px] p-6 border border-border/50"
-			}
-		>
+		<SurfaceCard className={error ? "border-destructive/40" : undefined}>
 			<p className={error ? "text-destructive" : "text-muted-foreground"}>
 				{message}
 			</p>
-		</Box>
+		</SurfaceCard>
 	);
 }
 

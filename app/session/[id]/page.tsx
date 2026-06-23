@@ -9,6 +9,7 @@ import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { Stack } from "@/components/ui/stack";
@@ -2904,7 +2905,7 @@ function SessionPageContent() {
 				{/* Delete Session Confirmation Modal */}
 				{showDeleteModal && (
 					<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-						<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+						<SurfaceCard variant="modal">
 							<Stack direction="column" spacing={4}>
 								<Box>
 									<h2 className="text-2xl font-bold font-heading text-destructive">
@@ -2967,13 +2968,13 @@ function SessionPageContent() {
 									</Button>
 								</Stack>
 							</Stack>
-						</Box>
+						</SurfaceCard>
 					</Box>
 				)}
 				{/* Force Close Confirmation Modal */}
 				{showForceCloseModal && (
 					<Box className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-						<Box className="bg-card rounded-[24px] p-6 border border-border/50 max-w-sm w-full mx-4">
+						<SurfaceCard variant="modal">
 							<Stack direction="column" spacing={4}>
 								<Box>
 									<h2 className="text-2xl font-bold font-heading">
@@ -3011,7 +3012,7 @@ function SessionPageContent() {
 									</Button>
 								</Stack>
 							</Stack>
-						</Box>
+						</SurfaceCard>
 					</Box>
 				)}
 

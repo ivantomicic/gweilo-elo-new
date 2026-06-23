@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
+import { SurfaceCard } from "@/components/ui/surface-card";
 
 type TableTennisGifWidgetProps = {
 	/** Giphy tag to use when fetching random GIFs. Default: "table+tennis+ping+pong" */
@@ -60,14 +61,14 @@ export function TableTennisGifWidget({
 
 	if (loading) {
 		return (
-			<Box className="bg-card rounded-[24px] border border-border/50 p-6 aspect-[7/5] flex flex-col items-center justify-center">
+			<SurfaceCard className="aspect-[7/5] flex flex-col items-center justify-center">
 				<Loading inline />
-			</Box>
+			</SurfaceCard>
 		);
 	}
 
 	return (
-		<Box className="bg-card rounded-[24px] border border-border/50 aspect-[7/5] overflow-hidden relative">
+		<SurfaceCard padding="none" clipped className="aspect-[7/5]">
 			{gifUrl && (
 				<Image
 					src={gifUrl}
@@ -77,6 +78,6 @@ export function TableTennisGifWidget({
 					unoptimized
 				/>
 			)}
-		</Box>
+		</SurfaceCard>
 	);
 }

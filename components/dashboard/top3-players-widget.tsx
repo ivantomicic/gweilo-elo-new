@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { DashboardCard } from "@/components/dashboard/dashboard-card";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,7 +17,6 @@ type PlayerStat = {
 	elo: number;
 };
 
-const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
 const LEGACY_TOP3_CACHE_KEY = "top3players_cache";
 const TOP3_CACHE_VERSION = 3;
 const TOP3_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -132,9 +132,7 @@ export function Top3PlayersWidget() {
 	const third = topPlayers[2];
 
 	return (
-		<Box
-			className={`bg-card rounded-[24px] border border-border/50 shadow-sm relative overflow-hidden px-6 pt-4 pb-0 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
-		>
+		<DashboardCard padding="none" className="px-6 pt-4 pb-0">
 			{/* Blurred primary background circle */}
 			<Box className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 bg-primary/20 blur-[60px] rounded-full pointer-events-none" />
 
@@ -326,6 +324,6 @@ export function Top3PlayersWidget() {
 					</>
 				)}
 			</Stack>
-		</Box>
+		</DashboardCard>
 	);
 }

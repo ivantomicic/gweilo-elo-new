@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { DashboardCard } from "@/components/dashboard/dashboard-card";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
@@ -9,9 +10,6 @@ import type { MissionSnapshot } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
 
-const DASHBOARD_CARD_HEIGHT_CLASS = "min-h-[clamp(17rem,32vw,20rem)]";
-const MISSION_CARD_BASE_CLASS =
-	"relative overflow-hidden rounded-[24px] border border-white/10 shadow-sm";
 const MISSION_CACHE_KEY_PREFIX = "rivalry-missions:";
 
 type CachedMissionSnapshot = {
@@ -296,25 +294,21 @@ export function RivalryMissionsWidget() {
 
 	if (loading) {
 		return (
-			<Box
-				className={`${MISSION_CARD_BASE_CLASS} bg-card p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
-			>
+			<DashboardCard className="border-white/10">
 				<div className="flex flex-1 items-center justify-center">
 					<Loading inline label={t.missions.loading} />
 				</div>
-			</Box>
+			</DashboardCard>
 		);
 	}
 
 	if (error) {
 		return (
-			<Box
-				className={`${MISSION_CARD_BASE_CLASS} bg-card p-6 h-full ${DASHBOARD_CARD_HEIGHT_CLASS} flex flex-col`}
-			>
+			<DashboardCard className="border-white/10">
 				<div className="flex flex-1 items-center">
 					<p className="text-sm text-destructive">{error}</p>
 				</div>
-			</Box>
+			</DashboardCard>
 		);
 	}
 
@@ -322,12 +316,10 @@ export function RivalryMissionsWidget() {
 		return null;
 	}
 
+	const singleMission = snapshot.missions.length === 1;
+
 	return (
-		<Stack
-			direction="column"
-			spacing={3}
-			className={snapshot.missions.length === 1 ? `h-full ${DASHBOARD_CARD_HEIGHT_CLASS}` : undefined}
-		>
+		<Stack direction="column" spacing={3}>
 			{snapshot.missions.map((mission) => {
 				const copy = renderMissionCopy(mission);
 				const theme = getMissionTheme(mission);
@@ -335,9 +327,12 @@ export function RivalryMissionsWidget() {
 				const inlineHighlight = getMissionInlineHighlight(mission);
 				const opponentInitial = mission.opponentName?.charAt(0).toUpperCase() || "M";
 				return (
-					<Box
+					<DashboardCard
 						key={mission.id}
-						className={`${MISSION_CARD_BASE_CLASS} bg-card p-5 md:p-6 flex flex-col ${snapshot.missions.length === 1 ? `h-full ${DASHBOARD_CARD_HEIGHT_CLASS}` : ""}`}
+						padding="none"
+						fixedHeight={singleMission}
+						fill={singleMission}
+						className="border-white/10 p-5 md:p-6"
 					>
 						<Box className={`absolute inset-0 bg-gradient-to-br ${theme.gradient}`} />
 						<Box
@@ -375,7 +370,7 @@ export function RivalryMissionsWidget() {
 								</p>
 							</Stack>
 						</Stack>
-					</Box>
+					</DashboardCard>
 				);
 			})}
 		</Stack>

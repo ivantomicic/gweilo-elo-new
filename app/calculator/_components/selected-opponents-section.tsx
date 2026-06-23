@@ -2,6 +2,7 @@ import { AnimatePresence } from "framer-motion";
 import type { MatchResult } from "@/lib/elo/calculation";
 import { Box } from "@/components/ui/box";
 import { Icon } from "@/components/ui/icon";
+import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { cn } from "@/lib/utils";
 import { formatDelta } from "@/app/calculator/_lib/utils";
@@ -102,7 +103,7 @@ export function SelectedOpponentsSection({
 						})}
 					</AnimatePresence>
 
-					<Box className="bg-card rounded-2xl border border-primary/20 p-4">
+					<SurfaceCard padding="sm" className="border-primary/20">
 						<Stack
 							direction="row"
 							alignItems="center"
@@ -124,7 +125,7 @@ export function SelectedOpponentsSection({
 								{formatDelta(totalProjectedDelta)}
 							</p>
 						</Stack>
-					</Box>
+					</SurfaceCard>
 				</Stack>
 			)}
 		</Box>
