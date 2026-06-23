@@ -5,12 +5,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/useAuth";
 import { AuthScreen } from "@/components/auth/auth-screen";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
@@ -282,49 +277,39 @@ export default function HomePage() {
 
 	// Render dashboard if authenticated
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title={t.pages.dashboard} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Active Session Banner */}
-							{!loadingSession && activeSession && (
-								<ActiveSessionBanner session={activeSession} />
-							)}
+		<AppShell title={t.pages.dashboard}>
+			{/* Active Session Banner */}
+			{!loadingSession && activeSession && (
+				<ActiveSessionBanner session={activeSession} />
+			)}
 
-							{/* Unanswered Polls */}
-							{!loadingPolls && unansweredPolls.length === 1 && (
-								<PollCard
-									poll={unansweredPolls[0]}
-									onAnswer={handlePollAnswer}
-									isAdmin={isAdmin}
-								/>
-							)}
+			{/* Unanswered Polls */}
+			{!loadingPolls && unansweredPolls.length === 1 && (
+				<PollCard
+					poll={unansweredPolls[0]}
+					onAnswer={handlePollAnswer}
+					isAdmin={isAdmin}
+				/>
+			)}
 
-							{/* Unanswered Polls Banner (if more than 1) */}
-							{!loadingPolls && unansweredPolls.length > 1 && (
-								<UnansweredPollsBanner count={unansweredPolls.length} />
-							)}
+			{/* Unanswered Polls Banner (if more than 1) */}
+			{!loadingPolls && unansweredPolls.length > 1 && (
+				<UnansweredPollsBanner count={unansweredPolls.length} />
+			)}
 
-							{showDashboardWidgets && (
-								<Stack direction="column" spacing={4}>
-									{/* First Row: 2 widgets on md, 3 on xl+ (min 325px per widget) */}
-									<Box className="grid items-stretch grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
-										<RivalryMissionsWidget />
-										<Top3PlayersWidget />
-										<NoShowAlertWidget />
-									</Box>
+			{showDashboardWidgets && (
+				<Stack direction="column" spacing={4}>
+					{/* First Row: 2 widgets on md, 3 on xl+ (min 325px per widget) */}
+					<Box className="grid items-stretch grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
+						<RivalryMissionsWidget />
+						<Top3PlayersWidget />
+						<NoShowAlertWidget />
+					</Box>
 
-									{/* Second Row: 1 full-width widget */}
-									<PerformanceTrend />
-								</Stack>
-							)}
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+					{/* Second Row: 1 full-width widget */}
+					<PerformanceTrend />
+				</Stack>
+			)}
+		</AppShell>
 	);
 }

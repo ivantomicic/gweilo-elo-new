@@ -1,10 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
-import { SidebarProvider } from "@/components/vendor/shadcn/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset } from "@/components/vendor/shadcn/sidebar";
-import { SiteHeader } from "@/components/site-header";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
@@ -15,19 +12,7 @@ type SessionsLayoutProps = {
 
 export function SessionsLayout({ children }: SessionsLayoutProps) {
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title={t.sessions.title} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{children}
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+		<AppShell title={t.sessions.title}>{children}</AppShell>
 	);
 }
 
@@ -56,4 +41,3 @@ export function SessionsState({ message, variant = "empty" }: SessionsStateProps
 		</Box>
 	);
 }
-

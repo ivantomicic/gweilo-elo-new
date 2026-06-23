@@ -5,12 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
@@ -901,112 +896,102 @@ function SchedulePageContent() {
 	}
 
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title={t.startSession.schedule.title} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Step Indicator */}
-							<Box className="flex justify-end">
-								<Box className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
-									{t.startSession.schedule.stepIndicator}
-								</Box>
-							</Box>
+		<AppShell title={t.startSession.schedule.title}>
+			{/* Step Indicator */}
+			<Box className="flex justify-end">
+				<Box className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
+					{t.startSession.schedule.stepIndicator}
+				</Box>
+			</Box>
 
-							{/* Randomize Button */}
-							<Box className="mb-6">
-								<Button
-									variant="outline"
-									onClick={handleRandomize}
-									disabled={isShuffling}
-									className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-secondary/50 border-border/50 rounded-2xl"
-								>
-									<motion.div
-										animate={isShuffling ? { rotate: [0, 360] } : {}}
-										transition={{ duration: 0.5, ease: "easeInOut" }}
-									>
-										<Icon
-											icon="solar:shuffle-bold"
-											className={isShuffling ? "size-5 text-amber-400" : "size-5 text-foreground"}
-										/>
-									</motion.div>
-									<span className="font-semibold text-sm">
-										{t.startSession.schedule.randomize}
-									</span>
-								</Button>
-							</Box>
+			{/* Randomize Button */}
+			<Box className="mb-6">
+				<Button
+					variant="outline"
+					onClick={handleRandomize}
+					disabled={isShuffling}
+					className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-secondary/50 border-border/50 rounded-2xl"
+				>
+					<motion.div
+						animate={isShuffling ? { rotate: [0, 360] } : {}}
+						transition={{ duration: 0.5, ease: "easeInOut" }}
+					>
+						<Icon
+							icon="solar:shuffle-bold"
+							className={isShuffling ? "size-5 text-amber-400" : "size-5 text-foreground"}
+						/>
+					</motion.div>
+					<span className="font-semibold text-sm">
+						{t.startSession.schedule.randomize}
+					</span>
+				</Button>
+			</Box>
 
-							{/* Rounds List */}
-							<Box className="relative">
-								{/* Timeline connector */}
-								<Box className="absolute left-6 top-8 bottom-8 w-0.5 bg-border/30 -z-0" />
+			{/* Rounds List */}
+			<Box className="relative">
+				{/* Timeline connector */}
+				<Box className="absolute left-6 top-8 bottom-8 w-0.5 bg-border/30 -z-0" />
 
-								<Stack direction="column" spacing={6}>
-									{rounds.map((round, index) => (
-										<RoundCard
-											key={round.id}
-											roundNumber={round.roundNumber}
-											matches={round.matches}
-											restingPlayers={round.restingPlayers}
-											isActive={index === 0}
-											isDynamic={round.isDynamic}
-											dynamicNote={round.dynamicNote}
-											isShuffling={isShuffling}
-											shuffleKey={scheduleKey}
-										/>
-									))}
-								</Stack>
-							</Box>
+				<Stack direction="column" spacing={6}>
+					{rounds.map((round, index) => (
+						<RoundCard
+							key={round.id}
+							roundNumber={round.roundNumber}
+							matches={round.matches}
+							restingPlayers={round.restingPlayers}
+							isActive={index === 0}
+							isDynamic={round.isDynamic}
+							dynamicNote={round.dynamicNote}
+							isShuffling={isShuffling}
+							shuffleKey={scheduleKey}
+						/>
+					))}
+				</Stack>
+			</Box>
 
-							{/* Back and Start Session Buttons */}
-							<Box className="pt-4">
-								<Stack direction="column" spacing={3}>
-									<Button
-										onClick={handleStartSession}
-										disabled={isStartingSession}
-										className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
-									>
-										<Stack
-											direction="row"
-											alignItems="center"
-											justifyContent="center"
-											spacing={2}
-										>
-											<span>
-												{isStartingSession
-													? "Kreiranje..."
-													: t.startSession.schedule
-															.startSession}
-											</span>
-											{!isStartingSession && (
-												<Icon
-													icon="solar:play-bold"
-													className="size-5"
-												/>
-											)}
-										</Stack>
-									</Button>
-									<Button
-										variant="secondary"
-										onClick={() => {
-											void trigger();
-											router.push(
-												`/start-session/players?count=${playerCount}`
-											);
-										}}
-										className="w-full py-4 px-6 rounded-full font-bold text-lg h-auto"
-									>
-										{t.startSession.back}
-									</Button>
-								</Stack>
-							</Box>
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+			{/* Back and Start Session Buttons */}
+			<Box className="pt-4">
+				<Stack direction="column" spacing={3}>
+					<Button
+						onClick={handleStartSession}
+						disabled={isStartingSession}
+						className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
+					>
+						<Stack
+							direction="row"
+							alignItems="center"
+							justifyContent="center"
+							spacing={2}
+						>
+							<span>
+								{isStartingSession
+									? "Kreiranje..."
+									: t.startSession.schedule
+											.startSession}
+							</span>
+							{!isStartingSession && (
+								<Icon
+									icon="solar:play-bold"
+									className="size-5"
+								/>
+							)}
+						</Stack>
+					</Button>
+					<Button
+						variant="secondary"
+						onClick={() => {
+							void trigger();
+							router.push(
+								`/start-session/players?count=${playerCount}`
+							);
+						}}
+						className="w-full py-4 px-6 rounded-full font-bold text-lg h-auto"
+					>
+						{t.startSession.back}
+					</Button>
+				</Stack>
+			</Box>
+		</AppShell>
 	);
 }
 

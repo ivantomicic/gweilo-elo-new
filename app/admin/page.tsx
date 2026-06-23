@@ -1,38 +1,23 @@
 "use client";
 
 import { AdminGuard } from "@/components/auth/admin-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { UserManagementTable } from "@/components/admin/user-management-table";
 import { AdminTabs } from "@/components/admin/admin-tabs";
 
 function AdminPageContent() {
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title="Admin panel" />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Admin Navigation Tabs */}
-							<Box className="mb-4 md:hidden">
-								<AdminTabs />
-							</Box>
+		<AppShell title="Admin panel">
+			{/* Admin Navigation Tabs */}
+			<Box className="mb-4 md:hidden">
+				<AdminTabs />
+			</Box>
 
-							<div className="space-y-4">
-								<UserManagementTable />
-							</div>
-						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+			<div className="space-y-4">
+				<UserManagementTable />
+			</div>
+		</AppShell>
 	);
 }
 

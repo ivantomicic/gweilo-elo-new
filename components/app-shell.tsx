@@ -12,14 +12,20 @@ import { cn } from "@/lib/utils";
 type SiteHeaderProps = ComponentProps<typeof SiteHeader>;
 
 type AppShellProps = SiteHeaderProps & {
-	children: ReactNode;
+	children?: ReactNode;
+	bodyClassName?: string;
+	containerClassName?: string;
 	contentClassName?: string;
+	contentPadding?: boolean;
 	insetClassName?: string;
 };
 
 export function AppShell({
 	children,
+	bodyClassName,
+	containerClassName,
 	contentClassName,
+	contentPadding = true,
 	insetClassName,
 	...headerProps
 }: AppShellProps) {
@@ -28,11 +34,17 @@ export function AppShell({
 			<AppSidebar variant="inset" />
 			<SidebarInset className={insetClassName}>
 				<SiteHeader {...headerProps} />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
+				<div className={cn("flex flex-1 flex-col", bodyClassName)}>
+					<div
+						className={cn(
+							"@container/main flex flex-1 flex-col gap-2 pb-mobile-nav",
+							containerClassName,
+						)}
+					>
 						<div
 							className={cn(
-								"flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6",
+								"flex flex-col gap-4 py-4 md:gap-6 md:py-6",
+								contentPadding && "px-4 lg:px-6",
 								contentClassName,
 							)}
 						>

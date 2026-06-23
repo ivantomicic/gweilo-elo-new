@@ -2,12 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { AdminGuard } from "@/components/auth/admin-guard";
-import { AppSidebar } from "@/components/app-sidebar";
-import { SiteHeader } from "@/components/site-header";
-import {
-	SidebarInset,
-	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Input } from "@/components/ui/input";
@@ -911,602 +906,592 @@ function AdminActivityPageContent() {
 	}, [timelineSessions]);
 
 	return (
-		<SidebarProvider>
-			<AppSidebar variant="inset" />
-			<SidebarInset>
-				<SiteHeader title="Activity Log" />
-				<div className="flex flex-1 flex-col">
-					<div className="@container/main flex flex-1 flex-col gap-2 pb-mobile-nav">
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6">
-							{/* Admin Navigation Tabs */}
-							<Box className="mb-4 md:hidden">
-								<AdminTabs />
-							</Box>
+		<AppShell title="Activity Log">
+			{/* Admin Navigation Tabs */}
+			<Box className="mb-4 md:hidden">
+				<AdminTabs />
+			</Box>
 
-								{/* Activity Results */}
-								<Box>
-									{loading ? (
-										<Loading label="Loading activity..." />
-									) : (
-										<>
-											<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-												<div className="space-y-1">
-													<div className="text-sm text-muted-foreground">
-														Total: {totalCount} events
-													</div>
-													<div className="text-xs text-muted-foreground">
-														{filtersSummary}
-													</div>
-												</div>
-												<div className="flex flex-wrap items-center gap-2">
-													<Button
-														type="button"
-														variant={
-															activeFilterCount > 0
-																? "secondary"
-																: "outline"
-														}
-														onClick={() =>
-															setIsFiltersOpen(true)
-														}
-													>
-														<Icon
-															icon="solar:filter-bold"
-															className="mr-1.5 size-4"
+				{/* Activity Results */}
+				<Box>
+					{loading ? (
+						<Loading label="Loading activity..." />
+					) : (
+						<>
+							<div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+								<div className="space-y-1">
+									<div className="text-sm text-muted-foreground">
+										Total: {totalCount} events
+									</div>
+									<div className="text-xs text-muted-foreground">
+										{filtersSummary}
+									</div>
+								</div>
+								<div className="flex flex-wrap items-center gap-2">
+									<Button
+										type="button"
+										variant={
+											activeFilterCount > 0
+												? "secondary"
+												: "outline"
+										}
+										onClick={() =>
+											setIsFiltersOpen(true)
+										}
+									>
+										<Icon
+											icon="solar:filter-bold"
+											className="mr-1.5 size-4"
+										/>
+										Filters
+										{activeFilterCount > 0
+											? ` (${activeFilterCount})`
+											: ""}
+									</Button>
+									<Button
+										type="button"
+										variant={
+											showTable
+												? "secondary"
+												: "outline"
+										}
+										onClick={() =>
+											setShowTable((prev) => !prev)
+										}
+									>
+										{showTable
+											? "Hide table"
+											: "Show table"}
+									</Button>
+								</div>
+							</div>
+
+							<div className="mb-3 text-xs text-muted-foreground">
+								Sessions split on <code>app_loaded</code> or
+								30m inactivity.
+							</div>
+							{timelineGroups.length === 0 ? (
+								<div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
+									No events found
+								</div>
+							) : (
+								<TooltipProvider delayDuration={120}>
+									<div className="space-y-2">
+										{timelineGroups.map((group) => (
+											<div
+												key={group.id}
+												className="rounded-md border p-3"
+											>
+												<div className="flex min-w-0 items-center gap-2.5">
+													<Avatar className="h-8 w-8 border">
+														<AvatarImage
+															src={group.userAvatar || undefined}
+															alt={group.userName}
 														/>
-														Filters
-														{activeFilterCount > 0
-															? ` (${activeFilterCount})`
+														<AvatarFallback className="text-[11px] font-semibold">
+															{getInitials(group.userName)}
+														</AvatarFallback>
+													</Avatar>
+													<p className="truncate text-sm font-medium">
+														{group.userName}
+														{group.userId === currentUserId
+															? " (you)"
 															: ""}
-													</Button>
-													<Button
-														type="button"
-														variant={
-															showTable
-																? "secondary"
-																: "outline"
-														}
-														onClick={() =>
-															setShowTable((prev) => !prev)
-														}
-													>
-														{showTable
-															? "Hide table"
-															: "Show table"}
-													</Button>
+													</p>
 												</div>
-											</div>
 
-											<div className="mb-3 text-xs text-muted-foreground">
-												Sessions split on <code>app_loaded</code> or
-												30m inactivity.
-											</div>
-											{timelineGroups.length === 0 ? (
-												<div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
-													No events found
-												</div>
-											) : (
-												<TooltipProvider delayDuration={120}>
-													<div className="space-y-2">
-														{timelineGroups.map((group) => (
+												<div className="mt-2 space-y-2">
+													{group.sessions.map(
+														(session, index) => (
 															<div
-																key={group.id}
-																className="rounded-md border p-3"
+																key={session.id}
+																className={
+																	index > 0
+																		? "border-t pt-2"
+																		: ""
+																}
 															>
-																<div className="flex min-w-0 items-center gap-2.5">
-																	<Avatar className="h-8 w-8 border">
-																		<AvatarImage
-																			src={group.userAvatar || undefined}
-																			alt={group.userName}
-																		/>
-																		<AvatarFallback className="text-[11px] font-semibold">
-																			{getInitials(group.userName)}
-																		</AvatarFallback>
-																	</Avatar>
-																	<p className="truncate text-sm font-medium">
-																		{group.userName}
-																		{group.userId === currentUserId
-																			? " (you)"
-																			: ""}
-																	</p>
+																<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<span className="inline-flex cursor-default items-center gap-1">
+																				<Icon
+																					icon="solar:calendar-bold"
+																					className="size-3.5"
+																				/>
+																				{formatDate(
+																					session.startedAt,
+																				)}
+																			</span>
+																		</TooltipTrigger>
+																		<TooltipContent>
+																			Started:{" "}
+																			{formatDateTime(
+																				session.startedAt,
+																			)}
+																		</TooltipContent>
+																	</Tooltip>
+																	<Tooltip>
+																		<TooltipTrigger asChild>
+																			<span className="inline-flex cursor-default items-center gap-1">
+																				<Icon
+																					icon="solar:clock-circle-bold"
+																					className="size-3.5"
+																				/>
+																				{formatDuration(
+																					session.durationMs,
+																				)}
+																			</span>
+																		</TooltipTrigger>
+																		<TooltipContent>
+																			From{" "}
+																			{formatDateTime(
+																				session.startedAt,
+																			)}{" "}
+																			to{" "}
+																			{formatDateTime(
+																				session.endedAt,
+																			)}
+																		</TooltipContent>
+																	</Tooltip>
+																	<span>
+																		{session.eventCount} events
+																	</span>
 																</div>
 
-																<div className="mt-2 space-y-2">
-																	{group.sessions.map(
-																		(session, index) => (
-																			<div
-																				key={session.id}
-																				className={
-																					index > 0
-																						? "border-t pt-2"
-																						: ""
-																				}
-																			>
-																				<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-																					<Tooltip>
-																						<TooltipTrigger asChild>
-																							<span className="inline-flex cursor-default items-center gap-1">
-																								<Icon
-																									icon="solar:calendar-bold"
-																									className="size-3.5"
-																								/>
-																								{formatDate(
-																									session.startedAt,
-																								)}
-																							</span>
-																						</TooltipTrigger>
-																						<TooltipContent>
-																							Started:{" "}
-																							{formatDateTime(
-																								session.startedAt,
-																							)}
-																						</TooltipContent>
-																					</Tooltip>
-																					<Tooltip>
-																						<TooltipTrigger asChild>
-																							<span className="inline-flex cursor-default items-center gap-1">
-																								<Icon
-																									icon="solar:clock-circle-bold"
-																									className="size-3.5"
-																								/>
-																								{formatDuration(
-																									session.durationMs,
-																								)}
-																							</span>
-																						</TooltipTrigger>
-																						<TooltipContent>
-																							From{" "}
-																							{formatDateTime(
-																								session.startedAt,
-																							)}{" "}
-																							to{" "}
-																							{formatDateTime(
-																								session.endedAt,
-																							)}
-																						</TooltipContent>
-																					</Tooltip>
-																					<span>
-																						{session.eventCount} events
+																<div className="mt-1 overflow-x-auto">
+																	<div className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
+																		{session.flow
+																			.slice(0, 10)
+																			.map((step, stepIndex) => (
+																				<span
+																					key={`${session.id}-flow-${stepIndex}`}
+																					className="inline-flex items-center gap-1"
+																				>
+																					<span className="text-[11px] text-foreground/90">
+																						{step}
 																					</span>
-																				</div>
-
-																				<div className="mt-1 overflow-x-auto">
-																					<div className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
-																						{session.flow
-																							.slice(0, 10)
-																							.map((step, stepIndex) => (
-																								<span
-																									key={`${session.id}-flow-${stepIndex}`}
-																									className="inline-flex items-center gap-1"
-																								>
-																									<span className="text-[11px] text-foreground/90">
-																										{step}
-																									</span>
-																									{stepIndex <
-																										Math.min(
-																											session.flow.length,
-																											10,
-																										) -
-																											1 && (
-																										<Icon
-																											icon="solar:alt-arrow-right-linear"
-																											className="size-3 text-muted-foreground"
-																										/>
-																									)}
-																								</span>
-																							))}
-																						{session.flow.length > 10 && (
-																							<span className="text-muted-foreground">
-																								+{session.flow.length - 10} more
-																							</span>
-																						)}
-																					</div>
-																				</div>
-																			</div>
-																		),
-																	)}
+																					{stepIndex <
+																						Math.min(
+																							session.flow.length,
+																							10,
+																						) -
+																							1 && (
+																						<Icon
+																							icon="solar:alt-arrow-right-linear"
+																							className="size-3 text-muted-foreground"
+																						/>
+																					)}
+																				</span>
+																			))}
+																		{session.flow.length > 10 && (
+																			<span className="text-muted-foreground">
+																				+{session.flow.length - 10} more
+																			</span>
+																		)}
+																	</div>
 																</div>
 															</div>
-														))}
-													</div>
-												</TooltipProvider>
-											)}
+														),
+													)}
+												</div>
+											</div>
+										))}
+									</div>
+								</TooltipProvider>
+							)}
 
-											{showTable && (
-												<div className="mt-6 space-y-3">
-													<div className="flex items-center justify-between">
-														<h2 className="text-sm font-medium">
-															Raw events table
-														</h2>
-														<Button
-															type="button"
-															size="sm"
-															variant="ghost"
-															onClick={() =>
-																setShowTable(false)
+							{showTable && (
+								<div className="mt-6 space-y-3">
+									<div className="flex items-center justify-between">
+										<h2 className="text-sm font-medium">
+											Raw events table
+										</h2>
+										<Button
+											type="button"
+											size="sm"
+											variant="ghost"
+											onClick={() =>
+												setShowTable(false)
+											}
+										>
+											Hide
+										</Button>
+									</div>
+									<div className="overflow-x-auto">
+										<Table>
+											<TableHeader>
+												<TableRow>
+													<TableHead>
+														User
+													</TableHead>
+													<TableHead>
+														Event
+													</TableHead>
+													<TableHead>
+														Page
+													</TableHead>
+													<TableHead>
+														<Stack
+															direction="row"
+															alignItems="center"
+															spacing={1.5}
+														>
+															<Icon
+																icon="solar:calendar-bold"
+																className="size-4 text-muted-foreground"
+															/>
+															<Icon
+																icon="solar:clock-circle-bold"
+																className="size-4 text-muted-foreground"
+															/>
+															<span>
+																Timestamp
+															</span>
+														</Stack>
+													</TableHead>
+												</TableRow>
+											</TableHeader>
+											<TableBody>
+												{events.length === 0 ? (
+													<TableRow>
+														<TableCell
+															colSpan={4}
+															className="text-center"
+														>
+															No events found
+														</TableCell>
+													</TableRow>
+												) : (
+													events.map((event) => (
+														<TableRow key={event.id}>
+															<TableCell>
+																{event.user ? (
+																	<span className="font-medium">
+																		{event.user.name}
+																	</span>
+																) : event.user_id ? (
+																	<span className="text-muted-foreground">
+																		{event.user_id.slice(0, 8)}
+																		...
+																	</span>
+																) : (
+																	<span className="text-muted-foreground">
+																		Anonymous
+																	</span>
+																)}
+															</TableCell>
+															<TableCell>
+																<code className="text-sm">
+																	{event.event_name}
+																</code>
+															</TableCell>
+															<TableCell>
+																{event.event_name ===
+																	"player_viewed" &&
+																event.player ? (
+																	<span className="text-sm font-medium">
+																		Player: {event.player.name}
+																	</span>
+																) : event.page ? (
+																	<span className="text-sm">
+																		{getReadablePathLabel(
+																			event.page,
+																			sessionLabelMap,
+																		)}
+																	</span>
+																) : (
+																	<span className="text-muted-foreground">
+																		—
+																	</span>
+																)}
+															</TableCell>
+															<TableCell>
+																<Stack
+																	direction="column"
+																	spacing={1.5}
+																>
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={2}
+																	>
+																		<Icon
+																			icon="solar:calendar-bold"
+																			className="size-4 text-muted-foreground"
+																		/>
+																		<span>
+																			{formatDate(
+																				event.created_at,
+																			)}
+																		</span>
+																	</Stack>
+																	<Stack
+																		direction="row"
+																		alignItems="center"
+																		spacing={2}
+																	>
+																		<Icon
+																			icon="solar:clock-circle-bold"
+																			className="size-4 text-muted-foreground"
+																		/>
+																		<span>
+																			{formatTime(
+																				event.created_at,
+																			)}
+																		</span>
+																	</Stack>
+																</Stack>
+															</TableCell>
+														</TableRow>
+													))
+												)}
+											</TableBody>
+										</Table>
+									</div>
+								</div>
+							)}
+
+							{/* Pagination */}
+							{totalPages > 1 && (
+								<div className="mt-4 flex items-center justify-between">
+									<Button
+										variant="outline"
+										onClick={() =>
+											setPage((p) =>
+												Math.max(1, p - 1),
+											)
+										}
+										disabled={page === 1}
+									>
+										Previous
+									</Button>
+									<span className="text-sm text-muted-foreground">
+										Page {page} of {totalPages}
+									</span>
+									<Button
+										variant="outline"
+										onClick={() =>
+											setPage((p) =>
+												Math.min(
+													totalPages,
+													p + 1,
+												),
+											)
+										}
+										disabled={
+											page === totalPages
+										}
+									>
+										Next
+									</Button>
+								</div>
+							)}
+						</>
+					)}
+				</Box>
+
+				<Sheet
+					open={isFiltersOpen}
+					onOpenChange={setIsFiltersOpen}
+				>
+					<SheetContent
+						side="right"
+						className="w-full overflow-y-auto sm:max-w-md"
+					>
+						<SheetHeader>
+							<SheetTitle>Filters</SheetTitle>
+							<SheetDescription>
+								Use these only when you want to narrow the activity timeline.
+							</SheetDescription>
+						</SheetHeader>
+						<div className="mt-6 space-y-6">
+							<div className="space-y-2">
+								<div className="flex min-h-5 items-center">
+									<Label htmlFor="filter-user-trigger">
+										Users
+									</Label>
+								</div>
+								<div>
+									<DropdownMenu>
+										<DropdownMenuTrigger asChild>
+											<Button
+												id="filter-user-trigger"
+												type="button"
+												variant="outline"
+												className="w-full justify-between text-left"
+											>
+												<span className="truncate">
+													{userFilterLabel}
+												</span>
+												<Stack
+													direction="row"
+													alignItems="center"
+													spacing={2}
+												>
+													<Icon
+														icon="solar:alt-arrow-down-linear"
+														className="size-4 text-muted-foreground"
+													/>
+												</Stack>
+											</Button>
+										</DropdownMenuTrigger>
+										<DropdownMenuContent
+											align="start"
+											className="w-[340px]"
+										>
+											<DropdownMenuLabel>
+												Choose users to show
+											</DropdownMenuLabel>
+											<DropdownMenuSeparator />
+											{loadingUsers ? (
+												<div className="px-2 py-3 text-sm text-muted-foreground">
+													Loading users...
+												</div>
+											) : users.length === 0 ? (
+												<div className="px-2 py-3 text-sm text-muted-foreground">
+													No users with activity yet.
+												</div>
+											) : (
+								<div className="max-h-72 overflow-y-auto py-1">
+													{users.map((user) => (
+														<DropdownMenuCheckboxItem
+															key={user.id}
+															checked={filters.selectedUserIds.includes(
+																user.id,
+															)}
+															onCheckedChange={(checked) =>
+																handleUserSelectionChange(
+																	user.id,
+																	checked === true,
+																)
+															}
+															onSelect={(event) =>
+																event.preventDefault()
 															}
 														>
-															Hide
-														</Button>
-													</div>
-													<div className="overflow-x-auto">
-														<Table>
-															<TableHeader>
-																<TableRow>
-																	<TableHead>
-																		User
-																	</TableHead>
-																	<TableHead>
-																		Event
-																	</TableHead>
-																	<TableHead>
-																		Page
-																	</TableHead>
-																	<TableHead>
-																		<Stack
-																			direction="row"
-																			alignItems="center"
-																			spacing={1.5}
-																		>
-																			<Icon
-																				icon="solar:calendar-bold"
-																				className="size-4 text-muted-foreground"
-																			/>
-																			<Icon
-																				icon="solar:clock-circle-bold"
-																				className="size-4 text-muted-foreground"
-																			/>
-																			<span>
-																				Timestamp
-																			</span>
-																		</Stack>
-																	</TableHead>
-																</TableRow>
-															</TableHeader>
-															<TableBody>
-																{events.length === 0 ? (
-																	<TableRow>
-																		<TableCell
-																			colSpan={4}
-																			className="text-center"
-																		>
-																			No events found
-																		</TableCell>
-																	</TableRow>
-																) : (
-																	events.map((event) => (
-																		<TableRow key={event.id}>
-																			<TableCell>
-																				{event.user ? (
-																					<span className="font-medium">
-																						{event.user.name}
-																					</span>
-																				) : event.user_id ? (
-																					<span className="text-muted-foreground">
-																						{event.user_id.slice(0, 8)}
-																						...
-																					</span>
-																				) : (
-																					<span className="text-muted-foreground">
-																						Anonymous
-																					</span>
-																				)}
-																			</TableCell>
-																			<TableCell>
-																				<code className="text-sm">
-																					{event.event_name}
-																				</code>
-																			</TableCell>
-																			<TableCell>
-																				{event.event_name ===
-																					"player_viewed" &&
-																				event.player ? (
-																					<span className="text-sm font-medium">
-																						Player: {event.player.name}
-																					</span>
-																				) : event.page ? (
-																					<span className="text-sm">
-																						{getReadablePathLabel(
-																							event.page,
-																							sessionLabelMap,
-																						)}
-																					</span>
-																				) : (
-																					<span className="text-muted-foreground">
-																						—
-																					</span>
-																				)}
-																			</TableCell>
-																			<TableCell>
-																				<Stack
-																					direction="column"
-																					spacing={1.5}
-																				>
-																					<Stack
-																						direction="row"
-																						alignItems="center"
-																						spacing={2}
-																					>
-																						<Icon
-																							icon="solar:calendar-bold"
-																							className="size-4 text-muted-foreground"
-																						/>
-																						<span>
-																							{formatDate(
-																								event.created_at,
-																							)}
-																						</span>
-																					</Stack>
-																					<Stack
-																						direction="row"
-																						alignItems="center"
-																						spacing={2}
-																					>
-																						<Icon
-																							icon="solar:clock-circle-bold"
-																							className="size-4 text-muted-foreground"
-																						/>
-																						<span>
-																							{formatTime(
-																								event.created_at,
-																							)}
-																						</span>
-																					</Stack>
-																				</Stack>
-																			</TableCell>
-																		</TableRow>
-																	))
-																)}
-															</TableBody>
-														</Table>
-													</div>
-												</div>
-											)}
-
-											{/* Pagination */}
-											{totalPages > 1 && (
-												<div className="mt-4 flex items-center justify-between">
-													<Button
-														variant="outline"
-														onClick={() =>
-															setPage((p) =>
-																Math.max(1, p - 1),
-															)
-														}
-														disabled={page === 1}
-													>
-														Previous
-													</Button>
-													<span className="text-sm text-muted-foreground">
-														Page {page} of {totalPages}
-													</span>
-													<Button
-														variant="outline"
-														onClick={() =>
-															setPage((p) =>
-																Math.min(
-																	totalPages,
-																	p + 1,
-																),
-															)
-														}
-														disabled={
-															page === totalPages
-														}
-													>
-														Next
-													</Button>
-												</div>
-											)}
-										</>
-									)}
-								</Box>
-
-								<Sheet
-									open={isFiltersOpen}
-									onOpenChange={setIsFiltersOpen}
-								>
-									<SheetContent
-										side="right"
-										className="w-full overflow-y-auto sm:max-w-md"
-									>
-										<SheetHeader>
-											<SheetTitle>Filters</SheetTitle>
-											<SheetDescription>
-												Use these only when you want to narrow the activity timeline.
-											</SheetDescription>
-										</SheetHeader>
-										<div className="mt-6 space-y-6">
-											<div className="space-y-2">
-												<div className="flex min-h-5 items-center">
-													<Label htmlFor="filter-user-trigger">
-														Users
-													</Label>
-												</div>
-												<div>
-													<DropdownMenu>
-														<DropdownMenuTrigger asChild>
-															<Button
-																id="filter-user-trigger"
-																type="button"
-																variant="outline"
-																className="w-full justify-between text-left"
-															>
+															<div className="flex min-w-0 flex-col">
 																<span className="truncate">
-																	{userFilterLabel}
+																	{user.name}
+																	{user.kind === "user" &&
+																	user.id === currentUserId
+																		? " (you)"
+																		: ""}
 																</span>
-																<Stack
-																	direction="row"
-																	alignItems="center"
-																	spacing={2}
-																>
-																	<Icon
-																		icon="solar:alt-arrow-down-linear"
-																		className="size-4 text-muted-foreground"
-																	/>
-																</Stack>
-															</Button>
-														</DropdownMenuTrigger>
-														<DropdownMenuContent
-															align="start"
-															className="w-[340px]"
-														>
-															<DropdownMenuLabel>
-																Choose users to show
-															</DropdownMenuLabel>
-															<DropdownMenuSeparator />
-															{loadingUsers ? (
-																<div className="px-2 py-3 text-sm text-muted-foreground">
-																	Loading users...
-																</div>
-															) : users.length === 0 ? (
-																<div className="px-2 py-3 text-sm text-muted-foreground">
-																	No users with activity yet.
-																</div>
-															) : (
-												<div className="max-h-72 overflow-y-auto py-1">
-																	{users.map((user) => (
-																		<DropdownMenuCheckboxItem
-																			key={user.id}
-																			checked={filters.selectedUserIds.includes(
-																				user.id,
-																			)}
-																			onCheckedChange={(checked) =>
-																				handleUserSelectionChange(
-																					user.id,
-																					checked === true,
-																				)
-																			}
-																			onSelect={(event) =>
-																				event.preventDefault()
-																			}
-																		>
-																			<div className="flex min-w-0 flex-col">
-																				<span className="truncate">
-																					{user.name}
-																					{user.kind === "user" &&
-																					user.id === currentUserId
-																						? " (you)"
-																						: ""}
-																				</span>
-																				{user.kind === "special" ? (
-																					<span className="text-xs text-muted-foreground">
-																						Older events without a resolved user.
-																					</span>
-																				) : null}
-																			</div>
-																		</DropdownMenuCheckboxItem>
-																	))}
-																</div>
-															)}
-														</DropdownMenuContent>
-													</DropdownMenu>
+																{user.kind === "special" ? (
+																	<span className="text-xs text-muted-foreground">
+																		Older events without a resolved user.
+																	</span>
+																) : null}
+															</div>
+														</DropdownMenuCheckboxItem>
+													))}
 												</div>
-												<div className="flex items-center gap-2">
-													<Button
-														type="button"
-														variant="outline"
-														size="sm"
-														onClick={handleSelectAllUsers}
-														disabled={
-															loadingUsers || users.length === 0
-														}
-													>
-														All
-													</Button>
-													<Button
-														type="button"
-														variant="outline"
-														size="sm"
-														onClick={handleClearUsers}
-														disabled={
-															loadingUsers || users.length === 0
-														}
-													>
-														None
-													</Button>
-												</div>
-												<p className="text-xs text-muted-foreground">
-													{filters.selectedUserIds.length}/
-													{users.length} selected. Your own activity is unchecked by default.
-												</p>
-											</div>
+											)}
+										</DropdownMenuContent>
+									</DropdownMenu>
+								</div>
+								<div className="flex items-center gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={handleSelectAllUsers}
+										disabled={
+											loadingUsers || users.length === 0
+										}
+									>
+										All
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={handleClearUsers}
+										disabled={
+											loadingUsers || users.length === 0
+										}
+									>
+										None
+									</Button>
+								</div>
+								<p className="text-xs text-muted-foreground">
+									{filters.selectedUserIds.length}/
+									{users.length} selected. Your own activity is unchecked by default.
+								</p>
+							</div>
 
-											<div className="space-y-2">
-												<div className="flex min-h-5 items-center">
-													<Label htmlFor="filter-event">
-														Event Type
-													</Label>
-												</div>
-												<Input
-													id="filter-event"
-													type="text"
-													placeholder="user_logged_in, app_loaded, page_viewed"
-													value={filters.eventName}
-													onChange={(e) =>
-														handleFilterChange(
-															"eventName",
-															e.target.value,
-														)
-													}
-												/>
-											</div>
+							<div className="space-y-2">
+								<div className="flex min-h-5 items-center">
+									<Label htmlFor="filter-event">
+										Event Type
+									</Label>
+								</div>
+								<Input
+									id="filter-event"
+									type="text"
+									placeholder="user_logged_in, app_loaded, page_viewed"
+									value={filters.eventName}
+									onChange={(e) =>
+										handleFilterChange(
+											"eventName",
+											e.target.value,
+										)
+									}
+								/>
+							</div>
 
-											<div className="space-y-2">
-												<div className="flex min-h-5 items-center">
-													<Label htmlFor="filter-date-from">
-														From Date
-													</Label>
-												</div>
-												<Input
-													id="filter-date-from"
-													type="date"
-													value={filters.dateFrom}
-													onChange={(e) =>
-														handleFilterChange(
-															"dateFrom",
-															e.target.value,
-														)
-													}
-												/>
-											</div>
+							<div className="space-y-2">
+								<div className="flex min-h-5 items-center">
+									<Label htmlFor="filter-date-from">
+										From Date
+									</Label>
+								</div>
+								<Input
+									id="filter-date-from"
+									type="date"
+									value={filters.dateFrom}
+									onChange={(e) =>
+										handleFilterChange(
+											"dateFrom",
+											e.target.value,
+										)
+									}
+								/>
+							</div>
 
-											<div className="space-y-2">
-												<div className="flex min-h-5 items-center">
-													<Label htmlFor="filter-date-to">
-														To Date
-													</Label>
-												</div>
-												<Input
-													id="filter-date-to"
-													type="date"
-													value={filters.dateTo}
-													onChange={(e) =>
-														handleFilterChange(
-															"dateTo",
-															e.target.value,
-														)
-													}
-												/>
-											</div>
+							<div className="space-y-2">
+								<div className="flex min-h-5 items-center">
+									<Label htmlFor="filter-date-to">
+										To Date
+									</Label>
+								</div>
+								<Input
+									id="filter-date-to"
+									type="date"
+									value={filters.dateTo}
+									onChange={(e) =>
+										handleFilterChange(
+											"dateTo",
+											e.target.value,
+										)
+									}
+								/>
+							</div>
 
-											<div>
-												<Button
-													type="button"
-													variant="outline"
-													onClick={handleResetFilters}
-												>
-													Reset filters
-												</Button>
-											</div>
-										</div>
-									</SheetContent>
-								</Sheet>
+							<div>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleResetFilters}
+								>
+									Reset filters
+								</Button>
+							</div>
 						</div>
-					</div>
-				</div>
-			</SidebarInset>
-		</SidebarProvider>
+					</SheetContent>
+				</Sheet>
+		</AppShell>
 	);
 }
 
