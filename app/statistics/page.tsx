@@ -8,8 +8,11 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
-import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { TeamNameCard } from "@/components/ui/team-name-card";
+import {
+	PlayerTableIdentity,
+	RankCell,
+	TeamTableIdentity,
+} from "@/components/ui/stats-table-cells";
 import {
 	Table,
 	TableBody,
@@ -20,8 +23,6 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth/useAuth";
-import { ArrowUp, ArrowDown } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import {
 	MIN_DOUBLES_TEAM_MATCHES,
@@ -508,16 +509,6 @@ function StatisticsPageContent() {
 											? t.statistics.table.team
 											: t.statistics.table.player;
 
-									// Get rank color based on position
-									const getRankColor = (index: number) => {
-										if (index === 0)
-											return "text-yellow-500";
-										if (index === 1) return "text-zinc-400";
-										if (index === 2)
-											return "text-orange-700";
-										return "text-muted-foreground";
-									};
-
 									return (
 										<AnimatePresence mode="wait">
 											<motion.div
@@ -619,92 +610,48 @@ function StatisticsPageContent() {
 																			delay: shouldReduceMotion ? 0 : index * 0.02,
 																		}}
 																	>
-																		<TableCell
-																			className={cn(
-																				"font-bold w-8",
-																				getRankColor(
-																					index
-																				)
-																			)}
-																		>
-																			{index +
-																				1}
-																		</TableCell>
+																		<RankCell
+																			index={
+																				index
+																			}
+																		/>
 																		<TableCell>
-																			<div className="flex items-center gap-3">
-																				<Box
-																					onClick={() =>
-																						handleTeamClick(
-																							team.team_id
-																						)
-																					}
-																					className="cursor-pointer hover:opacity-80 transition-opacity"
-																				>
-																					<TeamNameCard
-																						player1={{
-																							name: team
-																								.player1
-																								.display_name,
-																							avatar: team
-																								.player1
-																								.avatar,
-																							id: team
-																								.player1
-																								.id,
-																						}}
-																						player2={{
-																							name: team
-																								.player2
-																								.display_name,
-																							avatar: team
-																								.player2
-																								.avatar,
-																							id: team
-																								.player2
-																								.id,
-																						}}
-																						size="md"
-																						addon={
-																							<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-																								<span className="text-emerald-500">
-																									{
-																										team.wins
-																									}
-																								</span>
-																								{
-																									" / "
-																								}
-																								<span className="text-red-500">
-																									{
-																										team.losses
-																									}
-																								</span>
-																								{
-																									" / "
-																								}
-																								<span className="text-muted-foreground">
-																									{
-																										team.draws
-																									}
-																								</span>
-																							</span>
-																						}
-																					/>
-																				</Box>
-																				{team.rank_movement !==
-																					undefined &&
-																					team.rank_movement !==
-																						0 && (
-																						<>
-																							{team.rank_movement >
-																							0 ? (
-																								<ArrowUp className="size-4 text-green-500" />
-																							) : (
-																								<ArrowDown className="size-4 text-red-500" />
-																							)}
-																						</>
-																					)}
-																			</div>
+																			<TeamTableIdentity
+																				player1={{
+																					name: team
+																						.player1
+																						.display_name,
+																					avatar: team
+																						.player1
+																						.avatar,
+																					id: team
+																						.player1
+																						.id,
+																				}}
+																				player2={{
+																					name: team
+																						.player2
+																						.display_name,
+																					avatar: team
+																						.player2
+																						.avatar,
+																					id: team
+																						.player2
+																						.id,
+																				}}
+																				size="md"
+																				onClick={() =>
+																					handleTeamClick(
+																						team.team_id
+																					)
+																				}
+																				rankMovement={
+																					team.rank_movement
+																				}
+																				mobileRecord={
+																					team
+																				}
+																			/>
 																		</TableCell>
 																		<TableCell className="text-center w-[72px] px-2 font-medium text-muted-foreground whitespace-nowrap">
 																			{formatRankDuration(
@@ -777,76 +724,32 @@ function StatisticsPageContent() {
 																		delay: shouldReduceMotion ? 0 : index * 0.02,
 																	}}
 																>
-																	<TableCell
-																		className={cn(
-																			"font-bold w-8",
-																			getRankColor(
-																				index
-																			)
-																		)}
-																	>
-																		{index +
-																			1}
-																	</TableCell>
+																	<RankCell
+																		index={
+																			index
+																		}
+																	/>
 																	<TableCell>
-																		<div className="flex items-center gap-3">
-																			<Box
-																				onClick={() =>
-																					handlePlayerClick(
-																						player.player_id
-																					)
-																				}
-																				className="cursor-pointer hover:opacity-80 transition-opacity"
-																			>
-																				<PlayerNameCard
-																					name={
-																						player.display_name
-																					}
-																					avatar={
-																						player.avatar
-																					}
-																					size="md"
-																					addon={
-																						<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-																							<span className="text-emerald-500">
-																								{
-																									player.wins
-																								}
-																							</span>
-																							{
-																								" / "
-																							}
-																							<span className="text-red-500">
-																								{
-																									player.losses
-																								}
-																							</span>
-																							{
-																								" / "
-																							}
-																							<span className="text-muted-foreground">
-																								{
-																									player.draws
-																								}
-																							</span>
-																						</span>
-																					}
-																				/>
-																			</Box>
-																			{player.rank_movement !==
-																				undefined &&
-																				player.rank_movement !==
-																					0 && (
-																					<>
-																						{player.rank_movement >
-																						0 ? (
-																							<ArrowUp className="size-4 text-green-500" />
-																						) : (
-																							<ArrowDown className="size-4 text-red-500" />
-																						)}
-																					</>
-																				)}
-																		</div>
+																		<PlayerTableIdentity
+																			name={
+																				player.display_name
+																			}
+																			avatar={
+																				player.avatar
+																			}
+																			size="md"
+																			onClick={() =>
+																				handlePlayerClick(
+																					player.player_id
+																				)
+																			}
+																			rankMovement={
+																				player.rank_movement
+																			}
+																			mobileRecord={
+																				player
+																			}
+																		/>
 																	</TableCell>
 																	<TableCell className="text-center w-[72px] px-2 font-medium text-muted-foreground whitespace-nowrap">
 																		{formatRankDuration(

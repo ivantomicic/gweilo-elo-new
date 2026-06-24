@@ -8,9 +8,12 @@ import {
 	type SessionTeamSummary,
 	type SummaryView,
 } from "../_lib/session-summary-client";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { TeamNameCard } from "@/components/ui/team-name-card";
+import {
+	EloChangeCell,
+	PlayerTableIdentity,
+	RankCell,
+	TeamTableIdentity,
+} from "@/components/ui/stats-table-cells";
 import {
 	Table,
 	TableBody,
@@ -22,7 +25,6 @@ import {
 import { Box } from "@/components/ui/box";
 import { Loading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 
 type SessionSummaryTableProps = {
@@ -196,26 +198,6 @@ export function SessionSummaryTable({
 				? doublesPlayerSummary !== null
 				: doublesTeamSummary !== null;
 
-	// Format Elo values (round to nearest integer for display)
-	const formatElo = (elo: number) => Math.round(elo);
-	const formatEloChange = (change: number) => {
-		const rounded = Math.round(change);
-		return rounded > 0 ? `+${rounded}` : `${rounded}`;
-	};
-	const formatEloChangeColor = (change: number) => {
-		if (change > 0) return "text-emerald-500";
-		if (change < 0) return "text-red-500";
-		return "text-foreground";
-	};
-
-	// Get rank color based on position
-	const getRankColor = (index: number) => {
-		if (index === 0) return "text-yellow-500";
-		if (index === 1) return "text-zinc-400";
-		if (index === 2) return "text-orange-700";
-		return "text-muted-foreground";
-	};
-
 	// Sort by wins (descending) for display
 	const sortByWins = <T extends { wins: number }>(arr: T[]): T[] => {
 		return [...arr].sort((a, b) => b.wins - a.wins);
@@ -271,76 +253,39 @@ export function SessionSummaryTable({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{sortedPlayers.map((player, index) => {
-							const eloChange = formatEloChange(
-								player.elo_change
-							);
-							const eloChangeColor = formatEloChangeColor(
-								player.elo_change
-							);
-
-							return (
-								<TableRow key={player.player_id}>
-									<TableCell
-										className={cn(
-											"font-bold w-8",
-											getRankColor(index)
-										)}
-									>
-										{index + 1}
-									</TableCell>
-									<TableCell>
-										<Box
-											onClick={() => onPlayerClick?.(player.player_id)}
-											className={cn(
-												onPlayerClick &&
-													"cursor-pointer hover:opacity-80 transition-opacity",
-												selectedPlayerFilter ===
-													player.player_id &&
-													"opacity-100"
-											)}
-										>
-											<PlayerNameCard
-												name={player.display_name}
-												avatar={player.avatar}
-												id={player.player_id}
-												size="sm"
-												addon={
-													<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-														<span className="text-emerald-500">
-															{player.wins}
-														</span>
-														{" / "}
-														<span className="text-red-500">
-															{player.losses}
-														</span>
-														{" / "}
-														<span className="text-muted-foreground">
-															{player.draws}
-														</span>
-													</span>
-												}
-											/>
-										</Box>
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
-										{player.wins}
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
-										{player.losses}
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
-										{player.draws}
-									</TableCell>
-									<TableCell className="text-center font-mono">
-										<span className={eloChangeColor}>
-											{eloChange}
-										</span>{" "}
-										/ {formatElo(player.elo_after)}
-									</TableCell>
-								</TableRow>
-							);
-						})}
+						{sortedPlayers.map((player, index) => (
+							<TableRow key={player.player_id}>
+								<RankCell index={index} />
+								<TableCell>
+									<PlayerTableIdentity
+										name={player.display_name}
+										avatar={player.avatar}
+										id={player.player_id}
+										size="sm"
+										onClick={
+											onPlayerClick
+												? () => onPlayerClick(player.player_id)
+												: undefined
+										}
+										selected={selectedPlayerFilter === player.player_id}
+										mobileRecord={player}
+									/>
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
+									{player.wins}
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
+									{player.losses}
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
+									{player.draws}
+								</TableCell>
+								<EloChangeCell
+									change={player.elo_change}
+									eloAfter={player.elo_after}
+								/>
+							</TableRow>
+						))}
 					</TableBody>
 				</Table>
 			);
@@ -378,76 +323,39 @@ export function SessionSummaryTable({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{sortedPlayers.map((player, index) => {
-							const eloChange = formatEloChange(
-								player.elo_change
-							);
-							const eloChangeColor = formatEloChangeColor(
-								player.elo_change
-							);
-
-							return (
-								<TableRow key={player.player_id}>
-									<TableCell
-										className={cn(
-											"font-bold w-8",
-											getRankColor(index)
-										)}
-									>
-										{index + 1}
-									</TableCell>
-									<TableCell>
-										<Box
-											onClick={() => onPlayerClick?.(player.player_id)}
-											className={cn(
-												onPlayerClick &&
-													"cursor-pointer hover:opacity-80 transition-opacity",
-												selectedPlayerFilter ===
-													player.player_id &&
-													"opacity-100"
-											)}
-										>
-											<PlayerNameCard
-												name={player.display_name}
-												avatar={player.avatar}
-												id={player.player_id}
-												size="sm"
-												addon={
-													<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-														<span className="text-emerald-500">
-															{player.wins}
-														</span>
-														{" / "}
-														<span className="text-red-500">
-															{player.losses}
-														</span>
-														{" / "}
-														<span className="text-muted-foreground">
-															{player.draws}
-														</span>
-													</span>
-												}
-											/>
-										</Box>
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
-										{player.wins}
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
-										{player.losses}
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
-										{player.draws}
-									</TableCell>
-									<TableCell className="text-center font-mono">
-										<span className={eloChangeColor}>
-											{eloChange}
-										</span>{" "}
-										/ {formatElo(player.elo_after)}
-									</TableCell>
-								</TableRow>
-							);
-						})}
+						{sortedPlayers.map((player, index) => (
+							<TableRow key={player.player_id}>
+								<RankCell index={index} />
+								<TableCell>
+									<PlayerTableIdentity
+										name={player.display_name}
+										avatar={player.avatar}
+										id={player.player_id}
+										size="sm"
+										onClick={
+											onPlayerClick
+												? () => onPlayerClick(player.player_id)
+												: undefined
+										}
+										selected={selectedPlayerFilter === player.player_id}
+										mobileRecord={player}
+									/>
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
+									{player.wins}
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
+									{player.losses}
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
+									{player.draws}
+								</TableCell>
+								<EloChangeCell
+									change={player.elo_change}
+									eloAfter={player.elo_after}
+								/>
+							</TableRow>
+						))}
 					</TableBody>
 				</Table>
 			);
@@ -485,68 +393,38 @@ export function SessionSummaryTable({
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{sortedTeams.map((team, index) => {
-							const eloChange = formatEloChange(team.elo_change);
-							const eloChangeColor = formatEloChangeColor(
-								team.elo_change
-							);
-
-							return (
-								<TableRow key={team.team_id}>
-									<TableCell
-										className={cn(
-											"font-bold w-8",
-											getRankColor(index)
-										)}
-									>
-										{index + 1}
-									</TableCell>
-									<TableCell>
-										<TeamNameCard
-											player1={{
-												name: team.player1_name,
-												avatar: team.player1_avatar,
-											}}
-											player2={{
-												name: team.player2_name,
-												avatar: team.player2_avatar,
-											}}
-											size="sm"
-											addon={
-												<span className="text-[10px] font-mono font-semibold leading-tight md:hidden">
-													<span className="text-emerald-500">
-														{team.wins}
-													</span>
-													{" / "}
-													<span className="text-red-500">
-														{team.losses}
-													</span>
-													{" / "}
-													<span className="text-muted-foreground">
-														{team.draws}
-													</span>
-												</span>
-											}
-										/>
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
-										{team.wins}
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
-										{team.losses}
-									</TableCell>
-									<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
-										{team.draws}
-									</TableCell>
-									<TableCell className="text-center font-mono">
-										<span className={eloChangeColor}>
-											{eloChange}
-										</span>{" "}
-										/ {formatElo(team.elo_after)}
-									</TableCell>
-								</TableRow>
-							);
-						})}
+						{sortedTeams.map((team, index) => (
+							<TableRow key={team.team_id}>
+								<RankCell index={index} />
+								<TableCell>
+									<TeamTableIdentity
+										player1={{
+											name: team.player1_name,
+											avatar: team.player1_avatar,
+										}}
+										player2={{
+											name: team.player2_name,
+											avatar: team.player2_avatar,
+										}}
+										size="sm"
+										mobileRecord={team}
+									/>
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
+									{team.wins}
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
+									{team.losses}
+								</TableCell>
+								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
+									{team.draws}
+								</TableCell>
+								<EloChangeCell
+									change={team.elo_change}
+									eloAfter={team.elo_after}
+								/>
+							</TableRow>
+						))}
 					</TableBody>
 				</Table>
 			);
