@@ -44,6 +44,7 @@ type ScheduleBuildResult = {
 };
 
 type SixPlayerTeamKey = "A" | "B" | "C";
+type FourPlayerFormat = "singles" | "mixed";
 
 const getSixPlayerCandidateTeams = (
 	players: Player[],
@@ -129,7 +130,10 @@ const generateScheduleFor3Players = (players: Player[]): Round[] => {
  * Rounds 4-6: Doubles (each player pairs with everyone once)
  * - 1 match per round
  */
-const generateScheduleFor4Players = (players: Player[]): Round[] => {
+const generateScheduleFor4Players = (
+	players: Player[],
+	format: FourPlayerFormat = "mixed",
+): Round[] => {
 	if (players.length !== 4) return [];
 
 	const [A, B, C, D] = players;
@@ -165,6 +169,10 @@ const generateScheduleFor4Players = (players: Player[]): Round[] => {
 			{ type: "singles", players: [B, C] },
 		],
 	});
+
+	if (format === "singles") {
+		return rounds;
+	}
 
 	// Doubles rounds (4-6): Each player pairs with everyone once
 	// Round 4: (A + B) vs (C + D)
@@ -436,6 +444,7 @@ const generateScheduleFor6Players = (
 const generateSchedule = (
 	players: Player[],
 	options?: {
+		fourPlayerFormat?: FourPlayerFormat;
 		sixPlayerRound5SinglesTeam?: SixPlayerTeamKey;
 	},
 ): Round[] => {
@@ -448,7 +457,10 @@ const generateSchedule = (
 	}
 
 	if (players.length === 4) {
-		return generateScheduleFor4Players(players);
+		return generateScheduleFor4Players(
+			players,
+			options?.fourPlayerFormat,
+		);
 	}
 
 	if (players.length === 5) {
@@ -594,6 +606,8 @@ function SchedulePageContent() {
 	const searchParams = useSearchParams();
 	const { trigger } = useWebHaptics();
 	const playerCount = parseInt(searchParams.get("count") || "0", 10);
+	const fourPlayerFormat: FourPlayerFormat =
+		searchParams.get("format") === "singles" ? "singles" : "mixed";
 
 	// Get selected players from sessionStorage
 	const [selectedPlayers, setSelectedPlayers] = useState<Player[]>(() => {
@@ -634,12 +648,13 @@ function SchedulePageContent() {
 		useState(playerCount === 6);
 
 	const selectedPlayerIdsKey = selectedPlayers.map((player) => player.id).join(",");
-	const scheduleSeedKey = `${selectedPlayerIdsKey}:${sixPlayerRound5SinglesTeam}`;
+	const scheduleSeedKey = `${selectedPlayerIdsKey}:${fourPlayerFormat}:${sixPlayerRound5SinglesTeam}`;
 	const initialScheduleState =
 		selectedPlayers.length === playerCount &&
 		(playerCount !== 6 || !isLoadingSixPlayerRound5Team)
 			? (() => {
 					const baseSchedule = generateSchedule(selectedPlayers, {
+						fourPlayerFormat,
 						sixPlayerRound5SinglesTeam,
 					});
 					return {
@@ -757,6 +772,7 @@ function SchedulePageContent() {
 			scheduleSeedKey !== initializedScheduleSeedKey
 		) {
 			const baseSchedule = generateSchedule(selectedPlayers, {
+				fourPlayerFormat,
 				sixPlayerRound5SinglesTeam,
 			});
 			const randomizedSchedule = buildRandomizedSchedule(
@@ -779,6 +795,7 @@ function SchedulePageContent() {
 		scheduleSeedKey,
 		initializedScheduleSeedKey,
 		isLoadingSixPlayerRound5Team,
+		fourPlayerFormat,
 		sixPlayerRound5SinglesTeam,
 	]);
 
@@ -800,10 +817,14 @@ function SchedulePageContent() {
 			return;
 		}
 		if (selectedPlayers.length !== playerCount) {
-			router.push(`/start-session/players?count=${playerCount}`);
+			router.push(
+				`/start-session/players?count=${playerCount}${
+					playerCount === 4 ? `&format=${fourPlayerFormat}` : ""
+				}`,
+			);
 			return;
 		}
-	}, [playerCount, selectedPlayers.length, router]);
+	}, [fourPlayerFormat, playerCount, selectedPlayers.length, router]);
 
 	const [isShuffling, setIsShuffling] = useState(false);
 	const [scheduleKey, setScheduleKey] = useState(0);
@@ -982,7 +1003,11 @@ function SchedulePageContent() {
 						onClick={() => {
 							void trigger();
 							router.push(
-								`/start-session/players?count=${playerCount}`
+								`/start-session/players?count=${playerCount}${
+									playerCount === 4
+										? `&format=${fourPlayerFormat}`
+										: ""
+								}`
 							);
 						}}
 						className="w-full py-4 px-6 rounded-full font-bold text-lg h-auto"

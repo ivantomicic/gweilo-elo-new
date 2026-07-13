@@ -26,6 +26,9 @@ function StartSessionPageContent() {
 	const router = useRouter();
 	const { trigger } = useWebHaptics();
 	const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
+	const [fourPlayerFormat, setFourPlayerFormat] = useState<
+		"singles" | "mixed" | null
+	>(null);
 	const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
 	const [selectedDate, setSelectedDate] = useState<Date | null>(() => {
 		if (typeof window === "undefined") return null;
@@ -297,6 +300,73 @@ function StartSessionPageContent() {
 						);
 					})}
 				</Box>
+				{selectedPlayers === 4 && (
+					<Box className="mt-6">
+						<h3 className="text-lg font-bold text-foreground mb-4 px-1">
+							{t.startSession.fourPlayerFormat.title}
+						</h3>
+						<Box className="grid grid-cols-2 gap-4">
+							{(["singles", "mixed"] as const).map((format) => {
+								const option =
+									t.startSession.fourPlayerFormat[format];
+								const isSelected = fourPlayerFormat === format;
+
+								return (
+									<SurfaceCard
+										key={format}
+										component="button"
+										variant="interactive"
+										clipped
+										onClick={() => {
+											void trigger();
+											setFourPlayerFormat(format);
+										}}
+										className={cn(
+											"items-start text-left gap-2",
+											isSelected
+												? "bg-primary border-2 border-primary"
+												: undefined,
+										)}
+									>
+										<Icon
+											icon={
+												format === "singles"
+													? "solar:user-bold"
+													: "solar:users-group-rounded-bold"
+											}
+											className={cn(
+												"size-6",
+												isSelected
+													? "text-primary-foreground"
+													: "text-primary",
+											)}
+										/>
+										<p
+											className={cn(
+												"font-bold",
+												isSelected
+													? "text-primary-foreground"
+													: "text-foreground",
+											)}
+										>
+											{option.title}
+										</p>
+										<p
+											className={cn(
+												"text-xs leading-relaxed",
+												isSelected
+													? "text-primary-foreground/80"
+													: "text-muted-foreground",
+											)}
+										>
+											{option.description}
+										</p>
+									</SurfaceCard>
+								);
+							})}
+						</Box>
+					</Box>
+				)}
 				<Box className="mt-6 bg-secondary/30 rounded-2xl p-4 border border-border/30">
 					<Stack
 						direction="row"
@@ -316,12 +386,22 @@ function StartSessionPageContent() {
 			{/* Continue Button */}
 			<Box className="pt-4">
 				<Button
-					disabled={selectedPlayers === null}
+					disabled={
+						selectedPlayers === null ||
+						(selectedPlayers === 4 && fourPlayerFormat === null)
+					}
 					onClick={() => {
-						if (selectedPlayers !== null) {
+						if (
+							selectedPlayers !== null &&
+							(selectedPlayers !== 4 || fourPlayerFormat !== null)
+						) {
 							void trigger();
+							const formatParam =
+								selectedPlayers === 4
+									? `&format=${fourPlayerFormat}`
+									: "";
 							router.push(
-								`/start-session/players?count=${selectedPlayers}`
+								`/start-session/players?count=${selectedPlayers}${formatParam}`
 							);
 						}
 					}}

@@ -515,6 +515,17 @@ export const sr = {
 		sessionTime: "Vreme termina",
 		numberOfPlayers: "Broj igrača",
 		players: "Igrača",
+		fourPlayerFormat: {
+			title: "Format termina",
+			singles: {
+				title: "Samo singles",
+				description: "Svako igra protiv svakoga.",
+			},
+			mixed: {
+				title: "Singles + doubles",
+				description: "Singles rotacija, zatim doubles.",
+			},
+		},
 		info: "Broj igrača određuje format meča i sistem rotacije za termin.",
 		continue: "Nastavi",
 		back: "Nazad",

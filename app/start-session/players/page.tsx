@@ -31,6 +31,8 @@ function SelectPlayersPageContent() {
 	const searchParams = useSearchParams();
 	const { trigger } = useWebHaptics();
 	const playerCount = parseInt(searchParams.get("count") || "0", 10);
+	const fourPlayerFormat =
+		searchParams.get("format") === "singles" ? "singles" : "mixed";
 
 	const [users, setUsers] = useState<User[]>([]);
 	const [loadingUsers, setLoadingUsers] = useState(true);
@@ -749,7 +751,11 @@ function SelectPlayersPageContent() {
 									),
 								);
 								router.push(
-									`/start-session/schedule?count=${playerCount}`,
+									`/start-session/schedule?count=${playerCount}${
+										playerCount === 4
+											? `&format=${fourPlayerFormat}`
+											: ""
+									}`,
 								);
 							}
 						}}
