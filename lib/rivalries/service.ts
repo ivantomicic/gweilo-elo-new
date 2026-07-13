@@ -10,6 +10,8 @@ import {
 	type AuthAdminUser,
 } from "@/lib/supabase/admin";
 import { RIVALRY_CONFIG, getBasePriority } from "@/lib/rivalries/config";
+import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
+import { MIN_SINGLES_MATCHES } from "@/lib/statistics/min-matches";
 import type {
 	GeneratedMission,
 	MissionCandidate,
@@ -281,14 +283,17 @@ function candidateToMission(candidate: MissionCandidate): GeneratedMission {
 }
 
 async function listEligiblePlayers(adminClient: SupabaseClient) {
-	const users = await listAllAuthUsers(adminClient);
+	const [users, activeSinglesPlayerIds] = await Promise.all([
+		listAllAuthUsers(adminClient),
+		getActiveSinglesPlayerIds(adminClient),
+	]);
 
-	const eligibleUsers = (users || [])
-		.filter(
-			(user) =>
-				getUserRole(user) !== "guest" &&
-				!isPlatformAccessDisabled(user),
-		);
+	const eligibleUsers = (users || []).filter(
+		(user) =>
+			getUserRole(user) !== "guest" &&
+			!isPlatformAccessDisabled(user) &&
+			activeSinglesPlayerIds.has(user.id),
+	);
 
 	const playerIds = eligibleUsers.map((user) => user.id);
 	if (playerIds.length === 0) {
@@ -350,6 +355,7 @@ async function listEligiblePlayers(adminClient: SupabaseClient) {
 				tier: "bottom" as PlayerTier,
 			};
 		})
+		.filter((player) => player.matchesPlayed >= MIN_SINGLES_MATCHES)
 		.sort((a, b) => {
 			if (b.elo !== a.elo) {
 				return b.elo - a.elo;
@@ -1170,6 +1176,22 @@ function mapSnapshotRowToSnapshot(row: PersistedSnapshotRow): MissionSnapshot {
 	};
 }
 
+function snapshotReferencesInactivePlayer(
+	snapshot: MissionSnapshot,
+	activePlayerIds: Set<string>,
+) {
+	const referencedPlayerIds = [
+		...snapshot.missions.map((mission) => mission.opponentId),
+		...snapshot.candidates.map((candidate) => candidate.opponentId),
+		snapshot.context.closestAbove?.id,
+		snapshot.context.closestBelow?.id,
+	];
+
+	return referencedPlayerIds.some(
+		(playerId) => playerId !== null && playerId !== undefined && !activePlayerIds.has(playerId),
+	);
+}
+
 export async function generateAndStoreMissionSnapshots(options?: {
 	adminClient?: SupabaseClient;
 	generatedBy?: string | null;
@@ -1333,23 +1355,39 @@ export async function ensureMissionSnapshotsFresh(options?: {
 	const latestCompletedAt = latestSessions?.[0]?.completed_at
 		? new Date(latestSessions[0].completed_at).getTime()
 		: null;
+	const snapshotMaxAgeMs =
+		RIVALRY_CONFIG.snapshotMaxAgeHours * 60 * 60 * 1000;
+	const snapshotExpired =
+		latestGeneratedAt !== null &&
+		Date.now() - latestGeneratedAt >= snapshotMaxAgeMs;
 
 	if (latestGeneratedAt === null) {
 		return refreshMissionSnapshotsOnce(adminClient, "on_demand");
 	}
 
 	if (
-		latestCompletedAt !== null &&
-		Number.isFinite(latestCompletedAt) &&
-		latestCompletedAt > latestGeneratedAt
+		snapshotExpired ||
+		(latestCompletedAt !== null &&
+			Number.isFinite(latestCompletedAt) &&
+			latestCompletedAt > latestGeneratedAt)
 	) {
 		return refreshMissionSnapshotsOnce(adminClient, "auto");
 	}
 
 	if (options?.playerId) {
-		const snapshot = await fetchMissionSnapshotForPlayer(options.playerId, {
-			adminClient,
-		});
+		const [snapshot, activePlayerIds] = await Promise.all([
+			fetchMissionSnapshotForPlayer(options.playerId, { adminClient }),
+			getActiveSinglesPlayerIds(adminClient),
+		]);
+
+		if (!activePlayerIds.has(options.playerId)) {
+			return [];
+		}
+
+		if (snapshot && snapshotReferencesInactivePlayer(snapshot, activePlayerIds)) {
+			return refreshMissionSnapshotsOnce(adminClient, "auto");
+		}
+
 		return snapshot ? [snapshot] : [];
 	}
 

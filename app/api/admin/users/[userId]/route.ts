@@ -12,6 +12,7 @@ import {
 
 const VALID_ROLES = ["user", "mod", "admin", "guest"] as const;
 const ACCESS_BAN_DURATION = "876000h";
+const MISSION_SNAPSHOT_TABLE = "rivalry_mission_snapshots";
 type ValidRole = (typeof VALID_ROLES)[number];
 
 type CurrentProfile = {
@@ -278,6 +279,27 @@ export async function PATCH(
 			}
 
 			updatedAuthUser = data.user;
+		}
+
+		if (accessDisabled !== undefined) {
+			const { error: missionInvalidationError } = await adminClient
+				.from(MISSION_SNAPSHOT_TABLE)
+				.delete()
+				.neq("player_id", "00000000-0000-0000-0000-000000000000");
+
+			if (missionInvalidationError) {
+				console.error(
+					"User access changed, but mission snapshots could not be invalidated:",
+					missionInvalidationError,
+				);
+				return NextResponse.json(
+					{
+						error:
+							"User access changed, but missions could not be refreshed",
+					},
+					{ status: 500 },
+				);
+			}
 		}
 
 		if (sessionsPerWeek !== undefined) {

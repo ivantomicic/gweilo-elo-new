@@ -9,11 +9,11 @@ import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 import {
 	MAX_DOUBLES_PLAYER_INACTIVITY_DAYS,
 	MAX_DOUBLES_TEAM_INACTIVITY_DAYS,
-	MAX_SINGLES_INACTIVITY_DAYS,
 	MIN_DOUBLES_PLAYER_MATCHES,
 	MIN_DOUBLES_TEAM_MATCHES,
 	MIN_SINGLES_MATCHES,
 } from "@/lib/statistics/min-matches";
+import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
 
 export const dynamic = "force-dynamic";
 
@@ -110,10 +110,6 @@ type SessionSnapshotRecord = {
 
 type RecentSessionRecord = {
 	id: string;
-};
-
-type RecentSinglesMatchRecord = {
-	player_ids: string[] | null;
 };
 
 type RecentDoublesTeamMatchRecord = {
@@ -226,60 +222,17 @@ async function getLatestCompletedSessionsFresh() {
 }
 
 async function getActiveSinglesPlayerIdsFresh(): Promise<string[] | null> {
-		const adminClient = createAdminClient();
-		const cutoffDate = new Date(
-			Date.now() - MAX_SINGLES_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
-		).toISOString();
-
-		const { data: recentSessions, error: sessionsError } = await adminClient
-			.from("sessions")
-			.select("id")
-			.eq("status", "completed")
-			.gte("completed_at", cutoffDate);
-
-		if (sessionsError) {
-			console.error(
-				"Error fetching recent completed sessions for singles activity:",
-				sessionsError
-			);
-			return null;
-		}
-
-		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
-			(session) => session.id
+	try {
+		return Array.from(
+			await getActiveSinglesPlayerIds(createAdminClient()),
 		);
-
-		if (sessionIds.length === 0) {
-			return [];
-		}
-
-		const { data: recentSinglesMatches, error: matchesError } =
-			await adminClient
-				.from("session_matches")
-				.select("player_ids")
-				.eq("match_type", "singles")
-				.eq("status", "completed")
-				.in("session_id", sessionIds);
-
-		if (matchesError) {
-			console.error(
-				"Error fetching recent singles matches for activity filter:",
-				matchesError
-			);
-			return null;
-		}
-
-		const activePlayerIds = new Set<string>();
-		for (const match of (recentSinglesMatches || []) as RecentSinglesMatchRecord[]) {
-			const playerIds = (match.player_ids as string[] | null) || [];
-			for (const playerId of playerIds.slice(0, 2)) {
-				if (playerId) {
-					activePlayerIds.add(playerId);
-				}
-			}
-		}
-
-		return Array.from(activePlayerIds);
+	} catch (error) {
+		console.error(
+			"Error fetching recent singles activity:",
+			error,
+		);
+		return null;
+	}
 }
 
 async function getActiveDoublesTeamIdsFresh(): Promise<string[] | null> {

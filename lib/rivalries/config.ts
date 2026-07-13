@@ -1,6 +1,7 @@
 import type { MissionType, PlayerTier } from "@/lib/rivalries/types";
 
 export const RIVALRY_CONFIG = {
+	snapshotMaxAgeHours: 24,
 	provisionalMatches: 8,
 	tiers: {
 		topMinElo: 1600,
