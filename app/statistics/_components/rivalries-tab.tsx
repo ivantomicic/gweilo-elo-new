@@ -5,13 +5,6 @@ import { useRouter } from "next/navigation";
 import { PlayerTableIdentity } from "@/components/ui/stats-table-cells";
 import { StateBlock } from "@/components/ui/state-block";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
-import {
 	Table,
 	TableBody,
 	TableCell,
@@ -20,11 +13,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { t } from "@/lib/i18n";
-
-type PlayerOption = {
-	player_id: string;
-	display_name: string;
-};
 
 type Rivalry = {
 	opponentId: string;
@@ -50,9 +38,6 @@ type RivalryResponse = {
 
 type RivalriesTabProps = {
 	accessToken: string;
-	selectedPlayerId: string;
-	players: PlayerOption[];
-	onPlayerChange: (playerId: string) => void;
 };
 
 function formatLastPlayed(value: string | null) {
@@ -66,9 +51,6 @@ function formatLastPlayed(value: string | null) {
 
 export function RivalriesTab({
 	accessToken,
-	selectedPlayerId,
-	players,
-	onPlayerChange,
 }: RivalriesTabProps) {
 	const router = useRouter();
 	const [data, setData] = useState<RivalryResponse | null>(null);
@@ -84,7 +66,7 @@ export function RivalriesTab({
 
 			try {
 				const response = await fetch(
-					`/api/statistics/rivalries?playerId=${encodeURIComponent(selectedPlayerId)}`,
+					"/api/statistics/rivalries",
 					{
 						cache: "no-store",
 						signal: controller.signal,
@@ -108,28 +90,10 @@ export function RivalriesTab({
 
 		void loadRivalries();
 		return () => controller.abort();
-	}, [accessToken, selectedPlayerId]);
+	}, [accessToken]);
 
 	return (
-		<div className="space-y-4">
-			<div className="max-w-sm">
-				<label className="mb-2 block text-sm font-medium" htmlFor="rivalry-player">
-					{t.statistics.rivalries.playerLabel}
-				</label>
-				<Select value={selectedPlayerId} onValueChange={onPlayerChange}>
-					<SelectTrigger id="rivalry-player">
-						<SelectValue placeholder={t.statistics.rivalries.selectPlayer} />
-					</SelectTrigger>
-					<SelectContent>
-						{players.map((player) => (
-							<SelectItem key={player.player_id} value={player.player_id}>
-								{player.display_name}
-							</SelectItem>
-						))}
-					</SelectContent>
-				</Select>
-			</div>
-
+		<div>
 			<div className="overflow-hidden rounded-lg border border-border/50 bg-card">
 				{loading ? (
 					<StateBlock variant="loading" title={t.statistics.rivalries.loading} />

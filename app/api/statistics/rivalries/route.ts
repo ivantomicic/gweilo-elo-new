@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -26,9 +27,184 @@ type ProfileRow = {
 	avatar_url: string | null;
 };
 
+type MatchHistoryRow = {
+	match_id: string;
+	player1_id: string;
+	player2_id: string;
+	player1_elo_delta: number | null;
+	player2_elo_delta: number | null;
+	created_at: string;
+};
+
+type SessionRelation = {
+	completed_at: string | null;
+	created_at: string;
+};
+
+type SinglesMatchRow = {
+	id: string;
+	created_at: string;
+	round_number: number | null;
+	match_order: number | null;
+	sessions: SessionRelation | SessionRelation[] | null;
+};
+
+const MATCH_BATCH_SIZE = 100;
+
 function toNumber(value: number | string) {
 	const parsed = Number(value);
 	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getSession(row: SinglesMatchRow) {
+	if (!row.sessions) return null;
+	return Array.isArray(row.sessions) ? row.sessions[0] || null : row.sessions;
+}
+
+async function loadPlayerPairStatsFallback(
+	adminClient: SupabaseClient,
+	playerId: string,
+) {
+	const { data: historyData, error: historyError } = await adminClient
+		.from("match_elo_history")
+		.select(
+			"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta, created_at",
+		)
+		.or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`);
+
+	if (historyError) {
+		throw new Error(`Failed to fetch rivalry history: ${historyError.message}`);
+	}
+
+	const historyRows = (historyData || []) as MatchHistoryRow[];
+	const matchIds = historyRows.map((row) => row.match_id);
+	const matchRows: SinglesMatchRow[] = [];
+
+	for (let index = 0; index < matchIds.length; index += MATCH_BATCH_SIZE) {
+		const { data, error } = await adminClient
+			.from("session_matches")
+			.select(
+				"id, created_at, round_number, match_order, sessions!inner(completed_at, created_at)",
+			)
+			.eq("match_type", "singles")
+			.eq("status", "completed")
+			.in("id", matchIds.slice(index, index + MATCH_BATCH_SIZE));
+
+		if (error) {
+			throw new Error(`Failed to fetch rivalry matches: ${error.message}`);
+		}
+
+		matchRows.push(...((data || []) as SinglesMatchRow[]));
+	}
+
+	const matchMap = new Map(matchRows.map((row) => [row.id, row]));
+	const opponentMatches = new Map<
+		string,
+		Array<{
+			winnerId: string | null;
+			playedAt: string;
+			roundNumber: number;
+			matchOrder: number;
+			matchId: string;
+		}>
+	>();
+
+	for (const history of historyRows) {
+		const match = matchMap.get(history.match_id);
+		if (!match) continue;
+
+		const opponentId =
+			history.player1_id === playerId
+				? history.player2_id
+				: history.player1_id;
+		const playerDelta =
+			history.player1_id === playerId
+				? history.player1_elo_delta
+				: history.player2_elo_delta;
+		const opponentDelta =
+			history.player1_id === playerId
+				? history.player2_elo_delta
+				: history.player1_elo_delta;
+		const winnerId =
+			playerDelta === opponentDelta
+				? null
+				: (playerDelta ?? 0) > (opponentDelta ?? 0)
+					? playerId
+					: opponentId;
+		const session = getSession(match);
+		const matches = opponentMatches.get(opponentId) || [];
+		matches.push({
+			winnerId,
+			playedAt: session?.completed_at || session?.created_at || match.created_at,
+			roundNumber: match.round_number ?? 0,
+			matchOrder: match.match_order ?? 0,
+			matchId: match.id,
+		});
+		opponentMatches.set(opponentId, matches);
+	}
+
+	const pairRows: PairStatsRow[] = [];
+	for (const [opponentId, matches] of opponentMatches) {
+		matches.sort((left, right) => {
+			const timeDifference =
+				new Date(right.playedAt).getTime() - new Date(left.playedAt).getTime();
+			if (timeDifference !== 0) return timeDifference;
+			if (right.roundNumber !== left.roundNumber) {
+				return right.roundNumber - left.roundNumber;
+			}
+			if (right.matchOrder !== left.matchOrder) {
+				return right.matchOrder - left.matchOrder;
+			}
+			return right.matchId.localeCompare(left.matchId);
+		});
+
+		const playerIsA = playerId.localeCompare(opponentId) <= 0;
+		const playerAId = playerIsA ? playerId : opponentId;
+		const playerBId = playerIsA ? opponentId : playerId;
+		const latestWinnerId = matches[0]?.winnerId || null;
+		let currentStreak = 0;
+		if (latestWinnerId) {
+			for (const match of matches) {
+				if (match.winnerId !== latestWinnerId) break;
+				currentStreak += 1;
+			}
+		}
+
+		pairRows.push({
+			player_a_id: playerAId,
+			player_b_id: playerBId,
+			total_matches: matches.length,
+			player_a_wins: matches.filter((match) => match.winnerId === playerAId).length,
+			player_b_wins: matches.filter((match) => match.winnerId === playerBId).length,
+			draws: matches.filter((match) => match.winnerId === null).length,
+			last_played_at: matches[0]?.playedAt || null,
+			latest_winner_id: latestWinnerId,
+			current_streak: currentStreak,
+		});
+	}
+
+	return pairRows;
+}
+
+async function loadPlayerPairStats(
+	adminClient: SupabaseClient,
+	playerId: string,
+) {
+	const { data, error } = await adminClient.rpc("get_rivalry_pair_stats", {
+		recent_session_limit: 4,
+	});
+
+	if (!error) {
+		return ((data || []) as PairStatsRow[]).filter(
+			(row) => row.player_a_id === playerId || row.player_b_id === playerId,
+		);
+	}
+
+	if (error.code === "PGRST202" || error.code === "42883") {
+		return loadPlayerPairStatsFallback(adminClient, playerId);
+	}
+
+	throw new Error(`Failed to fetch rivalry statistics: ${error.message}`);
 }
 
 export async function GET(request: NextRequest) {
@@ -41,26 +217,9 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const playerId = new URL(request.url).searchParams.get("playerId");
-		if (!playerId) {
-			return NextResponse.json(
-				{ error: "playerId query parameter is required" },
-				{ status: 400, headers: NO_STORE_HEADERS },
-			);
-		}
-
+		const playerId = authResult.userId;
 		const adminClient = createAdminClient();
-		const { data, error } = await adminClient.rpc("get_rivalry_pair_stats", {
-			recent_session_limit: 4,
-		});
-
-		if (error) {
-			throw new Error(`Failed to fetch rivalry statistics: ${error.message}`);
-		}
-
-		const pairRows = ((data || []) as PairStatsRow[]).filter(
-			(row) => row.player_a_id === playerId || row.player_b_id === playerId,
-		);
+		const pairRows = await loadPlayerPairStats(adminClient, playerId);
 		const profileIds = Array.from(
 			new Set([
 				playerId,

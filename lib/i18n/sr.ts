@@ -103,8 +103,6 @@ export const sr = {
 			rivalries: "Rivalstva",
 		},
 		rivalries: {
-			playerLabel: "Rivalstva igrača",
-			selectPlayer: "Izaberi igrača",
 			opponent: "Protivnik",
 			winRate: "% pobeda",
 			streak: "Niz",

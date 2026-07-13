@@ -193,6 +193,7 @@ function StatisticsPageContent() {
 			params.set("view", "doubles-team");
 		} else if (view === "rivalries") {
 			params.set("view", "rivalries");
+			params.delete("player");
 		}
 		router.push(`?${params.toString()}`, { scroll: false });
 	};
@@ -215,6 +216,7 @@ function StatisticsPageContent() {
 		activeView === "rivalries" ? "singles" : activeView;
 	const [loading, setLoading] = useState<StatisticsLoaded>(() => ({
 		singles:
+			activeView !== "rivalries" &&
 			getViewKey(activeRankingView) === "singles" &&
 			!cachedStatistics?.loaded.singles,
 		doublesPlayers:
@@ -362,13 +364,17 @@ function StatisticsPageContent() {
 
 	// Load initial statistics for active view
 	useEffect(() => {
+		if (activeView === "rivalries") {
+			return;
+		}
+
 		const viewKey = getViewKey(activeRankingView);
 		const hasCachedData = loadedRef.current[viewKey];
 		fetchStatistics(activeRankingView, {
 			force: hasCachedData,
 			showLoading: !hasCachedData,
 		});
-	}, [activeRankingView, fetchStatistics]);
+	}, [activeView, activeRankingView, fetchStatistics]);
 
 	useEffect(() => {
 		const activeViewKey = getViewKey(activeRankingView);
@@ -395,6 +401,7 @@ function StatisticsPageContent() {
 	}, [accessToken, activeRankingView, fetchStatistics, loaded]);
 
 	const isInitialLoading =
+		activeView !== "rivalries" &&
 		loading[getViewKey(activeRankingView)] &&
 		!loaded[getViewKey(activeRankingView)];
 
@@ -417,37 +424,6 @@ function StatisticsPageContent() {
 			</AppShell>
 		);
 	}
-
-	const selectedRivalryPlayerId = searchParams.get("player") || userId || "";
-	const rivalryPlayers = statistics.singles
-		.filter((player) => player.matches_played >= MIN_SINGLES_MATCHES)
-		.map((player) => ({
-			player_id: player.player_id,
-			display_name: player.display_name,
-		}));
-
-	if (userId && !rivalryPlayers.some((player) => player.player_id === userId)) {
-		const metadata = session?.user.user_metadata;
-		rivalryPlayers.unshift({
-			player_id: userId,
-			display_name:
-				(typeof metadata?.display_name === "string" && metadata.display_name) ||
-				(typeof metadata?.name === "string" && metadata.name) ||
-				session?.user.email?.split("@")[0] ||
-				"User",
-		});
-	}
-
-	const handleRivalryPlayerChange = (playerId: string) => {
-		const params = new URLSearchParams(searchParams.toString());
-		params.set("view", "rivalries");
-		if (playerId === userId) {
-			params.delete("player");
-		} else {
-			params.set("player", playerId);
-		}
-		router.push(`?${params.toString()}`, { scroll: false });
-	};
 
 	return (
 		<AppShell title={t.statistics.title}>
@@ -496,13 +472,8 @@ function StatisticsPageContent() {
 							<Box>
 								{(() => {
 									if (activeView === "rivalries") {
-										return accessToken && selectedRivalryPlayerId ? (
-											<RivalriesTab
-												accessToken={accessToken}
-												selectedPlayerId={selectedRivalryPlayerId}
-												players={rivalryPlayers}
-												onPlayerChange={handleRivalryPlayerChange}
-											/>
+										return accessToken ? (
+											<RivalriesTab accessToken={accessToken} />
 										) : null;
 									}
 
