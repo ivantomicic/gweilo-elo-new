@@ -11,6 +11,7 @@ import {
 } from "@/lib/no-shows/sessions-per-week";
 
 const VALID_ROLES = ["user", "mod", "admin", "guest"] as const;
+const ACCESS_BAN_DURATION = "876000h";
 type ValidRole = (typeof VALID_ROLES)[number];
 
 type CurrentProfile = {
@@ -73,7 +74,7 @@ export async function PATCH(
 
 		const { userId } = params;
 		const body = await request.json();
-		const { name, email, avatar, role, sessionsPerWeek } = body;
+		const { name, email, avatar, role, sessionsPerWeek, accessDisabled } = body;
 
 		// Validate input
 		if (
@@ -81,11 +82,12 @@ export async function PATCH(
 			!email &&
 			avatar === undefined &&
 			role === undefined &&
-			sessionsPerWeek === undefined
+			sessionsPerWeek === undefined &&
+			accessDisabled === undefined
 		) {
 			return NextResponse.json(
 				{
-					error: "At least one field (name, email, avatar, role, sessionsPerWeek) must be provided",
+					error: "At least one field (name, email, avatar, role, sessionsPerWeek, accessDisabled) must be provided",
 				},
 				{ status: 400 },
 			);
@@ -97,6 +99,23 @@ export async function PATCH(
 				{
 					error: `Invalid role. Must be one of: ${VALID_ROLES.join(", ")}`,
 				},
+				{ status: 400 },
+			);
+		}
+
+		if (
+			accessDisabled !== undefined &&
+			typeof accessDisabled !== "boolean"
+		) {
+			return NextResponse.json(
+				{ error: "accessDisabled must be a boolean" },
+				{ status: 400 },
+			);
+		}
+
+		if (accessDisabled === true && userId === adminUserId) {
+			return NextResponse.json(
+				{ error: "You cannot remove your own platform access" },
 				{ status: 400 },
 			);
 		}
@@ -120,7 +139,8 @@ export async function PATCH(
 		}
 
 		const adminClient = createAdminClient();
-		const needsAuthMetadataUpdate = name !== undefined || role !== undefined;
+		const needsAuthMetadataUpdate =
+			name !== undefined || role !== undefined || accessDisabled !== undefined;
 		const needsAuthUpdate = needsAuthMetadataUpdate || email !== undefined;
 
 		let currentUser: Awaited<
@@ -199,6 +219,7 @@ export async function PATCH(
 			user_metadata?: Record<string, any>;
 			app_metadata?: Record<string, any>;
 			email?: string;
+			ban_duration?: string;
 		} = {};
 
 		// Update user_metadata if name is provided
@@ -218,6 +239,21 @@ export async function PATCH(
 				...currentUser.app_metadata,
 				role: role as ValidRole,
 			};
+		}
+
+		if (accessDisabled !== undefined && currentUser) {
+			updateData.app_metadata = {
+				...currentUser.app_metadata,
+				...updateData.app_metadata,
+				access_disabled: accessDisabled,
+				access_disabled_at: accessDisabled
+					? new Date().toISOString()
+					: null,
+				access_disabled_by: accessDisabled ? adminUserId : null,
+			};
+			updateData.ban_duration = accessDisabled
+				? ACCESS_BAN_DURATION
+				: "none";
 		}
 
 		// Update email if provided
@@ -408,11 +444,15 @@ export async function PATCH(
 				scheduleSettings?.sessions_per_week,
 			),
 			role: getManagedRoleFromAuthUser(updatedAuthUser),
+			accessDisabled:
+				updatedAuthUser.app_metadata?.access_disabled === true,
 		};
 
 		return NextResponse.json({
 			user: updatedUser,
-			message: email
+			message: accessDisabled
+				? "User platform access removed successfully."
+				: email
 				? "User updated. Email confirmation sent to new address."
 				: "User updated successfully.",
 		});

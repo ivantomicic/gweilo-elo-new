@@ -4,7 +4,10 @@ import {
 	listAllAuthUsers,
 	verifyModOrAdmin,
 } from "@/lib/supabase/admin";
-import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
+import {
+	getManagedRoleFromAuthUser,
+	isPlatformAccessDisabled,
+} from "@/lib/auth/roles";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 import { getAuthToken } from "../../_utils/auth";
 import { parseSessionsPerWeek } from "@/lib/no-shows/sessions-per-week";
@@ -72,11 +75,16 @@ export async function GET(request: NextRequest) {
 				parseSessionsPerWeek(setting.sessions_per_week),
 			]),
 		);
-		const userIds = users.map((user) => user.id);
-		const { data: profiles, error: profilesError } = await adminClient
-			.from("profiles")
-			.select("id, display_name, avatar_url")
-			.in("id", userIds);
+		const activeUsers = users.filter(
+			(user) => !isPlatformAccessDisabled(user),
+		);
+		const userIds = activeUsers.map((user) => user.id);
+		const { data: profiles, error: profilesError } = userIds.length
+			? await adminClient
+					.from("profiles")
+					.select("id, display_name, avatar_url")
+					.in("id", userIds)
+			: { data: [], error: null };
 
 		if (profilesError) {
 			console.error("Error fetching profiles:", profilesError);
@@ -91,7 +99,7 @@ export async function GET(request: NextRequest) {
 		);
 
 		// Format user data for frontend
-		const formattedUsers = users
+		const formattedUsers = activeUsers
 			.map((user) => {
 				const role = getManagedRoleFromAuthUser(user);
 				const profile = profilesByUserId.get(user.id);
@@ -112,6 +120,7 @@ export async function GET(request: NextRequest) {
 					sessionsPerWeek:
 						sessionsPerWeekByUserId.get(user.id) ?? null,
 					role,
+					accessDisabled: false,
 					createdAt: user.created_at,
 				};
 			})

@@ -32,6 +32,7 @@ type User = {
 	avatar: string | null;
 	role: ManagedUserRole;
 	sessionsPerWeek: SessionsPerWeek | null;
+	accessDisabled?: boolean;
 };
 
 export function UserManagementTable() {
@@ -111,8 +112,12 @@ export function UserManagementTable() {
 	// Handle save from drawer
 	const handleSave = (updatedUser: User) => {
 		// Update local state
-		setUsers((prev) =>
-			prev.map((u) =>
+		setUsers((prev) => {
+			if (updatedUser.accessDisabled) {
+				return prev.filter((user) => user.id !== updatedUser.id);
+			}
+
+			return prev.map((u) =>
 				u.id === updatedUser.id
 					? {
 							id: u.id,
@@ -123,8 +128,8 @@ export function UserManagementTable() {
 							sessionsPerWeek: updatedUser.sessionsPerWeek,
 						}
 					: u,
-			),
-		);
+			);
+		});
 	};
 
 	const formatSessionsPerWeek = (value: SessionsPerWeek | null) =>

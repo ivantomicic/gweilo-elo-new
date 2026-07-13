@@ -16,7 +16,11 @@ import {
 	getProviderAvatarFromMetadata,
 } from "@/lib/profile-avatar";
 import { getSessionSafely, supabase } from "@/lib/supabase/client";
-import { getUserRoleFromAuthUser, type UserRole } from "./roles";
+import {
+	getUserRoleFromAuthUser,
+	isPlatformAccessDisabled,
+	type UserRole,
+} from "./roles";
 
 export type AuthUser = {
 	id: string;
@@ -82,30 +86,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<AuthUser | null>(null);
 
 	const applySession = useCallback(async (nextSession: Session | null) => {
-		setSession(nextSession);
-		setIsAuthenticated(Boolean(nextSession));
-
 		if (!nextSession?.user) {
+			setSession(null);
+			setIsAuthenticated(false);
 			setUser(null);
 			return;
 		}
 
 		try {
-			const nextUser = await getUserFromSession(nextSession);
+			const {
+				data: { user: verifiedUser },
+				error: userError,
+			} = await supabase.auth.getUser(nextSession.access_token);
+
+			if (
+				userError ||
+				!verifiedUser ||
+				isPlatformAccessDisabled(verifiedUser)
+			) {
+				await supabase.auth.signOut({ scope: "local" });
+				setSession(null);
+				setIsAuthenticated(false);
+				setUser(null);
+				return;
+			}
+
+			const verifiedSession = { ...nextSession, user: verifiedUser };
+			const nextUser = await getUserFromSession(verifiedSession);
+			setSession(verifiedSession);
+			setIsAuthenticated(true);
 			setUser(nextUser);
 		} catch (error) {
 			console.error("Failed to load current user:", error);
-			setUser({
-				id: nextSession.user.id,
-				name:
-					nextSession.user.user_metadata?.display_name ||
-					nextSession.user.user_metadata?.name ||
-					nextSession.user.email?.split("@")[0] ||
-					"User",
-				email: nextSession.user.email || "",
-				avatar: getProviderAvatarFromMetadata(nextSession.user.user_metadata),
-				role: getUserRoleFromAuthUser(nextSession.user),
-			});
+			setSession(null);
+			setIsAuthenticated(false);
+			setUser(null);
 		}
 	}, []);
 

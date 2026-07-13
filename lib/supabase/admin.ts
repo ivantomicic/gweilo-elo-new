@@ -1,5 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { getUserRoleFromAuthUser, type UserRole } from "@/lib/auth/roles";
+import {
+	getUserRoleFromAuthUser,
+	isPlatformAccessDisabled,
+	type UserRole,
+} from "@/lib/auth/roles";
 export type { UserRole } from "@/lib/auth/roles";
 
 export type AuthAdminUser = {
@@ -88,7 +92,7 @@ export async function verifyUser(
 		error,
 	} = await adminClient.auth.getUser(token);
 
-	if (error || !user) {
+	if (error || !user || isPlatformAccessDisabled(user)) {
 		return null;
 	}
 

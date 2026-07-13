@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
+import {
+	getManagedRoleFromAuthUser,
+	isPlatformAccessDisabled,
+} from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAuthToken } from "@/app/api/_utils/auth";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
@@ -111,7 +114,8 @@ export async function GET(request: NextRequest) {
 			(authUsersResults || [])
 				.filter(
 					(authUser) =>
-						getManagedRoleFromAuthUser(authUser) !== "guest",
+						getManagedRoleFromAuthUser(authUser) !== "guest" &&
+						!isPlatformAccessDisabled(authUser),
 				)
 				.map((authUser) => authUser.id),
 		);

@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
+import {
+	getManagedRoleFromAuthUser,
+	isPlatformAccessDisabled,
+} from "@/lib/auth/roles";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 import {
 	createAdminClient,
@@ -281,7 +284,11 @@ async function listEligiblePlayers(adminClient: SupabaseClient) {
 	const users = await listAllAuthUsers(adminClient);
 
 	const eligibleUsers = (users || [])
-		.filter((user) => getUserRole(user) !== "guest");
+		.filter(
+			(user) =>
+				getUserRole(user) !== "guest" &&
+				!isPlatformAccessDisabled(user),
+		);
 
 	const playerIds = eligibleUsers.map((user) => user.id);
 	if (playerIds.length === 0) {

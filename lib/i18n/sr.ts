@@ -314,6 +314,15 @@ export const sr = {
 				admin: "Administrator",
 				guest: "Gost",
 			},
+			access: {
+				title: "Pristup platformi",
+				description:
+					"Korisnik više neće moći da se prijavi niti će se pojavljivati u administraciji i izboru igrača. Rezultati, Elo i istorija ostaju sačuvani.",
+				remove: "Ukloni pristup",
+				removing: "Uklanjanje...",
+				confirm:
+					"Ukloniti pristup ovom korisniku? Njegovi rezultati, Elo i istorija će ostati sačuvani.",
+			},
 			drawer: {
 				title: "Uredi korisnika",
 				role: "Uloga",
@@ -331,6 +340,7 @@ export const sr = {
 				unauthorized: "Nemate dozvolu za pristup",
 				fetchFailed: "Greška pri učitavanju korisnika",
 				updateFailed: "Greška pri ažuriranju korisnika",
+				removeAccessFailed: "Greška pri uklanjanju pristupa",
 			},
 		},
 		missions: {

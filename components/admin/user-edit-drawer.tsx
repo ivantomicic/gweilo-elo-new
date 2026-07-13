@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
 	Select,
@@ -35,6 +36,7 @@ type User = {
 	avatar: string | null;
 	role: UserRole | "guest";
 	sessionsPerWeek: SessionsPerWeek | null;
+	accessDisabled?: boolean;
 };
 
 type UserEditDrawerProps = {
@@ -50,6 +52,7 @@ type UserUpdatePayload = {
 	avatar?: string | null;
 	role?: EditableRole;
 	sessionsPerWeek?: SessionsPerWeek | null;
+	accessDisabled?: boolean;
 };
 
 export function UserEditDrawer({
@@ -65,6 +68,7 @@ export function UserEditDrawer({
 		useState<SessionsPerWeek | null>(null);
 	const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const [removingAccess, setRemovingAccess] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -236,6 +240,52 @@ export function UserEditDrawer({
 		}
 	};
 
+	const handleRemoveAccess = async () => {
+		if (!user) return;
+
+		if (!window.confirm(t.admin.users.access.confirm)) {
+			return;
+		}
+
+		try {
+			setRemovingAccess(true);
+			setError(null);
+
+			const {
+				data: { session },
+			} = await supabase.auth.getSession();
+
+			if (!session) {
+				setError(t.admin.users.error.notAuthenticated);
+				return;
+			}
+
+			const response = await fetch(`/api/admin/users/${user.id}`, {
+				method: "PATCH",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${session.access_token}`,
+				},
+				body: JSON.stringify({ accessDisabled: true }),
+			});
+
+			if (!response.ok) {
+				const data = await response.json();
+				setError(data.error || t.admin.users.error.removeAccessFailed);
+				return;
+			}
+
+			const data = await response.json();
+			onSave({ ...user, ...data.user, accessDisabled: true });
+			onClose();
+		} catch (err) {
+			console.error("Error removing user access:", err);
+			setError(t.admin.users.error.removeAccessFailed);
+		} finally {
+			setRemovingAccess(false);
+		}
+	};
+
 	const hasChanges =
 		user &&
 		(toEditableRole(user.role) !== role ||
@@ -256,7 +306,7 @@ export function UserEditDrawer({
 			cancelLabel={t.common.cancel || "Otkaži"}
 			submitLabel={t.settings.save}
 			submittingLabel={t.settings.saving}
-			submitting={saving}
+			submitting={saving || removingAccess}
 			submitDisabled={!hasChanges}
 		>
 			{/* Avatar */}
@@ -383,6 +433,27 @@ export function UserEditDrawer({
 				<p className="text-xs text-muted-foreground ml-1">
 					{t.admin.users.drawer.sessionsPerWeekDescription}
 				</p>
+			</div>
+
+			<div className="rounded-lg border border-destructive/25 bg-destructive/5 p-4">
+				<p className="text-sm font-medium">
+					{t.admin.users.access.title}
+				</p>
+				<p className="mt-1 text-xs text-muted-foreground">
+					{t.admin.users.access.description}
+				</p>
+				<Button
+					type="button"
+					variant="destructive"
+					size="sm"
+					className="mt-4"
+					onClick={handleRemoveAccess}
+					disabled={saving || removingAccess}
+				>
+					{removingAccess
+						? t.admin.users.access.removing
+						: t.admin.users.access.remove}
+				</Button>
 			</div>
 		</SheetForm>
 	);

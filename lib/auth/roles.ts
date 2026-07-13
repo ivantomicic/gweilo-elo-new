@@ -7,6 +7,12 @@ type AuthUserLike = {
 	app_metadata?: AuthMetadata;
 };
 
+export function isPlatformAccessDisabled(
+	user: AuthUserLike | null | undefined,
+) {
+	return user?.app_metadata?.access_disabled === true;
+}
+
 export function getManagedRoleFromAppMetadata(
 	appMetadata?: AuthMetadata,
 ): ManagedUserRole | null {
