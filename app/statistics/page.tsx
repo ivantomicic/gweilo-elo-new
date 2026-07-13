@@ -22,6 +22,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { RivalriesTab } from "@/app/statistics/_components/rivalries-tab";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 import {
@@ -84,7 +85,8 @@ type StatisticsData = {
 	doublesTeams: TeamStats[];
 };
 
-type StatisticsView = "singles" | "doubles_player" | "doubles_team";
+type StatisticsRankingView = "singles" | "doubles_player" | "doubles_team";
+type StatisticsView = StatisticsRankingView | "rivalries";
 
 type StatisticsLoaded = {
 	singles: boolean;
@@ -111,7 +113,7 @@ const EMPTY_LOADED: StatisticsLoaded = {
 
 const STATISTICS_CACHE_VERSION = 3;
 const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-const STATISTICS_VIEWS: StatisticsView[] = [
+const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"singles",
 	"doubles_player",
 	"doubles_team",
@@ -151,7 +153,7 @@ function readCachedStatistics(userId: string | undefined) {
 	});
 }
 
-function getViewKey(view: StatisticsView): keyof StatisticsLoaded {
+function getViewKey(view: StatisticsRankingView): keyof StatisticsLoaded {
 	return view === "singles"
 		? "singles"
 		: view === "doubles_player"
@@ -168,14 +170,15 @@ function StatisticsPageContent() {
 	const shouldReduceMotion = useReducedMotion();
 	const { trigger } = useWebHaptics();
 
-	// Page-level view filter: 'singles' | 'doubles_player' | 'doubles_team'
-	// URL uses hyphens: ?view=singles|doubles-player|doubles-team
+	// Page-level view filter. URL uses hyphens for doubles views.
 	const urlView = searchParams.get("view");
 	let activeView: StatisticsView = "singles";
 	if (urlView === "doubles-player") {
 		activeView = "doubles_player";
 	} else if (urlView === "doubles-team") {
 		activeView = "doubles_team";
+	} else if (urlView === "rivalries") {
+		activeView = "rivalries";
 	}
 
 	const handleViewChange = (
@@ -188,6 +191,8 @@ function StatisticsPageContent() {
 			params.set("view", "doubles-player");
 		} else if (view === "doubles_team") {
 			params.set("view", "doubles-team");
+		} else if (view === "rivalries") {
+			params.set("view", "rivalries");
 		}
 		router.push(`?${params.toString()}`, { scroll: false });
 	};
@@ -206,15 +211,17 @@ function StatisticsPageContent() {
 	const [statistics, setStatistics] = useState<StatisticsData>(
 		() => cachedStatistics?.statistics ?? EMPTY_STATISTICS,
 	);
+	const activeRankingView: StatisticsRankingView =
+		activeView === "rivalries" ? "singles" : activeView;
 	const [loading, setLoading] = useState<StatisticsLoaded>(() => ({
 		singles:
-			getViewKey(activeView) === "singles" &&
+			getViewKey(activeRankingView) === "singles" &&
 			!cachedStatistics?.loaded.singles,
 		doublesPlayers:
-			getViewKey(activeView) === "doublesPlayers" &&
+			getViewKey(activeRankingView) === "doublesPlayers" &&
 			!cachedStatistics?.loaded.doublesPlayers,
 		doublesTeams:
-			getViewKey(activeView) === "doublesTeams" &&
+			getViewKey(activeRankingView) === "doublesTeams" &&
 			!cachedStatistics?.loaded.doublesTeams,
 	}));
 	const [loaded, setLoaded] = useState<StatisticsLoaded>(
@@ -223,7 +230,7 @@ function StatisticsPageContent() {
 	const [error, setError] = useState<string | null>(null);
 	const statisticsRef = useRef(statistics);
 	const loadedRef = useRef(loaded);
-	const prefetchedViewsRef = useRef(new Set<StatisticsView>());
+	const prefetchedViewsRef = useRef(new Set<StatisticsRankingView>());
 
 	useEffect(() => {
 		statisticsRef.current = statistics;
@@ -235,7 +242,7 @@ function StatisticsPageContent() {
 
 	// Fetch statistics for a specific view
 	const fetchStatistics = useCallback(async (
-		view: StatisticsView,
+		view: StatisticsRankingView,
 		options?: { force?: boolean; showLoading?: boolean },
 	) => {
 		const viewKey = getViewKey(view);
@@ -355,16 +362,16 @@ function StatisticsPageContent() {
 
 	// Load initial statistics for active view
 	useEffect(() => {
-		const viewKey = getViewKey(activeView);
+		const viewKey = getViewKey(activeRankingView);
 		const hasCachedData = loadedRef.current[viewKey];
-		fetchStatistics(activeView, {
+		fetchStatistics(activeRankingView, {
 			force: hasCachedData,
 			showLoading: !hasCachedData,
 		});
-	}, [activeView, fetchStatistics]);
+	}, [activeRankingView, fetchStatistics]);
 
 	useEffect(() => {
-		const activeViewKey = getViewKey(activeView);
+		const activeViewKey = getViewKey(activeRankingView);
 		if (!accessToken || !loaded[activeViewKey]) {
 			return;
 		}
@@ -372,7 +379,7 @@ function StatisticsPageContent() {
 		const timeoutId = window.setTimeout(() => {
 			for (const view of STATISTICS_VIEWS) {
 				if (
-					view === activeView ||
+					view === activeRankingView ||
 					loadedRef.current[getViewKey(view)] ||
 					prefetchedViewsRef.current.has(view)
 				) {
@@ -385,10 +392,11 @@ function StatisticsPageContent() {
 		}, 300);
 
 		return () => window.clearTimeout(timeoutId);
-	}, [accessToken, activeView, fetchStatistics, loaded]);
+	}, [accessToken, activeRankingView, fetchStatistics, loaded]);
 
 	const isInitialLoading =
-		loading[getViewKey(activeView)] && !loaded[getViewKey(activeView)];
+		loading[getViewKey(activeRankingView)] &&
+		!loaded[getViewKey(activeRankingView)];
 
 	if (isInitialLoading) {
 		return (
@@ -410,6 +418,37 @@ function StatisticsPageContent() {
 		);
 	}
 
+	const selectedRivalryPlayerId = searchParams.get("player") || userId || "";
+	const rivalryPlayers = statistics.singles
+		.filter((player) => player.matches_played >= MIN_SINGLES_MATCHES)
+		.map((player) => ({
+			player_id: player.player_id,
+			display_name: player.display_name,
+		}));
+
+	if (userId && !rivalryPlayers.some((player) => player.player_id === userId)) {
+		const metadata = session?.user.user_metadata;
+		rivalryPlayers.unshift({
+			player_id: userId,
+			display_name:
+				(typeof metadata?.display_name === "string" && metadata.display_name) ||
+				(typeof metadata?.name === "string" && metadata.name) ||
+				session?.user.email?.split("@")[0] ||
+				"User",
+		});
+	}
+
+	const handleRivalryPlayerChange = (playerId: string) => {
+		const params = new URLSearchParams(searchParams.toString());
+		params.set("view", "rivalries");
+		if (playerId === userId) {
+			params.delete("player");
+		} else {
+			params.set("player", playerId);
+		}
+		router.push(`?${params.toString()}`, { scroll: false });
+	};
+
 	return (
 		<AppShell title={t.statistics.title}>
 							{/* Page-level Navigation Tabs */}
@@ -420,6 +459,8 @@ function StatisticsPageContent() {
 											? "doubles-player"
 											: activeView === "doubles_team"
 											? "doubles-team"
+											: activeView === "rivalries"
+											? "rivalries"
 											: "singles"
 									}
 									onValueChange={(value) => {
@@ -429,10 +470,12 @@ function StatisticsPageContent() {
 											handleViewChange("doubles_player");
 										} else if (value === "doubles-team") {
 											handleViewChange("doubles_team");
+										} else if (value === "rivalries") {
+											handleViewChange("rivalries");
 										}
 									}}
 								>
-									<TabsList>
+									<TabsList className="w-full">
 										<TabsTrigger value="singles">
 											{t.statistics.tabs.singles}
 										</TabsTrigger>
@@ -442,6 +485,9 @@ function StatisticsPageContent() {
 										<TabsTrigger value="doubles-team">
 											{t.statistics.tabs.doublesTeams}
 										</TabsTrigger>
+										<TabsTrigger value="rivalries">
+											{t.statistics.tabs.rivalries}
+										</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>
@@ -449,6 +495,17 @@ function StatisticsPageContent() {
 							{/* Statistics Table */}
 							<Box>
 								{(() => {
+									if (activeView === "rivalries") {
+										return accessToken && selectedRivalryPlayerId ? (
+											<RivalriesTab
+												accessToken={accessToken}
+												selectedPlayerId={selectedRivalryPlayerId}
+												players={rivalryPlayers}
+												onPlayerChange={handleRivalryPlayerChange}
+											/>
+										) : null;
+									}
+
 									// Determine current data and header label based on view
 									// Check if current view is loading
 									const currentViewLoading =
