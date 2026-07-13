@@ -6,7 +6,7 @@ import { Stack } from "@/components/ui/stack";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { useAuth } from "@/lib/auth/useAuth";
 import { formatElo } from "@/lib/elo/format";
 import { t } from "@/lib/i18n";
@@ -106,8 +106,11 @@ export function PlayerComparison({
 	if (loading) {
 		return (
 			<Card className="bg-card border-border/50">
-				<CardContent className="pt-6">
-					<Loading label={t.playerComparison.loading} />
+				<CardContent className="p-0">
+					<StateBlock
+						variant="loading"
+						title={t.playerComparison.loading}
+					/>
 				</CardContent>
 			</Card>
 		);
@@ -116,10 +119,11 @@ export function PlayerComparison({
 	if (error || !data) {
 		return (
 			<Card className="bg-card border-border/50">
-				<CardContent className="pt-6">
-					<p className="text-sm text-destructive">
-						{error || t.playerComparison.error}
-					</p>
+				<CardContent className="p-0">
+					<StateBlock
+						variant="error"
+						title={error || t.playerComparison.error}
+					/>
 				</CardContent>
 			</Card>
 		);

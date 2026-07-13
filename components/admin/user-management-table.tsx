@@ -14,6 +14,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/vendor/shadcn/badge";
 import { UserEditDrawer } from "@/components/admin/user-edit-drawer";
+import { StateBlock } from "@/components/ui/state-block";
 import { t } from "@/lib/i18n";
 import { PencilIcon } from "lucide-react";
 import type { UserRole } from "@/lib/supabase/admin";
@@ -154,19 +155,11 @@ export function UserManagementTable() {
 	};
 
 	if (loading) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-muted-foreground">{t.admin.users.loading}</p>
-			</div>
-		);
+		return <StateBlock variant="loading" title={t.admin.users.loading} />;
 	}
 
 	if (error) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-destructive">{error}</p>
-			</div>
-		);
+		return <StateBlock variant="error" title={error} />;
 	}
 
 	return (

@@ -13,6 +13,7 @@ import {
 import { Box } from "@/components/ui/box";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
 import { Pagination } from "@/components/ui/pagination";
+import { StateBlock } from "@/components/ui/state-block";
 import { t } from "@/lib/i18n";
 
 type NoShowEntry = {
@@ -130,11 +131,7 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 	};
 
 	if (error) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-destructive">{error}</p>
-			</div>
-		);
+		return <StateBlock variant="error" title={error} />;
 	}
 
 	return (
@@ -144,9 +141,12 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 				{/* Loading overlay */}
 				{loading && !initialLoad && (
 					<div className="absolute inset-0 z-20 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="text-sm text-muted-foreground">
-							{t.ispale.loading}
-						</div>
+						<StateBlock
+							variant="loading"
+							size="sm"
+							title={t.ispale.loading}
+							className="h-full min-h-0"
+						/>
 					</div>
 				)}
 				<Table>
@@ -160,20 +160,24 @@ export function EntriesTable({ onRefetchReady }: EntriesTableProps) {
 					<TableBody>
 						{initialLoad && loading ? (
 							<TableRow>
-								<TableCell
-									colSpan={3}
-									className="h-[400px] text-center text-muted-foreground"
-								>
-									{t.ispale.loading}
+								<TableCell colSpan={3} className="p-0">
+									<StateBlock
+										variant="loading"
+										size="lg"
+										title={t.ispale.loading}
+										className="h-[400px] min-h-0"
+									/>
 								</TableCell>
 							</TableRow>
 						) : entries.length === 0 ? (
 							<TableRow>
-								<TableCell
-									colSpan={3}
-									className="h-[400px] text-center text-muted-foreground"
-								>
-									{t.ispale.noNoShows}
+								<TableCell colSpan={3} className="p-0">
+									<StateBlock
+										variant="empty"
+										size="lg"
+										title={t.ispale.noNoShows}
+										className="h-[400px] min-h-0"
+									/>
 								</TableCell>
 							</TableRow>
 						) : (

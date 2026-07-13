@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { SurfaceCard } from "@/components/ui/surface-card";
 
 type TableTennisGifWidgetProps = {
@@ -61,8 +60,12 @@ export function TableTennisGifWidget({
 
 	if (loading) {
 		return (
-			<SurfaceCard className="aspect-[7/5] flex flex-col items-center justify-center">
-				<Loading inline />
+			<SurfaceCard className="aspect-[7/5]">
+				<StateBlock
+					variant="loading"
+					size="sm"
+					className="h-full min-h-0"
+				/>
 			</SurfaceCard>
 		);
 	}

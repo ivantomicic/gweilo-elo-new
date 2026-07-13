@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { DashboardCard } from "@/components/dashboard/dashboard-card";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { useAuth } from "@/lib/auth/useAuth";
 import type { MissionSnapshot } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
@@ -295,9 +295,11 @@ export function RivalryMissionsWidget() {
 	if (loading) {
 		return (
 			<DashboardCard className="border-white/10">
-				<div className="flex flex-1 items-center justify-center">
-					<Loading inline label={t.missions.loading} />
-				</div>
+				<StateBlock
+					variant="loading"
+					title={t.missions.loading}
+					className="flex-1"
+				/>
 			</DashboardCard>
 		);
 	}
@@ -305,9 +307,11 @@ export function RivalryMissionsWidget() {
 	if (error) {
 		return (
 			<DashboardCard className="border-white/10">
-				<div className="flex flex-1 items-center">
-					<p className="text-sm text-destructive">{error}</p>
-				</div>
+				<StateBlock
+					variant="error"
+					title={error}
+					className="flex-1"
+				/>
 			</DashboardCard>
 		);
 	}

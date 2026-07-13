@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/auth/useAuth";
-import { Loading } from "@/components/ui/loading";
-import { Box } from "@/components/ui/box";
+import { StateBlock } from "@/components/ui/state-block";
 import { PollCard, type Poll } from "@/components/polls/poll-card";
 import { t } from "@/lib/i18n";
 import { EditPollDrawer } from "./edit-poll-drawer";
@@ -203,19 +202,11 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 	);
 
 	if (loading && polls.length === 0) {
-		return (
-			<div className="py-12">
-				<Loading inline label={t.polls.loading} />
-			</div>
-		);
+		return <StateBlock variant="loading" title={t.polls.loading} />;
 	}
 
 	if (error && polls.length === 0) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-destructive">{error}</p>
-			</div>
-		);
+		return <StateBlock variant="error" title={error} />;
 	}
 
 	return (
@@ -229,13 +220,9 @@ export function PollsView({ onRefetchReady, initialPollId, initialOptionId }: Po
 
 			{/* Polls List */}
 			{loading ? (
-				<div className="py-12">
-					<Loading inline label={t.polls.loading} />
-				</div>
+				<StateBlock variant="loading" title={t.polls.loading} />
 			) : polls.length === 0 ? (
-				<Box className="py-12 text-center text-muted-foreground">
-					{t.polls.noPolls}
-				</Box>
+				<StateBlock variant="empty" title={t.polls.noPolls} />
 			) : (
 				<div
 					className="grid gap-4 md:gap-6"

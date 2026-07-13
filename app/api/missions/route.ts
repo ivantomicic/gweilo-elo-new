@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
 		}
 
 		const adminClient = createAdminClient();
-		let snapshots = await ensureMissionSnapshotsFresh({ adminClient });
+		let snapshots = await ensureMissionSnapshotsFresh({
+			adminClient,
+			playerId: authResult.userId,
+		});
 		let snapshot =
 			snapshots.find((item) => item.playerId === authResult.userId) || null;
 

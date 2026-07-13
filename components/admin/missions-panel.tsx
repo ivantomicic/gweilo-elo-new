@@ -9,7 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/vendor/shadcn/badge";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import type { MissionSnapshot, PlayerTier } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
@@ -193,18 +193,15 @@ export function MissionsPanel() {
 
 	if (loading) {
 		return (
-			<div className="py-12">
-				<Loading inline label={t.admin.missions.loading} />
-			</div>
+			<StateBlock
+				variant="loading"
+				title={t.admin.missions.loading}
+			/>
 		);
 	}
 
 	if (error) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-destructive">{error}</p>
-			</div>
-		);
+		return <StateBlock variant="error" title={error} />;
 	}
 
 	return (
@@ -252,8 +249,12 @@ export function MissionsPanel() {
 
 			{snapshots.length === 0 ? (
 				<Card>
-					<CardContent className="py-10 text-center text-muted-foreground">
-						{t.admin.missions.empty}
+					<CardContent className="p-0">
+						<StateBlock
+							variant="empty"
+							size="sm"
+							title={t.admin.missions.empty}
+						/>
 					</CardContent>
 				</Card>
 			) : (

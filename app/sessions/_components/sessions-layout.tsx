@@ -2,8 +2,7 @@
 
 import { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
-import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { t } from "@/lib/i18n";
 
 type SessionsLayoutProps = {
@@ -22,22 +21,5 @@ type SessionsStateProps = {
 };
 
 export function SessionsState({ message, variant = "empty" }: SessionsStateProps) {
-	// Don't wrap in SessionsLayout - parent component already wraps
-	if (variant === "loading") {
-		return <Loading label={message} />;
-	}
-
-	return (
-		<Box>
-			<p
-				className={
-					variant === "error"
-						? "text-destructive"
-						: "text-muted-foreground"
-				}
-			>
-				{message}
-			</p>
-		</Box>
-	);
+	return <StateBlock variant={variant} size="lg" title={message} />;
 }

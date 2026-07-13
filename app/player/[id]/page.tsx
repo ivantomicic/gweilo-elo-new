@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
-import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { PlayerComparison } from "@/components/player/player-comparison";
 import { RankPlacementCard } from "@/components/player/rank-placement-card";
@@ -78,13 +77,17 @@ function PlayerPageContent() {
 	return (
 		<AppShell title={playerData?.display_name ?? t.statistics.table.player}>
 			{loading ? (
-				<Loading label={t.statistics.loading} />
+				<StateBlock
+					variant="loading"
+					size="lg"
+					title={t.statistics.loading}
+				/>
 			) : error || !playerData ? (
-				<Box>
-					<p className="text-destructive">
-						{error || "Player not found"}
-					</p>
-				</Box>
+				<StateBlock
+					variant="error"
+					size="lg"
+					title={error || "Player not found"}
+				/>
 			) : (
 				<>
 					{currentUserId && currentUserId !== playerId && (

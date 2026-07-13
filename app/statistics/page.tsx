@@ -7,7 +7,7 @@ import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import {
 	PlayerTableIdentity,
 	RankCell,
@@ -393,7 +393,11 @@ function StatisticsPageContent() {
 	if (isInitialLoading) {
 		return (
 			<AppShell title={t.statistics.title}>
-				<Loading label={t.statistics.loading} />
+				<StateBlock
+					variant="loading"
+					size="lg"
+					title={t.statistics.loading}
+				/>
 			</AppShell>
 		);
 	}
@@ -401,9 +405,7 @@ function StatisticsPageContent() {
 	if (error) {
 		return (
 			<AppShell title={t.statistics.title}>
-				<Box>
-					<p className="text-destructive">{error}</p>
-				</Box>
+				<StateBlock variant="error" size="lg" title={error} />
 			</AppShell>
 		);
 	}
@@ -496,8 +498,12 @@ function StatisticsPageContent() {
 													animate={{ opacity: 1, y: 0 }}
 													transition={tableContentTransition}
 												>
-													<Box className="bg-card rounded-lg border border-border/50 p-6">
-														<Loading label={t.statistics.loading} />
+													<Box className="bg-card rounded-lg border border-border/50">
+														<StateBlock
+															variant="loading"
+															size="md"
+															title={t.statistics.loading}
+														/>
 													</Box>
 												</motion.div>
 											</AnimatePresence>

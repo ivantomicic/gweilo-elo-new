@@ -6,7 +6,7 @@ import { motion, useReducedMotion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -2061,7 +2061,11 @@ function SessionPageContent() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={pageTransition}
 				>
-					<Loading label={t.sessions.session.loading} />
+					<StateBlock
+						variant="loading"
+						size="lg"
+						title={t.sessions.session.loading}
+					/>
 				</motion.div>
 			</AppShell>
 		);
@@ -2080,11 +2084,11 @@ function SessionPageContent() {
 					animate={{ opacity: 1, y: 0 }}
 					transition={pageTransition}
 				>
-					<Box>
-						<p className="text-destructive">
-							{error || t.sessions.session.loadingFailed}
-						</p>
-					</Box>
+					<StateBlock
+						variant="error"
+						size="lg"
+						title={error || t.sessions.session.loadingFailed}
+					/>
 				</motion.div>
 			</AppShell>
 		);

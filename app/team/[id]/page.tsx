@@ -5,9 +5,9 @@ import { useParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
+import { StateBlock } from "@/components/ui/state-block";
 import { TeamNameCard } from "@/components/ui/team-name-card";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -89,13 +89,17 @@ function TeamPageContent() {
 	return (
 		<AppShell title={teamData?.display_name ?? t.statistics.table.team}>
 			{loading ? (
-				<Loading label={t.teamPage.loading} />
+				<StateBlock
+					variant="loading"
+					size="lg"
+					title={t.teamPage.loading}
+				/>
 			) : error || !teamData ? (
-				<Box>
-					<p className="text-destructive">
-						{error || t.teamPage.error.notFound}
-					</p>
-				</Box>
+				<StateBlock
+					variant="error"
+					size="lg"
+					title={error || t.teamPage.error.notFound}
+				/>
 			) : (
 				<>
 							<SurfaceCard>

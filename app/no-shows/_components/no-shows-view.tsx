@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAuth } from "@/lib/auth/useAuth";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { NoShowDistributionWidget } from "@/components/dashboard/no-show-distribution-widget";
 import { t } from "@/lib/i18n";
 
@@ -95,19 +95,11 @@ export function NoShowsView({ onRefetchReady }: NoShowsViewProps) {
 	}, []);
 
 	if (loading) {
-		return (
-			<div className="py-12">
-				<Loading inline label={t.ispale.loading} />
-			</div>
-		);
+		return <StateBlock variant="loading" title={t.ispale.loading} />;
 	}
 
 	if (error) {
-		return (
-			<div className="flex items-center justify-center py-12">
-				<p className="text-destructive">{error}</p>
-			</div>
-		);
+		return <StateBlock variant="error" title={error} />;
 	}
 
 	return (

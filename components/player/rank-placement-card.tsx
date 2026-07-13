@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { Loading } from "@/components/ui/loading";
 import { Stack } from "@/components/ui/stack";
+import { StateBlock } from "@/components/ui/state-block";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 
@@ -138,8 +138,11 @@ export function RankPlacementCard({ playerId }: RankPlacementCardProps) {
 	if (loading) {
 		return (
 			<Card className="bg-card border-border/50">
-				<CardContent className="pt-6">
-					<Loading label={t.rankPlacements.loading} inline />
+				<CardContent className="p-0">
+					<StateBlock
+						variant="loading"
+						title={t.rankPlacements.loading}
+					/>
 				</CardContent>
 			</Card>
 		);
@@ -148,8 +151,8 @@ export function RankPlacementCard({ playerId }: RankPlacementCardProps) {
 	if (error) {
 		return (
 			<Card className="bg-card border-border/50">
-				<CardContent className="pt-6">
-					<p className="text-sm text-destructive">{error}</p>
+				<CardContent className="p-0">
+					<StateBlock variant="error" title={error} />
 				</CardContent>
 			</Card>
 		);
@@ -190,9 +193,12 @@ export function RankPlacementCard({ playerId }: RankPlacementCardProps) {
 					</Stack>
 
 					{placements.length === 0 ? (
-						<p className="text-sm text-muted-foreground">
-							{t.rankPlacements.empty}
-						</p>
+						<StateBlock
+							variant="empty"
+							size="sm"
+							title={t.rankPlacements.empty}
+							className="min-h-20 px-0 py-2"
+						/>
 					) : (
 						<Stack direction="column" spacing={4}>
 							<div className="grid grid-cols-2 gap-4">

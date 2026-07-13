@@ -23,7 +23,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Box } from "@/components/ui/box";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { supabase } from "@/lib/supabase/client";
 import { t } from "@/lib/i18n";
 
@@ -206,7 +206,11 @@ export function SessionSummaryTable({
 	if (isCurrentViewLoading && !currentViewLoaded) {
 		return (
 			<Box>
-				<Loading inline label={t.sessions.session.loading} />
+				<StateBlock
+					variant="loading"
+					size="sm"
+					title={t.sessions.session.loading}
+				/>
 			</Box>
 		);
 	}
@@ -214,7 +218,7 @@ export function SessionSummaryTable({
 	if (currentError) {
 		return (
 			<Box>
-				<p className="text-destructive">{currentError}</p>
+				<StateBlock variant="error" size="sm" title={currentError} />
 			</Box>
 		);
 	}
@@ -225,9 +229,11 @@ export function SessionSummaryTable({
 			const sortedPlayers = sortByWins(singlesSummary ?? []);
 			if (sortedPlayers.length === 0) {
 				return (
-					<p className="text-muted-foreground text-sm px-4 py-5">
-						No summary data available.
-					</p>
+					<StateBlock
+						variant="empty"
+						size="sm"
+						title="No summary data available."
+					/>
 				);
 			}
 			return (
@@ -295,9 +301,11 @@ export function SessionSummaryTable({
 			const sortedPlayers = sortByWins(doublesPlayerSummary ?? []);
 			if (sortedPlayers.length === 0) {
 				return (
-					<p className="text-muted-foreground text-sm px-4 py-5">
-						No summary data available.
-					</p>
+					<StateBlock
+						variant="empty"
+						size="sm"
+						title="No summary data available."
+					/>
 				);
 			}
 			return (
@@ -365,9 +373,11 @@ export function SessionSummaryTable({
 			const sortedTeams = sortByWins(doublesTeamSummary ?? []);
 			if (sortedTeams.length === 0) {
 				return (
-					<p className="text-muted-foreground text-sm px-4 py-5">
-						No summary data available.
-					</p>
+					<StateBlock
+						variant="empty"
+						size="sm"
+						title="No summary data available."
+					/>
 				);
 			}
 			return (

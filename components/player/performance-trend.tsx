@@ -5,7 +5,7 @@ import { Box } from "@/components/ui/box";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
-import { Loading } from "@/components/ui/loading";
+import { StateBlock } from "@/components/ui/state-block";
 import { useAuth } from "@/lib/auth/useAuth";
 import { formatElo, formatEloDelta } from "@/lib/elo/format";
 import { t } from "@/lib/i18n";
@@ -333,8 +333,12 @@ export function PerformanceTrend({
 
 	if (loading) {
 		return (
-			<SurfaceCard className="min-h-[300px]">
-				<Loading label={t.performanceTrend.loading} inline />
+			<SurfaceCard>
+				<StateBlock
+					variant="loading"
+					title={t.performanceTrend.loading}
+					className="min-h-[252px]"
+				/>
 			</SurfaceCard>
 		);
 	}
@@ -342,10 +346,12 @@ export function PerformanceTrend({
 	// If no data or only one point, show placeholder
 	if (eloHistory.length === 0 || eloHistory.length === 1) {
 		return (
-			<SurfaceCard className="min-h-[300px] flex items-center justify-center">
-				<p className="text-muted-foreground text-center">
-					{emptyStateLabel || "Not enough match data to display chart"}
-				</p>
+			<SurfaceCard>
+				<StateBlock
+					variant="empty"
+					title={emptyStateLabel || "Not enough match data to display chart"}
+					className="min-h-[252px]"
+				/>
 			</SurfaceCard>
 		);
 	}

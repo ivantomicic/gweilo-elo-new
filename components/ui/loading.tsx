@@ -1,6 +1,6 @@
 'use client'
 
-import { Stack } from './stack'
+import { StateBlock } from './state-block'
 import { cn } from '@/lib/utils'
 
 export interface LoadingProps {
@@ -26,45 +26,15 @@ export interface LoadingProps {
  * Inline: Renders inline without full-screen centering
  */
 export function Loading({ label, inline = false, className }: LoadingProps) {
-	const spinner = (
-		<div
-			aria-hidden="true"
+	return (
+		<StateBlock
+			variant="loading"
+			size={inline ? "sm" : "lg"}
+			title={label}
 			className={cn(
-				"rounded-full border-2 border-border border-t-primary animate-spin",
-				inline ? "size-6" : "size-8"
+				inline ? "min-h-0 px-0 py-0" : "min-h-[60vh]",
+				className
 			)}
 		/>
-	)
-
-	if (inline) {
-		return (
-			<Stack
-				direction="column"
-				alignItems="center"
-				justifyContent="center"
-				spacing={2}
-				className={className}
-			>
-				{spinner}
-				{label && (
-					<p className="text-sm text-muted-foreground">{label}</p>
-				)}
-			</Stack>
-		)
-	}
-
-	return (
-		<Stack
-			direction="column"
-			alignItems="center"
-			justifyContent="center"
-			spacing={2}
-			className={cn('min-h-[60vh]', className)}
-		>
-			{spinner}
-			{label && (
-				<p className="text-muted-foreground">{label}</p>
-			)}
-		</Stack>
 	)
 }
