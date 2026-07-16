@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
 				},
 			},
 			components: {
+				schemas: {},
 				securitySchemes: {
 					bearerAuth: {
 						type: "http",
