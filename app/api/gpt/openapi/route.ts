@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
-	const serverUrl = process.env.GPT_STATS_PUBLIC_URL || request.nextUrl.origin;
+	// Use the final request origin so Action calls do not cross a hostname
+	// redirect and lose their Authorization header.
+	const serverUrl = request.nextUrl.origin;
 
 	return NextResponse.json(
 		{

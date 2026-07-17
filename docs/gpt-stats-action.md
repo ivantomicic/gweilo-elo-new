@@ -9,12 +9,11 @@ Add these environment variables to the deployed Gweilo application:
 
 ```text
 GPT_STATS_API_KEY=<a long random secret>
-GPT_STATS_PUBLIC_URL=https://your-gweilo-domain.example
 ```
 
-`GPT_STATS_PUBLIC_URL` is optional when requests already reach the canonical
-public domain. `GPT_STATS_API_KEY` is required and must never use the Supabase
-service-role key.
+`GPT_STATS_API_KEY` is required and must never use the Supabase service-role
+key. The OpenAPI schema automatically uses the canonical hostname that served
+the request.
 
 The OpenAPI document is available at:
 
