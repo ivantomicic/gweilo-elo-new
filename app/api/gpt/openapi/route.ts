@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
 						operationId: "calculateGweiloSinglesEloScenario",
 						summary: "Calculate exact singles Elo outcomes for a next match",
 						description:
-							"Uses the same calculation code as real Gweilo match updates. With an opponent, returns both players' projected Elo after a win, draw, or loss. With target_elo, reports which outcomes reach it. With target_player, reports which outcomes overtake that player's projected Elo, including when the target player is also the opponent. If the opponent is unknown, it reports the minimum opponent Elo needed. Use current data returned by this operation; never calculate the result yourself.",
+							"Uses Gweilo's real match calculation. Returns projected ratings after a win, draw, or loss; checks a target Elo or target player; and can find the minimum opponent Elo needed. Use the returned values instead of calculating Elo independently.",
 						parameters: [
 							{
 								name: "player",
