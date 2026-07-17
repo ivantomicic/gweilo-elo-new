@@ -10,56 +10,6 @@ import type { MissionSnapshot } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
 
-const MISSION_CACHE_KEY_PREFIX = "rivalry-missions:";
-
-type CachedMissionSnapshot = {
-	snapshot: MissionSnapshot | null;
-	cachedAt: string;
-};
-
-function getMissionCacheKey(userId: string) {
-	return `${MISSION_CACHE_KEY_PREFIX}${userId}`;
-}
-
-function readCachedMissionSnapshot(userId: string) {
-	try {
-		const raw = window.sessionStorage.getItem(getMissionCacheKey(userId));
-		if (!raw) {
-			return null;
-		}
-
-		const parsed = JSON.parse(raw) as CachedMissionSnapshot;
-		return parsed.snapshot || null;
-	} catch {
-		return null;
-	}
-}
-
-function writeCachedMissionSnapshot(
-	userId: string,
-	snapshot: MissionSnapshot | null,
-) {
-	try {
-		window.sessionStorage.setItem(
-			getMissionCacheKey(userId),
-			JSON.stringify({
-				snapshot,
-				cachedAt: new Date().toISOString(),
-			} satisfies CachedMissionSnapshot),
-		);
-	} catch {
-		// Ignore sessionStorage write failures.
-	}
-}
-
-function clearCachedMissionSnapshot(userId: string) {
-	try {
-		window.sessionStorage.removeItem(getMissionCacheKey(userId));
-	} catch {
-		// Ignore sessionStorage cleanup failures.
-	}
-}
-
 function getNumberMetric(
 	metrics: Record<string, number | string | boolean | null>,
 	key: string,
@@ -236,7 +186,6 @@ export function RivalryMissionsWidget() {
 					setSnapshot(data.snapshot || null);
 					setError(null);
 				}
-				writeCachedMissionSnapshot(userId, data.snapshot || null);
 			} catch (fetchError) {
 				console.error("Error loading missions:", fetchError);
 				if (isMounted && !suppressError) {
@@ -249,28 +198,7 @@ export function RivalryMissionsWidget() {
 			}
 		};
 
-		const initializeSnapshot = async () => {
-			if (!accessToken || !userId) {
-				if (isMounted) {
-					setSnapshot(null);
-					setLoading(false);
-				}
-				return;
-			}
-
-			const cachedSnapshot = readCachedMissionSnapshot(userId);
-			if (cachedSnapshot && isMounted) {
-				setSnapshot(cachedSnapshot);
-				setLoading(false);
-			}
-
-			await fetchSnapshot({
-				showLoading: !cachedSnapshot,
-				suppressError: Boolean(cachedSnapshot),
-			});
-		};
-
-		initializeSnapshot();
+		fetchSnapshot();
 
 		const handleWindowFocus = () => {
 			fetchSnapshot({ showLoading: false, suppressError: true });
