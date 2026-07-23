@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var authStore = AuthStore()
     @State private var appDataStore: AppDataStore?
 
@@ -8,10 +9,17 @@ struct RootView: View {
         Group {
             if isSessionDetailPreview {
                 SessionDetailPreviewScreen()
+            } else if authStore.isRestoringSession {
+                ProgressView("Restoring your club…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(ArenaBackground())
             } else if authStore.session == nil {
                 SignInView(authStore: authStore)
             } else if let appDataStore {
-                MainTabView(dataStore: appDataStore)
+                MainTabView(
+                    dataStore: appDataStore,
+                    authStore: authStore
+                )
             } else {
                 ProgressView("Loading your club…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -34,6 +42,15 @@ struct RootView: View {
             appDataStore = store
             await store.load()
         }
+        .task {
+            await authStore.restoreSession()
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active else { return }
+            Task {
+                await authStore.refreshIfNeeded()
+            }
+        }
     }
 
     private var isSessionDetailPreview: Bool {
@@ -55,6 +72,7 @@ private struct SessionDetailPreviewScreen: View {
 
 private struct MainTabView: View {
     let dataStore: AppDataStore
+    let authStore: AuthStore
 
     var body: some View {
         TabView {
@@ -71,13 +89,43 @@ private struct MainTabView: View {
             }
 
             Tab("More", systemImage: "ellipsis") {
-                ComingSoonView(
-                    title: "More",
-                    subtitle: "Profiles, rules and settings.",
-                    symbol: "person.crop.circle.fill"
+                AccountView(
+                    email: authStore.session?.user.email,
+                    signOut: authStore.signOut
                 )
             }
         }
         .tint(GweiloTheme.accent)
+    }
+}
+
+private struct AccountView: View {
+    let email: String?
+    let signOut: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                ArenaBackground()
+
+                List {
+                    Section("ACCOUNT") {
+                        LabeledContent("Signed in as") {
+                            Text(email ?? "Gweilo member")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Section {
+                        Button("Sign out", role: .destructive, action: signOut)
+                    } footer: {
+                        Text("Your login is stored securely on this iPhone.")
+                    }
+                }
+                .scrollContentBackground(.hidden)
+            }
+            .navigationTitle("More")
+        }
     }
 }
