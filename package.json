@@ -7,7 +7,8 @@
 		"build": "next build",
 		"start": "next start",
 		"lint": "next lint",
-		"type-check": "tsc --noEmit"
+		"type-check": "tsc --noEmit",
+		"test:elo": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --outDir .test-build tests/elo/*.test.ts lib/elo/calculation.ts lib/elo/round-transaction.ts && node --test .test-build/tests/elo/*.test.js"
 	},
 	"dependencies": {
 		"@dnd-kit/core": "^6.3.1",

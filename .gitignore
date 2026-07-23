@@ -8,6 +8,10 @@
 
 # testing
 /coverage
+/.test-build
+/supabase/.temp/project-ref
+/supabase/.temp/storage-version
+/supabase/.temp/linked-project.json
 
 # next.js
 /.next/
@@ -35,4 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-

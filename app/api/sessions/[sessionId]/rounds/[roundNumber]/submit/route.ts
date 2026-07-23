@@ -2,13 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { updateSinglesRatings, updateDoublesRatings } from "@/lib/elo/updates";
-import {
-	createEloSnapshots,
-	captureCompletedSessionSnapshots,
-} from "@/lib/elo/snapshots";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
+import {
+	claimRoundSubmission,
+	failRoundSubmission,
+} from "@/lib/elo/round-submission-guard";
+import {
+	buildAtomicRoundPlan,
+	type AtomicMatch,
+	type AtomicScore,
+} from "@/lib/elo/round-transaction";
+import { loadAtomicRatingInputs } from "@/lib/elo/round-transaction-loader";
 import { getAuthToken } from "../../../../../_utils/auth";
 
 type MatchScore = {
@@ -37,28 +42,12 @@ type ScoreInput = {
 	team2Score: number;
 };
 
-type EloHistoryEntry = {
-	match_id: string;
-	player1_id?: string;
-	player2_id?: string;
-	player1_elo_before?: number;
-	player1_elo_after?: number;
-	player1_elo_delta?: number;
-	player2_elo_before?: number;
-	player2_elo_after?: number;
-	player2_elo_delta?: number;
-	team1_id?: string;
-	team2_id?: string;
-	team1_elo_before?: number;
-	team1_elo_after?: number;
-	team1_elo_delta?: number;
-	team2_elo_before?: number;
-	team2_elo_after?: number;
-	team2_elo_delta?: number;
-};
-
 const isValidScore = (score: unknown): score is number => {
-	return typeof score === "number" && !isNaN(score);
+	return (
+		typeof score === "number" &&
+		Number.isInteger(score) &&
+		score >= 0
+	);
 };
 
 function getCombinedFivePlayerScore(
@@ -121,230 +110,27 @@ async function getMaxRoundNumber(
 	return data.round_number;
 }
 
-async function updateMatchScores(
-	adminClient: AdminClient,
-	matches: SessionMatchRecord[],
-	matchScoresMap: Map<string, MatchScore>,
-) {
-	const updatePromises = matches.map((match) => {
-		const score = matchScoresMap.get(match.id)!;
-		return adminClient
-			.from("session_matches")
-			.update({
-				team1_score: score.team1Score,
-				team2_score: score.team2Score,
-				status: "completed",
-			})
-			.eq("id", match.id);
-	});
-
-	const updateResults = await Promise.all(updatePromises);
-	const updateErrors = updateResults.filter((result) => result.error);
-
-	if (updateErrors.length > 0) {
-		console.error("Error updating matches:", updateErrors);
-		throw new Error("Failed to update match statuses");
-	}
-}
-
-async function applyEloUpdatesForMatches(
-	adminClient: AdminClient,
-	matches: SessionMatchRecord[],
-	getScore: (match: SessionMatchRecord) => ScoreInput,
-): Promise<EloHistoryEntry[]> {
-	const eloHistoryEntries: EloHistoryEntry[] = [];
-
-	for (const match of matches) {
-		const score = getScore(match);
-		const isSingles = match.match_type === "singles";
-		const playerIds = match.player_ids as string[];
-
-		if (isSingles) {
-			const { data: rating1 } = await adminClient
-				.from("player_ratings")
-				.select("elo")
-				.eq("player_id", playerIds[0])
-				.single();
-			const { data: rating2 } = await adminClient
-				.from("player_ratings")
-				.select("elo")
-				.eq("player_id", playerIds[1])
-				.single();
-
-			const player1EloBefore = rating1?.elo ?? 1500;
-			const player2EloBefore = rating2?.elo ?? 1500;
-
-			try {
-				await updateSinglesRatings(
-					playerIds[0],
-					playerIds[1],
-					score.team1Score,
-					score.team2Score,
-				);
-			} catch (eloError) {
-				console.error(
-					`Error updating Elo ratings for match ${match.id}:`,
-					eloError,
-				);
-				throw new Error(
-					`Failed to update Elo ratings: ${
-						eloError instanceof Error ? eloError.message : String(eloError)
-					}`,
-				);
-			}
-
-			const { data: rating1After } = await adminClient
-				.from("player_ratings")
-				.select("elo")
-				.eq("player_id", playerIds[0])
-				.single();
-			const { data: rating2After } = await adminClient
-				.from("player_ratings")
-				.select("elo")
-				.eq("player_id", playerIds[1])
-				.single();
-
-			const player1EloAfter = rating1After?.elo ?? player1EloBefore;
-			const player2EloAfter = rating2After?.elo ?? player2EloBefore;
-
-			eloHistoryEntries.push({
-				match_id: match.id,
-				player1_id: playerIds[0],
-				player2_id: playerIds[1],
-				player1_elo_before: player1EloBefore,
-				player1_elo_after: player1EloAfter,
-				player1_elo_delta: player1EloAfter - player1EloBefore,
-				player2_elo_before: player2EloBefore,
-				player2_elo_after: player2EloAfter,
-				player2_elo_delta: player2EloAfter - player2EloBefore,
-			});
-
-			try {
-				await createEloSnapshots(match.id, playerIds, "singles");
-			} catch (snapshotError) {
-				console.error(
-					`Error creating snapshots for match ${match.id}:`,
-					snapshotError,
-				);
-			}
-		} else {
-			const { data: team1Rating } = await adminClient
-				.from("double_team_ratings")
-				.select("elo")
-				.eq("team_id", match.team_1_id)
-				.single();
-			const { data: team2Rating } = await adminClient
-				.from("double_team_ratings")
-				.select("elo")
-				.eq("team_id", match.team_2_id)
-				.single();
-
-			const team1EloBefore = team1Rating?.elo ?? 1500;
-			const team2EloBefore = team2Rating?.elo ?? 1500;
-
-			try {
-				await updateDoublesRatings(
-					[playerIds[0], playerIds[1]],
-					[playerIds[2], playerIds[3]],
-					score.team1Score,
-					score.team2Score,
-				);
-			} catch (eloError) {
-				console.error(
-					`Error updating Elo ratings for match ${match.id}:`,
-					eloError,
-				);
-				throw new Error(
-					`Failed to update Elo ratings: ${
-						eloError instanceof Error ? eloError.message : String(eloError)
-					}`,
-				);
-			}
-
-			const { data: team1RatingAfter } = await adminClient
-				.from("double_team_ratings")
-				.select("elo")
-				.eq("team_id", match.team_1_id)
-				.single();
-			const { data: team2RatingAfter } = await adminClient
-				.from("double_team_ratings")
-				.select("elo")
-				.eq("team_id", match.team_2_id)
-				.single();
-
-			const team1EloAfter = team1RatingAfter?.elo ?? team1EloBefore;
-			const team2EloAfter = team2RatingAfter?.elo ?? team2EloBefore;
-
-			eloHistoryEntries.push({
-				match_id: match.id,
-				team1_id: match.team_1_id || undefined,
-				team2_id: match.team_2_id || undefined,
-				team1_elo_before: team1EloBefore,
-				team1_elo_after: team1EloAfter,
-				team1_elo_delta: team1EloAfter - team1EloBefore,
-				team2_elo_before: team2EloBefore,
-				team2_elo_after: team2EloAfter,
-				team2_elo_delta: team2EloAfter - team2EloBefore,
-			});
-
-			try {
-				await createEloSnapshots(match.id, playerIds, "doubles");
-			} catch (snapshotError) {
-				console.error(
-					`Error creating snapshots for match ${match.id}:`,
-					snapshotError,
-				);
-			}
-		}
-	}
-
-	return eloHistoryEntries;
-}
-
-async function insertEloHistory(
-	adminClient: AdminClient,
-	eloHistoryEntries: EloHistoryEntry[],
-) {
-	if (eloHistoryEntries.length === 0) {
-		return;
-	}
-
-	const { error } = await adminClient
-		.from("match_elo_history")
-		.insert(eloHistoryEntries);
-
-	if (error) {
-		console.error("Error inserting Elo history:", error);
-	}
-}
-
-async function completeSession(adminClient: AdminClient, sessionId: string) {
-	const bestWorst = await calculateBestWorstPlayer(sessionId);
-
-	const { error } = await adminClient
-		.from("sessions")
-		.update({
-			status: "completed",
-			completed_at: new Date().toISOString(),
-			best_player_id: bestWorst.best_player_id,
-			best_player_display_name: bestWorst.best_player_display_name,
-			best_player_delta: bestWorst.best_player_delta,
-			worst_player_id: bestWorst.worst_player_id,
-			worst_player_display_name: bestWorst.worst_player_display_name,
-			worst_player_delta: bestWorst.worst_player_delta,
-		})
-		.eq("id", sessionId);
-
-	if (error) {
-		console.error("Error marking session as completed:", error);
-		return;
-	}
-
+async function finalizeSessionMetadata(adminClient: AdminClient, sessionId: string) {
 	try {
-		await captureCompletedSessionSnapshots(sessionId, adminClient);
+		const bestWorst = await calculateBestWorstPlayer(sessionId);
+		const { error } = await adminClient
+			.from("sessions")
+			.update({
+				best_player_id: bestWorst.best_player_id,
+				best_player_display_name: bestWorst.best_player_display_name,
+				best_player_delta: bestWorst.best_player_delta,
+				worst_player_id: bestWorst.worst_player_id,
+				worst_player_display_name: bestWorst.worst_player_display_name,
+				worst_player_delta: bestWorst.worst_player_delta,
+			})
+			.eq("id", sessionId);
+		if (error) console.error("Error updating completed-session metadata:", error);
+	} catch (error) {
+		// Core completion and snapshots are already committed atomically. These
+		// display-only fields must not turn a successful settlement into a 500.
+		console.error("Error calculating completed-session metadata:", error);
+	} finally {
 		revalidateTag("statistics");
-	} catch (snapshotError) {
-		console.error("Error capturing completed session snapshots:", snapshotError);
 	}
 }
 
@@ -377,6 +163,9 @@ export async function POST(
 	{ params }: { params: { sessionId: string; roundNumber: string } },
 ) {
 	const adminClient = createAdminClient();
+	let submissionId: string | undefined;
+	let submissionClaimToken: string | undefined;
+	let submissionCompleted = false;
 
 	try {
 		const token = getAuthToken(request);
@@ -447,6 +236,28 @@ export async function POST(
 			);
 		}
 
+		// Idempotent retries must succeed even after the round (or final session)
+		// has already transitioned to completed.
+		const { data: existingSubmission, error: existingSubmissionError } =
+			await adminClient
+				.from("elo_round_submissions")
+				.select("status, response")
+				.eq("session_id", sessionId)
+				.eq("round_number", roundNum)
+				.maybeSingle();
+		if (existingSubmissionError) {
+			throw new Error(
+				`Failed to check round submission state: ${existingSubmissionError.message}`,
+			);
+		}
+		if (existingSubmission?.status === "completed") {
+			return NextResponse.json(
+				existingSubmission.response ?? {
+					success: true,
+					message: "Round was already submitted successfully",
+				},
+			);
+		}
 		// Prevent submissions to completed sessions
 		if (session.status === "completed") {
 			return NextResponse.json(
@@ -540,27 +351,71 @@ export async function POST(
 		const isLastRound = roundNum >= maxRoundNumber;
 		const isTenRoundFivePlayerSession =
 			session.player_count === 5 && maxRoundNumber >= 10;
+		const submissionClaim = await claimRoundSubmission(sessionId, roundNum);
+
+		if (submissionClaim.state === "completed") {
+			return NextResponse.json(
+				submissionClaim.response ?? {
+					success: true,
+					message: "Round was already submitted successfully",
+				},
+			);
+		}
+
+		if (submissionClaim.state === "processing") {
+			return NextResponse.json(
+				{ error: "Round submission is already in progress. Please wait." },
+				{ status: 409 },
+			);
+		}
+
+		submissionId = submissionClaim.submissionId;
+		submissionClaimToken = submissionClaim.claimToken;
+		const commitAtomicSubmission = async ({
+			response,
+			eloScores = matchScoresMap,
+			applyRatings = true,
+		}: {
+			response: Record<string, unknown>;
+			eloScores?: Map<string, AtomicScore>;
+			applyRatings?: boolean;
+		}) => {
+			const atomicMatches = matches as AtomicMatch[];
+			const ratingInputs = applyRatings
+				? await loadAtomicRatingInputs(adminClient, atomicMatches)
+				: [];
+			const plan = buildAtomicRoundPlan({
+				matches: atomicMatches,
+				displayScores: matchScoresMap,
+				eloScores,
+				applyRatings,
+				ratingInputs,
+			});
+			const { data, error } = await adminClient.rpc("commit_atomic_elo_round", {
+				p_session_id: sessionId,
+				p_round_number: roundNum,
+				p_submission_id: submissionId!,
+				p_claim_token: submissionClaimToken!,
+				p_plan: plan,
+				p_response: response,
+				p_complete_session: isLastRound,
+			});
+			if (error) throw new Error(`Atomic ELO commit failed: ${error.message}`);
+			submissionCompleted = true;
+			return (data ?? response) as Record<string, unknown>;
+		};
 
 		if (isTenRoundFivePlayerSession) {
 			if (roundNum <= 5) {
-				try {
-					await updateMatchScores(
-						adminClient,
-						matches as SessionMatchRecord[],
-						matchScoresMap,
-					);
-				} catch {
-					return NextResponse.json(
-						{ error: "Failed to update match statuses" },
-						{ status: 500 },
-					);
-				}
-
-				return NextResponse.json({
+				const response = await commitAtomicSubmission({
+					applyRatings: false,
+					response: {
 					success: true,
 					message: "Round scores saved successfully",
 					ratingsDeferred: true,
+					},
 				});
+				return NextResponse.json(response);
 			}
 
 			const pairedFirstHalfRoundNumber = roundNum - 5;
@@ -662,61 +517,28 @@ export async function POST(
 				combinedScoresByMatchId.set(match.id, combinedScore);
 			}
 
-			const eloHistoryEntries = await applyEloUpdatesForMatches(
-				adminClient,
-				matches as SessionMatchRecord[],
-				(match) => combinedScoresByMatchId.get(match.id)!,
-			);
-
-			await insertEloHistory(adminClient, eloHistoryEntries);
-
-			try {
-				await updateMatchScores(
-					adminClient,
-					matches as SessionMatchRecord[],
-					matchScoresMap,
-				);
-			} catch {
-				return NextResponse.json(
-					{ error: "Failed to update match statuses" },
-					{ status: 500 },
-				);
-			}
+			const atomicResponse = await commitAtomicSubmission({
+				eloScores: combinedScoresByMatchId,
+				response: {
+					success: true,
+					message: isLastRound
+						? "Session submitted and ratings calculated successfully"
+						: "Round submitted and ratings calculated successfully",
+					ratingsApplied: true,
+					combinedWithRound: pairedFirstHalfRoundNumber,
+				},
+			});
 
 			if (isLastRound) {
-				await completeSession(adminClient, sessionId);
+				await finalizeSessionMetadata(adminClient, sessionId);
 			}
 
-			return NextResponse.json({
-				success: true,
-				message: isLastRound
-					? "Session submitted and ratings calculated successfully"
-					: "Round submitted and ratings calculated successfully",
-				ratingsApplied: true,
-				combinedWithRound: pairedFirstHalfRoundNumber,
-			});
+			return NextResponse.json(atomicResponse);
 		}
 
-		const eloHistoryEntries = await applyEloUpdatesForMatches(
-			adminClient,
-			matches as SessionMatchRecord[],
-			(match) => matchScoresMap.get(match.id)!,
-		);
-
-		try {
-			await updateMatchScores(
-				adminClient,
-				matches as SessionMatchRecord[],
-				matchScoresMap,
-			);
-		} catch {
-			return NextResponse.json(
-				{ error: "Failed to update match statuses" },
-				{ status: 500 },
-			);
-		}
-
-		await insertEloHistory(adminClient, eloHistoryEntries);
+		const atomicResponse = await commitAtomicSubmission({
+			response: { success: true, message: "Round submitted successfully" },
+		});
 
 		// Check if this is Round 5 for a 6-player session - if so, update Round 6 dynamically
 		if (roundNum === 5) {
@@ -891,14 +713,11 @@ export async function POST(
 		}
 
 		if (isLastRound) {
-			await completeSession(adminClient, sessionId);
+			await finalizeSessionMetadata(adminClient, sessionId);
 		}
 
 		// Success
-		return NextResponse.json({
-			success: true,
-			message: "Round submitted successfully",
-		});
+		return NextResponse.json(atomicResponse);
 	} catch (error) {
 		console.error(
 			"Unexpected error in POST /api/sessions/[sessionId]/rounds/[roundNumber]/submit:",
@@ -912,5 +731,9 @@ export async function POST(
 			},
 			{ status: 500 },
 		);
+	} finally {
+		if (submissionId && submissionClaimToken && !submissionCompleted) {
+			await failRoundSubmission(submissionId, submissionClaimToken, "Round submission did not complete");
+		}
 	}
 }
