@@ -449,3 +449,86 @@ enum LiveDataError: LocalizedError {
         }
     }
 }
+
+private struct RoundSubmissionRequest: Encodable {
+    let matchScores: [RoundMatchScoreSubmission]
+}
+
+private struct APIErrorResponse: Decodable {
+    let error: String?
+    let detail: String?
+}
+
+struct RoundSubmissionResult: Decodable, Sendable {
+    let success: Bool
+    let message: String?
+    let ratingsDeferred: Bool?
+    let ratingsApplied: Bool?
+    let combinedWithRound: Int?
+}
+
+enum BackendAPIError: LocalizedError {
+    case invalidResponse
+    case rejected(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidResponse:
+            "The Gweilo server returned an invalid response."
+        case let .rejected(message):
+            message
+        }
+    }
+}
+
+struct GweiloAPIClient: Sendable {
+    let configuration: AppConfiguration
+    let accessToken: String
+    var session: URLSession = .shared
+
+    func submitRound(
+        sessionID: UUID,
+        roundNumber: Int,
+        scores: [RoundMatchScoreSubmission]
+    ) async throws -> RoundSubmissionResult {
+        let request = try makeSubmitRoundRequest(
+            sessionID: sessionID,
+            roundNumber: roundNumber,
+            scores: scores
+        )
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BackendAPIError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            let fallback = httpResponse.statusCode == 401
+                ? "Your login expired. Reopen the app and try again."
+                : "The round could not be submitted."
+            throw BackendAPIError.rejected(
+                errorResponse?.error ?? errorResponse?.detail ?? fallback
+            )
+        }
+
+        return try JSONDecoder().decode(RoundSubmissionResult.self, from: data)
+    }
+
+    func makeSubmitRoundRequest(
+        sessionID: UUID,
+        roundNumber: Int,
+        scores: [RoundMatchScoreSubmission]
+    ) throws -> URLRequest {
+        let endpoint = configuration.apiBaseURL
+            .appending(path: "api/sessions/\(sessionID.uuidString)/rounds/\(roundNumber)/submit")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.httpBody = try JSONEncoder().encode(
+            RoundSubmissionRequest(matchScores: scores)
+        )
+        return request
+    }
+}

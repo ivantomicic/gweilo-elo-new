@@ -13,9 +13,14 @@ final class AppDataStore {
     private(set) var errorMessage: String?
 
     private let client: SupabaseDataClient
+    private let apiClient: GweiloAPIClient
 
     init(configuration: AppConfiguration, session: AuthSession) {
         client = SupabaseDataClient(
+            configuration: configuration,
+            accessToken: session.accessToken
+        )
+        apiClient = GweiloAPIClient(
             configuration: configuration,
             accessToken: session.accessToken
         )
@@ -39,6 +44,20 @@ final class AppDataStore {
 
     func sessionDetail(for session: SessionSummary) async throws -> SessionDetail {
         try await client.fetchSessionDetail(session: session)
+    }
+
+    func submitRound(
+        sessionID: UUID,
+        roundNumber: Int,
+        scores: [RoundMatchScoreSubmission]
+    ) async throws -> RoundSubmissionResult {
+        let result = try await apiClient.submitRound(
+            sessionID: sessionID,
+            roundNumber: roundNumber,
+            scores: scores
+        )
+        await load()
+        return result
     }
 
     func load() async {

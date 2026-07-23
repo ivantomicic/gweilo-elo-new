@@ -7,7 +7,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isSessionDetailPreview {
+            if isScoreEntryPreview {
+                ScoreEntryPreviewScreen()
+            } else if isSessionDetailPreview {
                 SessionDetailPreviewScreen()
             } else if authStore.isRestoringSession {
                 ProgressView("Restoring your club…")
@@ -60,10 +62,24 @@ struct RootView: View {
         false
         #endif
     }
+
+    private var isScoreEntryPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-score-entry-preview")
+        #else
+        false
+        #endif
+    }
 }
 
 #if !DEBUG
 private struct SessionDetailPreviewScreen: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+
+private struct ScoreEntryPreviewScreen: View {
     var body: some View {
         EmptyView()
     }

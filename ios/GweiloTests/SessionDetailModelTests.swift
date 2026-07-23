@@ -29,6 +29,154 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(names.1, "Leo + Miladin")
     }
 
+    @MainActor
+    func testRoundDraftRequiresEveryScoreIncludingExplicitZero() {
+        let matches = makeMatches()
+        var draft = RoundScoreDraft(matches: matches)
+
+        XCTAssertFalse(draft.isComplete)
+
+        draft.setScore(11, for: matches[0].id, team: 1)
+        draft.setScore(8, for: matches[0].id, team: 2)
+        draft.setScore(11, for: matches[1].id, team: 1)
+        draft.setScore(0, for: matches[1].id, team: 2)
+
+        XCTAssertTrue(draft.isComplete)
+        XCTAssertEqual(
+            draft.submissions(for: matches)?.last?.team2Score,
+            0
+        )
+    }
+
+    @MainActor
+    func testRoundDraftKeepsBackendPayloadInMatchOrder() {
+        let matches = makeMatches()
+        var draft = RoundScoreDraft(matches: Array(matches.reversed()))
+
+        draft.setScore(9, for: matches[0].id, team: 1)
+        draft.setScore(11, for: matches[0].id, team: 2)
+        draft.setScore(12, for: matches[1].id, team: 1)
+        draft.setScore(10, for: matches[1].id, team: 2)
+
+        let submissions = draft.submissions(for: matches)
+
+        XCTAssertEqual(submissions?.map(\.matchId), matches.map(\.id))
+        XCTAssertEqual(submissions?.first?.team1Score, 9)
+        XCTAssertEqual(submissions?.last?.team2Score, 10)
+    }
+
+    @MainActor
+    func testRoundDraftClampsScoresToBackendSafeRange() {
+        let match = makeMatches()[0]
+        var draft = RoundScoreDraft(matches: [match])
+
+        draft.setScore(-4, for: match.id, team: 1)
+        draft.setScore(1_400, for: match.id, team: 2)
+
+        XCTAssertEqual(draft.score(for: match.id, team: 1), 0)
+        XCTAssertEqual(draft.score(for: match.id, team: 2), 999)
+    }
+
+    @MainActor
+    func testAuthSessionRefreshLeeway() {
+        let session = AuthSession(
+            accessToken: "access",
+            refreshToken: "refresh",
+            expiresIn: 3_600,
+            expiresAt: 10_000,
+            user: AuthenticatedUser(id: UUID(), email: "member@example.com")
+        )
+
+        XCTAssertFalse(
+            session.needsRefresh(
+                at: Date(timeIntervalSince1970: 9_800),
+                leeway: 90
+            )
+        )
+        XCTAssertTrue(
+            session.needsRefresh(
+                at: Date(timeIntervalSince1970: 9_920),
+                leeway: 90
+            )
+        )
+    }
+
+    @MainActor
+    func testRoundSubmissionRequestCarriesWholeRoundToProductionAPI() throws {
+        let sessionID = UUID()
+        let matches = makeMatches()
+        let submissions = [
+            RoundMatchScoreSubmission(
+                matchId: matches[0].id,
+                team1Score: 11,
+                team2Score: 7
+            ),
+            RoundMatchScoreSubmission(
+                matchId: matches[1].id,
+                team1Score: 9,
+                team2Score: 11
+            )
+        ]
+        let configuration = AppConfiguration(
+            supabaseURL: URL(string: "https://example.supabase.co")!,
+            supabaseAnonKey: "public-anon-key",
+            apiBaseURL: URL(string: "https://www.gweilo.lol")!
+        )
+        let client = GweiloAPIClient(
+            configuration: configuration,
+            accessToken: "member-access-token"
+        )
+
+        let request = try client.makeSubmitRoundRequest(
+            sessionID: sessionID,
+            roundNumber: 4,
+            scores: submissions
+        )
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [String: Any]
+        )
+        let scores = try XCTUnwrap(json["matchScores"] as? [[String: Any]])
+
+        XCTAssertEqual(
+            request.url?.absoluteString,
+            "https://www.gweilo.lol/api/sessions/\(sessionID.uuidString)/rounds/4/submit"
+        )
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+        XCTAssertEqual(scores.count, 2)
+        XCTAssertEqual(scores[0]["matchId"] as? String, matches[0].id.uuidString)
+        XCTAssertEqual(scores[1]["team2Score"] as? Int, 11)
+    }
+
+    private func makeMatches() -> [SessionMatch] {
+        [
+            SessionMatch(
+                id: UUID(),
+                roundNumber: 4,
+                type: .doubles,
+                order: 1,
+                playerIDs: [ivanID, garaID, leoID, miladinID],
+                isCompleted: false,
+                teamOneScore: nil,
+                teamTwoScore: nil
+            ),
+            SessionMatch(
+                id: UUID(),
+                roundNumber: 4,
+                type: .singles,
+                order: 2,
+                playerIDs: [ivanID, leoID],
+                isCompleted: false,
+                teamOneScore: nil,
+                teamTwoScore: nil
+            )
+        ]
+    }
+
     private func makeDetail() -> SessionDetail {
         SessionDetail(
             session: SessionSummary(

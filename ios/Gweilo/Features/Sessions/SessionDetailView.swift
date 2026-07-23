@@ -6,6 +6,7 @@ struct SessionDetailView: View {
 
     @State private var detail: SessionDetail?
     @State private var expandedRounds: Set<Int> = []
+    @State private var scoringRound: SessionRound?
     @State private var isLoading = false
     @State private var errorMessage: String?
 
@@ -16,7 +17,7 @@ struct SessionDetailView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 30) {
                     SessionHero(
-                        session: session,
+                        session: detail?.session ?? session,
                         totalMatchCount: detail?.rounds.reduce(0) {
                             $0 + $1.matches.count
                         }
@@ -26,7 +27,10 @@ struct SessionDetailView: View {
                         if let currentRound = currentRound(in: detail) {
                             CurrentRoundStage(
                                 round: currentRound,
-                                detail: detail
+                                detail: detail,
+                                enterScores: {
+                                    scoringRound = currentRound
+                                }
                             )
                         }
 
@@ -60,6 +64,24 @@ struct SessionDetailView: View {
         .task(id: session.id) {
             await load()
         }
+        .sheet(item: $scoringRound) { round in
+            if let detail {
+                ScoreEntryView(
+                    round: round,
+                    detail: detail,
+                    submit: { scores in
+                        try await dataStore.submitRound(
+                            sessionID: detail.session.id,
+                            roundNumber: round.number,
+                            scores: scores
+                        )
+                    },
+                    onSubmitted: {
+                        await load()
+                    }
+                )
+            }
+        }
     }
 
     private func currentRound(in detail: SessionDetail) -> SessionRound? {
@@ -89,10 +111,13 @@ struct SessionDetailView: View {
         defer { isLoading = false }
 
         do {
-            let loadedDetail = try await dataStore.sessionDetail(for: session)
+            let currentSummary = dataStore.sessions.first {
+                $0.id == session.id
+            } ?? session
+            let loadedDetail = try await dataStore.sessionDetail(for: currentSummary)
             detail = loadedDetail
 
-            if session.status == .completed,
+            if currentSummary.status == .completed,
                let latestRound = loadedDetail.rounds.last {
                 expandedRounds = [latestRound.number]
             }
@@ -197,6 +222,7 @@ private struct HeroMetric: View {
 private struct CurrentRoundStage: View {
     let round: SessionRound
     let detail: SessionDetail
+    let enterScores: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
@@ -228,6 +254,21 @@ private struct CurrentRoundStage: View {
             }
 
             RestingLine(players: round.restingPlayers)
+
+            Button(action: enterScores) {
+                HStack {
+                    Text("Enter round scores")
+                    Spacer()
+                    Image(systemName: "square.and.pencil")
+                }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 15)
+                .frame(height: 48)
+                .background(GweiloTheme.accent)
+            }
+            .buttonStyle(ResponsiveButtonStyle())
+            .accessibilityHint("Opens score entry for every match in this round")
         }
         .padding(.vertical, 15)
         .padding(.leading, 16)
@@ -620,6 +661,7 @@ private struct SessionDetailError: View {
 #if DEBUG
 struct SessionDetailPreviewScreen: View {
     @State private var expandedRounds: Set<Int> = [2]
+    @State private var scoringRound: SessionRound?
 
     private let detail = SessionDetail.preview
 
@@ -642,7 +684,10 @@ struct SessionDetailPreviewScreen: View {
                         ) {
                             CurrentRoundStage(
                                 round: currentRound,
-                                detail: detail
+                                detail: detail,
+                                enterScores: {
+                                    scoringRound = currentRound
+                                }
                             )
                         }
 
@@ -661,6 +706,23 @@ struct SessionDetailPreviewScreen: View {
             }
             .navigationTitle("Session")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(item: $scoringRound) { round in
+                ScoreEntryView(
+                    round: round,
+                    detail: detail,
+                    submit: { _ in
+                        try await Task.sleep(for: .milliseconds(700))
+                        return RoundSubmissionResult(
+                            success: true,
+                            message: "Round submitted",
+                            ratingsDeferred: false,
+                            ratingsApplied: true,
+                            combinedWithRound: nil
+                        )
+                    },
+                    onSubmitted: {}
+                )
+            }
         }
     }
 
@@ -675,7 +737,7 @@ struct SessionDetailPreviewScreen: View {
     }
 }
 
-private extension SessionDetail {
+extension SessionDetail {
     static let preview: SessionDetail = {
         let ids = (1...6).map {
             UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0))!

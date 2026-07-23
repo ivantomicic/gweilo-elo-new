@@ -105,6 +105,87 @@ struct SessionMatch: Identifiable, Hashable, Sendable {
     let teamTwoScore: Int?
 }
 
+struct RoundMatchScoreSubmission: Codable, Equatable, Sendable {
+    let matchId: UUID
+    let team1Score: Int
+    let team2Score: Int
+}
+
+struct RoundScoreDraft: Equatable, Sendable {
+    struct Entry: Equatable, Sendable {
+        var teamOne: Int?
+        var teamTwo: Int?
+    }
+
+    private(set) var entries: [UUID: Entry]
+
+    init(matches: [SessionMatch]) {
+        entries = Dictionary(
+            uniqueKeysWithValues: matches.map {
+                (
+                    $0.id,
+                    Entry(
+                        teamOne: $0.teamOneScore,
+                        teamTwo: $0.teamTwoScore
+                    )
+                )
+            }
+        )
+    }
+
+    var isComplete: Bool {
+        !entries.isEmpty && entries.values.allSatisfy {
+            $0.teamOne != nil && $0.teamTwo != nil
+        }
+    }
+
+    func score(for matchID: UUID, team: Int) -> Int? {
+        team == 1
+            ? entries[matchID]?.teamOne
+            : entries[matchID]?.teamTwo
+    }
+
+    mutating func setScore(_ score: Int?, for matchID: UUID, team: Int) {
+        guard var entry = entries[matchID] else { return }
+        let normalized = score.map { min(999, max(0, $0)) }
+        if team == 1 {
+            entry.teamOne = normalized
+        } else {
+            entry.teamTwo = normalized
+        }
+        entries[matchID] = entry
+    }
+
+    mutating func adjustScore(for matchID: UUID, team: Int, amount: Int) {
+        let current = score(for: matchID, team: team) ?? 0
+        setScore(current + amount, for: matchID, team: team)
+    }
+
+    mutating func reset() {
+        for matchID in entries.keys {
+            entries[matchID] = Entry(teamOne: nil, teamTwo: nil)
+        }
+    }
+
+    func submissions(for matches: [SessionMatch]) -> [RoundMatchScoreSubmission]? {
+        guard isComplete else { return nil }
+        return matches.compactMap { match in
+            guard
+                let entry = entries[match.id],
+                let teamOne = entry.teamOne,
+                let teamTwo = entry.teamTwo
+            else {
+                return nil
+            }
+            return RoundMatchScoreSubmission(
+                matchId: match.id,
+                team1Score: teamOne,
+                team2Score: teamTwo
+            )
+        }
+    }
+}
+
 struct SessionRound: Identifiable, Hashable, Sendable {
     var id: Int { number }
 
