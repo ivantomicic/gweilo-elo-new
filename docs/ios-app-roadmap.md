@@ -16,7 +16,9 @@ scope, architecture, progress, or external setup requirements change.
 ## Current status
 
 The web application and Supabase database already contain the product rules and
-data. The iOS app has not been created yet.
+data. The first native iOS design slice now exists in `ios/` and builds against
+the physical-iPhone SDK. It currently uses demo data; Supabase authentication
+and live APIs have not been connected yet.
 
 The safe round-submission foundation is implemented and tested:
 
@@ -27,9 +29,9 @@ The safe round-submission foundation is implemented and tested:
 - ✅ Five-player deferred and combined-score Elo handling
 - ✅ PostgreSQL commit and forced-rollback integration tests
 - ✅ Supabase migrations applied and verified on the linked project
-- ✅ Next.js round-submission implementation completed locally
+- ✅ Next.js round-submission implementation completed
+- ✅ Updated Next.js backend committed and deployed
 - ⬜ Perform one real-round web smoke test
-- ⬜ Commit and deploy the updated Next.js backend
 
 ## Agreed architecture
 
@@ -43,6 +45,26 @@ The safe round-submission foundation is implemented and tested:
 - The iOS app may contain the Supabase public URL and anonymous key.
 - The existing web application remains available alongside the native app.
 
+## Agreed design direction
+
+- Target the current iOS 27 visual language using native SwiftUI APIs.
+- Use Liquid Glass for navigation, controls, floating actions, and other
+  functional layers where it improves hierarchy and interaction.
+- Do not apply glass indiscriminately to every content surface.
+- Support complete, intentionally designed light and dark appearances.
+- Treat the web app as the functional reference, not the visual ceiling.
+- Preserve useful Gweilo brand identity while creating a stronger, original
+  native design system for iOS.
+- Prioritize large scores, clear player/team recognition, one-handed score
+  entry, accessibility, and fast interaction during live sessions.
+- Use subtle haptics and purposeful motion; avoid decorative animation that
+  slows down repeated actions.
+- Validate important screens on real devices in both appearances.
+- Use a precision-sports visual system: content sits directly on the canvas,
+  rows are separated by hairlines, one feature per screen receives strong
+  visual emphasis, and glass is reserved for navigation and controls.
+- Avoid excessive cards, capsules, gradients, and large corner radii.
+
 ## First release: core app
 
 The first release should be capable of running an entire table-tennis session
@@ -50,16 +72,17 @@ from an iPhone.
 
 ### Foundation
 
-- ⬜ Create the Xcode project and SwiftUI app target
-- ⬜ Choose the minimum supported iOS version
+- ✅ Create the Xcode project and SwiftUI app target
+- ✅ Choose the minimum supported iOS version (iOS 18)
 - ⬜ Add environment configuration for development and production
 - ⬜ Add the Supabase Swift client
 - ⬜ Create API, authentication, and session services
 - ⬜ Add shared request/response models
 - ⬜ Add secure authentication-session storage
 - ⬜ Add loading, empty, retry, and error states
-- ⬜ Add unit tests for services and important models
-- ⬜ Confirm clean simulator build
+- 🚧 Add unit tests for services and important models
+- 🚧 Confirm clean simulator build (phone SDK build passes; this Mac's Xcode
+  Simulator component needs to be refreshed)
 
 ### Authentication
 
@@ -71,20 +94,21 @@ from an iPhone.
 
 ### Home
 
-- ⬜ Active-session card
-- ⬜ Current ranking summary
-- ⬜ Recent sessions or results
-- ⬜ Quick action to start or resume a session
+- ✅ Active-session card (demo data)
+- ✅ Current ranking summary (demo data)
+- ✅ Recent sessions or results (demo data)
+- ✅ Quick action to start or resume a session (opens demo scorecard)
 
 ### Sessions
 
-- ⬜ Sessions list
+- 🚧 Sessions list (complete with realistic demo data; live API pending)
 - ⬜ Session detail and status
 - ⬜ Start a new session
 - ⬜ Select players
 - ⬜ Review generated schedule
 - ⬜ Display singles and doubles matches
-- ⬜ Enter and validate scores
+- 🚧 Enter and validate scores (interactive demo scorecard complete; live API
+  connection pending)
 - ⬜ Submit a complete round through the shared backend
 - ⬜ Prevent accidental double submission in the UI
 - ⬜ Display submission progress and recoverable failures
@@ -94,7 +118,7 @@ from an iPhone.
 
 ### Rankings and profiles
 
-- ⬜ Singles leaderboard
+- 🚧 Singles leaderboard (complete with realistic demo data; live API pending)
 - ⬜ Individual doubles leaderboard
 - ⬜ Doubles-team leaderboard
 - ⬜ Player profile
@@ -110,8 +134,8 @@ from an iPhone.
 - ⬜ Basic settings
 - ⬜ Account and logout
 - ⬜ Dynamic Type support
-- ⬜ VoiceOver labels for scores and controls
-- ⬜ Light and dark appearance verification
+- 🚧 VoiceOver labels for scores and controls
+- 🚧 Light and dark appearance verification
 
 ## Later phases
 
@@ -206,15 +230,31 @@ No private credentials should be committed to this repository.
 
 ## Next actions
 
-1. Run the real-round smoke test through the web app.
-2. Commit and deploy the completed atomic backend changes.
-3. Confirm the app name, bundle identifier, and minimum iOS version.
-4. Create the SwiftUI project and implement authentication.
-5. Implement the session list, session detail, and round-submission flow.
-6. Add rankings and player/team profiles.
-7. Configure Google OAuth and prepare the first TestFlight build.
+1. Install the demo build on Ivan's iPhone and validate the design in light and
+   dark appearances.
+2. Refresh/install the iOS Simulator component in Xcode, then run unit tests.
+3. Add development/production configuration and the Supabase Swift client.
+4. Implement authentication and connect the home screen to live data.
+5. Implement the session list, detail, and atomic round-submission flow.
+6. Configure Google OAuth and prepare the first TestFlight build.
 
 ## Change log
 
 - 2026-07-23: Created the roadmap and recorded the initial scope, architecture,
   backend status, external integrations, and first-release definition of done.
+- 2026-07-23: Confirmed that the updated Next.js backend was committed,
+  deployed, and working.
+- 2026-07-23: Created the SwiftUI project in `ios/`, targeting iOS 18. Added
+  adaptive light/dark styling, native Liquid Glass on iOS 26+, a demo home
+  dashboard, interactive doubles score entry, haptics, accessibility support,
+  and score-state tests. The physical-iPhone SDK build passes.
+- 2026-07-23: Reworked the visual direction after reviewing the first device
+  prototype. Replaced the bubbly card system with a flatter precision-sports
+  language, redesigned Home and Score Entry, and populated Sessions and
+  Rankings with realistic demo content.
+- 2026-07-23: Aligned the native prototype with the existing product model.
+  Removed the rounded typography and invented league/upcoming-session concepts.
+  Sessions now use the real date/status/player/match-count/best-worst fields;
+  Rankings use singles, doubles-player, and doubles-team Elo with the real
+  eligibility thresholds; score entry now represents a complete six-player
+  Round 5 containing one doubles and one singles match submitted atomically.

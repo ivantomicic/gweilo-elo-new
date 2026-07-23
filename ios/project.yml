@@ -1,0 +1,49 @@
+name: Gweilo
+options:
+  bundleIdPrefix: com.ivantomicic
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    CURRENT_PROJECT_VERSION: 1
+    MARKETING_VERSION: 0.1.0
+    ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+targets:
+  Gweilo:
+    type: application
+    platform: iOS
+    sources:
+      - path: Gweilo
+        excludes:
+          - Resources/Assets.xcassets
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ivantomicic.gweilo
+        PRODUCT_NAME: Gweilo
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Gweilo
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
+        TARGETED_DEVICE_FAMILY: "1"
+    scheme:
+      testTargets:
+        - GweiloTests
+  GweiloTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: GweiloTests
+    dependencies:
+      - target: Gweilo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ivantomicic.gweilo.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
