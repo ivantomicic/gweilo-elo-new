@@ -15,11 +15,12 @@ scope, architecture, progress, or external setup requirements change.
 
 ## Current status
 
-The web application and Supabase database already contain the product rules and
-data. The native iOS app exists in `ios/`, builds against the physical-iPhone
-SDK, authenticates against Supabase, and reads live Home, Sessions, and
-Rankings data. Score entry is still a prototype and has not yet been connected
-to the atomic submission backend.
+The web application and Supabase database contain the product rules and data.
+The native SwiftUI app exists in `ios/`, builds for both simulator and physical
+iPhone SDKs, securely restores and refreshes Supabase logins, and reads live
+Home, Sessions, Rankings, and session-detail data. An active round can now be
+scored and submitted from iOS through the production atomic backend at
+`www.gweilo.lol`; Elo remains server-owned and is never calculated on-device.
 
 The safe round-submission foundation is implemented and tested:
 
@@ -32,7 +33,7 @@ The safe round-submission foundation is implemented and tested:
 - ✅ Supabase migrations applied and verified on the linked project
 - ✅ Next.js round-submission implementation completed
 - ✅ Updated Next.js backend committed and deployed
-- ⬜ Perform one real-round web smoke test
+- ⬜ Perform one real-round iOS smoke test
 
 ## Agreed architecture
 
@@ -75,22 +76,20 @@ from an iPhone.
 
 - ✅ Create the Xcode project and SwiftUI app target
 - ✅ Choose the minimum supported iOS version (iOS 18)
-- 🚧 Add environment configuration for development and production
+- ✅ Add environment configuration for development and production
 - ✅ Add a native Supabase authentication and REST data client
-- 🚧 Create API, authentication, and session services
+- ✅ Create API, authentication, and session services
 - ✅ Add shared request/response models for live read-only data
-- ⬜ Add secure authentication-session storage
-- 🚧 Add loading, empty, retry, and error states
-- 🚧 Add unit tests for services and important models
-- 🚧 Confirm clean simulator build (phone SDK build passes; this Mac's Xcode
-  Simulator component needs to be refreshed)
+- ✅ Add secure authentication-session storage
+- ✅ Add loading, empty, retry, and error states
+- ✅ Add unit tests for services and important models
+- ✅ Confirm clean simulator and physical-iPhone SDK builds
 
 ### Authentication
 
-- ⬜ Restore an existing Supabase login session
-- 🚧 Sign in and sign out (live email/password sign-in implemented; persistence
-  and visible sign-out UI remain)
-- ⬜ Handle expired sessions and refresh tokens
+- ✅ Restore an existing Supabase login session
+- ✅ Sign in and sign out
+- ✅ Handle expired sessions and refresh tokens
 - ⬜ Prepare Google sign-in
 - ⬜ Handle authentication callbacks and deep links
 
@@ -99,7 +98,8 @@ from an iPhone.
 - ✅ Active-session card (live Supabase data)
 - ✅ Current ranking summary (live Supabase data)
 - ✅ Recent session summary (live Supabase data)
-- ⬜ Quick action to start or resume a live session
+- 🚧 Quick action to start or resume a live session (native resume; creation
+  currently opens the existing web flow)
 
 ### Sessions
 
@@ -109,14 +109,13 @@ from an iPhone.
 - ⬜ Select players
 - ⬜ Review generated schedule
 - ⬜ Display singles and doubles matches
-- 🚧 Enter and validate scores (interactive demo scorecard complete; live API
-  connection pending)
-- ⬜ Submit a complete round through the shared backend
-- ⬜ Prevent accidental double submission in the UI
-- ⬜ Display submission progress and recoverable failures
-- ⬜ Support five-player session behavior
-- ⬜ Support six-player dynamic scheduling behavior
-- ⬜ Display completed-session summary
+- ✅ Enter and validate live scores
+- ✅ Submit a complete round through the shared production backend
+- ✅ Prevent accidental double submission in the UI
+- ✅ Display submission progress and recoverable failures
+- ✅ Support five-player deferred/combined-rating behavior through the backend
+- ✅ Support six-player dynamic scheduling behavior through the backend
+- ✅ Display completed-session result, best form, and toughest result
 
 ### Rankings and profiles
 
@@ -132,12 +131,12 @@ from an iPhone.
 
 ### General
 
-- ⬜ Rules
+- 🚧 Rules (opens the existing web rules)
 - ⬜ Basic settings
-- ⬜ Account and logout
-- ⬜ Dynamic Type support
-- 🚧 VoiceOver labels for scores and controls
-- 🚧 Light and dark appearance verification
+- ✅ Account and logout
+- 🚧 Dynamic Type support
+- ✅ VoiceOver labels for scores and controls
+- ✅ Light and dark appearance verification for core session and scoring screens
 
 ## Later phases
 
@@ -186,9 +185,9 @@ No private credentials should be committed to this repository.
 
 - 🔌 Apple Developer team
 - 🔌 Final app name and bundle identifier
-- 🔌 Supabase project URL
-- 🔌 Supabase public anonymous key
-- 🔌 Deployed Next.js API base URL
+- ✅ Supabase project URL configured locally
+- ✅ Supabase public anonymous key configured locally
+- ✅ Production Next.js API base URL (`https://www.gweilo.lol`)
 
 ### Required for Google sign-in
 
@@ -218,27 +217,29 @@ No private credentials should be committed to this repository.
 
 ## Definition of done for the first TestFlight build
 
-- ⬜ A user can authenticate
-- ⬜ A user can create or resume a session
-- ⬜ A user can enter and submit every round
-- ⬜ Duplicate taps or concurrent clients cannot apply Elo twice
-- ⬜ Rankings and session summaries reflect submitted results
-- ⬜ Authentication and network failures have clear recovery paths
-- ⬜ Unit tests pass
-- ⬜ The app builds without warnings that affect correctness
+- ✅ A user can authenticate
+- 🚧 A user can create or resume a session (resume is native; creation still
+  opens the web app)
+- ✅ A user can enter and submit every round
+- ✅ Duplicate taps or concurrent clients cannot apply Elo twice
+- ✅ Rankings and session summaries refresh after submitted results
+- ✅ Authentication and network failures have clear recovery paths
+- ✅ Unit tests pass
+- ✅ The app builds without warnings that affect correctness
 - ⬜ A real session has been completed using the iOS app
-- ⬜ No private backend credentials are present in the app bundle
+- ✅ No private backend credentials are present in the app bundle
 - ⬜ The build is uploaded to TestFlight
 
 ## Next actions
 
-1. Install the live-data build on Ivan's iPhone and validate authentication,
-   data access, and the design in light and dark appearances.
-2. Refresh/install the iOS Simulator component in Xcode, then run unit tests.
-3. Add authentication persistence, refresh-token handling, and visible logout.
-4. Implement live session detail and match loading.
-5. Connect score entry to the atomic round-submission backend.
-6. Configure Google OAuth and prepare the first TestFlight build.
+1. Complete one real active round from the iPhone and confirm the web app,
+   session history, and rankings show the same committed result.
+2. Decide whether first TestFlight requires fully native session creation or
+   may temporarily open the existing web creation flow.
+3. Configure Google OAuth if it is required for the first TestFlight build.
+4. Choose the Apple Developer team, confirm the final bundle identifier, and
+   prepare signing/TestFlight.
+5. Add native player profiles and Elo history after the live-session smoke test.
 
 ## Change log
 
@@ -280,3 +281,14 @@ No private credentials should be committed to this repository.
   Removed the oversized gradient active-session card, added direct navigation
   from live/latest Home summaries, and converted the decorative refresh glyph
   into a real native glass control with loading and accessibility behavior.
+- 2026-07-23: Added Keychain-backed login persistence, refresh-token exchange,
+  proactive token rotation for long sessions, visible account/logout controls,
+  and production API configuration for `www.gweilo.lol`.
+- 2026-07-23: Replaced the demo scorecard with live active-round score entry.
+  The app now validates an explicit score for every side, confirms the whole
+  round, blocks duplicate taps, submits the exact match IDs to the protected
+  atomic backend, surfaces recoverable failures, and refreshes sessions and
+  rankings after success. Added request-shape and score-draft tests.
+- 2026-07-23: Added completed-session form highlights, retry actions throughout
+  the live-data screens, a web fallback for new-session creation and rules,
+  simulator QA in light/dark appearances, and clean simulator test coverage.

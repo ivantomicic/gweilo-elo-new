@@ -12,10 +12,23 @@ final class AppDataStore {
     private(set) var hasLoaded = false
     private(set) var errorMessage: String?
 
-    private let client: SupabaseDataClient
-    private let apiClient: GweiloAPIClient
+    private var client: SupabaseDataClient
+    private var apiClient: GweiloAPIClient
+    private let configuration: AppConfiguration
 
     init(configuration: AppConfiguration, session: AuthSession) {
+        self.configuration = configuration
+        client = SupabaseDataClient(
+            configuration: configuration,
+            accessToken: session.accessToken
+        )
+        apiClient = GweiloAPIClient(
+            configuration: configuration,
+            accessToken: session.accessToken
+        )
+    }
+
+    func updateSession(_ session: AuthSession) {
         client = SupabaseDataClient(
             configuration: configuration,
             accessToken: session.accessToken

@@ -21,7 +21,10 @@ struct RankingsView: View {
                         RankingsContent(
                             entries: entries,
                             isLoading: dataStore.isLoading,
-                            errorMessage: dataStore.errorMessage
+                            errorMessage: dataStore.errorMessage,
+                            retry: {
+                                Task { await dataStore.load() }
+                            }
                         )
                     }
                     .padding(.horizontal, 20)
@@ -77,6 +80,7 @@ private struct RankingsContent: View {
     let entries: [RankingEntry]
     let isLoading: Bool
     let errorMessage: String?
+    let retry: () -> Void
 
     var body: some View {
         if isLoading, entries.isEmpty {
@@ -84,11 +88,14 @@ private struct RankingsContent: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
         } else if let errorMessage, entries.isEmpty {
-            ContentUnavailableView(
-                "Couldn’t load rankings",
-                systemImage: "wifi.exclamationmark",
-                description: Text(errorMessage)
-            )
+            ContentUnavailableView {
+                Label("Couldn’t load rankings", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("Try again", action: retry)
+                    .buttonStyle(.borderedProminent)
+            }
         } else if entries.isEmpty {
             ContentUnavailableView(
                 "No eligible players",

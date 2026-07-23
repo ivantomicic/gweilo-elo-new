@@ -210,7 +210,11 @@ private struct RoundHeader: View {
             HStack {
                 Text(matchSummary)
                 Spacer()
-                Text("\(round.restingPlayers.count) resting")
+                Text(
+                    round.restingPlayers.isEmpty
+                        ? "All players active"
+                        : "\(round.restingPlayers.count) resting"
+                )
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)

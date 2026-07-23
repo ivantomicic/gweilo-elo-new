@@ -142,6 +142,30 @@ final class AuthStore {
         }
     }
 
+    func refreshBeforeExpiry() async {
+        guard
+            let currentSession = session,
+            let expiresAt = currentSession.expiresAt
+        else {
+            return
+        }
+
+        let refreshAt = TimeInterval(expiresAt) - 90
+        let delay = max(0, refreshAt - Date.now.timeIntervalSince1970)
+        if delay > 0 {
+            try? await Task.sleep(
+                for: .seconds(Int64(delay.rounded(.down)))
+            )
+        }
+        guard
+            !Task.isCancelled,
+            session?.accessToken == currentSession.accessToken
+        else {
+            return
+        }
+        await refreshIfNeeded()
+    }
+
     func signOut() {
         vault.delete()
         session = nil

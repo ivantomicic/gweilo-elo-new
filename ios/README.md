@@ -1,9 +1,8 @@
 # Gweilo iOS
 
-This SwiftUI slice has live Supabase email/password authentication plus
-read-only Home, Sessions, and Rankings screens backed by the same Supabase
-project as the web app. Score entry remains a local prototype until it is
-connected to the atomic round-submission backend.
+This is the native SwiftUI companion to the Gweilo web app. It uses the same
+Supabase project for authentication and live data, and the same production
+Next.js backend for protected round submission and Elo updates.
 
 ## Open the project
 
@@ -37,6 +36,7 @@ Apple Developer account is required for TestFlight and App Store distribution.
 ## Current build
 
 - Live sign-in with the same Supabase email/password account as the web app
+- Secure Keychain login persistence, token refresh, and visible sign-out
 - Live active-session and latest-session summaries
 - Live session history and completed match counts
 - Live session details with players, rounds, pairings, scores, and resting players
@@ -44,6 +44,19 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Pull-to-refresh, loading, empty, and network-error states
 - Adaptive light and dark appearances
 - Native Liquid Glass on supported iOS versions
-- Prototype six-player Round 5 score entry with haptics
-- Accessibility labels and adjustable score controls
-- Unit tests for score-state behavior
+- Live score entry for every match in the active round
+- Confirmed whole-round submission to `https://www.gweilo.lol`
+- Server-owned atomic Elo updates and duplicate-submission protection
+- Submission progress, haptics, clear failures, and post-submit refresh
+- Accessibility labels and adjustable/numeric score controls
+- Unit tests for score drafts, request shape, authentication expiry, and models
+
+The app bundle contains only Supabase's public URL/key and the public production
+API address. The Supabase service-role key and other private web credentials are
+never copied into the iOS configuration.
+
+## Current boundary
+
+Active sessions can be resumed and fully scored natively. Starting a new
+session currently opens the existing web creation flow; fully native player
+selection and schedule review remain the largest first-release decision.

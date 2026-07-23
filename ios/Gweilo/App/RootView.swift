@@ -37,15 +37,23 @@ struct RootView: View {
                 return
             }
 
-            let store = AppDataStore(
-                configuration: configuration,
-                session: session
-            )
-            appDataStore = store
-            await store.load()
+            if let appDataStore {
+                appDataStore.updateSession(session)
+                await appDataStore.load()
+            } else {
+                let store = AppDataStore(
+                    configuration: configuration,
+                    session: session
+                )
+                appDataStore = store
+                await store.load()
+            }
         }
         .task {
             await authStore.restoreSession()
+        }
+        .task(id: authStore.session?.accessToken) {
+            await authStore.refreshBeforeExpiry()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
@@ -118,6 +126,13 @@ private struct MainTabView: View {
 private struct AccountView: View {
     let email: String?
     let signOut: () -> Void
+    @State private var showsSignOutConfirmation = false
+
+    private var version: String {
+        Bundle.main.object(
+            forInfoDictionaryKey: "CFBundleShortVersionString"
+        ) as? String ?? "—"
+    }
 
     var body: some View {
         NavigationStack {
@@ -133,8 +148,24 @@ private struct AccountView: View {
                         }
                     }
 
+                    Section("GWEILO ON THE WEB") {
+                        Link(destination: URL(string: "https://www.gweilo.lol/start-session")!) {
+                            Label("Start a new session", systemImage: "safari")
+                        }
+                        Link(destination: URL(string: "https://www.gweilo.lol/rules")!) {
+                            Label("Rules", systemImage: "book.closed")
+                        }
+                    }
+
+                    Section("APP") {
+                        LabeledContent("Version", value: version)
+                        LabeledContent("Server", value: "www.gweilo.lol")
+                    }
+
                     Section {
-                        Button("Sign out", role: .destructive, action: signOut)
+                        Button("Sign out", role: .destructive) {
+                            showsSignOutConfirmation = true
+                        }
                     } footer: {
                         Text("Your login is stored securely on this iPhone.")
                     }
@@ -142,6 +173,14 @@ private struct AccountView: View {
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("More")
+            .confirmationDialog(
+                "Sign out of Gweilo?",
+                isPresented: $showsSignOutConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Sign out", role: .destructive, action: signOut)
+                Button("Cancel", role: .cancel) {}
+            }
         }
     }
 }

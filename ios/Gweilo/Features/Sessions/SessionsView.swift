@@ -105,11 +105,16 @@ private struct SessionsContent: View {
                 .padding(.vertical, 60)
         } else if let errorMessage = dataStore.errorMessage,
                   dataStore.sessions.isEmpty {
-            ContentUnavailableView(
-                "Couldn’t load sessions",
-                systemImage: "wifi.exclamationmark",
-                description: Text(errorMessage)
-            )
+            ContentUnavailableView {
+                Label("Couldn’t load sessions", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text(errorMessage)
+            } actions: {
+                Button("Try again") {
+                    Task { await dataStore.load() }
+                }
+                .buttonStyle(.borderedProminent)
+            }
         } else if dataStore.sessions.isEmpty {
             ContentUnavailableView(
                 "No sessions yet",

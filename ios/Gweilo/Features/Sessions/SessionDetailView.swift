@@ -32,6 +32,8 @@ struct SessionDetailView: View {
                                     scoringRound = currentRound
                                 }
                             )
+                        } else if detail.session.status == .completed {
+                            CompletedSessionOutcome(session: detail.session)
                         }
 
                         PlayerRoster(participants: detail.participants)
@@ -279,6 +281,64 @@ private struct CurrentRoundStage: View {
                 .fill(GweiloTheme.lime)
                 .frame(width: 3)
         }
+    }
+}
+
+private struct CompletedSessionOutcome: View {
+    let session: SessionSummary
+
+    var body: some View {
+        if session.bestPlayer != nil || session.worstPlayer != nil {
+            VStack(alignment: .leading, spacing: 14) {
+                SectionLabel(title: "Session form", value: "FINAL")
+
+                HStack(alignment: .top, spacing: 18) {
+                    OutcomePlayer(
+                        label: "BEST",
+                        name: session.bestPlayer,
+                        delta: session.bestDelta,
+                        color: GweiloTheme.lime,
+                        symbol: "arrow.up"
+                    )
+
+                    Divider()
+
+                    OutcomePlayer(
+                        label: "TOUGHEST",
+                        name: session.worstPlayer,
+                        delta: session.worstDelta,
+                        color: GweiloTheme.coral,
+                        symbol: "arrow.down"
+                    )
+                }
+            }
+        }
+    }
+}
+
+private struct OutcomePlayer: View {
+    let label: String
+    let name: String?
+    let delta: Int?
+    let color: Color
+    let symbol: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Label(label, systemImage: symbol)
+                .font(.caption2.weight(.bold))
+                .tracking(0.8)
+                .foregroundStyle(color)
+
+            Text(name ?? "—")
+                .font(.headline)
+                .lineLimit(1)
+
+            Text(delta.map { $0 > 0 ? "+\($0) Elo" : "\($0) Elo" } ?? "—")
+                .font(.subheadline.monospacedDigit().weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

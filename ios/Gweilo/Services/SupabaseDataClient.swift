@@ -128,6 +128,11 @@ private struct TeamRatingRecord: Decodable, Sendable {
     }
 }
 
+private struct PostgrestErrorResponse: Decodable {
+    let message: String?
+    let details: String?
+}
+
 struct LiveDataSnapshot: Sendable {
     let sessions: [SessionSummary]
     let singles: [RankingEntry]
@@ -250,8 +255,34 @@ struct SupabaseDataClient: Sendable {
             )
         }
 
+        let completedMatches = matchRecords.filter { $0.status == "completed" }
+        let pendingRounds = matchRecords
+            .filter { $0.status != "completed" }
+            .map(\.roundNumber)
+        let inferredStatus: SessionStatus = pendingRounds.isEmpty && !matchRecords.isEmpty
+            ? .completed
+            : summary.status
+        let refreshedSummary = SessionSummary(
+            id: summary.id,
+            createdAt: summary.createdAt,
+            playerCount: summary.playerCount,
+            status: inferredStatus,
+            currentRound: inferredStatus == .active ? pendingRounds.min() : nil,
+            totalRounds: matchRecords.map(\.roundNumber).max() ?? summary.totalRounds,
+            singlesMatches: completedMatches.filter {
+                $0.matchType == .singles
+            }.count,
+            doublesMatches: completedMatches.filter {
+                $0.matchType == .doubles
+            }.count,
+            bestPlayer: summary.bestPlayer,
+            bestDelta: summary.bestDelta,
+            worstPlayer: summary.worstPlayer,
+            worstDelta: summary.worstDelta
+        )
+
         return SessionDetail(
-            session: summary,
+            session: refreshedSummary,
             participants: participants,
             rounds: rounds
         )
@@ -411,8 +442,18 @@ struct SupabaseDataClient: Sendable {
             throw LiveDataError.invalidResponse
         }
         guard (200..<300).contains(httpResponse.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Unknown Supabase error"
-            throw LiveDataError.requestFailed(message)
+            if httpResponse.statusCode == 401 {
+                throw LiveDataError.unauthorized
+            }
+            let errorResponse = try? JSONDecoder().decode(
+                PostgrestErrorResponse.self,
+                from: data
+            )
+            throw LiveDataError.requestFailed(
+                errorResponse?.message ??
+                errorResponse?.details ??
+                "The server rejected the request."
+            )
         }
 
         let decoder = JSONDecoder()
@@ -436,6 +477,7 @@ struct SupabaseDataClient: Sendable {
 enum LiveDataError: LocalizedError {
     case invalidURL
     case invalidResponse
+    case unauthorized
     case requestFailed(String)
 
     var errorDescription: String? {
@@ -444,6 +486,8 @@ enum LiveDataError: LocalizedError {
             "The Supabase data URL is invalid."
         case .invalidResponse:
             "Supabase returned an invalid response."
+        case .unauthorized:
+            "Your login expired. Return to the app and try again."
         case let .requestFailed(message):
             "Could not load live data. \(message)"
         }

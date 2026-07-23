@@ -24,9 +24,12 @@ struct HomeView: View {
                         LatestSessionResult(session: dataStore.latestCompletedSession)
 
                         if let errorMessage = dataStore.errorMessage {
-                            Label(errorMessage, systemImage: "wifi.exclamationmark")
-                                .font(.footnote)
-                                .foregroundStyle(GweiloTheme.coral)
+                            DataErrorNotice(
+                                message: errorMessage,
+                                retry: {
+                                    Task { await dataStore.load() }
+                                }
+                            )
                         }
                     }
                     .padding(.horizontal, 20)
@@ -44,6 +47,31 @@ struct HomeView: View {
                     dataStore: dataStore
                 )
             }
+        }
+    }
+}
+
+struct DataErrorNotice: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(GweiloTheme.coral)
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 4)
+
+            Button("Retry", action: retry)
+                .font(.footnote.weight(.bold))
+        }
+        .padding(.vertical, 12)
+        .overlay(alignment: .top) {
+            Divider()
         }
     }
 }
@@ -92,6 +120,12 @@ private struct HomeLiveSession: View {
                     .foregroundStyle(.secondary)
                 Text("The next live session will appear here.")
                     .font(.headline)
+
+                Link(destination: URL(string: "https://www.gweilo.lol/start-session")!) {
+                    Label("Start on the web", systemImage: "safari")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)
