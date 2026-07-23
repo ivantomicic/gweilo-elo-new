@@ -47,6 +47,12 @@ struct HomeView: View {
                     dataStore: dataStore
                 )
             }
+            .navigationDestination(for: RankingEntry.self) { player in
+                PlayerProfileView(
+                    player: player,
+                    dataStore: dataStore
+                )
+            }
         }
     }
 }
@@ -214,7 +220,10 @@ private struct CompactStandings: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
-                        StandingRow(rank: index + 1, player: player)
+                        NavigationLink(value: player) {
+                            StandingRow(rank: index + 1, player: player)
+                        }
+                        .buttonStyle(ResponsiveButtonStyle())
 
                         if player.id != players.last?.id {
                             Divider()
@@ -252,7 +261,12 @@ private struct StandingRow: View {
 
             Text("\(player.elo)")
                 .font(.body.monospacedDigit().weight(.bold))
+
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
+        .foregroundStyle(.primary)
         .padding(.vertical, 12)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Rank \(rank), \(player.name), \(player.elo) Elo")

@@ -131,6 +131,12 @@ private struct MainTabView: View {
             Tab("More", systemImage: "ellipsis") {
                 AccountView(
                     email: authStore.session?.user.email,
+                    player: authStore.session.flatMap { session in
+                        dataStore.singlesRankings.first {
+                            $0.id == session.user.id
+                        }
+                    },
+                    dataStore: dataStore,
                     signOut: authStore.signOut
                 )
             }
@@ -141,6 +147,8 @@ private struct MainTabView: View {
 
 private struct AccountView: View {
     let email: String?
+    let player: RankingEntry?
+    let dataStore: AppDataStore
     let signOut: () -> Void
     @State private var showsSignOutConfirmation = false
 
@@ -161,6 +169,12 @@ private struct AccountView: View {
                             Text(email ?? "Gweilo member")
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
+                        }
+
+                        if let player {
+                            NavigationLink(value: player) {
+                                Label("My player profile", systemImage: "person.text.rectangle")
+                            }
                         }
                     }
 
@@ -189,6 +203,12 @@ private struct AccountView: View {
                 .scrollContentBackground(.hidden)
             }
             .navigationTitle("More")
+            .navigationDestination(for: RankingEntry.self) { player in
+                PlayerProfileView(
+                    player: player,
+                    dataStore: dataStore
+                )
+            }
             .confirmationDialog(
                 "Sign out of Gweilo?",
                 isPresented: $showsSignOutConfirmation,

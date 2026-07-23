@@ -233,7 +233,7 @@ private struct RankingRecord: View {
     }
 }
 
-private struct PlayerProfileView: View {
+struct PlayerProfileView: View {
     let player: RankingEntry
     let dataStore: AppDataStore
 
