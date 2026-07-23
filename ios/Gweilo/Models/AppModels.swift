@@ -37,6 +37,21 @@ struct RankingEntry: Identifiable, Hashable, Sendable {
     }
 }
 
+struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
+    var id: Int { match }
+
+    let match: Int
+    let elo: Double
+    let date: Date
+    let opponent: String?
+    let delta: Double?
+}
+
+struct PlayerEloHistory: Hashable, Sendable {
+    let points: [PlayerEloHistoryPoint]
+    let currentElo: Double
+}
+
 enum SessionStatus: String, Codable, Hashable, Sendable {
     case active
     case completed

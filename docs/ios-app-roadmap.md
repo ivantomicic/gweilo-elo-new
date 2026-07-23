@@ -122,8 +122,8 @@ from an iPhone.
 - ✅ Singles leaderboard (live Supabase data)
 - ✅ Individual doubles leaderboard (live Supabase data)
 - ✅ Doubles-team leaderboard (live Supabase data)
-- ⬜ Player profile
-- ⬜ Player Elo history
+- ✅ Singles player profile
+- ✅ Player singles Elo history and recent results
 - ⬜ Player head-to-head results
 - ⬜ Team profile and history
 - ⬜ Top-three statistics
@@ -239,7 +239,8 @@ No private credentials should be committed to this repository.
 3. Configure Google OAuth if it is required for the first TestFlight build.
 4. Choose the Apple Developer team, confirm the final bundle identifier, and
    prepare signing/TestFlight.
-5. Add native player profiles and Elo history after the live-session smoke test.
+5. Add native head-to-head comparison and doubles-team history after the
+   live-session smoke test.
 
 ## Change log
 
@@ -292,3 +293,7 @@ No private credentials should be committed to this repository.
 - 2026-07-23: Added completed-session form highlights, retry actions throughout
   the live-data screens, a web fallback for new-session creation and rules,
   simulator QA in light/dark appearances, and clean simulator test coverage.
+- 2026-07-23: Made eligible singles rankings navigable. Added native player
+  profiles with live record totals, an authenticated Swift Charts Elo trend,
+  recent opponent/delta rows, retry behavior, request tests, and light/dark
+  simulator QA.

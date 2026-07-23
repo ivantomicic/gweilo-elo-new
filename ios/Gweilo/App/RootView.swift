@@ -7,7 +7,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isScoreEntryPreview {
+            if isPlayerProfilePreview {
+                PlayerProfilePreviewScreen()
+            } else if isScoreEntryPreview {
                 ScoreEntryPreviewScreen()
             } else if isSessionDetailPreview {
                 SessionDetailPreviewScreen()
@@ -78,6 +80,14 @@ struct RootView: View {
         false
         #endif
     }
+
+    private var isPlayerProfilePreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-player-profile-preview")
+        #else
+        false
+        #endif
+    }
 }
 
 #if !DEBUG
@@ -88,6 +98,12 @@ private struct SessionDetailPreviewScreen: View {
 }
 
 private struct ScoreEntryPreviewScreen: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+
+private struct PlayerProfilePreviewScreen: View {
     var body: some View {
         EmptyView()
     }

@@ -503,6 +503,19 @@ private struct APIErrorResponse: Decodable {
     let detail: String?
 }
 
+private struct PlayerEloHistoryPointResponse: Decodable {
+    let match: Int
+    let elo: Double
+    let date: String
+    let opponent: String?
+    let delta: Double?
+}
+
+private struct PlayerEloHistoryResponse: Decodable {
+    let data: [PlayerEloHistoryPointResponse]
+    let currentElo: Double
+}
+
 struct RoundSubmissionResult: Decodable, Sendable {
     let success: Bool
     let message: String?
@@ -573,6 +586,68 @@ struct GweiloAPIClient: Sendable {
         request.httpBody = try JSONEncoder().encode(
             RoundSubmissionRequest(matchScores: scores)
         )
+        return request
+    }
+
+    func fetchPlayerEloHistory(playerID: UUID) async throws -> PlayerEloHistory {
+        let request = try makePlayerEloHistoryRequest(playerID: playerID)
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BackendAPIError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            throw BackendAPIError.rejected(
+                errorResponse?.error ??
+                errorResponse?.detail ??
+                "Could not load this player's Elo history."
+            )
+        }
+
+        let responseBody = try JSONDecoder().decode(
+            PlayerEloHistoryResponse.self,
+            from: data
+        )
+        let iso8601WithFractionalSeconds = ISO8601DateFormatter()
+        iso8601WithFractionalSeconds.formatOptions = [
+            .withInternetDateTime,
+            .withFractionalSeconds
+        ]
+        let iso8601 = ISO8601DateFormatter()
+        let points = responseBody.data.compactMap { point -> PlayerEloHistoryPoint? in
+            guard let date = iso8601WithFractionalSeconds.date(from: point.date)
+                    ?? iso8601.date(from: point.date) else {
+                return nil
+            }
+            return PlayerEloHistoryPoint(
+                match: point.match,
+                elo: point.elo,
+                date: date,
+                opponent: point.opponent,
+                delta: point.delta
+            )
+        }
+        return PlayerEloHistory(
+            points: points,
+            currentElo: responseBody.currentElo
+        )
+    }
+
+    func makePlayerEloHistoryRequest(playerID: UUID) throws -> URLRequest {
+        var components = URLComponents(
+            url: configuration.apiBaseURL.appending(path: "api/player/elo-history"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "playerId", value: playerID.uuidString)
+        ]
+        guard let endpoint = components?.url else {
+            throw BackendAPIError.invalidResponse
+        }
+
+        var request = URLRequest(url: endpoint)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
     }
 }

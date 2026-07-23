@@ -152,6 +152,35 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(scores[1]["team2Score"] as? Int, 11)
     }
 
+    @MainActor
+    func testPlayerHistoryRequestUsesAuthenticatedProductionRoute() throws {
+        let playerID = UUID()
+        let configuration = AppConfiguration(
+            supabaseURL: URL(string: "https://example.supabase.co")!,
+            supabaseAnonKey: "public-anon-key",
+            apiBaseURL: URL(string: "https://www.gweilo.lol")!
+        )
+        let client = GweiloAPIClient(
+            configuration: configuration,
+            accessToken: "member-access-token"
+        )
+
+        let request = try client.makePlayerEloHistoryRequest(playerID: playerID)
+        let components = try XCTUnwrap(
+            URLComponents(url: XCTUnwrap(request.url), resolvingAgainstBaseURL: false)
+        )
+
+        XCTAssertEqual(components.path, "/api/player/elo-history")
+        XCTAssertEqual(
+            components.queryItems?.first(where: { $0.name == "playerId" })?.value,
+            playerID.uuidString
+        )
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+    }
+
     private func makeMatches() -> [SessionMatch] {
         [
             SessionMatch(

@@ -73,6 +73,10 @@ final class AppDataStore {
         return result
     }
 
+    func playerEloHistory(for playerID: UUID) async throws -> PlayerEloHistory {
+        try await apiClient.fetchPlayerEloHistory(playerID: playerID)
+    }
+
     func load() async {
         guard !isLoading else { return }
         isLoading = true

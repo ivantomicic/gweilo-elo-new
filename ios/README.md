@@ -41,6 +41,7 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Live session history and completed match counts
 - Live session details with players, rounds, pairings, scores, and resting players
 - Live singles, doubles-player, and doubles-team rankings
+- Native singles player profiles with live Elo charts and recent opponents
 - Pull-to-refresh, loading, empty, and network-error states
 - Adaptive light and dark appearances
 - Native Liquid Glass on supported iOS versions
