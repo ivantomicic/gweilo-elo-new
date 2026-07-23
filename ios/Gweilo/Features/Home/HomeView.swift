@@ -3,6 +3,14 @@ import SwiftUI
 struct HomeView: View {
     let dataStore: AppDataStore
 
+    private var topSinglesPlayers: [RankingEntry] {
+        Array(
+            dataStore.singlesRankings
+                .filter { $0.matches >= RankingCategory.singles.minimumMatches }
+                .prefix(4)
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -12,13 +20,7 @@ struct HomeView: View {
                     LazyVStack(alignment: .leading, spacing: 30) {
                         HomeHeader()
                         HomeLiveSession(session: dataStore.activeSession)
-                        CompactStandings(
-                            players: Array(
-                                dataStore.singlesRankings
-                                    .filter { $0.matches >= RankingCategory.singles.minimumMatches }
-                                    .prefix(4)
-                            )
-                        )
+                        CompactStandings(players: topSinglesPlayers)
                         LatestSessionResult(session: dataStore.latestCompletedSession)
 
                         if let errorMessage = dataStore.errorMessage {
@@ -36,6 +38,12 @@ struct HomeView: View {
                 .scrollIndicators(.hidden)
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
+            .navigationDestination(for: SessionSummary.self) { session in
+                SessionDetailView(
+                    session: session,
+                    dataStore: dataStore
+                )
+            }
         }
     }
 }
@@ -71,7 +79,11 @@ private struct HomeLiveSession: View {
 
     var body: some View {
         if let session {
-            LiveSessionFeature(session: session)
+            NavigationLink(value: session) {
+                LiveSessionFeature(session: session)
+            }
+            .buttonStyle(ResponsiveButtonStyle())
+            .accessibilityHint("Opens the active session")
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 Text("NO ACTIVE SESSION")
@@ -91,48 +103,65 @@ private struct LiveSessionFeature: View {
     let session: SessionSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 18) {
             HStack {
-                Label("ACTIVE SESSION", systemImage: "circle.fill")
+                Label("LIVE SESSION", systemImage: "circle.fill")
                     .font(.caption2.weight(.bold))
                     .tracking(1.2)
+                    .foregroundStyle(GweiloTheme.lime)
 
                 Spacer()
 
                 Text("\(session.playerCount) PLAYERS")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(.secondary)
             }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Current round")
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Current round")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text("Round \(session.currentRound ?? 1)")
+                        .font(.title.weight(.bold))
+                        .tracking(-0.5)
+                }
+
+                Spacer()
+
+                Text("\(session.currentRound ?? 1) / \(session.totalRounds)")
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.68))
-
-                Text("Round \(session.currentRound ?? 1) of \(session.totalRounds)")
-                    .font(.title.weight(.bold))
-
-                Text(
-                    "\(session.singlesMatches) singles completed · \(session.doublesMatches) doubles completed"
-                )
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.76))
+                    .foregroundStyle(.tertiary)
             }
 
-            Label("Live from Supabase", systemImage: "checkmark.icloud.fill")
-                .font(.caption.weight(.bold))
-                .foregroundStyle(.white.opacity(0.78))
+            HStack(spacing: 18) {
+                Label(
+                    "\(session.singlesMatches) singles",
+                    systemImage: "person.2.fill"
+                )
+                Label(
+                    "\(session.doublesMatches) doubles",
+                    systemImage: "person.3.fill"
+                )
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
         }
-        .foregroundStyle(.white)
-        .padding(22)
-        .background(
-            LinearGradient(
-                colors: [GweiloTheme.accent, Color(red: 0.24, green: 0.10, blue: 0.68)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: .rect(cornerRadius: 18)
-        )
+        .foregroundStyle(.primary)
+        .padding(.vertical, 16)
+        .padding(.leading, 17)
+        .padding(.trailing, 14)
+        .background(GweiloTheme.lime.opacity(0.055))
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(GweiloTheme.lime)
+                .frame(width: 3)
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -204,30 +233,45 @@ private struct LatestSessionResult: View {
             SectionHeading(title: "Latest session")
 
             if let session {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(session.dateLabel)
-                        .font(.headline)
+                NavigationLink(value: session) {
+                    HStack(alignment: .center, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(session.dateLabel)
+                                .font(.headline)
 
-                    HStack {
-                        Label(
-                            "\(session.singlesMatches) singles",
-                            systemImage: "person.2.fill"
-                        )
-                        Label(
-                            "\(session.doublesMatches) doubles",
-                            systemImage: "person.3.fill"
-                        )
-                    }
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                            HStack {
+                                Label(
+                                    "\(session.singlesMatches) singles",
+                                    systemImage: "person.2.fill"
+                                )
+                                Label(
+                                    "\(session.doublesMatches) doubles",
+                                    systemImage: "person.3.fill"
+                                )
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
 
-                    if let bestPlayer = session.bestPlayer,
-                       let bestDelta = session.bestDelta {
-                        Text("Best form: \(bestPlayer) \(bestDelta >= 0 ? "+" : "")\(bestDelta)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(GweiloTheme.lime)
+                            if let bestPlayer = session.bestPlayer,
+                               let bestDelta = session.bestDelta {
+                                Text(
+                                    "Best form: \(bestPlayer) \(bestDelta >= 0 ? "+" : "")\(bestDelta)"
+                                )
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(GweiloTheme.lime)
+                            }
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.tertiary)
                     }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(ResponsiveButtonStyle())
+                .accessibilityHint("Opens the latest session")
             } else {
                 Text("No completed sessions yet.")
                     .font(.subheadline)

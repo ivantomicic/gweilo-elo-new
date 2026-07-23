@@ -10,7 +10,12 @@ struct SessionsView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 26) {
-                        SessionsHeader()
+                        SessionsHeader(
+                            isLoading: dataStore.isLoading,
+                            refresh: {
+                                Task { await dataStore.load() }
+                            }
+                        )
                         SessionsContent(dataStore: dataStore)
                     }
                     .padding(.horizontal, 20)
@@ -32,6 +37,9 @@ struct SessionsView: View {
     }
 }
 private struct SessionsHeader: View {
+    let isLoading: Bool
+    let refresh: () -> Void
+
     var body: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 5) {
@@ -47,15 +55,43 @@ private struct SessionsHeader: View {
 
             Spacer()
 
-            if #available(iOS 26, *) {
+            Button(action: refresh) {
                 Image(systemName: "arrow.clockwise")
                     .font(.subheadline.weight(.semibold))
-                    .padding(12)
-                    .glassEffect(.regular, in: .circle)
-                    .accessibilityHidden(true)
+                    .frame(width: 42, height: 42)
             }
+            .buttonStyle(.plain)
+            .disabled(isLoading)
+            .opacity(isLoading ? 0.45 : 1)
+            .modifier(RefreshButtonSurface())
+            .accessibilityLabel("Refresh sessions")
         }
         .padding(.top, 18)
+    }
+}
+
+private struct RefreshButtonSurface: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+                .glassEffect(.regular.interactive(), in: .circle)
+        } else {
+            content
+                .background(
+                    GweiloTheme.surface(for: colorScheme),
+                    in: .circle
+                )
+                .overlay {
+                    Circle()
+                        .stroke(
+                            GweiloTheme.hairline(for: colorScheme),
+                            lineWidth: 0.75
+                        )
+                }
+        }
     }
 }
 

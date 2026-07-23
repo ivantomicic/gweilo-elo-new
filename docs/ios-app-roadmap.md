@@ -276,3 +276,7 @@ No private credentials should be committed to this repository.
   layout. Added real profile avatars, a focused current-round stage, compact
   player roster, collapsible round history, clearer winners and scores, and
   light/dark simulator visual QA.
+- 2026-07-23: Carried the flatter session language back into Home and Sessions.
+  Removed the oversized gradient active-session card, added direct navigation
+  from live/latest Home summaries, and converted the decorative refresh glyph
+  into a real native glass control with loading and accessibility behavior.
