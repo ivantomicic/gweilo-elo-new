@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SessionsView: View {
-    private let sessions = DemoSession.all
+    let dataStore: AppDataStore
 
     var body: some View {
         NavigationStack {
@@ -11,25 +11,26 @@ struct SessionsView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 26) {
                         SessionsHeader()
-
-                        ForEach(sessions) { session in
-                            SessionRecord(session: session)
-
-                            if session.id != sessions.last?.id {
-                                Divider()
-                            }
-                        }
+                        SessionsContent(dataStore: dataStore)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
                 }
+                .refreshable {
+                    await dataStore.load()
+                }
                 .scrollIndicators(.hidden)
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
+            .navigationDestination(for: SessionSummary.self) { session in
+                SessionDetailView(
+                    session: session,
+                    dataStore: dataStore
+                )
+            }
         }
     }
 }
-
 private struct SessionsHeader: View {
     var body: some View {
         HStack(alignment: .bottom) {
@@ -46,19 +47,56 @@ private struct SessionsHeader: View {
 
             Spacer()
 
-            Button("Start", systemImage: "plus") {}
-                .font(.subheadline.weight(.semibold))
-                .buttonStyle(.bordered)
+            if #available(iOS 26, *) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .padding(12)
+                    .glassEffect(.regular, in: .circle)
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.top, 18)
     }
 }
 
-private struct SessionRecord: View {
-    let session: DemoSession
+private struct SessionsContent: View {
+    let dataStore: AppDataStore
 
     var body: some View {
-        Button(action: {}) {
+        if dataStore.isLoading, dataStore.sessions.isEmpty {
+            ProgressView("Loading sessions…")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+        } else if let errorMessage = dataStore.errorMessage,
+                  dataStore.sessions.isEmpty {
+            ContentUnavailableView(
+                "Couldn’t load sessions",
+                systemImage: "wifi.exclamationmark",
+                description: Text(errorMessage)
+            )
+        } else if dataStore.sessions.isEmpty {
+            ContentUnavailableView(
+                "No sessions yet",
+                systemImage: "sportscourt",
+                description: Text("Sessions created on the web will appear here.")
+            )
+        } else {
+            ForEach(dataStore.sessions) { session in
+                SessionRecord(session: session)
+
+                if session.id != dataStore.sessions.last?.id {
+                    Divider()
+                }
+            }
+        }
+    }
+}
+
+private struct SessionRecord: View {
+    let session: SessionSummary
+
+    var body: some View {
+        NavigationLink(value: session) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(session.dateLabel)
@@ -67,7 +105,7 @@ private struct SessionRecord: View {
 
                     Spacer()
 
-                    Text(session.status.rawValue)
+                    Text(session.status.label)
                         .font(.caption2.weight(.bold))
                         .tracking(0.8)
                         .foregroundStyle(
@@ -84,36 +122,38 @@ private struct SessionRecord: View {
                     SessionValue(value: "\(session.totalRounds)", label: "ROUNDS")
                 }
 
-                if session.status == .active {
-                    HStack {
-                        Text("Round \(session.currentRound ?? 1) of \(session.totalRounds)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-
-                        Spacer()
-
-                        Label("Resume", systemImage: "arrow.right")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(GweiloTheme.accent)
-                    }
-                } else if let bestPlayer = session.bestPlayer,
-                          let bestDelta = session.bestDelta,
-                          let worstPlayer = session.worstPlayer,
-                          let worstDelta = session.worstDelta {
-                    HStack(spacing: 16) {
-                        SessionDelta(
-                            symbol: "arrow.up",
-                            player: bestPlayer,
-                            delta: bestDelta,
-                            color: GweiloTheme.lime
+                HStack {
+                    if session.status == .active {
+                        Label(
+                            "Round \(session.currentRound ?? 1) of \(session.totalRounds)",
+                            systemImage: "circle.fill"
                         )
-                        SessionDelta(
-                            symbol: "arrow.down",
-                            player: worstPlayer,
-                            delta: worstDelta,
-                            color: GweiloTheme.coral
-                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(GweiloTheme.accent)
+                    } else if let bestPlayer = session.bestPlayer,
+                              let bestDelta = session.bestDelta,
+                              let worstPlayer = session.worstPlayer,
+                              let worstDelta = session.worstDelta {
+                        HStack(spacing: 16) {
+                            SessionDelta(
+                                symbol: "arrow.up",
+                                player: bestPlayer,
+                                delta: bestDelta,
+                                color: GweiloTheme.lime
+                            )
+                            SessionDelta(
+                                symbol: "arrow.down",
+                                player: worstPlayer,
+                                delta: worstDelta,
+                                color: GweiloTheme.coral
+                            )
+                        }
                     }
+
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.tertiary)
                 }
             }
             .padding(.vertical, 4)
@@ -121,6 +161,7 @@ private struct SessionRecord: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
+        .accessibilityHint("Opens session details")
     }
 }
 

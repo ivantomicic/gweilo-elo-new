@@ -1,17 +1,22 @@
 # Gweilo iOS
 
-This first SwiftUI slice is intentionally powered by demo data. It exists to
-verify the native design direction, Xcode signing, simulator/device builds, and
-the score-entry interaction before Supabase authentication and live APIs are
-connected.
+This SwiftUI slice has live Supabase email/password authentication plus
+read-only Home, Sessions, and Rankings screens backed by the same Supabase
+project as the web app. Score entry remains a local prototype until it is
+connected to the atomic round-submission backend.
 
 ## Open the project
 
 ```bash
 cd ios
+./scripts/sync-supabase-config.sh
 xcodegen generate
 open Gweilo.xcodeproj
 ```
+
+The sync script copies only the public Supabase URL and anonymous client key
+from the web app's `.env.local` into an ignored local Xcode configuration. It
+never copies the service-role key.
 
 ## Install on an iPhone
 
@@ -29,15 +34,16 @@ open Gweilo.xcodeproj
 With a free Apple account, device builds may expire after seven days. A paid
 Apple Developer account is required for TestFlight and App Store distribution.
 
-## Current demo
+## Current build
 
+- Live sign-in with the same Supabase email/password account as the web app
+- Live active-session and latest-session summaries
+- Live session history and completed match counts
+- Live session details with players, rounds, pairings, scores, and resting players
+- Live singles, doubles-player, and doubles-team rankings
+- Pull-to-refresh, loading, empty, and network-error states
 - Adaptive light and dark appearances
 - Native Liquid Glass on supported iOS versions
-- Home dashboard with an active-session card
-- Product-aligned session history for 3-, 4-, 5-, and 6-player examples
-- Singles, doubles-player, and doubles-team ranking examples
-- Six-player Round 5 with one doubles and one singles match
-- Complete-round score entry with haptics
-- Submission confirmation and success state
+- Prototype six-player Round 5 score entry with haptics
 - Accessibility labels and adjustable score controls
 - Unit tests for score-state behavior

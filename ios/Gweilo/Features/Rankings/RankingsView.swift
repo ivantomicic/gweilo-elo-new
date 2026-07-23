@@ -1,14 +1,12 @@
 import SwiftUI
 
 struct RankingsView: View {
-    @State private var category = DemoRankingCategory.singles
+    let dataStore: AppDataStore
+    @State private var category = RankingCategory.singles
 
-    private var entries: [DemoRankingEntry] {
-        switch category {
-        case .singles: DemoRankingEntry.singles
-        case .doublesPlayers: DemoRankingEntry.doublesPlayers
-        case .doublesTeams: DemoRankingEntry.doublesTeams
-        }
+    private var entries: [RankingEntry] {
+        dataStore.rankings(for: category)
+            .filter { $0.matches >= category.minimumMatches }
     }
 
     var body: some View {
@@ -20,10 +18,17 @@ struct RankingsView: View {
                     LazyVStack(alignment: .leading, spacing: 24) {
                         RankingsHeader(category: $category)
                         EligibilityNote(category: category)
-                        RankingsTable(entries: entries)
+                        RankingsContent(
+                            entries: entries,
+                            isLoading: dataStore.isLoading,
+                            errorMessage: dataStore.errorMessage
+                        )
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
+                }
+                .refreshable {
+                    await dataStore.load()
                 }
                 .scrollIndicators(.hidden)
             }
@@ -31,9 +36,8 @@ struct RankingsView: View {
         }
     }
 }
-
 private struct RankingsHeader: View {
-    @Binding var category: DemoRankingCategory
+    @Binding var category: RankingCategory
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -49,7 +53,7 @@ private struct RankingsHeader: View {
             }
 
             Picker("Ranking category", selection: $category) {
-                ForEach(DemoRankingCategory.allCases) { category in
+                ForEach(RankingCategory.allCases) { category in
                     Text(category.rawValue).tag(category)
                 }
             }
@@ -60,7 +64,7 @@ private struct RankingsHeader: View {
 }
 
 private struct EligibilityNote: View {
-    let category: DemoRankingCategory
+    let category: RankingCategory
 
     var body: some View {
         Text("Ranked after \(category.minimumMatches) completed matches")
@@ -69,13 +73,40 @@ private struct EligibilityNote: View {
     }
 }
 
+private struct RankingsContent: View {
+    let entries: [RankingEntry]
+    let isLoading: Bool
+    let errorMessage: String?
+
+    var body: some View {
+        if isLoading, entries.isEmpty {
+            ProgressView("Loading rankings…")
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 60)
+        } else if let errorMessage, entries.isEmpty {
+            ContentUnavailableView(
+                "Couldn’t load rankings",
+                systemImage: "wifi.exclamationmark",
+                description: Text(errorMessage)
+            )
+        } else if entries.isEmpty {
+            ContentUnavailableView(
+                "No eligible players",
+                systemImage: "chart.line.uptrend.xyaxis",
+                description: Text("Players will appear after enough completed matches.")
+            )
+        } else {
+            RankingsTable(entries: entries)
+        }
+    }
+}
+
 private struct RankingsTable: View {
-    let entries: [DemoRankingEntry]
+    let entries: [RankingEntry]
 
     var body: some View {
         VStack(spacing: 0) {
             RankingColumnLabels()
-
             Divider()
 
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
@@ -110,7 +141,7 @@ private struct RankingColumnLabels: View {
 
 private struct RankingRecord: View {
     let rank: Int
-    let entry: DemoRankingEntry
+    let entry: RankingEntry
 
     var body: some View {
         HStack(spacing: 8) {
@@ -123,7 +154,7 @@ private struct RankingRecord: View {
                 Text(entry.name)
                     .font(.body.weight(.semibold))
                     .lineLimit(1)
-                Text("\(entry.matches) matches · rank held \(entry.rankDays)d")
+                Text("\(entry.matches) matches")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

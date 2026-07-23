@@ -16,9 +16,10 @@ scope, architecture, progress, or external setup requirements change.
 ## Current status
 
 The web application and Supabase database already contain the product rules and
-data. The first native iOS design slice now exists in `ios/` and builds against
-the physical-iPhone SDK. It currently uses demo data; Supabase authentication
-and live APIs have not been connected yet.
+data. The native iOS app exists in `ios/`, builds against the physical-iPhone
+SDK, authenticates against Supabase, and reads live Home, Sessions, and
+Rankings data. Score entry is still a prototype and has not yet been connected
+to the atomic submission backend.
 
 The safe round-submission foundation is implemented and tested:
 
@@ -74,12 +75,12 @@ from an iPhone.
 
 - ✅ Create the Xcode project and SwiftUI app target
 - ✅ Choose the minimum supported iOS version (iOS 18)
-- ⬜ Add environment configuration for development and production
-- ⬜ Add the Supabase Swift client
-- ⬜ Create API, authentication, and session services
-- ⬜ Add shared request/response models
+- 🚧 Add environment configuration for development and production
+- ✅ Add a native Supabase authentication and REST data client
+- 🚧 Create API, authentication, and session services
+- ✅ Add shared request/response models for live read-only data
 - ⬜ Add secure authentication-session storage
-- ⬜ Add loading, empty, retry, and error states
+- 🚧 Add loading, empty, retry, and error states
 - 🚧 Add unit tests for services and important models
 - 🚧 Confirm clean simulator build (phone SDK build passes; this Mac's Xcode
   Simulator component needs to be refreshed)
@@ -87,22 +88,23 @@ from an iPhone.
 ### Authentication
 
 - ⬜ Restore an existing Supabase login session
-- ⬜ Sign in and sign out
+- 🚧 Sign in and sign out (live email/password sign-in implemented; persistence
+  and visible sign-out UI remain)
 - ⬜ Handle expired sessions and refresh tokens
 - ⬜ Prepare Google sign-in
 - ⬜ Handle authentication callbacks and deep links
 
 ### Home
 
-- ✅ Active-session card (demo data)
-- ✅ Current ranking summary (demo data)
-- ✅ Recent sessions or results (demo data)
-- ✅ Quick action to start or resume a session (opens demo scorecard)
+- ✅ Active-session card (live Supabase data)
+- ✅ Current ranking summary (live Supabase data)
+- ✅ Recent session summary (live Supabase data)
+- ⬜ Quick action to start or resume a live session
 
 ### Sessions
 
-- 🚧 Sessions list (complete with realistic demo data; live API pending)
-- ⬜ Session detail and status
+- ✅ Read-only sessions list with live match counts
+- ✅ Read-only session detail with participants, rounds, matches, scores, and status
 - ⬜ Start a new session
 - ⬜ Select players
 - ⬜ Review generated schedule
@@ -118,9 +120,9 @@ from an iPhone.
 
 ### Rankings and profiles
 
-- 🚧 Singles leaderboard (complete with realistic demo data; live API pending)
-- ⬜ Individual doubles leaderboard
-- ⬜ Doubles-team leaderboard
+- ✅ Singles leaderboard (live Supabase data)
+- ✅ Individual doubles leaderboard (live Supabase data)
+- ✅ Doubles-team leaderboard (live Supabase data)
 - ⬜ Player profile
 - ⬜ Player Elo history
 - ⬜ Player head-to-head results
@@ -230,12 +232,12 @@ No private credentials should be committed to this repository.
 
 ## Next actions
 
-1. Install the demo build on Ivan's iPhone and validate the design in light and
-   dark appearances.
+1. Install the live-data build on Ivan's iPhone and validate authentication,
+   data access, and the design in light and dark appearances.
 2. Refresh/install the iOS Simulator component in Xcode, then run unit tests.
-3. Add development/production configuration and the Supabase Swift client.
-4. Implement authentication and connect the home screen to live data.
-5. Implement the session list, detail, and atomic round-submission flow.
+3. Add authentication persistence, refresh-token handling, and visible logout.
+4. Implement live session detail and match loading.
+5. Connect score entry to the atomic round-submission backend.
 6. Configure Google OAuth and prepare the first TestFlight build.
 
 ## Change log
@@ -258,3 +260,15 @@ No private credentials should be committed to this repository.
   Rankings use singles, doubles-player, and doubles-team Elo with the real
   eligibility thresholds; score entry now represents a complete six-player
   Round 5 containing one doubles and one singles match submitted atomically.
+- 2026-07-23: Added the first live iOS boundary: build-time Supabase
+  configuration, native email/password sign-in, real token exchange, and an
+  authenticated app root with loading and error handling.
+- 2026-07-23: Replaced demo content on Home, Sessions, and Rankings with
+  authenticated Supabase REST data. Added live active/latest session summaries,
+  session match aggregation, all three ranking modes, pull-to-refresh, and
+  loading, empty, and error states. Verified the deployed schema and physical
+  iPhone SDK build.
+- 2026-07-23: Added live session-detail navigation and a native detail screen
+  showing Supabase participants, team assignments, every round, singles and
+  doubles pairings, completed scores, pending matches, resting players, and the
+  current active round.
