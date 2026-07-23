@@ -71,6 +71,7 @@ type PlayerStats = {
 	rank_movement: number;
 	rank_duration_days: number | null;
 	rank_duration_capped: boolean;
+	recent_form: number[];
 };
 
 type TeamStats = {
@@ -95,6 +96,49 @@ type TeamStats = {
 	rank_movement: number;
 	rank_duration_days: number | null;
 	rank_duration_capped: boolean;
+	recent_form: number[];
+};
+
+type FormSessionRecord = {
+	id: string;
+	created_at: string;
+	completed_at: string | null;
+};
+
+type FormMatchRecord = {
+	id: string;
+	session_id: string;
+	match_type: "singles" | "doubles";
+	round_number: number;
+	match_order: number;
+	player_ids: string[] | null;
+	team_1_id: string | null;
+	team_2_id: string | null;
+};
+
+type FormHistoryRecord = {
+	match_id: string;
+	player1_id: string | null;
+	player2_id: string | null;
+	player1_elo_delta: number | string | null;
+	player2_elo_delta: number | string | null;
+	team1_id: string | null;
+	team2_id: string | null;
+	team1_elo_delta: number | string | null;
+	team2_elo_delta: number | string | null;
+};
+
+type FormSnapshotRecord = {
+	match_id: string;
+	player_id: string;
+	elo: number | string | null;
+	matches_played: number | null;
+};
+
+type RecentFormMaps = {
+	singles: Record<string, number[]>;
+	doublesPlayers: Record<string, number[]>;
+	doublesTeams: Record<string, number[]>;
 };
 
 type SessionSnapshotRecord = {
@@ -145,6 +189,187 @@ function toNumber(value: unknown, fallback = 0): number {
 
 	return fallback;
 }
+
+function addSessionDelta(
+	target: Map<string, Map<string, number>>,
+	entityId: string | null,
+	sessionId: string,
+	delta: unknown,
+) {
+	if (!entityId) return;
+	const numericDelta = toNumber(delta, Number.NaN);
+	if (!Number.isFinite(numericDelta)) return;
+
+	const sessions = target.get(entityId) ?? new Map<string, number>();
+	sessions.set(sessionId, (sessions.get(sessionId) ?? 0) + numericDelta);
+	target.set(entityId, sessions);
+}
+
+function finalizeRecentForm(
+	deltas: Map<string, Map<string, number>>,
+	sessionOrder: Map<string, number>,
+) {
+	const result: Record<string, number[]> = {};
+
+	for (const [entityId, sessions] of deltas) {
+		const recent = Array.from(sessions.entries())
+			.sort(
+				([leftSessionId], [rightSessionId]) =>
+					(sessionOrder.get(leftSessionId) ?? 0) -
+					(sessionOrder.get(rightSessionId) ?? 0),
+			)
+			.slice(-5)
+			.map(([, delta]) => Math.round((delta + Number.EPSILON) * 100) / 100);
+
+		result[entityId] = recent;
+	}
+
+	return result;
+}
+
+const getCachedRecentFormMaps = unstable_cache(
+	async (): Promise<RecentFormMaps> => {
+		const adminClient = createAdminClient();
+		const [sessionsResult, matchesResult, historyResult, snapshotsResult] =
+			await Promise.all([
+				adminClient
+					.from("sessions")
+					.select("id, created_at, completed_at")
+					.eq("status", "completed")
+					.order("created_at", { ascending: true }),
+				adminClient
+					.from("session_matches")
+					.select(
+						"id, session_id, match_type, round_number, match_order, player_ids, team_1_id, team_2_id",
+					)
+					.eq("status", "completed"),
+				adminClient
+					.from("match_elo_history")
+					.select(
+						"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta, team1_id, team2_id, team1_elo_delta, team2_elo_delta",
+					),
+				adminClient
+					.from("elo_snapshots")
+					.select("match_id, player_id, elo, matches_played"),
+			]);
+
+		if (sessionsResult.error) throw sessionsResult.error;
+		if (matchesResult.error) throw matchesResult.error;
+		if (historyResult.error) throw historyResult.error;
+		if (snapshotsResult.error) throw snapshotsResult.error;
+
+		const sessions = (sessionsResult.data || []) as FormSessionRecord[];
+		const completedSessionIds = new Set(sessions.map((session) => session.id));
+		const matches = ((matchesResult.data || []) as FormMatchRecord[]).filter(
+			(match) => completedSessionIds.has(match.session_id),
+		);
+		const matchMap = new Map(matches.map((match) => [match.id, match]));
+		const sessionOrder = new Map(
+			sessions.map((session, index) => [session.id, index]),
+		);
+
+		const singlesDeltas = new Map<string, Map<string, number>>();
+		const doublesTeamDeltas = new Map<string, Map<string, number>>();
+
+		for (const history of (historyResult.data || []) as FormHistoryRecord[]) {
+			const match = matchMap.get(history.match_id);
+			if (!match) continue;
+
+			if (match.match_type === "singles") {
+				addSessionDelta(
+					singlesDeltas,
+					history.player1_id,
+					match.session_id,
+					history.player1_elo_delta,
+				);
+				addSessionDelta(
+					singlesDeltas,
+					history.player2_id,
+					match.session_id,
+					history.player2_elo_delta,
+				);
+			} else {
+				addSessionDelta(
+					doublesTeamDeltas,
+					history.team1_id,
+					match.session_id,
+					history.team1_elo_delta,
+				);
+				addSessionDelta(
+					doublesTeamDeltas,
+					history.team2_id,
+					match.session_id,
+					history.team2_elo_delta,
+				);
+			}
+		}
+
+		const orderedDoublesSnapshots = (
+			(snapshotsResult.data || []) as FormSnapshotRecord[]
+		)
+			.filter((snapshot) => matchMap.get(snapshot.match_id)?.match_type === "doubles")
+			.sort((left, right) => {
+				const leftMatch = matchMap.get(left.match_id)!;
+				const rightMatch = matchMap.get(right.match_id)!;
+				const sessionDifference =
+					(sessionOrder.get(leftMatch.session_id) ?? 0) -
+					(sessionOrder.get(rightMatch.session_id) ?? 0);
+				if (sessionDifference !== 0) return sessionDifference;
+				if (leftMatch.round_number !== rightMatch.round_number) {
+					return leftMatch.round_number - rightMatch.round_number;
+				}
+				return leftMatch.match_order - rightMatch.match_order;
+			});
+
+		const doublesPlayerDeltas = new Map<string, Map<string, number>>();
+		const previousPlayerElo = new Map<string, number>();
+		const unknownBaselineSession = new Map<string, string>();
+
+		for (const snapshot of orderedDoublesSnapshots) {
+			const match = matchMap.get(snapshot.match_id);
+			if (!match) continue;
+
+			const eloAfter = toNumber(snapshot.elo, Number.NaN);
+			if (!Number.isFinite(eloAfter)) continue;
+
+			const previousElo = previousPlayerElo.get(snapshot.player_id);
+			const canUseInitialBaseline =
+				previousElo === undefined && (snapshot.matches_played ?? 0) <= 1;
+			if (previousElo === undefined && !canUseInitialBaseline) {
+				unknownBaselineSession.set(snapshot.player_id, match.session_id);
+			}
+
+			const baselineUnknownForThisSession =
+				unknownBaselineSession.get(snapshot.player_id) === match.session_id;
+			if (
+				(previousElo !== undefined || canUseInitialBaseline) &&
+				!baselineUnknownForThisSession
+			) {
+				addSessionDelta(
+					doublesPlayerDeltas,
+					snapshot.player_id,
+					match.session_id,
+					eloAfter - (previousElo ?? 1500),
+				);
+			}
+			previousPlayerElo.set(snapshot.player_id, eloAfter);
+			if (
+				unknownBaselineSession.has(snapshot.player_id) &&
+				unknownBaselineSession.get(snapshot.player_id) !== match.session_id
+			) {
+				unknownBaselineSession.delete(snapshot.player_id);
+			}
+		}
+
+		return {
+			singles: finalizeRecentForm(singlesDeltas, sessionOrder),
+			doublesPlayers: finalizeRecentForm(doublesPlayerDeltas, sessionOrder),
+			doublesTeams: finalizeRecentForm(doublesTeamDeltas, sessionOrder),
+		};
+	},
+	["statistics-recent-session-form-v1"],
+	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] },
+);
 
 function jsonNoStore(body: unknown, init?: ResponseInit) {
 	return NextResponse.json(body, {
@@ -351,7 +576,13 @@ async function getActiveDoublesPlayerIdsFresh(): Promise<string[] | null> {
 async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
-		const [ratingsResult, profiles, [latestSessionId], activeSinglesPlayerIds] =
+		const [
+			ratingsResult,
+			profiles,
+			[latestSessionId],
+			activeSinglesPlayerIds,
+			recentForms,
+		] =
 			await Promise.all([
 				adminClient
 					.from("player_ratings")
@@ -362,6 +593,7 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 				getCachedProfiles(),
 				getLatestCompletedSessionsFresh(),
 				getActiveSinglesPlayerIdsFresh(),
+				getCachedRecentFormMaps(),
 			]);
 
 		if (ratingsResult.error) {
@@ -411,6 +643,7 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 					rank_movement: 0,
 					rank_duration_days: null,
 					rank_duration_capped: false,
+					recent_form: recentForms.singles[rating.player_id] ?? [],
 				};
 			});
 
@@ -463,6 +696,7 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 			profiles,
 			[latestSessionId],
 			activeDoublesPlayerIds,
+			recentForms,
 		] =
 			await Promise.all([
 				adminClient
@@ -474,6 +708,7 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 				getCachedProfiles(),
 				getLatestCompletedSessionsFresh(),
 				getActiveDoublesPlayerIdsFresh(),
+				getCachedRecentFormMaps(),
 			]);
 
 		if (ratingsResult.error) {
@@ -533,6 +768,8 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 					rank_movement: 0,
 					rank_duration_days: null,
 					rank_duration_capped: false,
+					recent_form:
+						recentForms.doublesPlayers[rating.player_id] ?? [],
 				};
 			});
 
@@ -583,6 +820,7 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 			profiles,
 			[latestSessionId],
 			activeDoublesTeamIds,
+			recentForms,
 		] = await Promise.all([
 			adminClient
 				.from("double_team_ratings")
@@ -594,6 +832,7 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 			getCachedProfiles(),
 			getLatestCompletedSessionsFresh(),
 			getActiveDoublesTeamIdsFresh(),
+			getCachedRecentFormMaps(),
 		]);
 
 		if (ratingsResult.error) {
@@ -671,6 +910,8 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 					rank_movement: 0,
 					rank_duration_days: null,
 					rank_duration_capped: false,
+					recent_form:
+						recentForms.doublesTeams[rating.team_id] ?? [],
 				};
 			})
 			.filter((team): team is TeamStats => team !== null);

@@ -165,11 +165,11 @@ export function CalculationTerminal({
 			)}
 		>
 			{/* Terminal header */}
-			<Box className="flex items-center gap-2 px-4 py-3 bg-[#161b22] border-b border-border/20">
+			<Box className="flex items-center gap-2 border-b border-border/20 bg-[#161b22] px-3 py-2.5 sm:px-4 sm:py-3">
 				<Box className="flex gap-1.5">
-					<span className="size-3 rounded-full bg-red-500/80" />
-					<span className="size-3 rounded-full bg-yellow-500/80" />
-					<span className="size-3 rounded-full bg-green-500/80" />
+					<span className="size-2.5 rounded-full bg-red-500/80 sm:size-3" />
+					<span className="size-2.5 rounded-full bg-yellow-500/80 sm:size-3" />
+					<span className="size-2.5 rounded-full bg-green-500/80 sm:size-3" />
 				</Box>
 				<span className="text-xs text-muted-foreground/60 font-mono ml-2">
 					elo-calculator
@@ -188,7 +188,7 @@ export function CalculationTerminal({
 			{/* Terminal content */}
 			<Box
 				ref={containerRef}
-				className="min-h-0 flex-1 overflow-y-auto p-4 font-mono text-sm leading-relaxed scrollbar-thin scrollbar-thumb-border/30"
+				className="min-h-0 flex-1 overflow-y-auto p-3 font-mono text-xs leading-relaxed scrollbar-thin scrollbar-thumb-border/30 sm:p-4 sm:text-sm"
 			>
 				<Box className="flex min-h-full flex-col justify-end">
 					{/* Completed lines - stable, no re-animation */}
@@ -245,6 +245,9 @@ export function TerminalModal({
 }: TerminalModalProps) {
 	const [shouldRender, setShouldRender] = useState(false);
 	const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+	const [mobileFrame, setMobileFrame] = useState<
+		{ top: string; bottom: string } | undefined
+	>(undefined);
 
 	useEffect(() => {
 		if (isVisible) {
@@ -262,12 +265,70 @@ export function TerminalModal({
 		}
 	}, [isVisible, shouldRender, onExitComplete]);
 
+	useEffect(() => {
+		if (!shouldRender) return;
+
+		let frameId = 0;
+		const header = document.querySelector<HTMLElement>("[data-site-header]");
+		const mobileNav = document.querySelector<HTMLElement>("[data-mobile-nav]");
+
+		const updateFrame = () => {
+			cancelAnimationFrame(frameId);
+			frameId = requestAnimationFrame(() => {
+				if (window.matchMedia("(min-width: 768px)").matches) {
+					setMobileFrame(undefined);
+					return;
+				}
+
+				const headerBottom = header?.getBoundingClientRect().bottom ?? 64;
+				const navTop =
+					mobileNav?.getBoundingClientRect().top ??
+					window.innerHeight - 96;
+				const nextFrame = {
+					top: `${Math.max(0, Math.round(headerBottom))}px`,
+					bottom: `${Math.max(
+						0,
+						Math.round(window.innerHeight - navTop)
+					)}px`,
+				};
+
+				setMobileFrame((current) =>
+					current?.top === nextFrame.top &&
+					current.bottom === nextFrame.bottom
+						? current
+						: nextFrame
+				);
+			});
+		};
+
+		updateFrame();
+		window.addEventListener("resize", updateFrame);
+		window.visualViewport?.addEventListener("resize", updateFrame);
+		window.visualViewport?.addEventListener("scroll", updateFrame);
+
+		const resizeObserver =
+			typeof ResizeObserver === "undefined"
+				? null
+				: new ResizeObserver(updateFrame);
+		if (header) resizeObserver?.observe(header);
+		if (mobileNav) resizeObserver?.observe(mobileNav);
+
+		return () => {
+			cancelAnimationFrame(frameId);
+			window.removeEventListener("resize", updateFrame);
+			window.visualViewport?.removeEventListener("resize", updateFrame);
+			window.visualViewport?.removeEventListener("scroll", updateFrame);
+			resizeObserver?.disconnect();
+		};
+	}, [shouldRender]);
+
 	if (!shouldRender) return null;
 
 	return (
 		<Box
+			style={mobileFrame}
 			className={cn(
-				"fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6",
+				"fixed inset-x-0 bottom-24 top-16 z-50 flex items-center justify-center p-3 sm:p-4 md:inset-0 md:p-6",
 				"transition-all duration-300 ease-out",
 				isAnimatingOut
 					? "bg-black/0 backdrop-blur-none"
@@ -276,7 +337,7 @@ export function TerminalModal({
 		>
 			<Box
 				className={cn(
-					"h-[calc(100dvh-1.5rem)] w-full max-w-2xl sm:h-[min(560px,calc(100dvh-2rem))] md:h-[560px]",
+					"h-[min(420px,100%)] w-full max-w-2xl sm:h-[min(480px,100%)] md:h-[560px]",
 					"transition-all duration-300 ease-out",
 					isAnimatingOut
 						? "opacity-0 scale-95 translate-y-4"

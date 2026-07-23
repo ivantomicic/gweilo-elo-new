@@ -77,19 +77,33 @@ function ClickableIdentity({
 	children,
 	onClick,
 	selected,
+	mobileRankIndex,
 }: {
 	children: React.ReactNode;
 	onClick?: () => void;
 	selected?: boolean;
+	mobileRankIndex?: number;
 }) {
 	return (
 		<Box
 			onClick={onClick}
 			className={cn(
+				"relative",
 				onClick && "cursor-pointer hover:opacity-80 transition-opacity",
 				selected && "opacity-100",
 			)}
 		>
+			{mobileRankIndex !== undefined && (
+				<span
+					className={cn(
+						"absolute -left-1 -top-1 z-10 flex h-4 min-w-4 items-center justify-center rounded-full bg-background px-1 text-[9px] font-bold leading-none ring-2 ring-card md:hidden",
+						getRankTextClass(mobileRankIndex),
+					)}
+					aria-label={`Pozicija ${mobileRankIndex + 1}`}
+				>
+					{mobileRankIndex + 1}
+				</span>
+			)}
 			{children}
 		</Box>
 	);
@@ -104,16 +118,22 @@ export function PlayerTableIdentity({
 	selected,
 	rankMovement,
 	mobileRecord,
+	mobileRankIndex,
 }: PlayerIdentity & {
 	size?: IdentitySize;
 	onClick?: () => void;
 	selected?: boolean;
 	rankMovement?: number;
 	mobileRecord?: ResultRecord;
+	mobileRankIndex?: number;
 }) {
 	return (
 		<div className="flex items-center gap-3">
-			<ClickableIdentity onClick={onClick} selected={selected}>
+			<ClickableIdentity
+				onClick={onClick}
+				selected={selected}
+				mobileRankIndex={mobileRankIndex}
+			>
 				<PlayerNameCard
 					name={name}
 					avatar={avatar}
@@ -139,16 +159,22 @@ export function TeamTableIdentity({
 	selected,
 	rankMovement,
 	mobileRecord,
+	mobileRankIndex,
 }: TeamIdentity & {
 	size?: IdentitySize;
 	onClick?: () => void;
 	selected?: boolean;
 	rankMovement?: number;
 	mobileRecord?: ResultRecord;
+	mobileRankIndex?: number;
 }) {
 	return (
 		<div className="flex items-center gap-3">
-			<ClickableIdentity onClick={onClick} selected={selected}>
+			<ClickableIdentity
+				onClick={onClick}
+				selected={selected}
+				mobileRankIndex={mobileRankIndex}
+			>
 				<TeamNameCard
 					player1={player1}
 					player2={player2}

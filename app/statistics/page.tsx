@@ -22,7 +22,6 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { RivalriesTab } from "@/app/statistics/_components/rivalries-tab";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 import {
@@ -53,6 +52,7 @@ type PlayerStats = {
 	rank_movement?: number;
 	rank_duration_days?: number | null;
 	rank_duration_capped?: boolean;
+	recent_form: number[];
 };
 
 type TeamStats = {
@@ -77,6 +77,7 @@ type TeamStats = {
 	rank_movement?: number;
 	rank_duration_days?: number | null;
 	rank_duration_capped?: boolean;
+	recent_form: number[];
 };
 
 type StatisticsData = {
@@ -86,7 +87,6 @@ type StatisticsData = {
 };
 
 type StatisticsRankingView = "singles" | "doubles_player" | "doubles_team";
-type StatisticsView = StatisticsRankingView | "rivalries";
 
 type StatisticsLoaded = {
 	singles: boolean;
@@ -111,7 +111,7 @@ const EMPTY_LOADED: StatisticsLoaded = {
 	doublesTeams: false,
 };
 
-const STATISTICS_CACHE_VERSION = 3;
+const STATISTICS_CACHE_VERSION = 4;
 const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"singles",
@@ -119,23 +119,69 @@ const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"doubles_team",
 ];
 
-function formatRankDuration(
-	days: number | null | undefined,
-	_capped: boolean | undefined
-) {
-	if (typeof days !== "number") {
-		return "-";
+function RecentFormDots({ values }: { values: number[] }) {
+	const recentValues = values.slice(-5);
+	const paddedValues: Array<number | null> = [
+		...Array(Math.max(0, 5 - recentValues.length)).fill(null),
+		...recentValues,
+	];
+
+	const toneFor = (value: number | null) => {
+		if (value === null) {
+			return {
+				color: "hsl(var(--muted-foreground) / 0.2)",
+				label: "Nema podatka",
+			};
+		}
+		if (value > 5) {
+			return { color: "#10b981", label: "Dobra forma" };
+		}
+		if (value < -5) {
+			return { color: "#ef4444", label: "Loša forma" };
+		}
+		return { color: "#fbbf24", label: "Neutralna forma" };
+	};
+
+	const tones = paddedValues.map(toneFor);
+	const gradientStops = [`${tones[0].color} 0%`];
+
+	for (let index = 0; index < tones.length - 1; index += 1) {
+		const boundary = (index + 1) * 20;
+		gradientStops.push(
+			`${tones[index].color} ${boundary - 10}%`,
+			`${tones[index + 1].color} ${boundary + 10}%`
+		);
 	}
+	gradientStops.push(`${tones[tones.length - 1].color} 100%`);
 
-	const durationDays = Math.max(1, days);
-	const usesSingularDay =
-		durationDays % 10 === 1 && durationDays % 100 !== 11;
+	return (
+		<div
+			className="mx-auto flex h-2 w-14 overflow-hidden rounded-[3px] md:w-20"
+			style={{
+				backgroundImage: `linear-gradient(90deg in oklab, ${gradientStops.join(", ")})`,
+			}}
+			aria-label={`Forma u poslednjih pet termina: ${paddedValues
+				.map((value) => (value === null ? "nema podatka" : value.toFixed(1)))
+				.join(", ")}`}
+		>
+			{paddedValues.map((value, index) => {
+				const tone = tones[index];
+				const deltaLabel =
+					value === null
+						? tone.label
+						: `${tone.label}: ${value > 0 ? "+" : ""}${value.toFixed(1)} Elo`;
 
-	return `${durationDays} ${
-		usesSingularDay
-			? t.statistics.table.day
-			: t.statistics.table.days
-	}`;
+				return (
+					<span
+						key={index}
+						className="h-full min-w-0 flex-1"
+						title={deltaLabel}
+						aria-hidden="true"
+					/>
+				);
+			})}
+		</div>
+	);
 }
 
 function getStatisticsCacheKey(userId: string) {
@@ -172,17 +218,15 @@ function StatisticsPageContent() {
 
 	// Page-level view filter. URL uses hyphens for doubles views.
 	const urlView = searchParams.get("view");
-	let activeView: StatisticsView = "singles";
+	let activeView: StatisticsRankingView = "singles";
 	if (urlView === "doubles-player") {
 		activeView = "doubles_player";
 	} else if (urlView === "doubles-team") {
 		activeView = "doubles_team";
-	} else if (urlView === "rivalries") {
-		activeView = "rivalries";
 	}
 
 	const handleViewChange = (
-		view: StatisticsView
+		view: StatisticsRankingView
 	) => {
 		const params = new URLSearchParams(searchParams.toString());
 		if (view === "singles") {
@@ -191,9 +235,6 @@ function StatisticsPageContent() {
 			params.set("view", "doubles-player");
 		} else if (view === "doubles_team") {
 			params.set("view", "doubles-team");
-		} else if (view === "rivalries") {
-			params.set("view", "rivalries");
-			params.delete("player");
 		}
 		router.push(`?${params.toString()}`, { scroll: false });
 	};
@@ -212,11 +253,9 @@ function StatisticsPageContent() {
 	const [statistics, setStatistics] = useState<StatisticsData>(
 		() => cachedStatistics?.statistics ?? EMPTY_STATISTICS,
 	);
-	const activeRankingView: StatisticsRankingView =
-		activeView === "rivalries" ? "singles" : activeView;
+	const activeRankingView = activeView;
 	const [loading, setLoading] = useState<StatisticsLoaded>(() => ({
 		singles:
-			activeView !== "rivalries" &&
 			getViewKey(activeRankingView) === "singles" &&
 			!cachedStatistics?.loaded.singles,
 		doublesPlayers:
@@ -364,10 +403,6 @@ function StatisticsPageContent() {
 
 	// Load initial statistics for active view
 	useEffect(() => {
-		if (activeView === "rivalries") {
-			return;
-		}
-
 		const viewKey = getViewKey(activeRankingView);
 		const hasCachedData = loadedRef.current[viewKey];
 		fetchStatistics(activeRankingView, {
@@ -401,7 +436,6 @@ function StatisticsPageContent() {
 	}, [accessToken, activeRankingView, fetchStatistics, loaded]);
 
 	const isInitialLoading =
-		activeView !== "rivalries" &&
 		loading[getViewKey(activeRankingView)] &&
 		!loaded[getViewKey(activeRankingView)];
 
@@ -435,8 +469,6 @@ function StatisticsPageContent() {
 											? "doubles-player"
 											: activeView === "doubles_team"
 											? "doubles-team"
-											: activeView === "rivalries"
-											? "rivalries"
 											: "singles"
 									}
 									onValueChange={(value) => {
@@ -446,8 +478,6 @@ function StatisticsPageContent() {
 											handleViewChange("doubles_player");
 										} else if (value === "doubles-team") {
 											handleViewChange("doubles_team");
-										} else if (value === "rivalries") {
-											handleViewChange("rivalries");
 										}
 									}}
 								>
@@ -461,9 +491,6 @@ function StatisticsPageContent() {
 										<TabsTrigger value="doubles-team">
 											{t.statistics.tabs.doublesTeams}
 										</TabsTrigger>
-										<TabsTrigger value="rivalries">
-											{t.statistics.tabs.rivalries}
-										</TabsTrigger>
 									</TabsList>
 								</Tabs>
 							</Box>
@@ -471,12 +498,6 @@ function StatisticsPageContent() {
 							{/* Statistics Table */}
 							<Box>
 								{(() => {
-									if (activeView === "rivalries") {
-										return accessToken ? (
-											<RivalriesTab accessToken={accessToken} />
-										) : null;
-									}
-
 									// Determine current data and header label based on view
 									// Check if current view is loading
 									const currentViewLoading =
@@ -564,17 +585,17 @@ function StatisticsPageContent() {
 											<Table>
 												<TableHeader className="bg-muted/30">
 													<TableRow>
-														<TableHead className="text-left w-8">
+														<TableHead className="hidden text-left w-8 md:table-cell">
 															#
 														</TableHead>
 														<TableHead className="text-left">
 															{headerLabel}
 														</TableHead>
-														<TableHead className="text-center w-[72px] px-2 whitespace-nowrap">
+														<TableHead className="w-[68px] px-1 text-center whitespace-nowrap md:w-[92px] md:px-2">
 															{
 																t.statistics
 																	.table
-																	.rankDuration
+																	.form
 															}
 														</TableHead>
 														<TableHead className="text-center hidden md:table-cell">
@@ -648,6 +669,7 @@ function StatisticsPageContent() {
 																			index={
 																				index
 																			}
+																			className="hidden md:table-cell"
 																		/>
 																		<TableCell>
 																			<TeamTableIdentity
@@ -685,13 +707,17 @@ function StatisticsPageContent() {
 																				mobileRecord={
 																					team
 																				}
+																				mobileRankIndex={
+																					index
+																				}
 																			/>
 																		</TableCell>
-																		<TableCell className="text-center w-[72px] px-2 font-medium text-muted-foreground whitespace-nowrap">
-																			{formatRankDuration(
-																				team.rank_duration_days,
-																				team.rank_duration_capped
-																			)}
+																		<TableCell className="w-[68px] px-1 text-center md:w-[92px] md:px-2">
+																			<RecentFormDots
+																				values={
+																					team.recent_form
+																				}
+																			/>
 																		</TableCell>
 																		<TableCell className="text-center font-medium hidden md:table-cell">
 																			{
@@ -762,6 +788,7 @@ function StatisticsPageContent() {
 																		index={
 																			index
 																		}
+																		className="hidden md:table-cell"
 																	/>
 																	<TableCell>
 																		<PlayerTableIdentity
@@ -783,13 +810,17 @@ function StatisticsPageContent() {
 																			mobileRecord={
 																				player
 																			}
+																			mobileRankIndex={
+																				index
+																			}
 																		/>
 																	</TableCell>
-																	<TableCell className="text-center w-[72px] px-2 font-medium text-muted-foreground whitespace-nowrap">
-																		{formatRankDuration(
-																			player.rank_duration_days,
-																			player.rank_duration_capped
-																		)}
+																	<TableCell className="w-[68px] px-1 text-center md:w-[92px] md:px-2">
+																		<RecentFormDots
+																			values={
+																				player.recent_form
+																			}
+																		/>
 																	</TableCell>
 																	<TableCell className="text-center hidden md:table-cell font-medium">
 																		{

@@ -203,6 +203,7 @@ export function MobileNav() {
 			</div>
 
 			<nav
+				data-mobile-nav
 				aria-label={t.nav.ariaLabel}
 				className="fixed left-0 bottom-0 z-50 flex justify-center px-4 md:hidden w-full touch-manipulation"
 				style={{ bottom: isIOSSafari26 ? "8px" : "24px" }}

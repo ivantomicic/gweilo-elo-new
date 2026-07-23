@@ -120,6 +120,7 @@ export const sr = {
 			losses: "Porazi",
 			draws: "Nerešeno",
 			rankDuration: "Na mestu",
+			form: "Forma",
 			day: "dan",
 			days: "dana",
 			elo: "Elo",
