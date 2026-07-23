@@ -11,6 +11,7 @@
 		1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5228EA448D3385CA3C87F404 /* GweiloTheme.swift */; };
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
+		5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */; };
 		6088070E02E7E8AA9D32752E /* DemoModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF6A7D394A2D0829E50769F /* DemoModels.swift */; };
 		60B73CBFE72D64CD934D7972 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E67F5AF76CD8E21D79EC84 /* AppModels.swift */; };
 		67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564CF19864AC0C89C4958D12 /* SignInView.swift */; };
@@ -45,6 +46,7 @@
 		27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScoreboardTests.swift; sourceTree = "<group>"; };
 		3FDFE13A0BFF7369FF6622CD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		48E67F5AF76CD8E21D79EC84 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
+		4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerIdentityAvatar.swift; sourceTree = "<group>"; };
 		5228EA448D3385CA3C87F404 /* GweiloTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloTheme.swift; sourceTree = "<group>"; };
 		564CF19864AC0C89C4958D12 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		6B97913905094E27DCF42A43 /* GweiloApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloApp.swift; sourceTree = "<group>"; };
@@ -122,6 +124,7 @@
 			isa = PBXGroup;
 			children = (
 				ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */,
+				4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -212,7 +215,7 @@
 			path = Home;
 			sourceTree = "<group>";
 		};
-		"TEMP_5E4FA32C-0E09-413D-AF6B-9CCE3AEED656" /* Resources */ = {
+		"TEMP_6163B4F6-24EF-45EF-98D9-2D3A33DC1325" /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -319,6 +322,7 @@
 				D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */,
 				1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */,
 				E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */,
+				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
 				5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */,
 				5999C1D880A0425F482E0121 /* RootView.swift in Sources */,
 				051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */,

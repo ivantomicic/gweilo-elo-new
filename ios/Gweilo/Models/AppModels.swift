@@ -18,6 +18,7 @@ enum RankingCategory: String, CaseIterable, Identifiable, Sendable {
 struct RankingEntry: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
+    let avatarURL: URL?
     let elo: Int
     let matches: Int
     let wins: Int
@@ -72,6 +73,7 @@ struct SessionSummary: Identifiable, Hashable, Sendable {
 struct SessionParticipant: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String
+    let avatarURL: URL?
     let team: String?
 
     var initials: String {
@@ -116,8 +118,12 @@ struct SessionDetail: Hashable, Sendable {
     let participants: [SessionParticipant]
     let rounds: [SessionRound]
 
+    func participant(for playerID: UUID) -> SessionParticipant? {
+        participants.first { $0.id == playerID }
+    }
+
     func name(for playerID: UUID) -> String {
-        participants.first { $0.id == playerID }?.name ?? "Unknown player"
+        participant(for: playerID)?.name ?? "Unknown player"
     }
 
     func teamNames(for playerIDs: [UUID]) -> (String, String) {

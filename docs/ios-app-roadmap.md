@@ -272,3 +272,7 @@ No private credentials should be committed to this repository.
   showing Supabase participants, team assignments, every round, singles and
   doubles pairings, completed scores, pending matches, resting players, and the
   current active round.
+- 2026-07-23: Redesigned session detail into a flatter precision-scoreboard
+  layout. Added real profile avatars, a focused current-round stage, compact
+  player roster, collapsible round history, clearer winners and scores, and
+  light/dark simulator visual QA.

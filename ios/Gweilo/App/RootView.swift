@@ -6,7 +6,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if authStore.session == nil {
+            if isSessionDetailPreview {
+                SessionDetailPreviewScreen()
+            } else if authStore.session == nil {
                 SignInView(authStore: authStore)
             } else if let appDataStore {
                 MainTabView(dataStore: appDataStore)
@@ -33,7 +35,23 @@ struct RootView: View {
             await store.load()
         }
     }
+
+    private var isSessionDetailPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-session-detail-preview")
+        #else
+        false
+        #endif
+    }
 }
+
+#if !DEBUG
+private struct SessionDetailPreviewScreen: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+#endif
 
 private struct MainTabView: View {
     let dataStore: AppDataStore

@@ -71,10 +71,12 @@ private struct SessionDetailMatchRecord: Decodable, Sendable {
 private struct ProfileRecord: Decodable, Sendable {
     let id: UUID
     let displayName: String?
+    let avatarURL: String?
 
     private enum CodingKeys: String, CodingKey {
         case id
         case displayName = "display_name"
+        case avatarURL = "avatar_url"
     }
 }
 
@@ -189,7 +191,7 @@ struct SupabaseDataClient: Sendable {
             profiles = try await get(
                 table: "profiles",
                 queryItems: [
-                    .init(name: "select", value: "id,display_name"),
+                    .init(name: "select", value: "id,display_name,avatar_url"),
                     .init(name: "id", value: "in.(\(ids))")
                 ]
             )
@@ -206,6 +208,10 @@ struct SupabaseDataClient: Sendable {
                 SessionParticipant(
                     id: playerID,
                     name: names[playerID] ?? "User",
+                    avatarURL: profiles
+                        .first { $0.id == playerID }
+                        .flatMap(\.avatarURL)
+                        .flatMap(URL.init(string:)),
                     team: teamByPlayerID[playerID] ?? nil
                 )
             }
@@ -303,7 +309,7 @@ struct SupabaseDataClient: Sendable {
     private func fetchPlayerRankings(table: String) async throws -> [RankingEntry] {
         async let profilesRequest: [ProfileRecord] = get(
             table: "profiles",
-            queryItems: [.init(name: "select", value: "id,display_name")]
+            queryItems: [.init(name: "select", value: "id,display_name,avatar_url")]
         )
         async let ratingsRequest: [PlayerRatingRecord] = get(
             table: table,
@@ -325,6 +331,10 @@ struct SupabaseDataClient: Sendable {
             RankingEntry(
                 id: rating.playerID,
                 name: names[rating.playerID] ?? "User",
+                avatarURL: profiles
+                    .first { $0.id == rating.playerID }
+                    .flatMap(\.avatarURL)
+                    .flatMap(URL.init(string:)),
                 elo: Int((rating.elo ?? 1_500).rounded()),
                 matches: rating.matchesPlayed ?? 0,
                 wins: rating.wins ?? 0,
@@ -338,7 +348,7 @@ struct SupabaseDataClient: Sendable {
     private func fetchTeamRankings() async throws -> [RankingEntry] {
         async let profilesRequest: [ProfileRecord] = get(
             table: "profiles",
-            queryItems: [.init(name: "select", value: "id,display_name")]
+            queryItems: [.init(name: "select", value: "id,display_name,avatar_url")]
         )
         async let teamsRequest: [TeamRecord] = get(
             table: "double_teams",
@@ -367,6 +377,7 @@ struct SupabaseDataClient: Sendable {
             return RankingEntry(
                 id: rating.teamID,
                 name: "\(names[team.playerOneID] ?? "User") + \(names[team.playerTwoID] ?? "User")",
+                avatarURL: nil,
                 elo: Int((rating.elo ?? 1_500).rounded()),
                 matches: rating.matchesPlayed ?? 0,
                 wins: rating.wins ?? 0,

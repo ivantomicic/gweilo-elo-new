@@ -151,12 +151,24 @@ private struct RankingRecord: View {
                 .frame(width: 24, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(entry.name)
-                    .font(.body.weight(.semibold))
-                    .lineLimit(1)
-                Text("\(entry.matches) matches")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 9) {
+                    PlayerIdentityAvatar(
+                        name: entry.name,
+                        initials: entry.initials,
+                        avatarURL: entry.avatarURL,
+                        size: 30
+                    )
+                    .accessibilityHidden(true)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(entry.name)
+                            .font(.body.weight(.semibold))
+                            .lineLimit(1)
+                        Text("\(entry.matches) matches")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Spacer(minLength: 8)

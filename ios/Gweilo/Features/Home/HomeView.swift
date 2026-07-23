@@ -174,11 +174,13 @@ private struct StandingRow: View {
                 .foregroundStyle(rank == 1 ? GweiloTheme.accent : .secondary)
                 .frame(width: 18, alignment: .leading)
 
-            Text(player.initials)
-                .font(.caption2.weight(.bold))
-                .frame(width: 34, height: 34)
-                .background(Color.primary.opacity(0.08), in: .circle)
-                .accessibilityHidden(true)
+            PlayerIdentityAvatar(
+                name: player.name,
+                initials: player.initials,
+                avatarURL: player.avatarURL,
+                size: 34
+            )
+            .accessibilityHidden(true)
 
             Text(player.name)
                 .font(.body.weight(.semibold))

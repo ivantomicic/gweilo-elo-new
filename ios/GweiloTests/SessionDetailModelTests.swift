@@ -46,10 +46,10 @@ final class SessionDetailModelTests: XCTestCase {
                 worstDelta: nil
             ),
             participants: [
-                SessionParticipant(id: ivanID, name: "Ivan", team: nil),
-                SessionParticipant(id: garaID, name: "Gara", team: nil),
-                SessionParticipant(id: leoID, name: "Leo", team: nil),
-                SessionParticipant(id: miladinID, name: "Miladin", team: nil)
+                SessionParticipant(id: ivanID, name: "Ivan", avatarURL: nil, team: nil),
+                SessionParticipant(id: garaID, name: "Gara", avatarURL: nil, team: nil),
+                SessionParticipant(id: leoID, name: "Leo", avatarURL: nil, team: nil),
+                SessionParticipant(id: miladinID, name: "Miladin", avatarURL: nil, team: nil)
             ],
             rounds: []
         )
