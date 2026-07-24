@@ -132,8 +132,8 @@ from an iPhone.
 - ✅ Doubles-team leaderboard (live Supabase data)
 - ✅ Singles player profile
 - ✅ Player singles Elo history and recent results
-- ⬜ Player head-to-head results
-- ⬜ Team profile and history
+- ✅ Player head-to-head results against the signed-in user
+- ✅ Doubles-team profile, record, sets, Elo history, and recent results
 - ⬜ Top-three statistics
 - ⬜ Rivalries
 
@@ -270,6 +270,10 @@ No private credentials should be committed to this repository.
   hierarchy across authentication, Home, Sessions, session detail, score
   entry, Rankings, and player profiles. Corrected the club location to Novi
   Sad and retained Liquid Glass only for native navigation and controls.
+- 2026-07-24: Added authenticated singles head-to-head comparisons to player
+  profiles and enabled doubles-team ranking navigation to native team profiles
+  with member identities, record, sets, Elo history, and recent opponents.
+  Reused the same chart and recent-results components across both profile types.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

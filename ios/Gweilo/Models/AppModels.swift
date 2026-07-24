@@ -52,6 +52,64 @@ struct PlayerEloHistory: Hashable, Sendable {
     let currentElo: Double
 }
 
+struct HeadToHeadPlayer: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let name: String
+    let avatarURL: URL?
+    let elo: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let setsWon: Int
+    let setsLost: Int
+
+    var initials: String {
+        name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+}
+
+struct PlayerHeadToHead: Hashable, Sendable {
+    let player: HeadToHeadPlayer
+    let opponent: HeadToHeadPlayer
+    let totalMatches: Int
+}
+
+struct DoublesTeamMember: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let name: String
+    let avatarURL: URL?
+
+    var initials: String {
+        name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+}
+
+struct DoublesTeamProfile: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let name: String
+    let playerOne: DoublesTeamMember
+    let playerTwo: DoublesTeamMember
+    let matches: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let setsWon: Int
+    let setsLost: Int
+    let elo: Int
+}
+
 enum SessionStatus: String, Codable, Hashable, Sendable {
     case active
     case completed

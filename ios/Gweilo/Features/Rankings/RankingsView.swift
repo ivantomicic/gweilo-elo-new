@@ -1,6 +1,11 @@
 import Charts
 import SwiftUI
 
+private enum RankingDestination: Hashable {
+    case player(RankingEntry)
+    case team(RankingEntry)
+}
+
 struct RankingsView: View {
     let dataStore: AppDataStore
     @State private var category = RankingCategory.singles
@@ -21,7 +26,7 @@ struct RankingsView: View {
                         EligibilityNote(category: category)
                         RankingsContent(
                             entries: entries,
-                            allowsPlayerProfiles: category == .singles,
+                            destination: destination(for:),
                             isLoading: dataStore.isLoading,
                             errorMessage: dataStore.errorMessage,
                             retry: {
@@ -38,12 +43,31 @@ struct RankingsView: View {
                 .scrollIndicators(.hidden)
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
-            .navigationDestination(for: RankingEntry.self) { player in
-                PlayerProfileView(
-                    player: player,
-                    dataStore: dataStore
-                )
+            .navigationDestination(for: RankingDestination.self) { destination in
+                switch destination {
+                case let .player(player):
+                    PlayerProfileView(
+                        player: player,
+                        dataStore: dataStore
+                    )
+                case let .team(team):
+                    DoublesTeamProfileView(
+                        team: team,
+                        dataStore: dataStore
+                    )
+                }
             }
+        }
+    }
+
+    private func destination(for entry: RankingEntry) -> RankingDestination? {
+        switch category {
+        case .singles:
+            .player(entry)
+        case .doublesPlayers:
+            nil
+        case .doublesTeams:
+            .team(entry)
         }
     }
 }
@@ -118,7 +142,7 @@ private struct EligibilityNote: View {
 
 private struct RankingsContent: View {
     let entries: [RankingEntry]
-    let allowsPlayerProfiles: Bool
+    let destination: (RankingEntry) -> RankingDestination?
     let isLoading: Bool
     let errorMessage: String?
     let retry: () -> Void
@@ -146,7 +170,7 @@ private struct RankingsContent: View {
         } else {
             RankingsTable(
                 entries: entries,
-                allowsPlayerProfiles: allowsPlayerProfiles
+                destination: destination
             )
         }
     }
@@ -154,7 +178,7 @@ private struct RankingsContent: View {
 
 private struct RankingsTable: View {
     let entries: [RankingEntry]
-    let allowsPlayerProfiles: Bool
+    let destination: (RankingEntry) -> RankingDestination?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -162,8 +186,8 @@ private struct RankingsTable: View {
             Divider()
 
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                if allowsPlayerProfiles {
-                    NavigationLink(value: entry) {
+                if let destination = destination(entry) {
+                    NavigationLink(value: destination) {
                         RankingRecord(
                             rank: index + 1,
                             entry: entry,
@@ -275,17 +299,22 @@ struct PlayerProfileView: View {
     let dataStore: AppDataStore
 
     @State private var history: PlayerEloHistory?
+    @State private var headToHead: PlayerHeadToHead?
     @State private var isLoading = false
+    @State private var isLoadingComparison = false
     @State private var errorMessage: String?
+    @State private var comparisonErrorMessage: String?
 
     init(
         player: RankingEntry,
         dataStore: AppDataStore,
-        initialHistory: PlayerEloHistory? = nil
+        initialHistory: PlayerEloHistory? = nil,
+        initialHeadToHead: PlayerHeadToHead? = nil
     ) {
         self.player = player
         self.dataStore = dataStore
         _history = State(initialValue: initialHistory)
+        _headToHead = State(initialValue: initialHeadToHead)
     }
 
     private var recentResults: [PlayerEloHistoryPoint] {
@@ -305,12 +334,25 @@ struct PlayerProfileView: View {
                 LazyVStack(alignment: .leading, spacing: 30) {
                     PlayerProfileHeader(player: player)
                     PlayerRecordStrip(player: player)
+                    if player.id != dataStore.currentUserID {
+                        PlayerHeadToHeadSection(
+                            comparison: headToHead,
+                            isLoading: isLoadingComparison,
+                            errorMessage: comparisonErrorMessage,
+                            retry: {
+                                Task { await loadHeadToHead() }
+                            }
+                        )
+                    }
 
                     VStack(alignment: .leading, spacing: 14) {
                         SectionHeading(title: "Singles Elo")
 
                         if let history {
-                            PlayerEloChart(history: history)
+                            EloHistoryChart(
+                                history: history,
+                                accessibilityTitle: "Singles Elo trend"
+                            )
                         } else if isLoading {
                             ProgressView("Loading Elo history…")
                                 .frame(maxWidth: .infinity)
@@ -325,7 +367,11 @@ struct PlayerProfileView: View {
                         }
                     }
 
-                    RecentSinglesResults(results: recentResults)
+                    RecentEloResults(
+                        title: "Recent singles",
+                        emptyMessage: "Recent singles results will appear here.",
+                        results: recentResults
+                    )
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 44)
@@ -348,14 +394,299 @@ struct PlayerProfileView: View {
         defer { isLoading = false }
 
         do {
-            history = try await dataStore.playerEloHistory(for: player.id)
+            async let historyRequest = dataStore.playerEloHistory(for: player.id)
+            history = try await historyRequest
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+
+        if player.id != dataStore.currentUserID {
+            await loadHeadToHead()
+        }
+    }
+
+    private func loadHeadToHead() async {
+        guard !isLoadingComparison else { return }
+        isLoadingComparison = true
+        comparisonErrorMessage = nil
+        defer { isLoadingComparison = false }
+        do {
+            headToHead = try await dataStore.headToHead(for: player.id)
+        } catch {
+            comparisonErrorMessage = error.localizedDescription
+        }
+    }
+}
+
+struct DoublesTeamProfileView: View {
+    let team: RankingEntry
+    let dataStore: AppDataStore
+
+    @State private var profile: DoublesTeamProfile?
+    @State private var history: PlayerEloHistory?
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    init(
+        team: RankingEntry,
+        dataStore: AppDataStore,
+        initialProfile: DoublesTeamProfile? = nil,
+        initialHistory: PlayerEloHistory? = nil
+    ) {
+        self.team = team
+        self.dataStore = dataStore
+        _profile = State(initialValue: initialProfile)
+        _history = State(initialValue: initialHistory)
+    }
+
+    private var recentResults: [PlayerEloHistoryPoint] {
+        Array(
+            (history?.points ?? [])
+                .filter { $0.match > 0 }
+                .suffix(5)
+                .reversed()
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            ArenaBackground()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 30) {
+                    if let profile {
+                        DoublesTeamHeader(profile: profile)
+                        DoublesTeamRecordStrip(profile: profile)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeading(title: "Team Elo")
+                            if let history {
+                                EloHistoryChart(
+                                    history: history,
+                                    accessibilityTitle: "Doubles team Elo trend"
+                                )
+                            }
+                        }
+
+                        RecentEloResults(
+                            title: "Recent doubles",
+                            emptyMessage: "Recent doubles results will appear here.",
+                            results: recentResults
+                        )
+                    } else if isLoading {
+                        ProgressView("Loading doubles team…")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 80)
+                    } else if let errorMessage {
+                        DataErrorNotice(
+                            message: errorMessage,
+                            retry: {
+                                Task { await load() }
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 44)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .navigationTitle(profile?.name ?? team.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .task(id: team.id) {
+            if profile == nil {
+                await load()
+            }
+        }
+    }
+
+    private func load() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+
+        do {
+            async let profileRequest = dataStore.doublesTeamProfile(for: team.id)
+            async let historyRequest = dataStore.doublesTeamEloHistory(for: team.id)
+            let loaded = try await (profileRequest, historyRequest)
+            profile = loaded.0
+            history = loaded.1
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 }
 
+private struct DoublesTeamHeader: View {
+    let profile: DoublesTeamProfile
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("DOUBLES TEAM")
+                .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
+                .tracking(1.8)
+                .foregroundStyle(GweiloTheme.lime)
+
+            HStack(spacing: 16) {
+                TeamMemberIdentity(member: profile.playerOne)
+
+                Text("+")
+                    .font(GweiloTheme.displayFont(size: 30, relativeTo: .title2))
+                    .foregroundStyle(GweiloTheme.accentBright)
+
+                TeamMemberIdentity(member: profile.playerTwo)
+            }
+
+            Text("\(profile.elo) Elo")
+                .font(GweiloTheme.labelFont(size: 19, relativeTo: .headline).monospacedDigit())
+                .foregroundStyle(GweiloTheme.accentBright)
+        }
+        .padding(.top, 14)
+    }
+}
+
+private struct TeamMemberIdentity: View {
+    let member: DoublesTeamMember
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            PlayerIdentityAvatar(
+                name: member.name,
+                initials: member.initials,
+                avatarURL: member.avatarURL,
+                size: 64
+            )
+
+            Text(member.name)
+                .font(.headline)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct DoublesTeamRecordStrip: View {
+    let profile: DoublesTeamProfile
+
+    var body: some View {
+        VStack(spacing: 16) {
+            HStack(spacing: 0) {
+                ProfileMetric(value: "\(profile.matches)", label: "MATCHES")
+                ProfileMetric(value: "\(profile.wins)", label: "WINS")
+                ProfileMetric(value: "\(profile.draws)", label: "DRAWS")
+                ProfileMetric(value: "\(profile.losses)", label: "LOSSES")
+            }
+
+            HStack {
+                Text("SETS")
+                    .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
+                    .tracking(1)
+                    .foregroundStyle(GweiloTheme.muted)
+                Spacer()
+                Text("\(profile.setsWon)–\(profile.setsLost)")
+                    .font(GweiloTheme.displayFont(size: 22, relativeTo: .title3).monospacedDigit())
+                    .foregroundStyle(GweiloTheme.bone)
+            }
+        }
+        .padding(.vertical, 15)
+        .overlay(alignment: .top) { Divider() }
+        .overlay(alignment: .bottom) { Divider() }
+    }
+}
+
 #if DEBUG
+struct DoublesTeamProfilePreviewScreen: View {
+    private let teamID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000010"
+    )!
+    private let ivanID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000001"
+    )!
+    private let garaID = UUID(
+        uuidString: "00000000-0000-0000-0000-000000000002"
+    )!
+
+    private var team: RankingEntry {
+        RankingEntry(
+            id: teamID,
+            name: "Ivan + Gara",
+            avatarURL: nil,
+            elo: 1_642,
+            matches: 48,
+            wins: 31,
+            losses: 14,
+            draws: 3,
+            rankDays: nil
+        )
+    }
+
+    private var profile: DoublesTeamProfile {
+        DoublesTeamProfile(
+            id: teamID,
+            name: "Ivan & Gara",
+            playerOne: DoublesTeamMember(
+                id: ivanID,
+                name: "Ivan",
+                avatarURL: nil
+            ),
+            playerTwo: DoublesTeamMember(
+                id: garaID,
+                name: "Gara",
+                avatarURL: nil
+            ),
+            matches: 48,
+            wins: 31,
+            losses: 14,
+            draws: 3,
+            setsWon: 112,
+            setsLost: 76,
+            elo: 1_642
+        )
+    }
+
+    private var history: PlayerEloHistory {
+        PlayerEloHistory(
+            points: [
+                .init(match: 1, elo: 1_560, date: .now.addingTimeInterval(-691_200), opponent: "Leo & Miladin", delta: 14),
+                .init(match: 2, elo: 1_548, date: .now.addingTimeInterval(-518_400), opponent: "Andrej & Marie", delta: -12),
+                .init(match: 3, elo: 1_585, date: .now.addingTimeInterval(-345_600), opponent: "Leo & Miladin", delta: 37),
+                .init(match: 4, elo: 1_617, date: .now.addingTimeInterval(-172_800), opponent: "Bata & Andrej", delta: 32),
+                .init(match: 5, elo: 1_642, date: .now, opponent: "Leo & Marie", delta: 25)
+            ],
+            currentElo: 1_642
+        )
+    }
+
+    private var dataStore: AppDataStore {
+        AppDataStore(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "preview",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            session: AuthSession(
+                accessToken: "preview",
+                refreshToken: "preview",
+                expiresIn: 3_600,
+                expiresAt: nil,
+                user: AuthenticatedUser(id: ivanID, email: "preview@example.com")
+            )
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            DoublesTeamProfileView(
+                team: team,
+                dataStore: dataStore,
+                initialProfile: profile,
+                initialHistory: history
+            )
+        }
+    }
+}
+
 struct PlayerProfilePreviewScreen: View {
     private let player = RankingEntry(
         id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
@@ -381,6 +712,32 @@ struct PlayerProfilePreviewScreen: View {
         currentElo: 1_718
     )
 
+    private let comparison = PlayerHeadToHead(
+        player: HeadToHeadPlayer(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            name: "Ivan",
+            avatarURL: nil,
+            elo: 1_718,
+            wins: 18,
+            losses: 11,
+            draws: 1,
+            setsWon: 67,
+            setsLost: 49
+        ),
+        opponent: HeadToHeadPlayer(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            name: "Gara",
+            avatarURL: nil,
+            elo: 1_626,
+            wins: 11,
+            losses: 18,
+            draws: 1,
+            setsWon: 49,
+            setsLost: 67
+        ),
+        totalMatches: 30
+    )
+
     private let dataStore = AppDataStore(
         configuration: AppConfiguration(
             supabaseURL: URL(string: "https://example.supabase.co")!,
@@ -392,7 +749,10 @@ struct PlayerProfilePreviewScreen: View {
             refreshToken: "preview",
             expiresIn: 3_600,
             expiresAt: nil,
-            user: AuthenticatedUser(id: UUID(), email: "preview@example.com")
+            user: AuthenticatedUser(
+                id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+                email: "preview@example.com"
+            )
         )
     )
 
@@ -401,7 +761,8 @@ struct PlayerProfilePreviewScreen: View {
             PlayerProfileView(
                 player: player,
                 dataStore: dataStore,
-                initialHistory: history
+                initialHistory: history,
+                initialHeadToHead: comparison
             )
         }
     }
@@ -456,6 +817,144 @@ private struct PlayerRecordStrip: View {
     }
 }
 
+private struct PlayerHeadToHeadSection: View {
+    let comparison: PlayerHeadToHead?
+    let isLoading: Bool
+    let errorMessage: String?
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionHeading(title: "You vs this player")
+
+            if let comparison {
+                HeadToHeadScoreboard(comparison: comparison)
+            } else if isLoading {
+                ProgressView("Loading head-to-head…")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
+            } else if let errorMessage {
+                DataErrorNotice(message: errorMessage, retry: retry)
+            } else {
+                Text("Head-to-head results will appear here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
+private struct HeadToHeadScoreboard: View {
+    let comparison: PlayerHeadToHead
+
+    var body: some View {
+        VStack(spacing: 15) {
+            HStack(alignment: .top, spacing: 12) {
+                ComparisonPlayer(
+                    player: comparison.player,
+                    contextLabel: "PROFILE"
+                )
+
+                Text("VS")
+                    .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
+                    .tracking(1.2)
+                    .foregroundStyle(GweiloTheme.lime)
+                    .padding(.top, 19)
+
+                ComparisonPlayer(
+                    player: comparison.opponent,
+                    contextLabel: "YOU"
+                )
+            }
+
+            if comparison.totalMatches == 0 {
+                Text("No singles matches between you yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 10) {
+                    ComparisonMetric(
+                        label: "MATCH WINS",
+                        left: comparison.player.wins,
+                        right: comparison.opponent.wins
+                    )
+                    ComparisonMetric(
+                        label: "SETS",
+                        left: comparison.player.setsWon,
+                        right: comparison.opponent.setsWon
+                    )
+                    ComparisonMetric(
+                        label: "ELO",
+                        left: comparison.player.elo,
+                        right: comparison.opponent.elo
+                    )
+                }
+            }
+        }
+        .padding(16)
+        .flatSurface(cornerRadius: 8)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(comparison.player.name) versus \(comparison.opponent.name), "
+            + "\(comparison.player.wins) to \(comparison.opponent.wins) match wins"
+        )
+    }
+}
+
+private struct ComparisonPlayer: View {
+    let player: HeadToHeadPlayer
+    let contextLabel: String
+
+    var body: some View {
+        VStack(spacing: 7) {
+            PlayerIdentityAvatar(
+                name: player.name,
+                initials: player.initials,
+                avatarURL: player.avatarURL,
+                size: 46
+            )
+            Text(player.name)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+            Text(contextLabel)
+                .font(GweiloTheme.labelFont(size: 9, relativeTo: .caption2))
+                .tracking(1)
+                .foregroundStyle(GweiloTheme.muted)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+private struct ComparisonMetric: View {
+    let label: String
+    let left: Int
+    let right: Int
+
+    var body: some View {
+        HStack {
+            Text("\(left)")
+                .foregroundStyle(resultColor(left, comparedWith: right))
+            Spacer()
+            Text(label)
+                .font(GweiloTheme.labelFont(size: 10, relativeTo: .caption2))
+                .tracking(1)
+                .foregroundStyle(GweiloTheme.muted)
+            Spacer()
+            Text("\(right)")
+                .foregroundStyle(resultColor(right, comparedWith: left))
+        }
+        .font(GweiloTheme.displayFont(size: 23, relativeTo: .title3).monospacedDigit())
+    }
+
+    private func resultColor(_ value: Int, comparedWith otherValue: Int) -> Color {
+        if value > otherValue { return GweiloTheme.lime }
+        if value < otherValue { return GweiloTheme.coral }
+        return GweiloTheme.bone
+    }
+}
+
 private struct ProfileMetric: View {
     let value: String
     let label: String
@@ -473,8 +972,9 @@ private struct ProfileMetric: View {
     }
 }
 
-private struct PlayerEloChart: View {
+private struct EloHistoryChart: View {
     let history: PlayerEloHistory
+    let accessibilityTitle: String
 
     private var domain: ClosedRange<Double> {
         let values = history.points.map(\.elo)
@@ -526,21 +1026,23 @@ private struct PlayerEloChart: View {
             }
             .frame(height: 220)
             .accessibilityLabel(
-                "Singles Elo trend, \(Int(history.currentElo.rounded())) current Elo"
+                "\(accessibilityTitle), \(Int(history.currentElo.rounded())) current Elo"
             )
         }
     }
 }
 
-private struct RecentSinglesResults: View {
+private struct RecentEloResults: View {
+    let title: String
+    let emptyMessage: String
     let results: [PlayerEloHistoryPoint]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Recent singles")
+            SectionHeading(title: title)
 
             if results.isEmpty {
-                Text("Recent singles results will appear here.")
+                Text(emptyMessage)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {

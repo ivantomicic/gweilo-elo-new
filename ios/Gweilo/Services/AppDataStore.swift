@@ -15,9 +15,11 @@ final class AppDataStore {
     private var client: SupabaseDataClient
     private var apiClient: GweiloAPIClient
     private let configuration: AppConfiguration
+    let currentUserID: UUID
 
     init(configuration: AppConfiguration, session: AuthSession) {
         self.configuration = configuration
+        currentUserID = session.user.id
         client = SupabaseDataClient(
             configuration: configuration,
             accessToken: session.accessToken
@@ -75,6 +77,21 @@ final class AppDataStore {
 
     func playerEloHistory(for playerID: UUID) async throws -> PlayerEloHistory {
         try await apiClient.fetchPlayerEloHistory(playerID: playerID)
+    }
+
+    func headToHead(for playerID: UUID) async throws -> PlayerHeadToHead {
+        try await apiClient.fetchHeadToHead(
+            playerID: playerID,
+            opponentID: currentUserID
+        )
+    }
+
+    func doublesTeamProfile(for teamID: UUID) async throws -> DoublesTeamProfile {
+        try await apiClient.fetchDoublesTeamProfile(teamID: teamID)
+    }
+
+    func doublesTeamEloHistory(for teamID: UUID) async throws -> PlayerEloHistory {
+        try await apiClient.fetchDoublesTeamEloHistory(teamID: teamID)
     }
 
     func load() async {

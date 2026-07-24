@@ -42,8 +42,10 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Live session details with players, rounds, pairings, scores, and resting players
 - Live singles, doubles-player, and doubles-team rankings
 - Native singles player profiles with live Elo charts and recent opponents
+- Singles head-to-head comparisons against the signed-in player
+- Native doubles-team profiles with record, sets, Elo chart, and recent opponents
 - Pull-to-refresh, loading, empty, and network-error states
-- Adaptive light and dark appearances
+- Deliberately dark-only purple, acid-green, and near-black appearance
 - Native Liquid Glass on supported iOS versions
 - Live score entry for every match in the active round
 - Confirmed whole-round submission to `https://www.gweilo.lol`

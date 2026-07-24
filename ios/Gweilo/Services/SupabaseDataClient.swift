@@ -516,6 +516,76 @@ private struct PlayerEloHistoryResponse: Decodable {
     let currentElo: Double
 }
 
+private struct HeadToHeadPlayerResponse: Decodable {
+    let id: UUID
+    let displayName: String
+    let avatar: String?
+    let elo: Double
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let setsWon: Int
+    let setsLost: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case avatar
+        case elo
+        case wins
+        case losses
+        case draws
+        case setsWon
+        case setsLost
+    }
+}
+
+private struct HeadToHeadResponse: Decodable {
+    let player1: HeadToHeadPlayerResponse
+    let player2: HeadToHeadPlayerResponse
+    let totalMatches: Int
+}
+
+private struct DoublesTeamMemberResponse: Decodable {
+    let id: UUID
+    let displayName: String
+    let avatar: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case avatar
+    }
+}
+
+private struct DoublesTeamProfileResponse: Decodable {
+    let id: UUID
+    let displayName: String
+    let player1: DoublesTeamMemberResponse
+    let player2: DoublesTeamMemberResponse
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let setsWon: Int
+    let setsLost: Int
+    let elo: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case player1
+        case player2
+        case matchesPlayed = "matches_played"
+        case wins
+        case losses
+        case draws
+        case setsWon = "sets_won"
+        case setsLost = "sets_lost"
+        case elo
+    }
+}
+
 struct RoundSubmissionResult: Decodable, Sendable {
     let success: Bool
     let message: String?
@@ -591,23 +661,93 @@ struct GweiloAPIClient: Sendable {
 
     func fetchPlayerEloHistory(playerID: UUID) async throws -> PlayerEloHistory {
         let request = try makePlayerEloHistoryRequest(playerID: playerID)
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
+        let responseBody: PlayerEloHistoryResponse = try await perform(
+            request,
+            fallbackMessage: "Could not load this player's Elo history."
+        )
+        return makeEloHistory(from: responseBody)
+    }
+
+    func fetchHeadToHead(
+        playerID: UUID,
+        opponentID: UUID
+    ) async throws -> PlayerHeadToHead {
+        let request = try makeHeadToHeadRequest(
+            playerID: playerID,
+            opponentID: opponentID
+        )
+        let response: HeadToHeadResponse = try await perform(
+            request,
+            fallbackMessage: "Could not load head-to-head results."
+        )
+        return PlayerHeadToHead(
+            player: makeHeadToHeadPlayer(from: response.player1),
+            opponent: makeHeadToHeadPlayer(from: response.player2),
+            totalMatches: response.totalMatches
+        )
+    }
+
+    func fetchDoublesTeamProfile(teamID: UUID) async throws -> DoublesTeamProfile {
+        let request = makeDoublesTeamProfileRequest(teamID: teamID)
+        let response: DoublesTeamProfileResponse = try await perform(
+            request,
+            fallbackMessage: "Could not load this doubles team."
+        )
+        return DoublesTeamProfile(
+            id: response.id,
+            name: response.displayName,
+            playerOne: makeTeamMember(from: response.player1),
+            playerTwo: makeTeamMember(from: response.player2),
+            matches: response.matchesPlayed,
+            wins: response.wins,
+            losses: response.losses,
+            draws: response.draws,
+            setsWon: response.setsWon,
+            setsLost: response.setsLost,
+            elo: Int(response.elo.rounded())
+        )
+    }
+
+    func fetchDoublesTeamEloHistory(teamID: UUID) async throws -> PlayerEloHistory {
+        let request = makeDoublesTeamEloHistoryRequest(teamID: teamID)
+        let response: PlayerEloHistoryResponse = try await perform(
+            request,
+            fallbackMessage: "Could not load this team's Elo history."
+        )
+        return makeEloHistory(from: response)
+    }
+
+    func makeHeadToHeadRequest(
+        playerID: UUID,
+        opponentID: UUID
+    ) throws -> URLRequest {
+        var components = URLComponents(
+            url: configuration.apiBaseURL
+                .appending(path: "api/player/\(playerID.uuidString)/head-to-head"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "opponentId", value: opponentID.uuidString)
+        ]
+        guard let endpoint = components?.url else {
             throw BackendAPIError.invalidResponse
         }
-        guard (200..<300).contains(httpResponse.statusCode) else {
-            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
-            throw BackendAPIError.rejected(
-                errorResponse?.error ??
-                errorResponse?.detail ??
-                "Could not load this player's Elo history."
-            )
-        }
+        return makeAuthenticatedRequest(url: endpoint)
+    }
 
-        let responseBody = try JSONDecoder().decode(
-            PlayerEloHistoryResponse.self,
-            from: data
+    func makeDoublesTeamProfileRequest(teamID: UUID) -> URLRequest {
+        makeAuthenticatedRequest(path: "api/team/\(teamID.uuidString)")
+    }
+
+    func makeDoublesTeamEloHistoryRequest(teamID: UUID) -> URLRequest {
+        makeAuthenticatedRequest(
+            path: "api/team/\(teamID.uuidString)/elo-history"
         )
+    }
+
+    private func makeEloHistory(
+        from responseBody: PlayerEloHistoryResponse
+    ) -> PlayerEloHistory {
         let iso8601WithFractionalSeconds = ISO8601DateFormatter()
         iso8601WithFractionalSeconds.formatOptions = [
             .withInternetDateTime,
@@ -633,6 +773,32 @@ struct GweiloAPIClient: Sendable {
         )
     }
 
+    private func makeHeadToHeadPlayer(
+        from response: HeadToHeadPlayerResponse
+    ) -> HeadToHeadPlayer {
+        HeadToHeadPlayer(
+            id: response.id,
+            name: response.displayName,
+            avatarURL: response.avatar.flatMap(URL.init(string:)),
+            elo: Int(response.elo.rounded()),
+            wins: response.wins,
+            losses: response.losses,
+            draws: response.draws,
+            setsWon: response.setsWon,
+            setsLost: response.setsLost
+        )
+    }
+
+    private func makeTeamMember(
+        from response: DoublesTeamMemberResponse
+    ) -> DoublesTeamMember {
+        DoublesTeamMember(
+            id: response.id,
+            name: response.displayName,
+            avatarURL: response.avatar.flatMap(URL.init(string:))
+        )
+    }
+
     func makePlayerEloHistoryRequest(playerID: UUID) throws -> URLRequest {
         var components = URLComponents(
             url: configuration.apiBaseURL.appending(path: "api/player/elo-history"),
@@ -649,5 +815,37 @@ struct GweiloAPIClient: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         return request
+    }
+
+    private func makeAuthenticatedRequest(path: String) -> URLRequest {
+        makeAuthenticatedRequest(
+            url: configuration.apiBaseURL.appending(path: path)
+        )
+    }
+
+    private func makeAuthenticatedRequest(url: URL) -> URLRequest {
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    private func perform<Response: Decodable>(
+        _ request: URLRequest,
+        fallbackMessage: String
+    ) async throws -> Response {
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw BackendAPIError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
+            throw BackendAPIError.rejected(
+                errorResponse?.error ??
+                errorResponse?.detail ??
+                fallbackMessage
+            )
+        }
+        return try JSONDecoder().decode(Response.self, from: data)
     }
 }

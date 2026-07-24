@@ -181,6 +181,60 @@ final class SessionDetailModelTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testHeadToHeadRequestUsesBothPlayerIDs() throws {
+        let playerID = UUID()
+        let opponentID = UUID()
+        let client = makeAPIClient()
+
+        let request = try client.makeHeadToHeadRequest(
+            playerID: playerID,
+            opponentID: opponentID
+        )
+        let components = try XCTUnwrap(
+            URLComponents(url: XCTUnwrap(request.url), resolvingAgainstBaseURL: false)
+        )
+
+        XCTAssertEqual(
+            components.path,
+            "/api/player/\(playerID.uuidString)/head-to-head"
+        )
+        XCTAssertEqual(
+            components.queryItems?.first(where: { $0.name == "opponentId" })?.value,
+            opponentID.uuidString
+        )
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+    }
+
+    @MainActor
+    func testDoublesTeamRequestsUseAuthenticatedProductionRoutes() {
+        let teamID = UUID()
+        let client = makeAPIClient()
+
+        let profileRequest = client.makeDoublesTeamProfileRequest(teamID: teamID)
+        let historyRequest = client.makeDoublesTeamEloHistoryRequest(teamID: teamID)
+
+        XCTAssertEqual(
+            profileRequest.url?.path,
+            "/api/team/\(teamID.uuidString)"
+        )
+        XCTAssertEqual(
+            historyRequest.url?.path,
+            "/api/team/\(teamID.uuidString)/elo-history"
+        )
+        XCTAssertEqual(
+            profileRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+        XCTAssertEqual(
+            historyRequest.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+    }
+
     private func makeMatches() -> [SessionMatch] {
         [
             SessionMatch(
@@ -204,6 +258,17 @@ final class SessionDetailModelTests: XCTestCase {
                 teamTwoScore: nil
             )
         ]
+    }
+
+    private func makeAPIClient() -> GweiloAPIClient {
+        GweiloAPIClient(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "public-anon-key",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            accessToken: "member-access-token"
+        )
     }
 
     private func makeDetail() -> SessionDetail {
