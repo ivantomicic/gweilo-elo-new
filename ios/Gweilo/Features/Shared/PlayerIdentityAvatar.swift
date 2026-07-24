@@ -15,17 +15,30 @@ struct PlayerIdentityAvatar: View {
                     .scaledToFill()
             default:
                 Text(initials)
-                    .font(.system(size: size * 0.29, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .font(GweiloTheme.displayFont(
+                        size: size * 0.32,
+                        relativeTo: .body
+                    ))
+                    .foregroundStyle(GweiloTheme.bone)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color.primary.opacity(0.07))
+                    .background(GweiloTheme.raisedSurface)
             }
         }
         .frame(width: size, height: size)
         .clipShape(.circle)
         .overlay {
             Circle()
-                .stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            GweiloTheme.accent.opacity(0.65),
+                            GweiloTheme.hairline
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 0.9
+                )
         }
         .accessibilityLabel(name)
     }

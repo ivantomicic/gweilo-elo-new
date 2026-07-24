@@ -1,6 +1,6 @@
 # Gweilo iOS App Roadmap
 
-Last updated: 2026-07-23
+Last updated: 2026-07-24
 
 This is the shared reference point for the Gweilo iOS app. Update it whenever
 scope, architecture, progress, or external setup requirements change.
@@ -53,7 +53,15 @@ The safe round-submission foundation is implemented and tested:
 - Use Liquid Glass for navigation, controls, floating actions, and other
   functional layers where it improves hierarchy and interaction.
 - Do not apply glass indiscriminately to every content surface.
-- Support complete, intentionally designed light and dark appearances.
+- Use a deliberately dark-only appearance. Light mode is not part of the
+  current product direction.
+- Build the identity around a pitch-black canvas, electric violet brand
+  accents, acid green live/winning/ready states, coral loss/error states, and
+  bone-white primary type.
+- Use a condensed, editorial sports type hierarchy for major headings and
+  scores, while keeping body text native and highly legible.
+- Use the code-native phantom mark as a recurring club character without
+  turning every screen into mascot artwork.
 - Treat the web app as the functional reference, not the visual ceiling.
 - Preserve useful Gweilo brand identity while creating a stronger, original
   native design system for iOS.
@@ -136,7 +144,7 @@ from an iPhone.
 - ✅ Account and logout
 - 🚧 Dynamic Type support
 - ✅ VoiceOver labels for scores and controls
-- ✅ Light and dark appearance verification for core session and scoring screens
+- ✅ Dark appearance verification for core session and scoring screens
 
 ## Later phases
 
@@ -249,13 +257,19 @@ No private credentials should be committed to this repository.
 - 2026-07-23: Confirmed that the updated Next.js backend was committed,
   deployed, and working.
 - 2026-07-23: Created the SwiftUI project in `ios/`, targeting iOS 18. Added
-  adaptive light/dark styling, native Liquid Glass on iOS 26+, a demo home
+  adaptive styling, native Liquid Glass on iOS 26+, a demo home
   dashboard, interactive doubles score entry, haptics, accessibility support,
   and score-state tests. The physical-iPhone SDK build passes.
 - 2026-07-23: Reworked the visual direction after reviewing the first device
   prototype. Replaced the bubbly card system with a flatter precision-sports
   language, redesigned Home and Score Entry, and populated Sessions and
   Rankings with realistic demo content.
+- 2026-07-24: Adopted the dark-only Phantom Rally identity: near-black
+  surfaces, electric violet branding, acid green live/winning actions,
+  condensed sports typography, a code-native phantom mark, and revised
+  hierarchy across authentication, Home, Sessions, session detail, score
+  entry, Rankings, and player profiles. Corrected the club location to Novi
+  Sad and retained Liquid Glass only for native navigation and controls.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

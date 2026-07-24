@@ -60,10 +60,10 @@ struct ScoreEntryView: View {
                         if let errorMessage {
                             Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                                 .font(.footnote)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(GweiloTheme.coral)
                                 .padding(14)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.red.opacity(0.08))
+                                .background(GweiloTheme.coral.opacity(0.10))
                         }
                     }
                     .padding(.horizontal, 20)
@@ -193,8 +193,9 @@ private struct RoundHeader: View {
         VStack(alignment: .leading, spacing: 15) {
             HStack {
                 Text("\(detail.session.playerCount)-PLAYER SESSION")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.2)
+                    .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
+                    .tracking(1.6)
+                    .foregroundStyle(GweiloTheme.lime)
 
                 Spacer()
 
@@ -203,9 +204,10 @@ private struct RoundHeader: View {
             }
             .foregroundStyle(.secondary)
 
-            Text("Enter every score")
-                .font(.title.weight(.bold))
-                .tracking(-0.45)
+            Text("ENTER EVERY SCORE")
+                .font(GweiloTheme.displayFont(size: 37, relativeTo: .title))
+                .tracking(-0.3)
+                .foregroundStyle(GweiloTheme.bone)
 
             HStack {
                 Text(matchSummary)
@@ -222,11 +224,18 @@ private struct RoundHeader: View {
         .padding(.vertical, 18)
         .padding(.horizontal, 17)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.045))
+        .background(GweiloTheme.raisedSurface)
         .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(GweiloTheme.accent)
+            LinearGradient(
+                colors: [GweiloTheme.accentBright, GweiloTheme.lime],
+                startPoint: .top,
+                endPoint: .bottom
+            )
                 .frame(width: 3)
+        }
+        .overlay {
+            Rectangle()
+                .stroke(GweiloTheme.accent.opacity(0.28), lineWidth: 0.8)
         }
         .padding(.top, 8)
     }
@@ -251,9 +260,9 @@ private struct MatchScoreEditor: View {
         VStack(alignment: .leading, spacing: 17) {
             HStack {
                 Text(match.type.label)
-                    .font(.caption2.weight(.bold))
+                    .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
                     .tracking(1.1)
-                    .foregroundStyle(GweiloTheme.accent)
+                    .foregroundStyle(GweiloTheme.accentBright)
 
                 Spacer()
 
@@ -311,15 +320,16 @@ private struct MatchSide: View {
             TextField("—", value: $score, format: .number)
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.center)
-                .font(.system(size: 29, weight: .bold).monospacedDigit())
+                .font(GweiloTheme.displayFont(size: 31, relativeTo: .title2).monospacedDigit())
+                .foregroundStyle(GweiloTheme.bone)
                 .frame(width: 54, height: 46)
-                .background(Color.primary.opacity(0.055))
+                .background(GweiloTheme.raisedSurface)
                 .overlay {
                     RoundedRectangle(cornerRadius: 7)
                         .stroke(
                             focusedScore.wrappedValue == focus
-                                ? GweiloTheme.accent
-                                : Color.primary.opacity(0.08),
+                                ? GweiloTheme.lime
+                                : GweiloTheme.accent.opacity(0.34),
                             lineWidth: focusedScore.wrappedValue == focus ? 2 : 1
                         )
                 }
@@ -347,12 +357,22 @@ private struct ScoreAdjustmentButton: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.subheadline.weight(.bold))
+                .foregroundStyle(
+                    symbol == "plus"
+                        ? GweiloTheme.accentBright
+                        : GweiloTheme.muted
+                )
                 .frame(width: 38, height: 38)
+                .background(GweiloTheme.raisedSurface)
+                .overlay {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(GweiloTheme.hairline, lineWidth: 0.8)
+                }
                 .contentShape(.rect)
         }
-        .buttonStyle(.bordered)
-        .buttonBorderShape(.roundedRectangle(radius: 8))
+        .buttonStyle(ResponsiveButtonStyle())
         .disabled(disabled)
+        .opacity(disabled ? 0.42 : 1)
         .accessibilityLabel(label)
     }
 }
@@ -364,7 +384,8 @@ private struct AtomicSubmissionNote: View {
             systemImage: "lock.shield"
         )
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(GweiloTheme.muted)
+        .tint(GweiloTheme.lime)
         .accessibilityElement(children: .combine)
     }
 }
@@ -379,7 +400,7 @@ private struct SubmitRoundBar: View {
             HStack {
                 if isSubmitting {
                     ProgressView()
-                        .tint(.white)
+                        .tint(GweiloTheme.background)
                     Text("Submitting round…")
                 } else {
                     Text(isReady ? "Submit complete round" : "Enter all scores")
@@ -387,12 +408,14 @@ private struct SubmitRoundBar: View {
                     Image(systemName: "arrow.right")
                 }
             }
-            .font(.headline)
-            .foregroundStyle(.white)
+            .font(GweiloTheme.labelFont(size: 17, relativeTo: .headline))
+            .foregroundStyle(
+                isReady ? GweiloTheme.background : GweiloTheme.muted
+            )
             .padding(.horizontal, 18)
             .frame(height: 54)
             .background(
-                isReady ? GweiloTheme.accent : Color.secondary,
+                isReady ? GweiloTheme.lime : GweiloTheme.raisedSurface,
                 in: .rect(cornerRadius: 9)
             )
         }

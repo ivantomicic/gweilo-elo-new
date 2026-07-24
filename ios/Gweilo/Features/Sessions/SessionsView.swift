@@ -44,13 +44,24 @@ private struct SessionsHeader: View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("MATCH HISTORY")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.3)
-                    .foregroundStyle(GweiloTheme.accent)
+                    .font(
+                        GweiloTheme.labelFont(
+                            size: 12,
+                            relativeTo: .caption
+                        )
+                    )
+                    .tracking(2)
+                    .foregroundStyle(GweiloTheme.lime)
 
                 Text("Sessions")
-                    .font(.largeTitle.weight(.bold))
-                    .tracking(-0.7)
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 46,
+                            relativeTo: .largeTitle
+                        )
+                    )
+                    .textCase(.uppercase)
+                    .tracking(0.2)
             }
 
             Spacer()
@@ -170,7 +181,7 @@ private struct SessionRecord: View {
                             systemImage: "circle.fill"
                         )
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(GweiloTheme.accent)
+                        .foregroundStyle(GweiloTheme.lime)
                     } else if let bestPlayer = session.bestPlayer,
                               let bestDelta = session.bestDelta,
                               let worstPlayer = session.worstPlayer,
@@ -213,7 +224,12 @@ private struct SessionValue: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.title3.monospacedDigit().weight(.semibold))
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 24,
+                        relativeTo: .title3
+                    )
+                )
             Text(label)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)

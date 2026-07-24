@@ -164,8 +164,10 @@ private struct SessionHero: View {
                         .dateTime.weekday(.wide).day().month(.wide)
                     )
                 )
-                .font(.title2.weight(.bold))
-                .tracking(-0.4)
+                .font(GweiloTheme.displayFont(size: 34, relativeTo: .title))
+                .textCase(.uppercase)
+                .tracking(-0.25)
+                .foregroundStyle(GweiloTheme.bone)
 
                 Text(session.createdAt.formatted(.dateTime.hour().minute()))
                     .font(.subheadline.monospacedDigit())
@@ -211,7 +213,8 @@ private struct HeroMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.title3.monospacedDigit().weight(.bold))
+                .font(GweiloTheme.displayFont(size: 23, relativeTo: .title3).monospacedDigit())
+                .foregroundStyle(GweiloTheme.bone)
             Text(label)
                 .font(.caption2.weight(.bold))
                 .tracking(0.6)
@@ -231,13 +234,14 @@ private struct CurrentRoundStage: View {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("PLAYING NOW")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1.3)
+                        .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
+                        .tracking(1.7)
                         .foregroundStyle(GweiloTheme.lime)
 
-                    Text("Round \(round.number)")
-                        .font(.title.weight(.bold))
-                        .tracking(-0.5)
+                    Text("ROUND \(round.number)")
+                        .font(GweiloTheme.displayFont(size: 40, relativeTo: .title))
+                        .tracking(-0.35)
+                        .foregroundStyle(GweiloTheme.bone)
                 }
 
                 Spacer()
@@ -263,11 +267,11 @@ private struct CurrentRoundStage: View {
                     Spacer()
                     Image(systemName: "square.and.pencil")
                 }
-                .font(.headline)
-                .foregroundStyle(.white)
+                .font(GweiloTheme.labelFont(size: 17, relativeTo: .headline))
+                .foregroundStyle(GweiloTheme.background)
                 .padding(.horizontal, 15)
                 .frame(height: 48)
-                .background(GweiloTheme.accent)
+                .background(GweiloTheme.lime)
             }
             .buttonStyle(ResponsiveButtonStyle())
             .accessibilityHint("Opens score entry for every match in this round")
@@ -275,11 +279,27 @@ private struct CurrentRoundStage: View {
         .padding(.vertical, 15)
         .padding(.leading, 16)
         .padding(.trailing, 14)
-        .background(GweiloTheme.lime.opacity(0.055))
+        .background(
+            LinearGradient(
+                colors: [
+                    GweiloTheme.raisedSurface,
+                    GweiloTheme.accent.opacity(0.11)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
         .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(GweiloTheme.lime)
+            LinearGradient(
+                colors: [GweiloTheme.lime, GweiloTheme.accentBright],
+                startPoint: .top,
+                endPoint: .bottom
+            )
                 .frame(width: 3)
+        }
+        .overlay {
+            Rectangle()
+                .stroke(GweiloTheme.accent.opacity(0.30), lineWidth: 0.8)
         }
     }
 }
@@ -364,9 +384,9 @@ private struct PlayerRoster: View {
                                 if let team = participant.team {
                                     Text(team)
                                         .font(.caption2.monospacedDigit().weight(.bold))
-                                        .foregroundStyle(.white)
+                                        .foregroundStyle(GweiloTheme.background)
                                         .frame(width: 18, height: 18)
-                                        .background(GweiloTheme.accent, in: .circle)
+                                        .background(GweiloTheme.lime, in: .rect(cornerRadius: 3))
                                 }
                             }
 
@@ -459,12 +479,17 @@ private struct RoundTimelineRow: View {
             Button(action: action) {
                 HStack(spacing: 13) {
                     Text("\(round.number)")
-                        .font(.subheadline.monospacedDigit().weight(.bold))
+                        .font(GweiloTheme.labelFont(size: 15, relativeTo: .subheadline).monospacedDigit())
                         .foregroundStyle(
-                            isComplete ? .primary : GweiloTheme.accent
+                            isComplete ? GweiloTheme.bone : GweiloTheme.lime
                         )
                         .frame(width: 32, height: 32)
-                        .background(Color.primary.opacity(0.06), in: .circle)
+                        .background(
+                            isComplete
+                                ? GweiloTheme.surface
+                                : GweiloTheme.accent.opacity(0.26),
+                            in: .rect(cornerRadius: 4)
+                        )
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Round \(round.number)")
@@ -479,7 +504,7 @@ private struct RoundTimelineRow: View {
                     Text(isComplete ? "DONE" : "PENDING")
                         .font(.caption2.weight(.bold))
                         .tracking(0.6)
-                        .foregroundStyle(isComplete ? .secondary : GweiloTheme.accent)
+                        .foregroundStyle(isComplete ? .secondary : GweiloTheme.lime)
 
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.bold))
@@ -560,7 +585,7 @@ private struct ScoreboardMatch: View {
                     .font(.caption2.weight(.bold))
                     .tracking(0.7)
                     .foregroundStyle(
-                        match.isCompleted ? .secondary : GweiloTheme.accent
+                        match.isCompleted ? .secondary : GweiloTheme.lime
                     )
             }
             .padding(.bottom, 10)
@@ -585,9 +610,18 @@ private struct ScoreboardMatch: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 11)
         .background(
-            Color.primary.opacity(emphasis ? 0.04 : 0.025),
+            emphasis ? GweiloTheme.raisedSurface : GweiloTheme.surface,
             in: .rect(cornerRadius: 7)
         )
+        .overlay {
+            RoundedRectangle(cornerRadius: 7)
+                .stroke(
+                    emphasis
+                        ? GweiloTheme.accent.opacity(0.28)
+                        : GweiloTheme.hairline,
+                    lineWidth: 0.8
+                )
+        }
         .accessibilityElement(children: .combine)
     }
 }
@@ -618,7 +652,7 @@ private struct TeamScoreRow: View {
             Spacer(minLength: 8)
 
             Text(score.map(String.init) ?? "—")
-                .font(.title2.monospacedDigit().weight(.bold))
+                .font(GweiloTheme.displayFont(size: 31, relativeTo: .title2).monospacedDigit())
                 .foregroundStyle(isWinner ? GweiloTheme.lime : .primary)
                 .frame(minWidth: 28, alignment: .trailing)
         }
@@ -640,7 +674,7 @@ private struct AvatarStack: View {
                 )
                 .overlay {
                     Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                        .stroke(GweiloTheme.surface, lineWidth: 1)
                 }
             }
         }
@@ -675,9 +709,9 @@ private struct SectionLabel: View {
     var body: some View {
         HStack {
             Text(title.uppercased())
-                .font(.caption2.weight(.bold))
-                .tracking(1.3)
-                .foregroundStyle(.secondary)
+                .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
+                .tracking(1.6)
+                .foregroundStyle(GweiloTheme.accentBright)
             Spacer()
             Text(value)
                 .font(.caption.monospacedDigit().weight(.semibold))

@@ -35,14 +35,28 @@ struct SignInView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("GWEILO")
-                .font(.caption.weight(.bold))
-                .tracking(1.8)
-                .foregroundStyle(GweiloTheme.accent)
+        VStack(alignment: .leading, spacing: 12) {
+            PhantomMark(size: 82)
+                .padding(.bottom, 8)
+
+            Text("GWEILO / NOVI SAD")
+                .font(
+                    GweiloTheme.labelFont(
+                        size: 13,
+                        relativeTo: .caption
+                    )
+                )
+                .tracking(2.4)
+                .foregroundStyle(GweiloTheme.lime)
 
             Text("Ready to play?")
-                .font(.largeTitle.weight(.bold))
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 48,
+                        relativeTo: .largeTitle
+                    )
+                )
+                .textCase(.uppercase)
 
             Text("Sign in with the same account you use on the web.")
                 .font(.body)
@@ -60,16 +74,36 @@ struct SignInView: View {
                 .focused($focusedField, equals: .email)
                 .submitLabel(.next)
                 .onSubmit { focusedField = .password }
-
-            Divider()
+                .padding(.vertical, 15)
+                .padding(.horizontal, 14)
+                .background(GweiloTheme.surface)
+                .overlay {
+                    Rectangle()
+                        .stroke(
+                            focusedField == .email
+                                ? GweiloTheme.accent
+                                : GweiloTheme.hairline,
+                            lineWidth: focusedField == .email ? 1.5 : 0.8
+                        )
+                }
 
             SecureField("Password", text: $password)
                 .textContentType(.password)
                 .focused($focusedField, equals: .password)
                 .submitLabel(.go)
                 .onSubmit(submit)
-
-            Divider()
+                .padding(.vertical, 15)
+                .padding(.horizontal, 14)
+                .background(GweiloTheme.surface)
+                .overlay {
+                    Rectangle()
+                        .stroke(
+                            focusedField == .password
+                                ? GweiloTheme.accent
+                                : GweiloTheme.hairline,
+                            lineWidth: focusedField == .password ? 1.5 : 0.8
+                        )
+                }
 
             if let errorMessage = authStore.errorMessage {
                 Text(errorMessage)
@@ -89,9 +123,14 @@ struct SignInView: View {
                     Image(systemName: "arrow.right")
                 }
                 .font(.headline)
-                .padding(.vertical, 12)
+                .foregroundStyle(GweiloTheme.background)
+                .padding(.horizontal, 16)
+                .frame(height: 54)
+                .background(
+                    canSubmit ? GweiloTheme.lime : GweiloTheme.muted
+                )
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(ResponsiveButtonStyle())
             .disabled(!canSubmit)
 
             if authStore.configuration == nil {

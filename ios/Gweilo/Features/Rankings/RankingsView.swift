@@ -51,24 +51,56 @@ private struct RankingsHeader: View {
     @Binding var category: RankingCategory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: 22) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("CURRENT ELO")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.3)
-                    .foregroundStyle(GweiloTheme.accent)
+                    .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
+                    .tracking(1.8)
+                    .foregroundStyle(GweiloTheme.lime)
 
-                Text("Rankings")
-                    .font(.largeTitle.weight(.bold))
-                    .tracking(-0.7)
+                Text("RANKINGS")
+                    .font(GweiloTheme.displayFont(size: 46, relativeTo: .largeTitle))
+                    .tracking(-0.5)
+                    .foregroundStyle(GweiloTheme.bone)
             }
 
-            Picker("Ranking category", selection: $category) {
+            HStack(spacing: 24) {
                 ForEach(RankingCategory.allCases) { category in
-                    Text(category.rawValue).tag(category)
+                    Button {
+                        withAnimation(.snappy(duration: 0.18)) {
+                            self.category = category
+                        }
+                    } label: {
+                        VStack(spacing: 8) {
+                            Text(category.rawValue.uppercased())
+                                .font(GweiloTheme.labelFont(size: 13, relativeTo: .caption))
+                                .tracking(0.8)
+                                .foregroundStyle(
+                                    self.category == category
+                                        ? GweiloTheme.bone
+                                        : GweiloTheme.muted
+                                )
+
+                            Rectangle()
+                                .fill(
+                                    self.category == category
+                                        ? GweiloTheme.lime
+                                        : Color.clear
+                                )
+                                .frame(height: 2)
+                        }
+                    }
+                    .buttonStyle(ResponsiveButtonStyle())
+                    .accessibilityAddTraits(
+                        self.category == category ? .isSelected : []
+                    )
                 }
             }
-            .pickerStyle(.segmented)
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(GweiloTheme.hairline)
+                    .frame(height: 1)
+            }
         }
         .padding(.top, 18)
     }
@@ -167,9 +199,9 @@ private struct RankingColumnLabels: View {
             Text("ELO")
                 .frame(width: 48, alignment: .trailing)
         }
-        .font(.caption2.weight(.bold))
+        .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
         .tracking(0.8)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(GweiloTheme.muted)
         .padding(.vertical, 9)
     }
 }
@@ -182,8 +214,12 @@ private struct RankingRecord: View {
     var body: some View {
         HStack(spacing: 8) {
             Text("\(rank)")
-                .font(.caption.monospacedDigit().weight(.bold))
-                .foregroundStyle(rank <= 3 ? GweiloTheme.accent : .secondary)
+                .font(GweiloTheme.labelFont(size: 13, relativeTo: .caption).monospacedDigit())
+                .foregroundStyle(
+                    rank == 1
+                        ? GweiloTheme.lime
+                        : (rank <= 3 ? GweiloTheme.accentBright : GweiloTheme.muted)
+                )
                 .frame(width: 24, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 3) {
@@ -214,7 +250,8 @@ private struct RankingRecord: View {
                 .frame(width: 62, alignment: .trailing)
 
             Text("\(entry.elo)")
-                .font(.body.monospacedDigit().weight(.bold))
+                .font(GweiloTheme.displayFont(size: 19, relativeTo: .body).monospacedDigit())
+                .foregroundStyle(GweiloTheme.bone)
                 .frame(width: 48, alignment: .trailing)
 
             if showsDisclosure {
@@ -385,17 +422,18 @@ private struct PlayerProfileHeader: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("PLAYER PROFILE")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.2)
-                    .foregroundStyle(GweiloTheme.accent)
+                    .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
+                    .tracking(1.8)
+                    .foregroundStyle(GweiloTheme.lime)
 
-                Text(player.name)
-                    .font(.title.weight(.bold))
-                    .tracking(-0.5)
+                Text(player.name.uppercased())
+                    .font(GweiloTheme.displayFont(size: 42, relativeTo: .largeTitle))
+                    .tracking(-0.4)
+                    .foregroundStyle(GweiloTheme.bone)
 
                 Text("\(player.elo) Elo")
-                    .font(.headline.monospacedDigit())
-                    .foregroundStyle(.secondary)
+                    .font(GweiloTheme.labelFont(size: 17, relativeTo: .headline).monospacedDigit())
+                    .foregroundStyle(GweiloTheme.accentBright)
             }
         }
         .padding(.top, 14)
@@ -425,7 +463,8 @@ private struct ProfileMetric: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(value)
-                .font(.title3.monospacedDigit().weight(.bold))
+                .font(GweiloTheme.displayFont(size: 23, relativeTo: .title3).monospacedDigit())
+                .foregroundStyle(GweiloTheme.bone)
             Text(label)
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
@@ -467,7 +506,7 @@ private struct PlayerEloChart: View {
                         x: .value("Match", point.match),
                         y: .value("Elo", point.elo)
                     )
-                    .foregroundStyle(GweiloTheme.accent)
+                    .foregroundStyle(GweiloTheme.lime)
                     .symbolSize(56)
                 }
             }
@@ -481,7 +520,7 @@ private struct PlayerEloChart: View {
             .chartYAxis {
                 AxisMarks(position: .leading) {
                     AxisGridLine()
-                        .foregroundStyle(Color.primary.opacity(0.08))
+                        .foregroundStyle(GweiloTheme.hairline)
                     AxisValueLabel()
                 }
             }

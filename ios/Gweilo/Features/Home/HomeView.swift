@@ -86,23 +86,30 @@ private struct HomeHeader: View {
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("GWEILO / BELGRADE")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.5)
-                    .foregroundStyle(GweiloTheme.accent)
+                Text("GWEILO / NOVI SAD")
+                    .font(
+                        GweiloTheme.labelFont(
+                            size: 12,
+                            relativeTo: .caption
+                        )
+                    )
+                    .tracking(2.2)
+                    .foregroundStyle(GweiloTheme.lime)
 
                 Text(Date.now.formatted(.dateTime.weekday(.wide)))
-                    .font(.largeTitle.weight(.bold))
-                    .tracking(-0.7)
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 44,
+                            relativeTo: .largeTitle
+                        )
+                    )
+                    .textCase(.uppercase)
+                    .tracking(0.2)
             }
 
             Spacer()
 
-            Image(systemName: "figure.table.tennis")
-                .font(.title3.weight(.semibold))
-                .frame(width: 42, height: 42)
-                .background(Color.primary.opacity(0.08), in: .circle)
-                .accessibilityHidden(true)
+            PhantomMark(size: 58)
         }
         .padding(.top, 18)
     }
@@ -164,8 +171,14 @@ private struct LiveSessionFeature: View {
                         .foregroundStyle(.secondary)
 
                     Text("Round \(session.currentRound ?? 1)")
-                        .font(.title.weight(.bold))
-                        .tracking(-0.5)
+                        .font(
+                            GweiloTheme.displayFont(
+                                size: 40,
+                                relativeTo: .title
+                            )
+                        )
+                        .textCase(.uppercase)
+                        .tracking(0.4)
                 }
 
                 Spacer()
@@ -196,11 +209,18 @@ private struct LiveSessionFeature: View {
         .padding(.vertical, 16)
         .padding(.leading, 17)
         .padding(.trailing, 14)
-        .background(GweiloTheme.lime.opacity(0.055))
+        .background(GweiloTheme.raisedSurface)
         .overlay(alignment: .leading) {
+            LinearGradient(
+                colors: [GweiloTheme.lime, GweiloTheme.accent],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(width: 3)
+        }
+        .overlay {
             Rectangle()
-                .fill(GweiloTheme.lime)
-                .frame(width: 3)
+                .stroke(GweiloTheme.accent.opacity(0.28), lineWidth: 0.8)
         }
         .accessibilityElement(children: .combine)
     }
@@ -242,8 +262,13 @@ private struct StandingRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Text("\(rank)")
-                .font(.caption.monospacedDigit().weight(.bold))
-                .foregroundStyle(rank == 1 ? GweiloTheme.accent : .secondary)
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 18,
+                        relativeTo: .caption
+                    )
+                )
+                .foregroundStyle(rank == 1 ? GweiloTheme.lime : .secondary)
                 .frame(width: 18, alignment: .leading)
 
             PlayerIdentityAvatar(
@@ -260,7 +285,13 @@ private struct StandingRow: View {
             Spacer()
 
             Text("\(player.elo)")
-                .font(.body.monospacedDigit().weight(.bold))
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 21,
+                        relativeTo: .body
+                    )
+                )
+                .foregroundStyle(rank == 1 ? GweiloTheme.lime : GweiloTheme.bone)
 
             Image(systemName: "chevron.right")
                 .font(.caption2.weight(.bold))
@@ -334,9 +365,14 @@ struct SectionHeading: View {
 
     var body: some View {
         Text(title.uppercased())
-            .font(.caption2.weight(.bold))
-            .tracking(1.3)
-            .foregroundStyle(.secondary)
+            .font(
+                GweiloTheme.labelFont(
+                    size: 12,
+                    relativeTo: .caption
+                )
+            )
+            .tracking(1.8)
+            .foregroundStyle(GweiloTheme.accentBright)
     }
 }
 
