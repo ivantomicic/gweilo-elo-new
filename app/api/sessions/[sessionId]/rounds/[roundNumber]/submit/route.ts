@@ -15,6 +15,10 @@ import {
 } from "@/lib/elo/round-transaction";
 import { loadAtomicRatingInputs } from "@/lib/elo/round-transaction-loader";
 import { normalizePlayerIDs } from "@/lib/sessions/player-id";
+import {
+	notifyRoundReady,
+	notifySessionCompleted,
+} from "@/lib/notifications/events";
 import { getAuthToken } from "../../../../../_utils/auth";
 
 type MatchScore = {
@@ -354,6 +358,18 @@ export async function POST(
 		}
 
 		const isLastRound = roundNum >= maxRoundNumber;
+		const notifySuccessfulRound = () =>
+			isLastRound
+				? notifySessionCompleted({
+						sessionId,
+						createdBy: user.id,
+					})
+				: notifyRoundReady({
+						sessionId,
+						completedRound: roundNum,
+						nextRound: roundNum + 1,
+						createdBy: user.id,
+					});
 		const isTenRoundFivePlayerSession =
 			session.player_count === 5 && maxRoundNumber >= 10;
 		const submissionClaim = await claimRoundSubmission(sessionId, roundNum);
@@ -417,9 +433,10 @@ export async function POST(
 					response: {
 					success: true,
 					message: "Round scores saved successfully",
-					ratingsDeferred: true,
+						ratingsDeferred: true,
 					},
 				});
+				await notifySuccessfulRound();
 				return NextResponse.json(response);
 			}
 
@@ -538,6 +555,7 @@ export async function POST(
 				await finalizeSessionMetadata(adminClient, sessionId);
 			}
 
+			await notifySuccessfulRound();
 			return NextResponse.json(atomicResponse);
 		}
 
@@ -721,6 +739,7 @@ export async function POST(
 			await finalizeSessionMetadata(adminClient, sessionId);
 		}
 
+		await notifySuccessfulRound();
 		// Success
 		return NextResponse.json(atomicResponse);
 	} catch (error) {

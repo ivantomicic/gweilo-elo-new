@@ -5,6 +5,7 @@ import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
 import { captureCompletedSessionSnapshots } from "@/lib/elo/snapshots";
+import { notifySessionCompleted } from "@/lib/notifications/events";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -179,6 +180,12 @@ export async function POST(
 				snapshotError
 			);
 		}
+
+		await notifySessionCompleted({
+			sessionId,
+			createdBy: user.id,
+			forceClosed: true,
+		});
 
 		return NextResponse.json({
 			success: true,

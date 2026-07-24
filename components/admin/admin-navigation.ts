@@ -1,5 +1,6 @@
 import {
 	ClipboardListIcon,
+	BellRingIcon,
 	ListIcon,
 	SettingsIcon,
 	UsersIcon,
@@ -8,7 +9,13 @@ import {
 } from "lucide-react";
 
 export type AdminNavigationItem = {
-	value: "users" | "activity" | "missions" | "video-processing" | "settings";
+	value:
+		| "users"
+		| "activity"
+		| "missions"
+		| "video-processing"
+		| "notifications"
+		| "settings";
 	title: string;
 	url: string;
 	icon: LucideIcon;
@@ -38,6 +45,12 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 		title: "Video Processing",
 		url: "/admin/video-processing",
 		icon: VideoIcon,
+	},
+	{
+		value: "notifications",
+		title: "Notifications",
+		url: "/admin/notifications",
+		icon: BellRingIcon,
 	},
 	{
 		value: "settings",

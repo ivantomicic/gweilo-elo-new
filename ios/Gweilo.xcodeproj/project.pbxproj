@@ -23,9 +23,13 @@
 		9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */; };
 		9117A1CEE63B8E6C4ABD7EEC /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */; };
 		91288BAE4D4C088202350361 /* AppDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9391F1239E602BBF63632B /* AppDataStore.swift */; };
+		92F1BDB8E8BFF855BA726198 /* NotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A27FBB6BA961B030145968 /* NotificationModels.swift */; };
 		95E7DDC059E46F2C64B1B704 /* SupabaseDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */; };
 		A294C92BBDF34A6406639988 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA5B4C4F21832F2E27C1477 /* SessionsView.swift */; };
+		B4A481FD81E27E8A7AA4256D /* PushNotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */; };
 		B8262BA3741DA2CD4C8CCC14 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */; };
+		C04A0434CFBFF3FE50EDB5BF /* NotificationSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F08B516E8FE92225D86385D /* NotificationSettingsSection.swift */; };
+		C4CA2FD844FE65E9B396338B /* NotificationModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */; };
 		D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B97913905094E27DCF42A43 /* GweiloApp.swift */; };
 		DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */; };
 		E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24DACFB92DCB222E4F6075F /* HomeView.swift */; };
@@ -44,8 +48,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		11454FC6A9CA7A8DCD47CE4D /* GweiloTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GweiloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailModelTests.swift; sourceTree = "<group>"; };
+		1F08B516E8FE92225D86385D /* NotificationSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsSection.swift; sourceTree = "<group>"; };
 		268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreEntryView.swift; sourceTree = "<group>"; };
 		27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScoreboardTests.swift; sourceTree = "<group>"; };
 		3FDFE13A0BFF7369FF6622CD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -65,7 +71,10 @@
 		A3118FC902F9D393E9F67543 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComingSoonView.swift; sourceTree = "<group>"; };
 		AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloLoadingView.swift; sourceTree = "<group>"; };
+		B8DBC3CFD3C7019804CD84D8 /* Gweilo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Gweilo.entitlements; sourceTree = "<group>"; };
 		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E0A27FBB6BA961B030145968 /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
+		E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModelsTests.swift; sourceTree = "<group>"; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
@@ -105,6 +114,7 @@
 			children = (
 				9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */,
 				7A9391F1239E602BBF63632B /* AppDataStore.swift */,
+				04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */,
 				81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */,
 				E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */,
 			);
@@ -160,6 +170,7 @@
 			children = (
 				48E67F5AF76CD8E21D79EC84 /* AppModels.swift */,
 				7DF6A7D394A2D0829E50769F /* DemoModels.swift */,
+				E0A27FBB6BA961B030145968 /* NotificationModels.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -169,6 +180,7 @@
 			children = (
 				5D160016085DB3D1CAB6F3A6 /* Auth */,
 				EAEFCFAF5D05D1815F508F17 /* Home */,
+				A2CE0EDCD37CA307050411D0 /* Notifications */,
 				95828CD6C3CA673EAB1C3DEB /* Rankings */,
 				684A7BAE3D4FD416F6ADFC09 /* Scoring */,
 				1B9D0631E73BF2D2DAC80079 /* Sessions */,
@@ -181,6 +193,7 @@
 			isa = PBXGroup;
 			children = (
 				27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */,
+				E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */,
 				17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */,
 			);
 			path = GweiloTests;
@@ -192,6 +205,14 @@
 				7B184252000811E5ACACA38B /* RankingsView.swift */,
 			);
 			path = Rankings;
+			sourceTree = "<group>";
+		};
+		A2CE0EDCD37CA307050411D0 /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				1F08B516E8FE92225D86385D /* NotificationSettingsSection.swift */,
+			);
+			path = Notifications;
 			sourceTree = "<group>";
 		};
 		AAEC06351FBB24F8423AE245 = {
@@ -207,6 +228,7 @@
 		B6C78A4A6757C358BCCA941E /* Gweilo */ = {
 			isa = PBXGroup;
 			children = (
+				B8DBC3CFD3C7019804CD84D8 /* Gweilo.entitlements */,
 				3B74F4F8641A98B15052BB2C /* App */,
 				04A0144C9CF40B9ECAF30026 /* DesignSystem */,
 				85B2FBAFA91AAC7FCF1E1A96 /* Features */,
@@ -286,6 +308,11 @@
 					1C09AB1BFC29BDD6DE201954 = {
 						DevelopmentTeam = 5JKSYD4AUC;
 						ProvisioningStyle = Automatic;
+						SystemCapabilities = {
+							com.apple.Push = {
+								enabled = 1;
+							};
+						};
 					};
 					9D1F11CCE208E190BC7E0CFF = {
 						DevelopmentTeam = "";
@@ -332,6 +359,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */,
+				C4CA2FD844FE65E9B396338B /* NotificationModelsTests.swift in Sources */,
 				DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -350,7 +378,10 @@
 				9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */,
 				1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */,
 				E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */,
+				92F1BDB8E8BFF855BA726198 /* NotificationModels.swift in Sources */,
+				C04A0434CFBFF3FE50EDB5BF /* NotificationSettingsSection.swift in Sources */,
 				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
+				B4A481FD81E27E8A7AA4256D /* PushNotificationManager.swift in Sources */,
 				5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */,
 				5999C1D880A0425F482E0121 /* RootView.swift in Sources */,
 				051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */,
@@ -377,7 +408,9 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = development;
 				ASSETCATALOG_COMPILER_APPICON_NAME = GweiloIcon;
+				CODE_SIGN_ENTITLEMENTS = Gweilo/Gweilo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -459,7 +492,9 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
 			buildSettings = {
+				APS_ENVIRONMENT = production;
 				ASSETCATALOG_COMPILER_APPICON_NAME = GweiloIcon;
+				CODE_SIGN_ENTITLEMENTS = Gweilo/Gweilo.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				GENERATE_INFOPLIST_FILE = NO;

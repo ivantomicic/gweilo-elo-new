@@ -134,6 +134,8 @@ from an iPhone.
 - ✅ Support five-player deferred/combined-rating behavior through the backend
 - ✅ Support six-player dynamic scheduling behavior through the backend
 - ✅ Display completed-session result, best form, and toughest result
+- 🚧 Push-notification foundation, preferences, and device registration
+- 🔌 Production APNs credentials and first physical-device delivery test
 
 ### Rankings and profiles
 
@@ -176,7 +178,7 @@ score-entry flow.
 - ⏸️ Missions
 - ⏸️ Video library
 - ⏸️ Video upload and processing status
-- ⏸️ Push notifications
+- 🚧 Push notifications (implementation ready; external APNs setup pending)
 
 ### Advanced and administrative
 
@@ -202,6 +204,7 @@ No private credentials should be committed to this repository.
 
 - 🔌 Apple Developer team
 - 🔌 Final app name and bundle identifier
+- 🔌 APNs authentication key for push notifications
 - ✅ Supabase project URL configured locally
 - ✅ Supabase public anonymous key configured locally
 - ✅ Production Next.js API base URL (`https://www.gweilo.lol`)
@@ -217,7 +220,6 @@ No private credentials should be committed to this repository.
 ### Required only when those features are added
 
 - 🔌 Sign in with Apple capability and configuration
-- 🔌 APNs key or certificate for push notifications
 - 🔌 Associated Domains configuration for universal links
 - 🔌 App Store Connect app record
 - 🔌 App icon, screenshots, description, support URL, and privacy information

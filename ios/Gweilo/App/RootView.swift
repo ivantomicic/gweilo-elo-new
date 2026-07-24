@@ -4,6 +4,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var authStore = AuthStore()
     @State private var appDataStore: AppDataStore?
+    @State private var pushNotifications = PushNotificationManager.shared
 
     var body: some View {
         Group {
@@ -42,7 +43,8 @@ struct RootView: View {
             } else if let appDataStore {
                 MainTabView(
                     dataStore: appDataStore,
-                    authStore: authStore
+                    authStore: authStore,
+                    pushNotifications: pushNotifications
                 )
             } else {
                 GweiloLoadingView("Loading your club…", size: 172)
@@ -56,8 +58,14 @@ struct RootView: View {
                 let configuration = authStore.configuration
             else {
                 appDataStore = nil
+                pushNotifications.clearConfiguration()
                 return
             }
+
+            await pushNotifications.configure(
+                configuration: configuration,
+                session: session
+            )
 
             if let appDataStore {
                 appDataStore.updateSession(session)
@@ -81,6 +89,7 @@ struct RootView: View {
             guard newPhase == .active else { return }
             Task {
                 await authStore.refreshIfNeeded()
+                await pushNotifications.refreshAuthorizationStatus()
             }
         }
     }
@@ -219,24 +228,55 @@ private struct StartSessionPreviewScreen: View {
 #endif
 
 private struct MainTabView: View {
+    private enum TabSelection: Hashable {
+        case home
+        case sessions
+        case rankings
+        case more
+    }
+
     let dataStore: AppDataStore
     let authStore: AuthStore
+    let pushNotifications: PushNotificationManager
+    @State private var selectedTab = TabSelection.home
 
     var body: some View {
-        TabView {
-            Tab("Home", systemImage: "house.fill") {
+        TabView(selection: $selectedTab) {
+            Tab(
+                "Home",
+                systemImage: "house.fill",
+                value: TabSelection.home
+            ) {
                 HomeView(dataStore: dataStore)
             }
 
-            Tab("Sessions", systemImage: "sportscourt.fill") {
-                SessionsView(dataStore: dataStore)
+            Tab(
+                "Sessions",
+                systemImage: "sportscourt.fill",
+                value: TabSelection.sessions
+            ) {
+                SessionsView(
+                    dataStore: dataStore,
+                    requestedSessionID: pushNotifications.pendingSessionID,
+                    didOpenRequestedSession: {
+                        pushNotifications.consumePendingSession($0)
+                    }
+                )
             }
 
-            Tab("Rankings", systemImage: "chart.line.uptrend.xyaxis") {
+            Tab(
+                "Rankings",
+                systemImage: "chart.line.uptrend.xyaxis",
+                value: TabSelection.rankings
+            ) {
                 RankingsView(dataStore: dataStore)
             }
 
-            Tab("More", systemImage: "ellipsis") {
+            Tab(
+                "More",
+                systemImage: "ellipsis",
+                value: TabSelection.more
+            ) {
                 AccountView(
                     email: authStore.session?.user.email,
                     player: authStore.session.flatMap { session in
@@ -245,11 +285,27 @@ private struct MainTabView: View {
                         }
                     },
                     dataStore: dataStore,
+                    pushNotifications: pushNotifications,
                     signOut: authStore.signOut
                 )
             }
         }
         .tint(GweiloTheme.accent)
+        .onChange(
+            of: pushNotifications.pendingSessionID,
+            initial: true
+        ) {
+            guard pushNotifications.pendingSessionID != nil else { return }
+            selectedTab = .sessions
+        }
+        .onChange(
+            of: pushNotifications.shouldOpenSessions,
+            initial: true
+        ) {
+            guard pushNotifications.shouldOpenSessions else { return }
+            selectedTab = .sessions
+            pushNotifications.consumeSessionsDestination()
+        }
     }
 }
 
@@ -257,6 +313,7 @@ private struct AccountView: View {
     let email: String?
     let player: RankingEntry?
     let dataStore: AppDataStore
+    let pushNotifications: PushNotificationManager
     let signOut: () -> Void
     @State private var showsSignOutConfirmation = false
 
@@ -299,7 +356,9 @@ private struct AccountView: View {
 
                     Section("APP") {
                         NavigationLink {
-                            SettingsView()
+                            SettingsView(
+                                pushNotifications: pushNotifications
+                            )
                         } label: {
                             Label("Settings", systemImage: "gearshape")
                         }
@@ -329,7 +388,12 @@ private struct AccountView: View {
                 isPresented: $showsSignOutConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Sign out", role: .destructive, action: signOut)
+                Button("Sign out", role: .destructive) {
+                    Task {
+                        await pushNotifications.unregisterCurrentDevice()
+                        signOut()
+                    }
+                }
                 Button("Cancel", role: .cancel) {}
             }
         }
@@ -337,10 +401,17 @@ private struct AccountView: View {
 }
 
 private struct SettingsView: View {
+    let pushNotifications: PushNotificationManager
     @AppStorage(GweiloPreferenceKey.hapticsEnabled)
     private var hapticsEnabled = true
     @AppStorage(GweiloPreferenceKey.confirmRoundSubmission)
     private var confirmsRoundSubmission = false
+
+    init(
+        pushNotifications: PushNotificationManager = .shared
+    ) {
+        self.pushNotifications = pushNotifications
+    }
 
     var body: some View {
         ZStack {
@@ -364,6 +435,10 @@ private struct SettingsView: View {
                         "Confirmation is recommended. The server still protects every round from duplicate submissions."
                     )
                 }
+
+                NotificationSettingsSection(
+                    manager: pushNotifications
+                )
 
                 Section {
                     LabeledContent("Appearance", value: "Dark")

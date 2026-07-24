@@ -10,6 +10,7 @@
 		"type-check": "tsc --noEmit",
 		"test:elo": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --outDir .test-build tests/elo/*.test.ts lib/elo/calculation.ts lib/elo/round-transaction.ts && node --test .test-build/tests/elo/*.test.js",
 		"test:sessions": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/sessions/*.test.ts lib/sessions/*.ts && node --test .test-build/tests/sessions/*.test.js",
+		"test:notifications": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/notifications/*.test.ts lib/notifications/types.ts && node --test .test-build/tests/notifications/*.test.js",
 		"test:statistics": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/statistics/*.test.ts lib/statistics/eligibility.ts lib/statistics/min-matches.ts && node --test .test-build/tests/statistics/*.test.js"
 	},
 	"dependencies": {

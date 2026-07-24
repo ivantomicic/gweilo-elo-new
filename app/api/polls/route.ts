@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createAdminClient, verifyAdmin } from '@/lib/supabase/admin';
+import { notifyPollCreated } from '@/lib/notifications/events';
 
 /**
  * Send email notifications to all players when a poll is created
@@ -561,6 +562,12 @@ export async function POST(request: NextRequest) {
 					console.error('[POST /api/polls] Error stack:', error.stack);
 				}
 			});
+
+		await notifyPollCreated({
+			pollId: formattedPoll.id,
+			question: formattedPoll.question,
+			createdBy: formattedPoll.createdBy,
+		});
 
 		return NextResponse.json(
 			{ poll: formattedPoll },

@@ -2,9 +2,21 @@ import SwiftUI
 
 struct SessionsView: View {
     let dataStore: AppDataStore
+    let requestedSessionID: UUID?
+    let didOpenRequestedSession: (UUID) -> Void
     @State private var navigationPath = NavigationPath()
     @State private var showsStartSession = false
     @State private var pendingCreatedSession: SessionSummary?
+
+    init(
+        dataStore: AppDataStore,
+        requestedSessionID: UUID? = nil,
+        didOpenRequestedSession: @escaping (UUID) -> Void = { _ in }
+    ) {
+        self.dataStore = dataStore
+        self.requestedSessionID = requestedSessionID
+        self.didOpenRequestedSession = didOpenRequestedSession
+    }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
@@ -54,7 +66,27 @@ struct SessionsView: View {
                 self.pendingCreatedSession = nil
                 navigationPath.append(pendingCreatedSession)
             }
+            .task(id: requestedSessionID) {
+                await openRequestedSession()
+            }
         }
+    }
+
+    private func openRequestedSession() async {
+        guard let requestedSessionID else { return }
+        var requestedSession = dataStore.sessions.first {
+            $0.id == requestedSessionID
+        }
+        if requestedSession == nil {
+            await dataStore.load()
+            requestedSession = dataStore.sessions.first {
+                $0.id == requestedSessionID
+            }
+        }
+        guard let requestedSession else { return }
+        navigationPath = NavigationPath()
+        navigationPath.append(requestedSession)
+        didOpenRequestedSession(requestedSessionID)
     }
 }
 private struct SessionsHeader: View {

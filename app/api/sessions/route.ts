@@ -14,6 +14,7 @@ import {
 	getPreferredRound5SinglesTeam,
 	loadRecentRound5SinglesPairs,
 } from "@/lib/sessions/round5-team";
+import { notifySessionStarted } from "@/lib/notifications/events";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -158,6 +159,14 @@ export async function POST(request: NextRequest) {
 				},
 				{ status: 409 },
 			);
+		}
+
+		if (result.state === "created") {
+			await notifySessionStarted({
+				sessionId: result.sessionId,
+				playerCount,
+				createdBy: auth.userId,
+			});
 		}
 
 		return NextResponse.json(
