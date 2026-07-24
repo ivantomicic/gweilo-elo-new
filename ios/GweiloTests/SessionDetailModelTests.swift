@@ -88,6 +88,30 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testEloChartViewportClampsZoomAndKeepsFocusVisible() {
+        let viewport = EloChartViewport(
+            points: makeEloHistoryPoints(matches: 1...20)
+        )
+
+        XCTAssertEqual(viewport.totalSpan, 19)
+        XCTAssertEqual(viewport.visibleSpan(from: 19, magnification: 10), 4)
+        XCTAssertEqual(viewport.visibleSpan(from: 8, magnification: 1), 8)
+        XCTAssertEqual(viewport.visibleSpan(from: 8, magnification: 0.1), 19)
+        XCTAssertEqual(
+            viewport.leadingPosition(centeredOn: 10, visibleSpan: 4),
+            8
+        )
+        XCTAssertEqual(
+            viewport.leadingPosition(centeredOn: 1, visibleSpan: 4),
+            1
+        )
+        XCTAssertEqual(
+            viewport.leadingPosition(centeredOn: 20, visibleSpan: 4),
+            16
+        )
+    }
+
+    @MainActor
     func testAuthSessionRefreshLeeway() {
         let session = AuthSession(
             accessToken: "access",
@@ -160,6 +184,20 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(scores.count, 2)
         XCTAssertEqual(scores[0]["matchId"] as? String, matches[0].id.uuidString)
         XCTAssertEqual(scores[1]["team2Score"] as? Int, 11)
+    }
+
+    private func makeEloHistoryPoints(
+        matches: ClosedRange<Int>
+    ) -> [PlayerEloHistoryPoint] {
+        matches.map { match in
+            PlayerEloHistoryPoint(
+                match: match,
+                elo: 1_500 + Double(match),
+                date: .now,
+                opponent: "Opponent \(match)",
+                delta: 1
+            )
+        }
     }
 
     @MainActor

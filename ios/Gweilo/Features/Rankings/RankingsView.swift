@@ -975,7 +975,26 @@ private struct ProfileMetric: View {
 private struct EloHistoryChart: View {
     let history: PlayerEloHistory
     let accessibilityTitle: String
-    @State private var selectedMatch: Int?
+    let initialVisibleMatchSpan: Double?
+
+    @State private var selectedMatch: Double?
+    @State private var visibleMatchSpan: Double?
+    @State private var scrollPosition: Double?
+    @State private var pinchStartingSpan: Double?
+
+    init(
+        history: PlayerEloHistory,
+        accessibilityTitle: String,
+        initialVisibleMatchSpan: Double? = nil
+    ) {
+        self.history = history
+        self.accessibilityTitle = accessibilityTitle
+        self.initialVisibleMatchSpan = initialVisibleMatchSpan
+    }
+
+    private var viewport: EloChartViewport {
+        EloChartViewport(points: history.points)
+    }
 
     private var domain: ClosedRange<Double> {
         let values = history.points.map(\.elo)
@@ -993,8 +1012,32 @@ private struct EloHistoryChart: View {
     private var selectedPoint: PlayerEloHistoryPoint? {
         guard let selectedMatch else { return nil }
         return history.points.min {
-            abs($0.match - selectedMatch) < abs($1.match - selectedMatch)
+            abs(Double($0.match) - selectedMatch)
+                < abs(Double($1.match) - selectedMatch)
         }
+    }
+
+    private var currentVisibleSpan: Double {
+        visibleMatchSpan ?? viewport.totalSpan
+    }
+
+    private var currentScrollPosition: Double {
+        scrollPosition ?? viewport.firstMatch
+    }
+
+    private var scrollPositionBinding: Binding<Double> {
+        Binding(
+            get: { currentScrollPosition },
+            set: { newValue in
+                if scrollPosition != newValue {
+                    scrollPosition = newValue
+                }
+            }
+        )
+    }
+
+    private var isZoomed: Bool {
+        currentVisibleSpan < viewport.totalSpan - 0.01
     }
 
     var body: some View {
@@ -1010,7 +1053,7 @@ private struct EloHistoryChart: View {
                 Chart {
                     ForEach(segments) { segment in
                         LineMark(
-                            x: .value("Match", segment.start.match),
+                            x: .value("Match", Double(segment.start.match)),
                             y: .value("Elo", segment.start.elo),
                             series: .value("Segment", segment.id)
                         )
@@ -1019,7 +1062,7 @@ private struct EloHistoryChart: View {
                         .interpolationMethod(.monotone)
 
                         LineMark(
-                            x: .value("Match", segment.end.match),
+                            x: .value("Match", Double(segment.end.match)),
                             y: .value("Elo", segment.end.elo),
                             series: .value("Segment", segment.id)
                         )
@@ -1031,7 +1074,7 @@ private struct EloHistoryChart: View {
                     if let latestPoint = history.points.last,
                        latestPoint.id != selectedPoint?.id {
                         PointMark(
-                            x: .value("Match", latestPoint.match),
+                            x: .value("Match", Double(latestPoint.match)),
                             y: .value("Elo", latestPoint.elo)
                         )
                         .foregroundStyle(GweiloTheme.lime)
@@ -1039,7 +1082,12 @@ private struct EloHistoryChart: View {
                     }
 
                     if let selectedPoint {
-                        RuleMark(x: .value("Selected match", selectedPoint.match))
+                        RuleMark(
+                            x: .value(
+                                "Selected match",
+                                Double(selectedPoint.match)
+                            )
+                        )
                             .foregroundStyle(GweiloTheme.bone.opacity(0.38))
                             .lineStyle(
                                 StrokeStyle(
@@ -1049,7 +1097,10 @@ private struct EloHistoryChart: View {
                             )
 
                         PointMark(
-                            x: .value("Selected match", selectedPoint.match),
+                            x: .value(
+                                "Selected match",
+                                Double(selectedPoint.match)
+                            ),
                             y: .value("Selected Elo", selectedPoint.elo)
                         )
                         .foregroundStyle(selectedPoint.performanceBand.color)
@@ -1058,9 +1109,13 @@ private struct EloHistoryChart: View {
                 }
                 .chartYScale(domain: domain)
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 5)) {
+                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
                         AxisGridLine().foregroundStyle(Color.clear)
-                        AxisValueLabel()
+                        AxisValueLabel {
+                            if let match = value.as(Double.self) {
+                                Text("\(Int(match.rounded()))")
+                            }
+                        }
                     }
                 }
                 .chartYAxis {
@@ -1070,13 +1125,24 @@ private struct EloHistoryChart: View {
                         AxisValueLabel()
                     }
                 }
+                .chartScrollableAxes(.horizontal)
+                .chartXVisibleDomain(length: currentVisibleSpan)
+                .chartScrollPosition(x: scrollPositionBinding)
                 .chartXSelection(value: $selectedMatch)
+                .simultaneousGesture(pinchGesture)
                 .frame(height: 220)
                 .accessibilityLabel(
                     "\(accessibilityTitle), \(Int(history.currentElo.rounded())) current Elo"
                 )
                 .accessibilityHint(
-                    "Swipe across the chart to inspect individual matches"
+                    "Pinch to zoom, swipe to move through history, and hold then drag to inspect matches"
+                )
+
+                ChartViewportControls(
+                    visibleMatchCount: visibleMatchCount,
+                    totalMatchCount: history.points.count,
+                    isZoomed: isZoomed,
+                    reset: resetZoom
                 )
 
                 ChartPerformanceLegend()
@@ -1085,15 +1151,90 @@ private struct EloHistoryChart: View {
                     EloMatchScrubDetail(point: selectedPoint)
                 }
 
-                Text("Hold and drag across the chart to inspect every match.")
+                Text(
+                    isZoomed
+                        ? "Swipe to move · Hold and drag to inspect"
+                        : "Pinch to zoom · Hold and drag to inspect"
+                )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
             .task(id: history.points.last?.match) {
-                if selectedMatch == nil {
-                    selectedMatch = history.points.last?.match
-                }
+                configureInitialViewport()
             }
+        }
+    }
+
+    private var visibleMatchCount: Int {
+        min(
+            history.points.count,
+            max(2, Int(currentVisibleSpan.rounded(.down)) + 1)
+        )
+    }
+
+    private var pinchGesture: some Gesture {
+        MagnifyGesture(minimumScaleDelta: 0.01)
+            .onChanged { value in
+                updateZoom(magnification: Double(value.magnification))
+            }
+            .onEnded { _ in
+                pinchStartingSpan = nil
+            }
+    }
+
+    private func configureInitialViewport() {
+        if selectedMatch == nil {
+            selectedMatch = history.points.last.map { Double($0.match) }
+        }
+
+        guard visibleMatchSpan == nil else { return }
+
+        let requestedSpan = initialVisibleMatchSpan ?? viewport.totalSpan
+        let initialSpan = viewport.visibleSpan(
+            from: requestedSpan,
+            magnification: 1
+        )
+        let focus = selectedMatch ?? viewport.lastMatch
+
+        visibleMatchSpan = initialSpan
+        scrollPosition = viewport.leadingPosition(
+            centeredOn: focus,
+            visibleSpan: initialSpan
+        )
+    }
+
+    private func updateZoom(magnification: Double) {
+        let startingSpan = pinchStartingSpan ?? currentVisibleSpan
+        if pinchStartingSpan == nil {
+            pinchStartingSpan = startingSpan
+        }
+
+        let newSpan = viewport.visibleSpan(
+            from: startingSpan,
+            magnification: magnification
+        )
+        guard abs(newSpan - currentVisibleSpan) > 0.005 else { return }
+
+        let visibleCenter = currentScrollPosition + currentVisibleSpan / 2
+        let focus: Double
+        if let selectedMatch,
+           selectedMatch >= currentScrollPosition,
+           selectedMatch <= currentScrollPosition + currentVisibleSpan {
+            focus = selectedMatch
+        } else {
+            focus = visibleCenter
+        }
+        visibleMatchSpan = newSpan
+        scrollPosition = viewport.leadingPosition(
+            centeredOn: focus,
+            visibleSpan: newSpan
+        )
+    }
+
+    private func resetZoom() {
+        withAnimation(.smooth(duration: 0.25)) {
+            visibleMatchSpan = viewport.totalSpan
+            scrollPosition = viewport.firstMatch
         }
     }
 }
@@ -1104,6 +1245,42 @@ private struct EloHistorySegment: Identifiable {
 
     var id: Int { end.match }
     var performanceBand: EloPerformanceBand { end.performanceBand }
+}
+
+private struct ChartViewportControls: View {
+    let visibleMatchCount: Int
+    let totalMatchCount: Int
+    let isZoomed: Bool
+    let reset: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: isZoomed ? "hand.draw" : "hand.pinch")
+                .foregroundStyle(GweiloTheme.accentBright)
+
+            Text(
+                isZoomed
+                    ? "\(visibleMatchCount) OF \(totalMatchCount) MATCHES"
+                    : "ALL \(totalMatchCount) MATCHES"
+            )
+            .font(GweiloTheme.labelFont(size: 9, relativeTo: .caption2))
+            .tracking(0.7)
+            .foregroundStyle(GweiloTheme.muted)
+
+            Spacer()
+
+            if isZoomed {
+                Button("Show all", systemImage: "arrow.up.left.and.arrow.down.right") {
+                    reset()
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(GweiloTheme.bone)
+                .buttonStyle(.plain)
+                .accessibilityHint("Resets the chart zoom")
+            }
+        }
+        .frame(minHeight: 24)
+    }
 }
 
 private struct ChartPerformanceLegend: View {
@@ -1230,47 +1407,131 @@ struct ChartScrubPreviewScreen: View {
             .init(
                 match: 1,
                 elo: 1_500,
-                date: .now.addingTimeInterval(-432_000),
+                date: .now.addingTimeInterval(-1_468_800),
                 opponent: "Gara",
                 delta: nil
             ),
             .init(
                 match: 2,
                 elo: 1_491,
-                date: .now.addingTimeInterval(-345_600),
+                date: .now.addingTimeInterval(-1_382_400),
                 opponent: "Leo",
                 delta: -9
             ),
             .init(
                 match: 3,
                 elo: 1_494,
-                date: .now.addingTimeInterval(-259_200),
+                date: .now.addingTimeInterval(-1_296_000),
                 opponent: "Miladin",
                 delta: 3
             ),
             .init(
                 match: 4,
                 elo: 1_502,
-                date: .now.addingTimeInterval(-172_800),
+                date: .now.addingTimeInterval(-1_209_600),
                 opponent: "Andrej",
                 delta: 8
             ),
             .init(
                 match: 5,
                 elo: 1_498,
-                date: .now.addingTimeInterval(-86_400),
+                date: .now.addingTimeInterval(-1_123_200),
                 opponent: "Marie",
                 delta: -4
             ),
             .init(
                 match: 6,
                 elo: 1_510,
-                date: .now,
+                date: .now.addingTimeInterval(-1_036_800),
                 opponent: "Gara",
                 delta: 12
+            ),
+            .init(
+                match: 7,
+                elo: 1_503,
+                date: .now.addingTimeInterval(-950_400),
+                opponent: "Leo",
+                delta: -7
+            ),
+            .init(
+                match: 8,
+                elo: 1_507,
+                date: .now.addingTimeInterval(-864_000),
+                opponent: "Miladin",
+                delta: 4
+            ),
+            .init(
+                match: 9,
+                elo: 1_521,
+                date: .now.addingTimeInterval(-777_600),
+                opponent: "Andrej",
+                delta: 14
+            ),
+            .init(
+                match: 10,
+                elo: 1_515,
+                date: .now.addingTimeInterval(-691_200),
+                opponent: "Marie",
+                delta: -6
+            ),
+            .init(
+                match: 11,
+                elo: 1_518,
+                date: .now.addingTimeInterval(-604_800),
+                opponent: "Gara",
+                delta: 3
+            ),
+            .init(
+                match: 12,
+                elo: 1_531,
+                date: .now.addingTimeInterval(-518_400),
+                opponent: "Leo",
+                delta: 13
+            ),
+            .init(
+                match: 13,
+                elo: 1_527,
+                date: .now.addingTimeInterval(-432_000),
+                opponent: "Miladin",
+                delta: -4
+            ),
+            .init(
+                match: 14,
+                elo: 1_519,
+                date: .now.addingTimeInterval(-345_600),
+                opponent: "Andrej",
+                delta: -8
+            ),
+            .init(
+                match: 15,
+                elo: 1_526,
+                date: .now.addingTimeInterval(-259_200),
+                opponent: "Marie",
+                delta: 7
+            ),
+            .init(
+                match: 16,
+                elo: 1_531,
+                date: .now.addingTimeInterval(-172_800),
+                opponent: "Gara",
+                delta: 5
+            ),
+            .init(
+                match: 17,
+                elo: 1_543,
+                date: .now.addingTimeInterval(-86_400),
+                opponent: "Leo",
+                delta: 12
+            ),
+            .init(
+                match: 18,
+                elo: 1_537,
+                date: .now,
+                opponent: "Miladin",
+                delta: -6
             )
         ],
-        currentElo: 1_510
+        currentElo: 1_537
     )
 
     var body: some View {
@@ -1290,7 +1551,8 @@ struct ChartScrubPreviewScreen: View {
 
                 EloHistoryChart(
                     history: history,
-                    accessibilityTitle: "Elo trend preview"
+                    accessibilityTitle: "Elo trend preview",
+                    initialVisibleMatchSpan: 6
                 )
 
                 Spacer()

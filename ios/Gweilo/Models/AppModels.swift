@@ -84,6 +84,60 @@ struct PlayerEloHistory: Hashable, Sendable {
     let currentElo: Double
 }
 
+struct EloChartViewport: Hashable, Sendable {
+    static let minimumVisibleMatchCount = 5
+
+    let firstMatch: Double
+    let lastMatch: Double
+
+    init(points: [PlayerEloHistoryPoint]) {
+        firstMatch = Double(points.first?.match ?? 0)
+        lastMatch = Double(points.last?.match ?? 0)
+    }
+
+    var totalSpan: Double {
+        max(lastMatch - firstMatch, 1)
+    }
+
+    var minimumVisibleSpan: Double {
+        min(
+            totalSpan,
+            Double(Self.minimumVisibleMatchCount - 1)
+        )
+    }
+
+    func visibleSpan(
+        from startingSpan: Double,
+        magnification: Double
+    ) -> Double {
+        let safeMagnification = magnification.isFinite
+            ? max(magnification, 0.01)
+            : 1
+        let proposedSpan = startingSpan / safeMagnification
+
+        return min(
+            totalSpan,
+            max(minimumVisibleSpan, proposedSpan)
+        )
+    }
+
+    func leadingPosition(
+        centeredOn focus: Double,
+        visibleSpan: Double
+    ) -> Double {
+        let clampedSpan = min(totalSpan, max(minimumVisibleSpan, visibleSpan))
+        let latestLeadingPosition = max(
+            firstMatch,
+            lastMatch - clampedSpan
+        )
+
+        return min(
+            latestLeadingPosition,
+            max(firstMatch, focus - (clampedSpan / 2))
+        )
+    }
+}
+
 struct HeadToHeadPlayer: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String

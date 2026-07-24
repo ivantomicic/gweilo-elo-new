@@ -303,6 +303,10 @@ No private credentials should be committed to this repository.
   shared Forma threshold: green above +5, red below −5, and amber between them.
   Holding and dragging across a chart selects the nearest match and reveals its
   opponent, date, Elo delta, and resulting rating.
+- 2026-07-24: Added pinch-to-zoom Elo history. Charts retain native horizontal
+  scrolling while zoomed, keep the inspected match in focus during a pinch,
+  expose the visible match count and a Show All reset, and preserve match
+  scrubbing and accessible interaction guidance.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;
