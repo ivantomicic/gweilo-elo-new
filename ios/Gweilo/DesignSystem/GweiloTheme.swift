@@ -8,6 +8,7 @@ enum GweiloTheme {
     static let accentBright = Color(red: 0.61, green: 0.38, blue: 1.00)
     static let lime = Color(red: 0.76, green: 1.00, blue: 0.12)
     static let coral = Color(red: 1.00, green: 0.27, blue: 0.36)
+    static let amber = Color(red: 1.00, green: 0.70, blue: 0.10)
     static let cyan = Color(red: 0.10, green: 0.78, blue: 0.88)
     static let bone = Color(red: 0.96, green: 0.95, blue: 0.91)
     static let muted = Color(red: 0.58, green: 0.57, blue: 0.63)

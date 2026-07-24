@@ -48,6 +48,7 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Server-eligible singles Top 3 podium with player-profile navigation
 - Live singles, doubles-player, and doubles-team rankings
 - Native singles player profiles with live Elo charts and recent opponents
+- Scrubbable green/amber/red Elo charts with per-match details
 - Singles head-to-head comparisons against the signed-in player
 - Native doubles-team profiles with record, sets, Elo chart, and recent opponents
 - Pull-to-refresh, loading, empty, and network-error states

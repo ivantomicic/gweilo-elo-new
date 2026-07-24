@@ -78,6 +78,16 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testEloPerformanceBandUsesFivePointThreshold() {
+        XCTAssertEqual(EloPerformanceBand(delta: 5.01), .gain)
+        XCTAssertEqual(EloPerformanceBand(delta: 5), .steady)
+        XCTAssertEqual(EloPerformanceBand(delta: 0), .steady)
+        XCTAssertEqual(EloPerformanceBand(delta: -5), .steady)
+        XCTAssertEqual(EloPerformanceBand(delta: -5.01), .loss)
+        XCTAssertEqual(EloPerformanceBand(delta: nil), .steady)
+    }
+
+    @MainActor
     func testAuthSessionRefreshLeeway() {
         let session = AuthSession(
             accessToken: "access",

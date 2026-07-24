@@ -50,6 +50,33 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
     let date: Date
     let opponent: String?
     let delta: Double?
+
+    var performanceBand: EloPerformanceBand {
+        EloPerformanceBand(delta: delta)
+    }
+}
+
+enum EloPerformanceBand: String, Hashable, Sendable {
+    case gain
+    case steady
+    case loss
+
+    static let threshold = 5.0
+
+    init(delta: Double?) {
+        guard let delta else {
+            self = .steady
+            return
+        }
+
+        if delta > Self.threshold {
+            self = .gain
+        } else if delta < -Self.threshold {
+            self = .loss
+        } else {
+            self = .steady
+        }
+    }
 }
 
 struct PlayerEloHistory: Hashable, Sendable {

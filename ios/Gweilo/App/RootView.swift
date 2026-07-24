@@ -7,7 +7,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isTopThreePreview {
+            if isChartScrubPreview {
+                ChartScrubPreviewScreen()
+            } else if isTopThreePreview {
                 TopThreePreviewScreen()
             } else if isSettingsPreview {
                 NavigationStack {
@@ -138,6 +140,14 @@ struct RootView: View {
     private var isTopThreePreview: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-top-three-preview")
+        #else
+        false
+        #endif
+    }
+
+    private var isChartScrubPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-chart-scrub-preview")
         #else
         false
         #endif

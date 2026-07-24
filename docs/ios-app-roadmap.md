@@ -299,6 +299,10 @@ No private credentials should be committed to this repository.
   history rows always use the selected player's or team's Elo rather than the
   opponent's value. Replaced the overshooting Catmull-Rom chart curve with
   monotone interpolation and added request/response regression tests.
+- 2026-07-24: Made Elo history interactive. Every line segment now uses the
+  shared Forma threshold: green above +5, red below −5, and amber between them.
+  Holding and dragging across a chart selects the nearest match and reveals its
+  opponent, date, Elo delta, and resulting rating.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

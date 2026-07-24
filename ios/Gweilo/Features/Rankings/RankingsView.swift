@@ -975,12 +975,26 @@ private struct ProfileMetric: View {
 private struct EloHistoryChart: View {
     let history: PlayerEloHistory
     let accessibilityTitle: String
+    @State private var selectedMatch: Int?
 
     private var domain: ClosedRange<Double> {
         let values = history.points.map(\.elo)
         let minimum = values.min() ?? history.currentElo
         let maximum = values.max() ?? history.currentElo
         return (minimum - 25)...(maximum + 25)
+    }
+
+    private var segments: [EloHistorySegment] {
+        zip(history.points, history.points.dropFirst()).map {
+            EloHistorySegment(start: $0.0, end: $0.1)
+        }
+    }
+
+    private var selectedPoint: PlayerEloHistoryPoint? {
+        guard let selectedMatch else { return nil }
+        return history.points.min {
+            abs($0.match - selectedMatch) < abs($1.match - selectedMatch)
+        }
     }
 
     var body: some View {
@@ -992,42 +1006,297 @@ private struct EloHistoryChart: View {
             )
             .frame(maxWidth: .infinity)
         } else {
-            Chart(history.points) { point in
-                LineMark(
-                    x: .value("Match", point.match),
-                    y: .value("Elo", point.elo)
-                )
-                .foregroundStyle(GweiloTheme.accent)
-                .lineStyle(StrokeStyle(lineWidth: 2.5))
-                .interpolationMethod(.monotone)
+            VStack(alignment: .leading, spacing: 12) {
+                Chart {
+                    ForEach(segments) { segment in
+                        LineMark(
+                            x: .value("Match", segment.start.match),
+                            y: .value("Elo", segment.start.elo),
+                            series: .value("Segment", segment.id)
+                        )
+                        .foregroundStyle(segment.performanceBand.color)
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                        .interpolationMethod(.monotone)
 
-                if point.id == history.points.last?.id {
-                    PointMark(
-                        x: .value("Match", point.match),
-                        y: .value("Elo", point.elo)
-                    )
-                    .foregroundStyle(GweiloTheme.lime)
-                    .symbolSize(56)
+                        LineMark(
+                            x: .value("Match", segment.end.match),
+                            y: .value("Elo", segment.end.elo),
+                            series: .value("Segment", segment.id)
+                        )
+                        .foregroundStyle(segment.performanceBand.color)
+                        .lineStyle(StrokeStyle(lineWidth: 3))
+                        .interpolationMethod(.monotone)
+                    }
+
+                    if let latestPoint = history.points.last,
+                       latestPoint.id != selectedPoint?.id {
+                        PointMark(
+                            x: .value("Match", latestPoint.match),
+                            y: .value("Elo", latestPoint.elo)
+                        )
+                        .foregroundStyle(GweiloTheme.lime)
+                        .symbolSize(56)
+                    }
+
+                    if let selectedPoint {
+                        RuleMark(x: .value("Selected match", selectedPoint.match))
+                            .foregroundStyle(GweiloTheme.bone.opacity(0.38))
+                            .lineStyle(
+                                StrokeStyle(
+                                    lineWidth: 1,
+                                    dash: [3, 4]
+                                )
+                            )
+
+                        PointMark(
+                            x: .value("Selected match", selectedPoint.match),
+                            y: .value("Selected Elo", selectedPoint.elo)
+                        )
+                        .foregroundStyle(selectedPoint.performanceBand.color)
+                        .symbolSize(88)
+                    }
+                }
+                .chartYScale(domain: domain)
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 5)) {
+                        AxisGridLine().foregroundStyle(Color.clear)
+                        AxisValueLabel()
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks(position: .leading) {
+                        AxisGridLine()
+                            .foregroundStyle(GweiloTheme.hairline)
+                        AxisValueLabel()
+                    }
+                }
+                .chartXSelection(value: $selectedMatch)
+                .frame(height: 220)
+                .accessibilityLabel(
+                    "\(accessibilityTitle), \(Int(history.currentElo.rounded())) current Elo"
+                )
+                .accessibilityHint(
+                    "Swipe across the chart to inspect individual matches"
+                )
+
+                ChartPerformanceLegend()
+
+                if let selectedPoint {
+                    EloMatchScrubDetail(point: selectedPoint)
+                }
+
+                Text("Hold and drag across the chart to inspect every match.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .task(id: history.points.last?.match) {
+                if selectedMatch == nil {
+                    selectedMatch = history.points.last?.match
                 }
             }
-            .chartYScale(domain: domain)
-            .chartXAxis {
-                AxisMarks(values: .automatic(desiredCount: 5)) {
-                    AxisGridLine().foregroundStyle(Color.clear)
-                    AxisValueLabel()
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) {
-                    AxisGridLine()
-                        .foregroundStyle(GweiloTheme.hairline)
-                    AxisValueLabel()
-                }
-            }
-            .frame(height: 220)
-            .accessibilityLabel(
-                "\(accessibilityTitle), \(Int(history.currentElo.rounded())) current Elo"
+        }
+    }
+}
+
+private struct EloHistorySegment: Identifiable {
+    let start: PlayerEloHistoryPoint
+    let end: PlayerEloHistoryPoint
+
+    var id: Int { end.match }
+    var performanceBand: EloPerformanceBand { end.performanceBand }
+}
+
+private struct ChartPerformanceLegend: View {
+    var body: some View {
+        HStack(spacing: 14) {
+            ChartPerformanceLegendItem(
+                band: .gain,
+                label: "GAIN >5"
             )
+            ChartPerformanceLegendItem(
+                band: .steady,
+                label: "STEADY ±5"
+            )
+            ChartPerformanceLegendItem(
+                band: .loss,
+                label: "LOSS <−5"
+            )
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Chart colors: green for gains above 5, amber within 5, red for losses above 5"
+        )
+    }
+}
+
+private struct ChartPerformanceLegendItem: View {
+    let band: EloPerformanceBand
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Rectangle()
+                .fill(band.color)
+                .frame(width: 12, height: 3)
+
+            Text(label)
+                .font(GweiloTheme.labelFont(size: 9, relativeTo: .caption2))
+                .tracking(0.6)
+                .foregroundStyle(GweiloTheme.muted)
+        }
+    }
+}
+
+private struct EloMatchScrubDetail: View {
+    let point: PlayerEloHistoryPoint
+
+    private var formattedDelta: String {
+        guard let delta = point.delta else { return "—" }
+        let value = Int(delta.rounded())
+        return value > 0 ? "+\(value)" : "\(value)"
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("MATCH \(point.match)")
+                    .font(GweiloTheme.labelFont(size: 10, relativeTo: .caption2))
+                    .tracking(1)
+                    .foregroundStyle(point.performanceBand.color)
+
+                Text("vs \(point.opponent ?? "Unknown opponent")")
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+
+                Text(
+                    point.date.formatted(
+                        .dateTime.day().month(.abbreviated).year()
+                    )
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(formattedDelta)
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 25,
+                            relativeTo: .title3
+                        )
+                        .monospacedDigit()
+                    )
+                    .foregroundStyle(point.performanceBand.color)
+
+                Text("\(Int(point.elo.rounded())) Elo")
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 12)
+        .padding(.horizontal, 14)
+        .background(GweiloTheme.raisedSurface)
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(point.performanceBand.color)
+                .frame(width: 3)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "Match \(point.match), against \(point.opponent ?? "unknown opponent"), "
+            + "\(formattedDelta) Elo, resulting rating \(Int(point.elo.rounded()))"
+        )
+    }
+}
+
+private extension EloPerformanceBand {
+    var color: Color {
+        switch self {
+        case .gain:
+            GweiloTheme.lime
+        case .steady:
+            GweiloTheme.amber
+        case .loss:
+            GweiloTheme.coral
+        }
+    }
+}
+
+struct ChartScrubPreviewScreen: View {
+    private let history = PlayerEloHistory(
+        points: [
+            .init(
+                match: 1,
+                elo: 1_500,
+                date: .now.addingTimeInterval(-432_000),
+                opponent: "Gara",
+                delta: nil
+            ),
+            .init(
+                match: 2,
+                elo: 1_491,
+                date: .now.addingTimeInterval(-345_600),
+                opponent: "Leo",
+                delta: -9
+            ),
+            .init(
+                match: 3,
+                elo: 1_494,
+                date: .now.addingTimeInterval(-259_200),
+                opponent: "Miladin",
+                delta: 3
+            ),
+            .init(
+                match: 4,
+                elo: 1_502,
+                date: .now.addingTimeInterval(-172_800),
+                opponent: "Andrej",
+                delta: 8
+            ),
+            .init(
+                match: 5,
+                elo: 1_498,
+                date: .now.addingTimeInterval(-86_400),
+                opponent: "Marie",
+                delta: -4
+            ),
+            .init(
+                match: 6,
+                elo: 1_510,
+                date: .now,
+                opponent: "Gara",
+                delta: 12
+            )
+        ],
+        currentElo: 1_510
+    )
+
+    var body: some View {
+        ZStack {
+            ArenaBackground()
+
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("INTERACTIVE HISTORY")
+                        .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
+                        .tracking(1.8)
+                        .foregroundStyle(GweiloTheme.lime)
+
+                    Text("ELO SCRUB")
+                        .font(GweiloTheme.displayFont(size: 44, relativeTo: .largeTitle))
+                }
+
+                EloHistoryChart(
+                    history: history,
+                    accessibilityTitle: "Elo trend preview"
+                )
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
         }
     }
 }
@@ -1094,9 +1363,6 @@ private struct RecentEloResults: View {
     }
 
     private func resultColor(for result: PlayerEloHistoryPoint) -> Color {
-        guard let delta = result.delta else { return .secondary }
-        if delta > 0 { return GweiloTheme.lime }
-        if delta < 0 { return GweiloTheme.coral }
-        return .orange
+        result.performanceBand.color
     }
 }
