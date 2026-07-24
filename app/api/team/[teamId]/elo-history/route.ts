@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
+import { buildEloHistoryMatchPerspective } from "@/lib/elo/history";
 
 type DoubleTeamRecord = {
 	id: string;
@@ -30,6 +31,8 @@ type SessionMatchRecord = {
 	round_number: number | null;
 	match_order: number | null;
 	match_type: "singles" | "doubles";
+	team1_score: number | null;
+	team2_score: number | null;
 };
 
 type SessionRecord = {
@@ -143,7 +146,9 @@ export async function GET(
 			matchIds.length > 0
 				? await adminClient
 						.from("session_matches")
-						.select("id, session_id, round_number, match_order, match_type")
+						.select(
+							"id, session_id, round_number, match_order, match_type, team1_score, team2_score",
+						)
 						.in("id", matchIds)
 				: { data: null, error: null };
 
@@ -277,6 +282,9 @@ export async function GET(
 			date: string;
 			opponent: string;
 			delta: number;
+			scoreFor: number | null;
+			scoreAgainst: number | null;
+			result: "win" | "loss" | "draw" | null;
 		}> = [];
 
 		for (const entry of sortedEntries) {
@@ -292,6 +300,11 @@ export async function GET(
 			const sessionDate = match?.session_id
 				? sessionDateMap.get(match.session_id) || entry.created_at
 				: entry.created_at;
+			const matchResult = buildEloHistoryMatchPerspective(
+				isTeam1,
+				match?.team1_score,
+				match?.team2_score,
+			);
 
 			if (eloAfter === null || eloAfter === undefined) {
 				continue;
@@ -303,6 +316,7 @@ export async function GET(
 				date: sessionDate,
 				opponent: opponentName,
 				delta: toNumber(eloDelta, 0),
+				...matchResult,
 			});
 		}
 

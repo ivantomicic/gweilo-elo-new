@@ -531,6 +531,9 @@ private struct PlayerEloHistoryPointResponse: Decodable {
     let date: String
     let opponent: String?
     let delta: Double?
+    let result: String?
+    let scoreFor: Int?
+    let scoreAgainst: Int?
 }
 
 private struct PlayerEloHistoryResponse: Decodable {
@@ -894,7 +897,10 @@ struct GweiloAPIClient: Sendable {
                 elo: point.elo,
                 date: date,
                 opponent: point.opponent,
-                delta: point.delta
+                delta: point.delta,
+                outcome: point.result.flatMap(MatchOutcome.init(rawValue:)),
+                scoreFor: point.scoreFor,
+                scoreAgainst: point.scoreAgainst
             )
         }
         return PlayerEloHistory(

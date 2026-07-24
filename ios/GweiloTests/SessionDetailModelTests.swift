@@ -112,6 +112,50 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testEloCurveIsSmoothWithoutOvershootingMatchRatings() throws {
+        let points = [
+            PlayerEloHistoryPoint(
+                match: 1,
+                elo: 1_500,
+                date: .now,
+                opponent: "Gara",
+                delta: nil
+            ),
+            PlayerEloHistoryPoint(
+                match: 2,
+                elo: 1_520,
+                date: .now,
+                opponent: "Leo",
+                delta: 20
+            ),
+            PlayerEloHistoryPoint(
+                match: 3,
+                elo: 1_510,
+                date: .now,
+                opponent: "Miladin",
+                delta: -10
+            )
+        ]
+
+        let segments = EloCurveSampler.segments(
+            points: points,
+            samplesPerSegment: 4
+        )
+        let first = try XCTUnwrap(segments.first)
+        let second = try XCTUnwrap(segments.last)
+
+        XCTAssertEqual(segments.count, 2)
+        XCTAssertEqual(first.samples.count, 5)
+        XCTAssertEqual(first.samples.first?.elo, 1_500)
+        XCTAssertEqual(first.samples.last?.elo, 1_520)
+        XCTAssertGreaterThan(first.samples[2].elo, 1_510)
+        XCTAssertTrue(first.samples.allSatisfy { (1_500...1_520).contains($0.elo) })
+        XCTAssertTrue(second.samples.allSatisfy { (1_510...1_520).contains($0.elo) })
+        XCTAssertEqual(first.performanceBand, .gain)
+        XCTAssertEqual(second.performanceBand, .loss)
+    }
+
+    @MainActor
     func testAuthSessionRefreshLeeway() {
         let session = AuthSession(
             accessToken: "access",
@@ -186,6 +230,7 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(scores[1]["team2Score"] as? Int, 11)
     }
 
+    @MainActor
     private func makeEloHistoryPoints(
         matches: ClosedRange<Int>
     ) -> [PlayerEloHistoryPoint] {

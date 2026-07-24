@@ -50,9 +50,54 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
     let date: Date
     let opponent: String?
     let delta: Double?
+    let outcome: MatchOutcome?
+    let scoreFor: Int?
+    let scoreAgainst: Int?
+
+    init(
+        match: Int,
+        elo: Double,
+        date: Date,
+        opponent: String?,
+        delta: Double?,
+        outcome: MatchOutcome? = nil,
+        scoreFor: Int? = nil,
+        scoreAgainst: Int? = nil
+    ) {
+        self.match = match
+        self.elo = elo
+        self.date = date
+        self.opponent = opponent
+        self.delta = delta
+        self.outcome = outcome
+        self.scoreFor = scoreFor
+        self.scoreAgainst = scoreAgainst
+    }
 
     var performanceBand: EloPerformanceBand {
         EloPerformanceBand(delta: delta)
+    }
+}
+
+enum MatchOutcome: String, Hashable, Sendable {
+    case win
+    case loss
+    case draw
+
+    var shortLabel: String {
+        switch self {
+        case .win: "W"
+        case .loss: "L"
+        case .draw: "D"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .win: "Win"
+        case .loss: "Loss"
+        case .draw: "Draw"
+        }
     }
 }
 
@@ -82,6 +127,124 @@ enum EloPerformanceBand: String, Hashable, Sendable {
 struct PlayerEloHistory: Hashable, Sendable {
     let points: [PlayerEloHistoryPoint]
     let currentElo: Double
+}
+
+struct EloCurveSample: Identifiable, Hashable, Sendable {
+    let id: Int
+    let match: Double
+    let elo: Double
+}
+
+struct EloCurveSegment: Identifiable, Hashable, Sendable {
+    let id: Int
+    let performanceBand: EloPerformanceBand
+    let samples: [EloCurveSample]
+}
+
+enum EloCurveSampler {
+    static let defaultSamplesPerSegment = 6
+
+    static func segments(
+        points: [PlayerEloHistoryPoint],
+        samplesPerSegment: Int = defaultSamplesPerSegment
+    ) -> [EloCurveSegment] {
+        let orderedPoints = points.sorted { $0.match < $1.match }
+        guard orderedPoints.count > 1 else { return [] }
+
+        let xValues = orderedPoints.map { Double($0.match) }
+        let yValues = orderedPoints.map(\.elo)
+        let tangents = monotoneTangents(x: xValues, y: yValues)
+        let sampleCount = max(samplesPerSegment, 1)
+
+        return orderedPoints.indices.dropLast().map { index in
+            let nextIndex = index + 1
+            let x0 = xValues[index]
+            let x1 = xValues[nextIndex]
+            let y0 = yValues[index]
+            let y1 = yValues[nextIndex]
+            let interval = max(x1 - x0, .leastNonzeroMagnitude)
+            let lowerBound = min(y0, y1)
+            let upperBound = max(y0, y1)
+
+            let samples = (0...sampleCount).map { step in
+                let progress = Double(step) / Double(sampleCount)
+                let progressSquared = progress * progress
+                let progressCubed = progressSquared * progress
+                let startValueWeight =
+                    (2 * progressCubed) - (3 * progressSquared) + 1
+                let startTangentWeight =
+                    progressCubed - (2 * progressSquared) + progress
+                let endValueWeight =
+                    (-2 * progressCubed) + (3 * progressSquared)
+                let endTangentWeight = progressCubed - progressSquared
+                let interpolatedElo =
+                    (startValueWeight * y0)
+                    + (startTangentWeight * interval * tangents[index])
+                    + (endValueWeight * y1)
+                    + (endTangentWeight * interval * tangents[nextIndex])
+
+                return EloCurveSample(
+                    id: step,
+                    match: x0 + (interval * progress),
+                    elo: min(upperBound, max(lowerBound, interpolatedElo))
+                )
+            }
+
+            return EloCurveSegment(
+                id: orderedPoints[nextIndex].match,
+                performanceBand: orderedPoints[nextIndex].performanceBand,
+                samples: samples
+            )
+        }
+    }
+
+    private static func monotoneTangents(
+        x: [Double],
+        y: [Double]
+    ) -> [Double] {
+        let intervalCount = y.count - 1
+        let secants = (0..<intervalCount).map { index in
+            let interval = max(
+                x[index + 1] - x[index],
+                .leastNonzeroMagnitude
+            )
+            return (y[index + 1] - y[index]) / interval
+        }
+
+        var tangents = Array(repeating: 0.0, count: y.count)
+        tangents[0] = secants[0]
+        tangents[y.count - 1] = secants[intervalCount - 1]
+
+        if y.count > 2 {
+            for index in 1..<(y.count - 1) {
+                let previous = secants[index - 1]
+                let next = secants[index]
+                tangents[index] = previous * next <= 0
+                    ? 0
+                    : (previous + next) / 2
+            }
+        }
+
+        for index in 0..<intervalCount {
+            let secant = secants[index]
+            guard secant != 0 else {
+                tangents[index] = 0
+                tangents[index + 1] = 0
+                continue
+            }
+
+            let startRatio = tangents[index] / secant
+            let endRatio = tangents[index + 1] / secant
+            let magnitude = hypot(startRatio, endRatio)
+            guard magnitude > 3 else { continue }
+
+            let scale = 3 / magnitude
+            tangents[index] = scale * startRatio * secant
+            tangents[index + 1] = scale * endRatio * secant
+        }
+
+        return tangents
+    }
 }
 
 struct EloChartViewport: Hashable, Sendable {

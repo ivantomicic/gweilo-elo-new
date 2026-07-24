@@ -23,6 +23,8 @@ struct RootView: View {
                 StartSessionPreviewScreen()
             } else if isDoublesTeamProfilePreview {
                 DoublesTeamProfilePreviewScreen()
+            } else if isRecentResultsPreview {
+                RecentResultsPreviewScreen()
             } else if isPlayerProfilePreview {
                 PlayerProfilePreviewScreen()
             } else if isScoreEntryPreview {
@@ -105,6 +107,14 @@ struct RootView: View {
         #endif
     }
 
+    private var isRecentResultsPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-recent-results-preview")
+        #else
+        false
+        #endif
+    }
+
     private var isDoublesTeamProfilePreview: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-doubles-team-profile-preview")
@@ -168,6 +178,12 @@ private struct ScoreEntryPreviewScreen: View {
 }
 
 private struct PlayerProfilePreviewScreen: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+
+private struct RecentResultsPreviewScreen: View {
     var body: some View {
         EmptyView()
     }

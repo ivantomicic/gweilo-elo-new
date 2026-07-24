@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthToken } from "../../_utils/auth";
+import { buildEloHistoryMatchPerspective } from "@/lib/elo/history";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -82,7 +83,9 @@ export async function GET(request: NextRequest) {
 		const { data: matches, error: matchesError } = matchIds.length > 0
 			? await supabase
 					.from("session_matches")
-					.select("id, session_id, round_number, match_order, match_type")
+					.select(
+						"id, session_id, round_number, match_order, match_type, team1_score, team2_score",
+					)
 					.in("id", matchIds)
 			: { data: null, error: null };
 
@@ -149,6 +152,9 @@ export async function GET(request: NextRequest) {
 			date: string;
 			opponent: string;
 			delta: number;
+			scoreFor: number | null;
+			scoreAgainst: number | null;
+			result: "win" | "loss" | "draw" | null;
 		}> = [];
 
 		if (eloHistory && eloHistory.length > 0) {
@@ -203,6 +209,11 @@ export async function GET(request: NextRequest) {
 					// Get opponent name
 					const opponentId = isPlayer1 ? entry.player2_id : entry.player1_id;
 					const opponentName = opponentId ? usersMap.get(opponentId) || "Unknown" : "Unknown";
+					const matchResult = buildEloHistoryMatchPerspective(
+						isPlayer1,
+						match?.team1_score,
+						match?.team2_score,
+					);
 
 					dataPoints.push({
 						match: matchIndex + 1,
@@ -210,6 +221,7 @@ export async function GET(request: NextRequest) {
 						date: sessionDate,
 						opponent: opponentName,
 						delta: deltaNum,
+						...matchResult,
 					});
 					matchIndex++;
 				}
