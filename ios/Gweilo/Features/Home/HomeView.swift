@@ -2,7 +2,9 @@ import SwiftUI
 
 struct HomeView: View {
     let dataStore: AppDataStore
+    @State private var navigationPath = NavigationPath()
     @State private var showsStartSession = false
+    @State private var pendingCreatedSession: SessionSummary?
 
     private var topSinglesPlayers: [RankingEntry] {
         Array(
@@ -13,7 +15,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 ArenaBackground()
 
@@ -58,7 +60,20 @@ struct HomeView: View {
                 )
             }
             .sheet(isPresented: $showsStartSession) {
-                StartSessionView(dataStore: dataStore)
+                StartSessionView(
+                    dataStore: dataStore,
+                    onCreated: { pendingCreatedSession = $0 }
+                )
+            }
+            .onChange(of: showsStartSession) { _, isPresented in
+                guard
+                    !isPresented,
+                    let pendingCreatedSession
+                else {
+                    return
+                }
+                self.pendingCreatedSession = nil
+                navigationPath.append(pendingCreatedSession)
             }
         }
     }

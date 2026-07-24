@@ -122,10 +122,11 @@ final class AppDataStore {
 
     func createSession(
         from draft: SessionCreationDraft
-    ) async throws -> UUID {
+    ) async throws -> SessionSummary {
         let result = try await apiClient.createSession(from: draft)
         await load()
-        return result.sessionId
+        return sessions.first { $0.id == result.sessionId }
+            ?? result.makeSummary(for: draft)
     }
 
     func load() async {

@@ -7,7 +7,11 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isStartSessionPreview {
+            if isRulesPreview {
+                NavigationStack {
+                    RulesView()
+                }
+            } else if isStartSessionPreview {
                 StartSessionPreviewScreen()
             } else if isDoublesTeamProfilePreview {
                 DoublesTeamProfilePreviewScreen()
@@ -104,6 +108,14 @@ struct RootView: View {
     private var isStartSessionPreview: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-start-session-preview")
+        #else
+        false
+        #endif
+    }
+
+    private var isRulesPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-rules-preview")
         #else
         false
         #endif
@@ -210,12 +222,14 @@ private struct AccountView: View {
                         }
                     }
 
-                    Section("GWEILO ON THE WEB") {
-                        Link(destination: URL(string: "https://www.gweilo.lol/start-session")!) {
-                            Label("Start a new session", systemImage: "safari")
-                        }
-                        Link(destination: URL(string: "https://www.gweilo.lol/rules")!) {
+                    Section("CLUB") {
+                        NavigationLink {
+                            RulesView()
+                        } label: {
                             Label("Rules", systemImage: "book.closed")
+                        }
+                        Link(destination: URL(string: "https://www.gweilo.lol")!) {
+                            Label("Open gweilo.lol", systemImage: "safari")
                         }
                     }
 
@@ -250,5 +264,140 @@ private struct AccountView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+    }
+}
+
+private struct LeaderboardRule: Identifiable {
+    let id: String
+    let marker: String
+    let title: String
+    let description: String
+    let accent: Color
+}
+
+private struct RulesView: View {
+    private let rules = [
+        LeaderboardRule(
+            id: "singles",
+            marker: "15 / 28",
+            title: "Singles leaderboard",
+            description:
+                "Play at least 15 singles matches and at least one singles match during the last 28 days.",
+            accent: GweiloTheme.lime
+        ),
+        LeaderboardRule(
+            id: "doubles-players",
+            marker: "6 / 56",
+            title: "Doubles players",
+            description:
+                "Play at least 6 doubles matches and at least one doubles match during the last 56 days.",
+            accent: GweiloTheme.accentBright
+        ),
+        LeaderboardRule(
+            id: "doubles-teams",
+            marker: "6 / 56",
+            title: "Doubles teams",
+            description:
+                "A team needs at least 6 matches together and must have played together during the last 56 days.",
+            accent: GweiloTheme.cyan
+        ),
+        LeaderboardRule(
+            id: "return",
+            marker: "AUTO",
+            title: "Returning to a leaderboard",
+            description:
+                "Results and Elo are never deleted. A player or team returns automatically as soon as the eligibility rules are met again.",
+            accent: GweiloTheme.coral
+        )
+    ]
+
+    var body: some View {
+        ZStack {
+            ArenaBackground()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    RulesHero()
+
+                    ForEach(rules) { rule in
+                        LeaderboardRuleRow(rule: rule)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 48)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .navigationTitle("Rules")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct RulesHero: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 8) {
+                Text("GWEILO")
+                    .foregroundStyle(GweiloTheme.background)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(GweiloTheme.lime)
+
+                Text("LEADERBOARD ACCESS")
+                    .foregroundStyle(GweiloTheme.lime)
+                    .tracking(1.5)
+            }
+            .font(.caption2.weight(.black))
+
+            Text("Earn your place.\nKeep it active.")
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 42,
+                        relativeTo: .largeTitle
+                    )
+                )
+                .textCase(.uppercase)
+                .tracking(0.2)
+
+            Text(
+                "These rules decide who appears in Rankings and the Top 3. Falling outside them hides a player or team—it never erases results or Elo."
+            )
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, 28)
+        .padding(.bottom, 30)
+    }
+}
+
+private struct LeaderboardRuleRow: View {
+    let rule: LeaderboardRule
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 18) {
+            Text(rule.marker)
+                .font(.caption.monospacedDigit().weight(.black))
+                .foregroundStyle(rule.accent)
+                .frame(width: 54, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 7) {
+                Text(rule.title)
+                    .font(.headline)
+
+                Text(rule.description)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 20)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(GweiloTheme.hairline)
+                .frame(height: 0.7)
+        }
+        .accessibilityElement(children: .combine)
     }
 }

@@ -2,10 +2,12 @@ import SwiftUI
 
 struct SessionsView: View {
     let dataStore: AppDataStore
+    @State private var navigationPath = NavigationPath()
     @State private var showsStartSession = false
+    @State private var pendingCreatedSession: SessionSummary?
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ZStack {
                 ArenaBackground()
 
@@ -36,7 +38,20 @@ struct SessionsView: View {
                 )
             }
             .sheet(isPresented: $showsStartSession) {
-                StartSessionView(dataStore: dataStore)
+                StartSessionView(
+                    dataStore: dataStore,
+                    onCreated: { pendingCreatedSession = $0 }
+                )
+            }
+            .onChange(of: showsStartSession) { _, isPresented in
+                guard
+                    !isPresented,
+                    let pendingCreatedSession
+                else {
+                    return
+                }
+                self.pendingCreatedSession = nil
+                navigationPath.append(pendingCreatedSession)
             }
         }
     }
@@ -290,6 +305,7 @@ struct StartSessionView: View {
 
     @Environment(\.dismiss) private var dismiss
     let dataStore: AppDataStore
+    let onCreated: (SessionSummary) -> Void
     private let previewMode: Bool
 
     @State private var step = Step.setup
@@ -301,9 +317,14 @@ struct StartSessionView: View {
     @State private var isCreating = false
     @State private var errorMessage: String?
 
-    init(dataStore: AppDataStore, previewMode: Bool = false) {
+    init(
+        dataStore: AppDataStore,
+        previewMode: Bool = false,
+        onCreated: @escaping (SessionSummary) -> Void = { _ in }
+    ) {
         self.dataStore = dataStore
         self.previewMode = previewMode
+        self.onCreated = onCreated
 
         if previewMode {
             _step = State(initialValue: .players)
@@ -454,7 +475,8 @@ struct StartSessionView: View {
         isCreating = true
         defer { isCreating = false }
         do {
-            _ = try await dataStore.createSession(from: draft)
+            let session = try await dataStore.createSession(from: draft)
+            onCreated(session)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

@@ -248,6 +248,23 @@ struct CreatedSessionResult: Decodable, Sendable {
     let sessionId: UUID
     let message: String?
     let rounds: [SessionScheduleRound]
+
+    func makeSummary(for draft: SessionCreationDraft) -> SessionSummary {
+        SessionSummary(
+            id: sessionId,
+            createdAt: draft.scheduledAt,
+            playerCount: draft.playerCount,
+            status: .active,
+            currentRound: 1,
+            totalRounds: rounds.count,
+            singlesMatches: 0,
+            doublesMatches: 0,
+            bestPlayer: nil,
+            bestDelta: nil,
+            worstPlayer: nil,
+            worstDelta: nil
+        )
+    }
 }
 
 struct SessionParticipant: Identifiable, Hashable, Sendable {

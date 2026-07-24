@@ -142,7 +142,7 @@ from an iPhone.
 
 ### General
 
-- 🚧 Rules (opens the existing web rules)
+- ✅ Native leaderboard eligibility rules
 - ⬜ Basic settings
 - ✅ Account and logout
 - 🚧 Dynamic Type support
@@ -249,7 +249,7 @@ No private credentials should be committed to this repository.
 3. Choose the Apple Developer team, confirm the final bundle identifier, and
    prepare signing/TestFlight.
 4. Configure Google OAuth only if it is required for the first TestFlight.
-5. Continue UI polish and add the remaining first-release settings/rules work.
+5. Continue UI polish and add the remaining first-release settings work.
 
 ## Change log
 
@@ -282,6 +282,11 @@ No private credentials should be committed to this repository.
   refresh. Extracted the web scheduler into a shared backend module, added an
   authenticated preview endpoint, kept six-player Round 5 fairness server-side,
   and covered every 2–6 player format with tests.
+- 2026-07-24: Completed the post-creation handoff so Home and Sessions
+  automatically open the newly created live session after the creation sheet
+  dismisses. Replaced the web-only Rules link with a native leaderboard
+  eligibility screen covering singles, doubles-player, doubles-team, inactivity,
+  and automatic-return rules.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

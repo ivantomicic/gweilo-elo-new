@@ -328,6 +328,46 @@ final class SessionDetailModelTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testCreatedSessionSummaryCanOpenBeforeRefreshCompletes() {
+        var draft = SessionCreationDraft()
+        draft.setPlayerCount(3)
+        draft.scheduledAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let result = CreatedSessionResult(
+            sessionId: UUID(),
+            message: "Created",
+            rounds: [
+                SessionScheduleRound(
+                    id: "1",
+                    roundNumber: 1,
+                    matches: [],
+                    isDynamic: nil
+                ),
+                SessionScheduleRound(
+                    id: "2",
+                    roundNumber: 2,
+                    matches: [],
+                    isDynamic: nil
+                ),
+                SessionScheduleRound(
+                    id: "3",
+                    roundNumber: 3,
+                    matches: [],
+                    isDynamic: nil
+                )
+            ]
+        )
+
+        let summary = result.makeSummary(for: draft)
+
+        XCTAssertEqual(summary.id, result.sessionId)
+        XCTAssertEqual(summary.playerCount, 3)
+        XCTAssertEqual(summary.currentRound, 1)
+        XCTAssertEqual(summary.totalRounds, 3)
+        XCTAssertEqual(summary.status, .active)
+        XCTAssertEqual(summary.createdAt, draft.scheduledAt)
+    }
+
     private func makeMatches() -> [SessionMatch] {
         [
             SessionMatch(
