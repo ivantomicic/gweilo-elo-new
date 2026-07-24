@@ -88,6 +88,42 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testExpiringCacheReturnsStaleValueOnlyAsCachedContent() {
+        let playerID = UUID()
+        let storedAt = Date(timeIntervalSince1970: 1_000)
+        let staleDate = storedAt.addingTimeInterval(301)
+        var cache = ExpiringCache<UUID, String>(lifetime: 300)
+
+        cache.insert("history", for: playerID, at: storedAt)
+
+        XCTAssertEqual(
+            cache.freshValue(
+                for: playerID,
+                at: storedAt.addingTimeInterval(299)
+            ),
+            "history"
+        )
+        XCTAssertNil(cache.freshValue(for: playerID, at: staleDate))
+        XCTAssertEqual(cache.cachedValue(for: playerID), "history")
+    }
+
+    @MainActor
+    func testHistoryPointResolvesOutcomeFromScoreWhenResultFieldIsMissing() {
+        let point = PlayerEloHistoryPoint(
+            match: 1,
+            elo: 1_510,
+            date: .now,
+            opponent: "Gara",
+            delta: 10,
+            scoreFor: 3,
+            scoreAgainst: 1
+        )
+
+        XCTAssertEqual(point.resolvedOutcome, .win)
+        XCTAssertEqual(point.formattedScore, "3–1")
+    }
+
+    @MainActor
     func testEloChartViewportClampsZoomAndKeepsFocusVisible() {
         let viewport = EloChartViewport(
             points: makeEloHistoryPoints(matches: 1...20)

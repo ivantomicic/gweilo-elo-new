@@ -7,7 +7,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isChartScrubPreview {
+            if isRankingsPreview {
+                RankingsPreviewScreen()
+            } else if isChartScrubPreview {
                 ChartScrubPreviewScreen()
             } else if isTopThreePreview {
                 TopThreePreviewScreen()
@@ -162,9 +164,23 @@ struct RootView: View {
         false
         #endif
     }
+
+    private var isRankingsPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-rankings-preview")
+        #else
+        false
+        #endif
+    }
 }
 
 #if !DEBUG
+private struct RankingsPreviewScreen: View {
+    var body: some View {
+        EmptyView()
+    }
+}
+
 private struct SessionDetailPreviewScreen: View {
     var body: some View {
         EmptyView()

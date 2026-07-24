@@ -312,6 +312,12 @@ No private credentials should be committed to this repository.
   history responses with perspective-correct scores and win/loss/draw outcomes;
   recent-result rows and chart scrubbing now show the actual result, score, and
   Elo movement instead of presenting only the rating delta.
+- 2026-07-24: Added five-minute in-memory caching for player and doubles-team
+  profiles, Elo histories, and head-to-head comparisons. Cached content appears
+  immediately, stale content remains visible while refreshing, pull-to-refresh
+  bypasses the cache, and successful round submissions invalidate it. Improved
+  recent-result fallback presentation for older API responses, and added a
+  moving rankings underline, selection haptics, and directional page transitions.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

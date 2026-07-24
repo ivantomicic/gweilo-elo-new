@@ -77,6 +77,29 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
     var performanceBand: EloPerformanceBand {
         EloPerformanceBand(delta: delta)
     }
+
+    var resolvedOutcome: MatchOutcome? {
+        if let outcome {
+            return outcome
+        }
+        guard let scoreFor, let scoreAgainst else {
+            return nil
+        }
+        if scoreFor > scoreAgainst {
+            return .win
+        }
+        if scoreFor < scoreAgainst {
+            return .loss
+        }
+        return .draw
+    }
+
+    var formattedScore: String? {
+        guard let scoreFor, let scoreAgainst else {
+            return nil
+        }
+        return "\(scoreFor)–\(scoreAgainst)"
+    }
 }
 
 enum MatchOutcome: String, Hashable, Sendable {

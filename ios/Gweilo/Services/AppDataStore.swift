@@ -1,9 +1,45 @@
 import Foundation
 import Observation
 
+struct ExpiringCache<Key: Hashable, Value> {
+    private struct Entry {
+        let value: Value
+        let storedAt: Date
+    }
+
+    private var entries: [Key: Entry] = [:]
+    let lifetime: TimeInterval
+
+    init(lifetime: TimeInterval) {
+        self.lifetime = lifetime
+    }
+
+    func cachedValue(for key: Key) -> Value? {
+        entries[key]?.value
+    }
+
+    func freshValue(for key: Key, at date: Date = .now) -> Value? {
+        guard let entry = entries[key],
+              date.timeIntervalSince(entry.storedAt) < lifetime else {
+            return nil
+        }
+        return entry.value
+    }
+
+    mutating func insert(_ value: Value, for key: Key, at date: Date = .now) {
+        entries[key] = Entry(value: value, storedAt: date)
+    }
+
+    mutating func removeAll() {
+        entries.removeAll(keepingCapacity: true)
+    }
+}
+
 @Observable
 @MainActor
 final class AppDataStore {
+    private static let profileCacheLifetime: TimeInterval = 5 * 60
+
     private(set) var sessions: [SessionSummary] = []
     private(set) var singlesRankings: [RankingEntry] = []
     private(set) var doublesPlayerRankings: [RankingEntry] = []
@@ -16,6 +52,22 @@ final class AppDataStore {
     private var client: SupabaseDataClient
     private var apiClient: GweiloAPIClient
     private let configuration: AppConfiguration
+    @ObservationIgnored
+    private var playerHistoryCache = ExpiringCache<UUID, PlayerEloHistory>(
+        lifetime: profileCacheLifetime
+    )
+    @ObservationIgnored
+    private var headToHeadCache = ExpiringCache<UUID, PlayerHeadToHead>(
+        lifetime: profileCacheLifetime
+    )
+    @ObservationIgnored
+    private var doublesProfileCache = ExpiringCache<UUID, DoublesTeamProfile>(
+        lifetime: profileCacheLifetime
+    )
+    @ObservationIgnored
+    private var doublesHistoryCache = ExpiringCache<UUID, PlayerEloHistory>(
+        lifetime: profileCacheLifetime
+    )
     let currentUserID: UUID
 
     init(configuration: AppConfiguration, session: AuthSession) {
@@ -72,27 +124,80 @@ final class AppDataStore {
             roundNumber: roundNumber,
             scores: scores
         )
+        invalidateProfileCaches()
         await load()
         return result
     }
 
-    func playerEloHistory(for playerID: UUID) async throws -> PlayerEloHistory {
-        try await apiClient.fetchPlayerEloHistory(playerID: playerID)
+    func cachedPlayerEloHistory(for playerID: UUID) -> PlayerEloHistory? {
+        playerHistoryCache.cachedValue(for: playerID)
     }
 
-    func headToHead(for playerID: UUID) async throws -> PlayerHeadToHead {
-        try await apiClient.fetchHeadToHead(
+    func playerEloHistory(
+        for playerID: UUID,
+        forceRefresh: Bool = false
+    ) async throws -> PlayerEloHistory {
+        if !forceRefresh,
+           let cached = playerHistoryCache.freshValue(for: playerID) {
+            return cached
+        }
+        let history = try await apiClient.fetchPlayerEloHistory(playerID: playerID)
+        playerHistoryCache.insert(history, for: playerID)
+        return history
+    }
+
+    func cachedHeadToHead(for playerID: UUID) -> PlayerHeadToHead? {
+        headToHeadCache.cachedValue(for: playerID)
+    }
+
+    func headToHead(
+        for playerID: UUID,
+        forceRefresh: Bool = false
+    ) async throws -> PlayerHeadToHead {
+        if !forceRefresh,
+           let cached = headToHeadCache.freshValue(for: playerID) {
+            return cached
+        }
+        let comparison = try await apiClient.fetchHeadToHead(
             playerID: playerID,
             opponentID: currentUserID
         )
+        headToHeadCache.insert(comparison, for: playerID)
+        return comparison
     }
 
-    func doublesTeamProfile(for teamID: UUID) async throws -> DoublesTeamProfile {
-        try await apiClient.fetchDoublesTeamProfile(teamID: teamID)
+    func cachedDoublesTeamProfile(for teamID: UUID) -> DoublesTeamProfile? {
+        doublesProfileCache.cachedValue(for: teamID)
     }
 
-    func doublesTeamEloHistory(for teamID: UUID) async throws -> PlayerEloHistory {
-        try await apiClient.fetchDoublesTeamEloHistory(teamID: teamID)
+    func doublesTeamProfile(
+        for teamID: UUID,
+        forceRefresh: Bool = false
+    ) async throws -> DoublesTeamProfile {
+        if !forceRefresh,
+           let cached = doublesProfileCache.freshValue(for: teamID) {
+            return cached
+        }
+        let profile = try await apiClient.fetchDoublesTeamProfile(teamID: teamID)
+        doublesProfileCache.insert(profile, for: teamID)
+        return profile
+    }
+
+    func cachedDoublesTeamEloHistory(for teamID: UUID) -> PlayerEloHistory? {
+        doublesHistoryCache.cachedValue(for: teamID)
+    }
+
+    func doublesTeamEloHistory(
+        for teamID: UUID,
+        forceRefresh: Bool = false
+    ) async throws -> PlayerEloHistory {
+        if !forceRefresh,
+           let cached = doublesHistoryCache.freshValue(for: teamID) {
+            return cached
+        }
+        let history = try await apiClient.fetchDoublesTeamEloHistory(teamID: teamID)
+        doublesHistoryCache.insert(history, for: teamID)
+        return history
     }
 
     func availableSessionPlayers() async throws -> [SessionCreationPlayer] {
@@ -164,4 +269,26 @@ final class AppDataStore {
             errorMessage = error.localizedDescription
         }
     }
+
+    private func invalidateProfileCaches() {
+        playerHistoryCache.removeAll()
+        headToHeadCache.removeAll()
+        doublesProfileCache.removeAll()
+        doublesHistoryCache.removeAll()
+    }
 }
+
+#if DEBUG
+extension AppDataStore {
+    func seedRankingsPreview(
+        singles: [RankingEntry],
+        doublesPlayers: [RankingEntry],
+        doublesTeams: [RankingEntry]
+    ) {
+        singlesRankings = singles
+        doublesPlayerRankings = doublesPlayers
+        doublesTeamRankings = doublesTeams
+        hasLoaded = true
+    }
+}
+#endif

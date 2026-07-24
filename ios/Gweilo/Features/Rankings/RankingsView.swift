@@ -9,6 +9,7 @@ private enum RankingDestination: Hashable {
 struct RankingsView: View {
     let dataStore: AppDataStore
     @State private var category = RankingCategory.singles
+    @State private var pageDirection = 1.0
 
     private var entries: [RankingEntry] {
         dataStore.rankings(for: category)
@@ -22,17 +23,28 @@ struct RankingsView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 24) {
-                        RankingsHeader(category: $category)
-                        EligibilityNote(category: category)
-                        RankingsContent(
-                            entries: entries,
-                            destination: destination(for:),
-                            isLoading: dataStore.isLoading,
-                            errorMessage: dataStore.errorMessage,
-                            retry: {
-                                Task { await dataStore.load() }
-                            }
+                        RankingsHeader(
+                            category: category,
+                            selectCategory: selectCategory
                         )
+
+                        ZStack(alignment: .topLeading) {
+                            RankingsCategoryPage(
+                                category: category,
+                                entries: entries,
+                                destination: {
+                                    destination(for: $0, in: category)
+                                },
+                                isLoading: dataStore.isLoading,
+                                errorMessage: dataStore.errorMessage,
+                                retry: {
+                                    Task { await dataStore.load() }
+                                }
+                            )
+                            .id(category)
+                            .transition(categoryTransition)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
@@ -60,7 +72,29 @@ struct RankingsView: View {
         }
     }
 
-    private func destination(for entry: RankingEntry) -> RankingDestination? {
+    private var categoryTransition: AnyTransition {
+        .asymmetric(
+            insertion: .offset(x: 22 * pageDirection).combined(with: .opacity),
+            removal: .offset(x: -14 * pageDirection).combined(with: .opacity)
+        )
+    }
+
+    private func selectCategory(_ newCategory: RankingCategory) {
+        guard newCategory != category,
+              let currentIndex = RankingCategory.allCases.firstIndex(of: category),
+              let newIndex = RankingCategory.allCases.firstIndex(of: newCategory) else {
+            return
+        }
+        pageDirection = newIndex > currentIndex ? 1 : -1
+        withAnimation(.snappy(duration: 0.28, extraBounce: 0)) {
+            category = newCategory
+        }
+    }
+
+    private func destination(
+        for entry: RankingEntry,
+        in category: RankingCategory
+    ) -> RankingDestination? {
         switch category {
         case .singles:
             .player(entry)
@@ -71,8 +105,11 @@ struct RankingsView: View {
         }
     }
 }
+
 private struct RankingsHeader: View {
-    @Binding var category: RankingCategory
+    let category: RankingCategory
+    let selectCategory: (RankingCategory) -> Void
+    @Namespace private var selectionIndicator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -89,37 +126,47 @@ private struct RankingsHeader: View {
             }
 
             HStack(spacing: 24) {
-                ForEach(RankingCategory.allCases) { category in
+                ForEach(RankingCategory.allCases) { option in
                     Button {
-                        withAnimation(.snappy(duration: 0.18)) {
-                            self.category = category
-                        }
+                        selectCategory(option)
                     } label: {
                         VStack(spacing: 8) {
-                            Text(category.rawValue.uppercased())
+                            Text(option.rawValue.uppercased())
                                 .font(GweiloTheme.labelFont(size: 13, relativeTo: .caption))
                                 .tracking(0.8)
                                 .foregroundStyle(
-                                    self.category == category
+                                    category == option
                                         ? GweiloTheme.bone
                                         : GweiloTheme.muted
                                 )
 
-                            Rectangle()
-                                .fill(
-                                    self.category == category
-                                        ? GweiloTheme.lime
-                                        : Color.clear
-                                )
+                            ZStack {
+                                Color.clear
                                 .frame(height: 2)
+
+                                if category == option {
+                                    Rectangle()
+                                        .fill(GweiloTheme.lime)
+                                        .matchedGeometryEffect(
+                                            id: "ranking-selection",
+                                            in: selectionIndicator
+                                        )
+                                }
+                            }
+                            .frame(height: 2)
                         }
+                        .frame(minHeight: 44, alignment: .bottom)
+                        .contentShape(.rect)
                     }
                     .buttonStyle(ResponsiveButtonStyle())
                     .accessibilityAddTraits(
-                        self.category == category ? .isSelected : []
+                        category == option ? .isSelected : []
                     )
                 }
             }
+            .sensoryFeedback(.selection, trigger: category)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Ranking category")
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(GweiloTheme.hairline)
@@ -127,6 +174,28 @@ private struct RankingsHeader: View {
             }
         }
         .padding(.top, 18)
+    }
+}
+
+private struct RankingsCategoryPage: View {
+    let category: RankingCategory
+    let entries: [RankingEntry]
+    let destination: (RankingEntry) -> RankingDestination?
+    let isLoading: Bool
+    let errorMessage: String?
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            EligibilityNote(category: category)
+            RankingsContent(
+                entries: entries,
+                destination: destination,
+                isLoading: isLoading,
+                errorMessage: errorMessage,
+                retry: retry
+            )
+        }
     }
 }
 
@@ -313,9 +382,18 @@ struct PlayerProfileView: View {
     ) {
         self.player = player
         self.dataStore = dataStore
-        _history = State(initialValue: initialHistory)
-        _headToHead = State(initialValue: initialHeadToHead)
+        _history = State(
+            initialValue: initialHistory
+                ?? dataStore.cachedPlayerEloHistory(for: player.id)
+        )
+        _headToHead = State(
+            initialValue: initialHeadToHead
+                ?? dataStore.cachedHeadToHead(for: player.id)
+        )
+        loadsRemoteData = initialHistory == nil && initialHeadToHead == nil
     }
+
+    private let loadsRemoteData: Bool
 
     private var recentResults: [PlayerEloHistoryPoint] {
         Array(
@@ -381,37 +459,53 @@ struct PlayerProfileView: View {
         .navigationTitle(player.name)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: player.id) {
-            if history == nil {
+            if loadsRemoteData {
                 await load()
             }
         }
+        .refreshable {
+            await load(forceRefresh: true)
+        }
     }
 
-    private func load() async {
+    private func load(forceRefresh: Bool = false) async {
+        async let historyLoad: Void = loadHistory(forceRefresh: forceRefresh)
+        if player.id != dataStore.currentUserID {
+            async let comparisonLoad: Void = loadHeadToHead(
+                forceRefresh: forceRefresh
+            )
+            _ = await (historyLoad, comparisonLoad)
+        } else {
+            await historyLoad
+        }
+    }
+
+    private func loadHistory(forceRefresh: Bool = false) async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            async let historyRequest = dataStore.playerEloHistory(for: player.id)
-            history = try await historyRequest
+            history = try await dataStore.playerEloHistory(
+                for: player.id,
+                forceRefresh: forceRefresh
+            )
         } catch {
             errorMessage = error.localizedDescription
         }
-
-        if player.id != dataStore.currentUserID {
-            await loadHeadToHead()
-        }
     }
 
-    private func loadHeadToHead() async {
+    private func loadHeadToHead(forceRefresh: Bool = false) async {
         guard !isLoadingComparison else { return }
         isLoadingComparison = true
         comparisonErrorMessage = nil
         defer { isLoadingComparison = false }
         do {
-            headToHead = try await dataStore.headToHead(for: player.id)
+            headToHead = try await dataStore.headToHead(
+                for: player.id,
+                forceRefresh: forceRefresh
+            )
         } catch {
             comparisonErrorMessage = error.localizedDescription
         }
@@ -435,9 +529,18 @@ struct DoublesTeamProfileView: View {
     ) {
         self.team = team
         self.dataStore = dataStore
-        _profile = State(initialValue: initialProfile)
-        _history = State(initialValue: initialHistory)
+        _profile = State(
+            initialValue: initialProfile
+                ?? dataStore.cachedDoublesTeamProfile(for: team.id)
+        )
+        _history = State(
+            initialValue: initialHistory
+                ?? dataStore.cachedDoublesTeamEloHistory(for: team.id)
+        )
+        loadsRemoteData = initialProfile == nil && initialHistory == nil
     }
+
+    private let loadsRemoteData: Bool
 
     private var recentResults: [PlayerEloHistoryPoint] {
         Array(
@@ -494,21 +597,30 @@ struct DoublesTeamProfileView: View {
         .navigationTitle(profile?.name ?? team.name)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: team.id) {
-            if profile == nil {
+            if loadsRemoteData {
                 await load()
             }
         }
+        .refreshable {
+            await load(forceRefresh: true)
+        }
     }
 
-    private func load() async {
+    private func load(forceRefresh: Bool = false) async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
-            async let profileRequest = dataStore.doublesTeamProfile(for: team.id)
-            async let historyRequest = dataStore.doublesTeamEloHistory(for: team.id)
+            async let profileRequest = dataStore.doublesTeamProfile(
+                for: team.id,
+                forceRefresh: forceRefresh
+            )
+            async let historyRequest = dataStore.doublesTeamEloHistory(
+                for: team.id,
+                forceRefresh: forceRefresh
+            )
             let loaded = try await (profileRequest, historyRequest)
             profile = loaded.0
             history = loaded.1
@@ -596,6 +708,100 @@ private struct DoublesTeamRecordStrip: View {
 }
 
 #if DEBUG
+struct RankingsPreviewScreen: View {
+    private let dataStore: AppDataStore
+
+    init() {
+        let store = AppDataStore(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "preview",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            session: AuthSession(
+                accessToken: "preview",
+                refreshToken: "preview",
+                expiresIn: 3_600,
+                expiresAt: nil,
+                user: AuthenticatedUser(
+                    id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                    email: "preview@example.com"
+                )
+            )
+        )
+        let players = Self.previewEntries
+        store.seedRankingsPreview(
+            singles: players,
+            doublesPlayers: players.map {
+                RankingEntry(
+                    id: $0.id,
+                    name: $0.name,
+                    avatarURL: $0.avatarURL,
+                    elo: $0.elo - 34,
+                    matches: max($0.matches - 6, 6),
+                    wins: $0.wins,
+                    losses: $0.losses,
+                    draws: $0.draws,
+                    rankDays: nil
+                )
+            },
+            doublesTeams: Array(players.prefix(4)).map {
+                RankingEntry(
+                    id: $0.id,
+                    name: "\($0.name) + Partner",
+                    avatarURL: nil,
+                    elo: $0.elo - 51,
+                    matches: max($0.matches / 2, 6),
+                    wins: $0.wins / 2,
+                    losses: $0.losses / 2,
+                    draws: $0.draws,
+                    rankDays: nil
+                )
+            }
+        )
+        dataStore = store
+    }
+
+    var body: some View {
+        RankingsView(dataStore: dataStore)
+    }
+
+    private static let previewEntries = [
+        makeEntry(1, "Ivan", 1_718, 219, 132, 77, 10),
+        makeEntry(2, "Gara", 1_626, 138, 75, 54, 9),
+        makeEntry(3, "Leo", 1_624, 110, 69, 30, 11),
+        makeEntry(4, "Miladin", 1_568, 164, 86, 69, 9),
+        makeEntry(5, "Andrej", 1_495, 231, 103, 108, 20)
+    ]
+
+    private static func makeEntry(
+        _ suffix: Int,
+        _ name: String,
+        _ elo: Int,
+        _ matches: Int,
+        _ wins: Int,
+        _ losses: Int,
+        _ draws: Int
+    ) -> RankingEntry {
+        RankingEntry(
+            id: UUID(
+                uuidString: String(
+                    format: "00000000-0000-0000-0000-%012d",
+                    suffix
+                )
+            )!,
+            name: name,
+            avatarURL: nil,
+            elo: elo,
+            matches: matches,
+            wins: wins,
+            losses: losses,
+            draws: draws,
+            rankDays: nil
+        )
+    }
+}
+
 struct DoublesTeamProfilePreviewScreen: View {
     private let teamID = UUID(
         uuidString: "00000000-0000-0000-0000-000000000010"
@@ -859,20 +1065,14 @@ struct RecentResultsPreviewScreen: View {
             elo: 1_702,
             date: .now.addingTimeInterval(-518_400),
             opponent: "Miladin",
-            delta: 8,
-            outcome: .win,
-            scoreFor: 3,
-            scoreAgainst: 2
+            delta: 8
         ),
         PlayerEloHistoryPoint(
             match: 2,
             elo: 1_694,
             date: .now.addingTimeInterval(-691_200),
             opponent: "Leo",
-            delta: -4,
-            outcome: .loss,
-            scoreFor: 0,
-            scoreAgainst: 3
+            delta: -4
         )
     ]
 
@@ -1740,7 +1940,7 @@ private struct RecentEloResults: View {
                 VStack(spacing: 0) {
                     ForEach(results) { result in
                         HStack(spacing: 12) {
-                            RecentMatchOutcomeBadge(outcome: result.outcome)
+                            RecentMatchOutcomeBadge(result: result)
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text("vs \(result.opponent ?? "Unknown")")
@@ -1756,27 +1956,7 @@ private struct RecentEloResults: View {
 
                             Spacer()
 
-                            VStack(alignment: .trailing, spacing: 3) {
-                                Text(formattedScore(for: result))
-                                    .font(
-                                        GweiloTheme.displayFont(
-                                            size: 23,
-                                            relativeTo: .title3
-                                        )
-                                        .monospacedDigit()
-                                    )
-                                    .foregroundStyle(
-                                        result.outcome?.color ?? GweiloTheme.bone
-                                    )
-
-                                HStack(spacing: 4) {
-                                    Text(formattedDelta(result.delta))
-                                        .foregroundStyle(result.performanceBand.color)
-                                    Text("ELO")
-                                        .foregroundStyle(GweiloTheme.muted)
-                                }
-                                .font(.caption2.monospacedDigit().weight(.bold))
-                            }
+                            RecentMatchMetric(result: result)
                         }
                         .padding(.vertical, 12)
                         .accessibilityElement(children: .ignore)
@@ -1798,11 +1978,7 @@ private struct RecentEloResults: View {
     }
 
     private func formattedScore(for result: PlayerEloHistoryPoint) -> String {
-        guard let scoreFor = result.scoreFor,
-              let scoreAgainst = result.scoreAgainst else {
-            return "—"
-        }
-        return "\(scoreFor)–\(scoreAgainst)"
+        result.formattedScore ?? "score unavailable"
     }
 
     private func accessibilityLabel(
@@ -1817,14 +1993,29 @@ private struct RecentEloResults: View {
 }
 
 private struct RecentMatchOutcomeBadge: View {
-    let outcome: MatchOutcome?
+    let result: PlayerEloHistoryPoint
+
+    private var outcome: MatchOutcome? {
+        result.resolvedOutcome
+    }
 
     private var color: Color {
-        outcome?.color ?? GweiloTheme.muted
+        outcome?.color ?? result.performanceBand.color
+    }
+
+    private var label: String {
+        if let outcome {
+            return outcome.shortLabel
+        }
+        return switch result.performanceBand {
+        case .gain: "↑"
+        case .steady: "•"
+        case .loss: "↓"
+        }
     }
 
     var body: some View {
-        Text(outcome?.shortLabel ?? "—")
+        Text(label)
             .font(GweiloTheme.labelFont(size: 13, relativeTo: .caption))
             .foregroundStyle(color)
             .frame(width: 34, height: 34)
@@ -1834,5 +2025,48 @@ private struct RecentMatchOutcomeBadge: View {
                     .stroke(color.opacity(0.42), lineWidth: 1)
             }
             .clipShape(.rect(cornerRadius: 5))
+    }
+}
+
+private struct RecentMatchMetric: View {
+    let result: PlayerEloHistoryPoint
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 3) {
+            if let score = result.formattedScore {
+                Text(score)
+                    .foregroundStyle(
+                        result.resolvedOutcome?.color ?? GweiloTheme.bone
+                    )
+
+                HStack(spacing: 4) {
+                    Text(formattedDelta)
+                        .foregroundStyle(result.performanceBand.color)
+                    Text("ELO")
+                        .foregroundStyle(GweiloTheme.muted)
+                }
+                .font(.caption2.monospacedDigit().weight(.bold))
+            } else {
+                Text(formattedDelta)
+                    .foregroundStyle(result.performanceBand.color)
+
+                Text("ELO CHANGE")
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.4)
+                    .foregroundStyle(GweiloTheme.muted)
+            }
+        }
+        .font(
+            GweiloTheme.displayFont(size: 23, relativeTo: .title3)
+                .monospacedDigit()
+        )
+    }
+
+    private var formattedDelta: String {
+        guard let delta = result.delta else {
+            return "—"
+        }
+        let value = Int(delta.rounded())
+        return value > 0 ? "+\(value)" : "\(value)"
     }
 }
