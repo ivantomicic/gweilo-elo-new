@@ -294,10 +294,12 @@ private struct SessionHero: View {
                 }
             }
 
-            HStack(spacing: 0) {
-                HeroMetric(value: "\(session.playerCount)", label: "PLAYERS")
-                HeroMetric(value: "\(session.singlesMatches)", label: "SINGLES")
-                HeroMetric(value: "\(session.doublesMatches)", label: "DOUBLES")
+            if session.status == .active {
+                HStack(spacing: 0) {
+                    HeroMetric(value: "\(session.playerCount)", label: "PLAYERS")
+                    HeroMetric(value: "\(session.singlesMatches)", label: "SINGLES")
+                    HeroMetric(value: "\(session.doublesMatches)", label: "DOUBLES")
+                }
             }
         }
         .padding(.top, 10)

@@ -95,6 +95,17 @@ struct SupabaseDataClient: Sendable {
     var session: URLSession = .shared
 
     func fetchSessionDetail(session summary: SessionSummary) async throws -> SessionDetail {
+        async let sessionRecordRequest: [SessionRecord] = get(
+            table: "sessions",
+            queryItems: [
+                .init(
+                    name: "select",
+                    value: "id,player_count,created_at,status,best_player_display_name,best_player_delta,worst_player_display_name,worst_player_delta"
+                ),
+                .init(name: "id", value: "eq.\(summary.id.uuidString)"),
+                .init(name: "limit", value: "1")
+            ]
+        )
         async let eloPredictionsRequest = fetchSessionEloPredictions(
             sessionID: summary.id
         )
@@ -117,10 +128,12 @@ struct SupabaseDataClient: Sendable {
             ]
         )
 
-        let (sessionPlayers, matchRecords) = try await (
+        let (sessionRecords, sessionPlayers, matchRecords) = try await (
+            sessionRecordRequest,
             sessionPlayersRequest,
             matchesRequest
         )
+        let latestSession = sessionRecords.first
         let eloPredictions = (try? await eloPredictionsRequest)?.predictions ?? []
         let eloPredictionsByMatchID = Dictionary(
             uniqueKeysWithValues: eloPredictions.map { ($0.matchId, $0) }
@@ -204,11 +217,11 @@ struct SupabaseDataClient: Sendable {
             .map(\.roundNumber)
         let inferredStatus: SessionStatus = pendingRounds.isEmpty && !matchRecords.isEmpty
             ? .completed
-            : summary.status
+            : latestSession?.status ?? summary.status
         let refreshedSummary = SessionSummary(
             id: summary.id,
-            createdAt: summary.createdAt,
-            playerCount: summary.playerCount,
+            createdAt: latestSession?.createdAt ?? summary.createdAt,
+            playerCount: latestSession?.playerCount ?? summary.playerCount,
             status: inferredStatus,
             currentRound: inferredStatus == .active ? pendingRounds.min() : nil,
             totalRounds: matchRecords.map(\.roundNumber).max() ?? summary.totalRounds,
@@ -218,10 +231,12 @@ struct SupabaseDataClient: Sendable {
             doublesMatches: completedMatches.filter {
                 $0.matchType == .doubles
             }.count,
-            bestPlayer: summary.bestPlayer,
-            bestDelta: summary.bestDelta,
-            worstPlayer: summary.worstPlayer,
-            worstDelta: summary.worstDelta
+            bestPlayer: latestSession?.bestPlayerDisplayName ?? summary.bestPlayer,
+            bestDelta: latestSession?.bestPlayerDelta.map { Int($0.rounded()) }
+                ?? summary.bestDelta,
+            worstPlayer: latestSession?.worstPlayerDisplayName ?? summary.worstPlayer,
+            worstDelta: latestSession?.worstPlayerDelta.map { Int($0.rounded()) }
+                ?? summary.worstDelta
         )
 
         return SessionDetail(

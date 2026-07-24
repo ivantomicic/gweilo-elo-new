@@ -73,6 +73,8 @@ final class AppDataStore {
     private var doublesHistoryCache = ExpiringCache<UUID, PlayerEloHistory>(
         lifetime: profileCacheLifetime
     )
+    @ObservationIgnored
+    private var loadGeneration = 0
     let currentUserID: UUID
 
     init(configuration: AppConfiguration, session: AuthSession) {
@@ -138,7 +140,7 @@ final class AppDataStore {
             scores: scores
         )
         invalidateProfileCaches()
-        await load()
+        await load(forceRefresh: true)
         return result
     }
 
@@ -248,7 +250,7 @@ final class AppDataStore {
             preview: preview
         )
         clubActiveSessionID = result.sessionId
-        await load()
+        await load(forceRefresh: true)
         return sessions.first { $0.id == result.sessionId }
             ?? result.makeSummary(for: draft)
     }
@@ -257,46 +259,66 @@ final class AppDataStore {
         try await apiClient.cancelSession(sessionID: sessionID)
         clubActiveSessionID = nil
         invalidateProfileCaches()
-        await load()
+        await load(forceRefresh: true)
     }
 
     func forceCloseSession(sessionID: UUID) async throws {
         try await apiClient.forceCloseSession(sessionID: sessionID)
         clubActiveSessionID = nil
         invalidateProfileCaches()
-        await load()
+        await load(forceRefresh: true)
     }
 
-    func load() async {
-        guard !isLoading else { return }
+    func load(forceRefresh: Bool = false) async {
+        guard !isLoading || forceRefresh else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
         isLoading = true
         hasCheckedActiveSession = false
         errorMessage = nil
         defer {
-            isLoading = false
-            hasLoaded = true
+            if generation == loadGeneration {
+                isLoading = false
+                hasLoaded = true
+            }
+        }
+
+        async let sessionsRequest = client.fetchSessions()
+        async let rankingsRequest = apiClient.fetchRankings()
+        async let activeSessionRequest = apiClient.fetchActiveSessionID()
+        var firstError: Error?
+
+        do {
+            let loadedSessions = try await sessionsRequest
+            guard generation == loadGeneration else { return }
+            sessions = loadedSessions
+        } catch {
+            firstError = error
         }
 
         do {
-            async let sessionsRequest = client.fetchSessions()
-            async let rankingsRequest = apiClient.fetchRankings()
-            async let activeSessionRequest = apiClient.fetchActiveSessionID()
-
-            let (loadedSessions, rankings, activeSessionID) = try await (
-                sessionsRequest,
-                rankingsRequest,
-                activeSessionRequest
-            )
-            sessions = loadedSessions
+            let rankings = try await rankingsRequest
+            guard generation == loadGeneration else { return }
             singlesRankings = rankings.singles
             doublesPlayerRankings = rankings.doublesPlayers
             doublesTeamRankings = rankings.doublesTeams
             rankingEligibility = rankings.eligibility
             topThreeSinglesPlayers = Array(rankings.singles.prefix(3))
+        } catch {
+            firstError = firstError ?? error
+        }
+
+        do {
+            let activeSessionID = try await activeSessionRequest
+            guard generation == loadGeneration else { return }
             clubActiveSessionID = activeSessionID
             hasCheckedActiveSession = true
         } catch {
-            errorMessage = error.localizedDescription
+            firstError = firstError ?? error
+        }
+
+        if generation == loadGeneration {
+            errorMessage = firstError?.localizedDescription
         }
     }
 
