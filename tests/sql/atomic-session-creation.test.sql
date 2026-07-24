@@ -41,13 +41,14 @@ CREATE TABLE public.session_matches (
 	round_number integer NOT NULL,
 	match_type text NOT NULL,
 	match_order integer NOT NULL,
-	player_ids uuid[] NOT NULL,
+	player_ids jsonb NOT NULL,
 	team_1_id uuid,
 	team_2_id uuid,
 	status text NOT NULL DEFAULT 'pending'
 );
 
 \ir ../../supabase/migrations/20260724_atomic_session_creation.sql
+\ir ../../supabase/migrations/20260725_fix_atomic_session_player_ids.sql
 
 INSERT INTO auth.users (id) VALUES
 	('10000000-0000-4000-8000-000000000001'),
@@ -116,6 +117,16 @@ BEGIN
 		WHERE result->>'state' = 'active_exists'
 	) <> 1 THEN
 		RAISE EXCEPTION 'the losing concurrent request should see the active session';
+	END IF;
+	IF (
+		SELECT count(*)
+		FROM public.session_matches
+		WHERE player_ids = '[
+			"20000000-0000-4000-8000-000000000001",
+			"20000000-0000-4000-8000-000000000002"
+		]'::jsonb
+	) <> 1 THEN
+		RAISE EXCEPTION 'match player IDs were not stored as the expected JSON array';
 	END IF;
 END;
 $$;
