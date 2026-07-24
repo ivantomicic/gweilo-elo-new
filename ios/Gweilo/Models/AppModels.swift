@@ -1,5 +1,10 @@
 import Foundation
 
+enum GweiloPreferenceKey {
+    static let hapticsEnabled = "gweilo.hapticsEnabled"
+    static let confirmRoundSubmission = "gweilo.confirmRoundSubmission"
+}
+
 enum RankingCategory: String, CaseIterable, Identifiable, Sendable {
     case singles = "Singles"
     case doublesPlayers = "Doubles players"

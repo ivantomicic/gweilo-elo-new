@@ -7,7 +7,11 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isRulesPreview {
+            if isSettingsPreview {
+                NavigationStack {
+                    SettingsView()
+                }
+            } else if isRulesPreview {
                 NavigationStack {
                     RulesView()
                 }
@@ -116,6 +120,14 @@ struct RootView: View {
     private var isRulesPreview: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-rules-preview")
+        #else
+        false
+        #endif
+    }
+
+    private var isSettingsPreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-settings-preview")
         #else
         false
         #endif
@@ -234,6 +246,11 @@ private struct AccountView: View {
                     }
 
                     Section("APP") {
+                        NavigationLink {
+                            SettingsView()
+                        } label: {
+                            Label("Settings", systemImage: "gearshape")
+                        }
                         LabeledContent("Version", value: version)
                         LabeledContent("Server", value: "www.gweilo.lol")
                     }
@@ -264,6 +281,54 @@ private struct AccountView: View {
                 Button("Cancel", role: .cancel) {}
             }
         }
+    }
+}
+
+private struct SettingsView: View {
+    @AppStorage(GweiloPreferenceKey.hapticsEnabled)
+    private var hapticsEnabled = true
+    @AppStorage(GweiloPreferenceKey.confirmRoundSubmission)
+    private var confirmsRoundSubmission = true
+
+    var body: some View {
+        ZStack {
+            ArenaBackground()
+
+            List {
+                Section {
+                    Toggle(isOn: $hapticsEnabled) {
+                        Label("Score-entry haptics", systemImage: "waveform")
+                    }
+                    .tint(GweiloTheme.lime)
+
+                    Toggle(isOn: $confirmsRoundSubmission) {
+                        Label("Confirm round submission", systemImage: "checkmark.shield")
+                    }
+                    .tint(GweiloTheme.lime)
+                } header: {
+                    Text("MATCH PLAY")
+                } footer: {
+                    Text(
+                        "Confirmation is recommended. The server still protects every round from duplicate submissions."
+                    )
+                }
+
+                Section {
+                    LabeledContent("Appearance", value: "Dark")
+                    LabeledContent("Elo calculation", value: "Server")
+                    LabeledContent("Data source", value: "Supabase")
+                } header: {
+                    Text("SYSTEM")
+                } footer: {
+                    Text(
+                        "Appearance and rating ownership are fixed product decisions, shown here for clarity."
+                    )
+                }
+            }
+            .scrollContentBackground(.hidden)
+        }
+        .navigationTitle("Settings")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

@@ -44,6 +44,7 @@ Apple Developer account is required for TestFlight and App Store distribution.
   and server-generated schedule review
 - Automatic navigation into a newly created live session
 - Native leaderboard eligibility rules
+- Persisted score-entry haptics and round-confirmation settings
 - Live singles, doubles-player, and doubles-team rankings
 - Native singles player profiles with live Elo charts and recent opponents
 - Singles head-to-head comparisons against the signed-in player

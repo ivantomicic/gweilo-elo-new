@@ -143,7 +143,7 @@ from an iPhone.
 ### General
 
 - ✅ Native leaderboard eligibility rules
-- ⬜ Basic settings
+- ✅ Basic settings for score-entry haptics and submission confirmation
 - ✅ Account and logout
 - 🚧 Dynamic Type support
 - ✅ VoiceOver labels for scores and controls
@@ -287,6 +287,9 @@ No private credentials should be committed to this repository.
   dismisses. Replaced the web-only Rules link with a native leaderboard
   eligibility screen covering singles, doubles-player, doubles-team, inactivity,
   and automatic-return rules.
+- 2026-07-24: Added persisted native settings for score-entry haptics and
+  round-submission confirmation. Wired both preferences into live scoring while
+  preserving server-side duplicate protection.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

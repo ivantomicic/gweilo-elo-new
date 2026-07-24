@@ -3,6 +3,10 @@ import UIKit
 
 struct ScoreEntryView: View {
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(GweiloPreferenceKey.hapticsEnabled)
+    private var hapticsEnabled = true
+    @AppStorage(GweiloPreferenceKey.confirmRoundSubmission)
+    private var confirmsRoundSubmission = true
 
     let round: SessionRound
     let detail: SessionDetail
@@ -130,12 +134,18 @@ struct ScoreEntryView: View {
     private func adjust(matchID: UUID, team: Int, amount: Int) {
         draft.adjustScore(for: matchID, team: team, amount: amount)
         errorMessage = nil
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if hapticsEnabled {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
     }
 
     private func requestSubmit() {
         focusedScore = nil
-        showsSubmitConfirmation = true
+        if confirmsRoundSubmission {
+            showsSubmitConfirmation = true
+        } else {
+            Task { await submitRound() }
+        }
     }
 
     private func submitRound() async {
@@ -153,11 +163,15 @@ struct ScoreEntryView: View {
 
         do {
             _ = try await submit(scores)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
             await onSubmitted()
             dismiss()
         } catch {
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            if hapticsEnabled {
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+            }
             errorMessage = error.localizedDescription
         }
     }
@@ -165,7 +179,9 @@ struct ScoreEntryView: View {
     private func reset() {
         draft.reset()
         errorMessage = nil
-        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        if hapticsEnabled {
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        }
     }
 }
 
