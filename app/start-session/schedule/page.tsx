@@ -13,6 +13,7 @@ import { Icon } from "@/components/ui/icon";
 import { RoundCard } from "./_components/round-card";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
+import { generateSchedule } from "@/lib/sessions/schedule";
 
 type Player = {
 	id: string;
@@ -436,45 +437,6 @@ const generateScheduleFor6Players = (
 	});
 
 	return rounds;
-};
-
-/**
- * Generate schedule based on player count
- */
-const generateSchedule = (
-	players: Player[],
-	options?: {
-		fourPlayerFormat?: FourPlayerFormat;
-		sixPlayerRound5SinglesTeam?: SixPlayerTeamKey;
-	},
-): Round[] => {
-	if (players.length === 2) {
-		return generateScheduleFor2Players(players);
-	}
-
-	if (players.length === 3) {
-		return generateScheduleFor3Players(players);
-	}
-
-	if (players.length === 4) {
-		return generateScheduleFor4Players(
-			players,
-			options?.fourPlayerFormat,
-		);
-	}
-
-	if (players.length === 5) {
-		return generateScheduleFor5Players(players);
-	}
-
-	if (players.length === 6) {
-		return generateScheduleFor6Players(
-			players,
-			options?.sixPlayerRound5SinglesTeam,
-		);
-	}
-
-	return [];
 };
 
 const getSinglesMatchups = (rounds: Round[]): Set<string> => {

@@ -1,7 +1,16 @@
 import SwiftUI
 
 struct HomeView: View {
-    @State private var showsScoring = false
+    let dataStore: AppDataStore
+    @State private var showsStartSession = false
+
+    private var topSinglesPlayers: [RankingEntry] {
+        Array(
+            dataStore.singlesRankings
+                .filter { $0.matches >= RankingCategory.singles.minimumMatches }
+                .prefix(4)
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -11,24 +20,72 @@ struct HomeView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 30) {
                         HomeHeader()
-                        LiveSessionFeature(action: openScoring)
-                        CompactStandings(players: Array(DemoPlayer.leaderboard.prefix(4)))
-                        LatestResult()
+                        HomeLiveSession(
+                            session: dataStore.activeSession,
+                            startSession: { showsStartSession = true }
+                        )
+                        CompactStandings(players: topSinglesPlayers)
+                        LatestSessionResult(session: dataStore.latestCompletedSession)
+
+                        if let errorMessage = dataStore.errorMessage {
+                            DataErrorNotice(
+                                message: errorMessage,
+                                retry: {
+                                    Task { await dataStore.load() }
+                                }
+                            )
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
                 }
+                .refreshable {
+                    await dataStore.load()
+                }
                 .scrollIndicators(.hidden)
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
-            .fullScreenCover(isPresented: $showsScoring) {
-                ScoreEntryView()
+            .navigationDestination(for: SessionSummary.self) { session in
+                SessionDetailView(
+                    session: session,
+                    dataStore: dataStore
+                )
+            }
+            .navigationDestination(for: RankingEntry.self) { player in
+                PlayerProfileView(
+                    player: player,
+                    dataStore: dataStore
+                )
+            }
+            .sheet(isPresented: $showsStartSession) {
+                StartSessionView(dataStore: dataStore)
             }
         }
     }
+}
 
-    private func openScoring() {
-        showsScoring = true
+struct DataErrorNotice: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(GweiloTheme.coral)
+
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 4)
+
+            Button("Retry", action: retry)
+                .font(.footnote.weight(.bold))
+        }
+        .padding(.vertical, 12)
+        .overlay(alignment: .top) {
+            Divider()
+        }
     }
 }
 
@@ -36,101 +93,171 @@ private struct HomeHeader: View {
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("GWEILO / BELGRADE")
-                    .font(.caption2.weight(.bold))
-                    .tracking(1.5)
-                    .foregroundStyle(GweiloTheme.accent)
+                Text("GWEILO / NOVI SAD")
+                    .font(
+                        GweiloTheme.labelFont(
+                            size: 12,
+                            relativeTo: .caption
+                        )
+                    )
+                    .tracking(2.2)
+                    .foregroundStyle(GweiloTheme.lime)
 
-                Text("Thursday")
-                    .font(.largeTitle.weight(.bold))
-                    .tracking(-0.7)
+                Text(Date.now.formatted(.dateTime.weekday(.wide)))
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 44,
+                            relativeTo: .largeTitle
+                        )
+                    )
+                    .textCase(.uppercase)
+                    .tracking(0.2)
             }
 
             Spacer()
 
-            PlayerAvatar(player: .ivan, size: 42)
+            PhantomMark(size: 58)
         }
         .padding(.top, 18)
     }
 }
 
-private struct LiveSessionFeature: View {
-    let action: () -> Void
+private struct HomeLiveSession: View {
+    let session: SessionSummary?
+    let startSession: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack {
-                Label("ACTIVE SESSION", systemImage: "circle.fill")
+        if let session {
+            NavigationLink(value: session) {
+                LiveSessionFeature(session: session)
+            }
+            .buttonStyle(ResponsiveButtonStyle())
+            .accessibilityHint("Opens the active session")
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("NO ACTIVE SESSION")
                     .font(.caption2.weight(.bold))
                     .tracking(1.2)
+                    .foregroundStyle(.secondary)
+                Text("The next live session will appear here.")
+                    .font(.headline)
+
+                Button(action: startSession) {
+                    Label("Start a session", systemImage: "plus")
+                        .font(.subheadline.weight(.semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(GweiloTheme.lime)
+                .padding(.top, 4)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 8)
+        }
+    }
+}
+
+private struct LiveSessionFeature: View {
+    let session: SessionSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                Label("LIVE SESSION", systemImage: "circle.fill")
+                    .font(.caption2.weight(.bold))
+                    .tracking(1.2)
+                    .foregroundStyle(GweiloTheme.lime)
 
                 Spacer()
 
-                Text("6 PLAYERS")
+                Text("\(session.playerCount) PLAYERS")
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.72))
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Current round")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.white.opacity(0.68))
-
-                Text("Round 5 of 7")
-                    .font(.title.weight(.bold))
-
-                Text("1 doubles · 1 singles")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.76))
+                    .foregroundStyle(.secondary)
             }
 
             HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("MATCHES IN THIS ROUND")
-                        .font(.caption2.weight(.bold))
-                        .tracking(1)
-                        .foregroundStyle(.white.opacity(0.58))
-                    Text("All six players active")
-                        .font(.subheadline.weight(.bold))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Current round")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+
+                    Text("Round \(session.currentRound ?? 1)")
+                        .font(
+                            GweiloTheme.displayFont(
+                                size: 40,
+                                relativeTo: .title
+                            )
+                        )
+                        .textCase(.uppercase)
+                        .tracking(0.4)
                 }
 
                 Spacer()
 
-                Button("Score match", systemImage: "arrow.up.right", action: action)
-                    .font(.subheadline.weight(.bold))
-                    .buttonStyle(.borderedProminent)
-                    .tint(.white)
-                    .foregroundStyle(GweiloTheme.accent)
-                    .controlSize(.large)
+                Text("\(session.currentRound ?? 1) / \(session.totalRounds)")
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.secondary)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.tertiary)
             }
+
+            HStack(spacing: 18) {
+                Label(
+                    "\(session.singlesMatches) singles",
+                    systemImage: "person.2.fill"
+                )
+                Label(
+                    "\(session.doublesMatches) doubles",
+                    systemImage: "person.3.fill"
+                )
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
         }
-        .foregroundStyle(.white)
-        .padding(22)
-        .background(
+        .foregroundStyle(.primary)
+        .padding(.vertical, 16)
+        .padding(.leading, 17)
+        .padding(.trailing, 14)
+        .background(GweiloTheme.raisedSurface)
+        .overlay(alignment: .leading) {
             LinearGradient(
-                colors: [GweiloTheme.accent, Color(red: 0.24, green: 0.10, blue: 0.68)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: .rect(cornerRadius: 18)
-        )
-        .accessibilityElement(children: .contain)
+                colors: [GweiloTheme.lime, GweiloTheme.accent],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(width: 3)
+        }
+        .overlay {
+            Rectangle()
+                .stroke(GweiloTheme.accent.opacity(0.28), lineWidth: 0.8)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
 private struct CompactStandings: View {
-    let players: [DemoPlayer]
+    let players: [RankingEntry]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Current ranking", actionTitle: "See all")
+            SectionHeading(title: "Current ranking")
 
-            VStack(spacing: 0) {
-                ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
-                    StandingRow(rank: index + 1, player: player)
+            if players.isEmpty {
+                Text("No eligible singles rankings yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
+                        NavigationLink(value: player) {
+                            StandingRow(rank: index + 1, player: player)
+                        }
+                        .buttonStyle(ResponsiveButtonStyle())
 
-                    if player.id != players.last?.id {
-                        Divider()
+                        if player.id != players.last?.id {
+                            Divider()
+                        }
                     }
                 }
             }
@@ -140,16 +267,27 @@ private struct CompactStandings: View {
 
 private struct StandingRow: View {
     let rank: Int
-    let player: DemoPlayer
+    let player: RankingEntry
 
     var body: some View {
         HStack(spacing: 12) {
             Text("\(rank)")
-                .font(.caption.monospacedDigit().weight(.bold))
-                .foregroundStyle(rank == 1 ? GweiloTheme.accent : .secondary)
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 18,
+                        relativeTo: .caption
+                    )
+                )
+                .foregroundStyle(rank == 1 ? GweiloTheme.lime : .secondary)
                 .frame(width: 18, alignment: .leading)
 
-            PlayerAvatar(player: player, size: 34)
+            PlayerIdentityAvatar(
+                name: player.name,
+                initials: player.initials,
+                avatarURL: player.avatarURL,
+                size: 34
+            )
+            .accessibilityHidden(true)
 
             Text(player.name)
                 .font(.body.weight(.semibold))
@@ -157,95 +295,94 @@ private struct StandingRow: View {
             Spacer()
 
             Text("\(player.elo)")
-                .font(.body.monospacedDigit().weight(.bold))
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 21,
+                        relativeTo: .body
+                    )
+                )
+                .foregroundStyle(rank == 1 ? GweiloTheme.lime : GweiloTheme.bone)
 
-            MovementLabel(value: player.movement)
-                .frame(width: 42, alignment: .trailing)
+            Image(systemName: "chevron.right")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.tertiary)
         }
+        .foregroundStyle(.primary)
         .padding(.vertical, 12)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "Rank \(rank), \(player.name), \(player.elo) Elo, change \(player.movement)"
-        )
+        .accessibilityLabel("Rank \(rank), \(player.name), \(player.elo) Elo")
     }
 }
 
-private struct LatestResult: View {
+private struct LatestSessionResult: View {
+    let session: SessionSummary?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Latest result")
+            SectionHeading(title: "Latest session")
 
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Ivan + Luka")
-                        .font(.headline)
-                    Text("Round 3 · 12 min ago")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            if let session {
+                NavigationLink(value: session) {
+                    HStack(alignment: .center, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 7) {
+                            Text(session.dateLabel)
+                                .font(.headline)
+
+                            HStack {
+                                Label(
+                                    "\(session.singlesMatches) singles",
+                                    systemImage: "person.2.fill"
+                                )
+                                Label(
+                                    "\(session.doublesMatches) doubles",
+                                    systemImage: "person.3.fill"
+                                )
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                            if let bestPlayer = session.bestPlayer,
+                               let bestDelta = session.bestDelta {
+                                Text(
+                                    "Best form: \(bestPlayer) \(bestDelta >= 0 ? "+" : "")\(bestDelta)"
+                                )
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(GweiloTheme.lime)
+                            }
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(.rect)
                 }
-
-                Spacer()
-
-                Text("3")
-                    .foregroundStyle(GweiloTheme.accent)
-                Text("—")
-                    .foregroundStyle(.tertiary)
-                Text("1")
+                .buttonStyle(ResponsiveButtonStyle())
+                .accessibilityHint("Opens the latest session")
+            } else {
+                Text("No completed sessions yet.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
-            .font(.title.weight(.bold))
-            .padding(.vertical, 4)
         }
     }
 }
 
 struct SectionHeading: View {
     let title: String
-    var actionTitle: String?
 
     var body: some View {
-        HStack {
-            Text(title.uppercased())
-                .font(.caption2.weight(.bold))
-                .tracking(1.3)
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            if let actionTitle {
-                Button(actionTitle) {}
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(GweiloTheme.accent)
-            }
-        }
-    }
-}
-
-struct MovementLabel: View {
-    let value: Int
-
-    var body: some View {
-        Text(value >= 0 ? "+\(value)" : "\(value)")
-            .font(.caption.monospacedDigit().weight(.bold))
-            .foregroundStyle(value >= 0 ? GweiloTheme.lime : GweiloTheme.coral)
-    }
-}
-
-struct PlayerAvatar: View {
-    let player: DemoPlayer
-    let size: CGFloat
-
-    var body: some View {
-        Text(player.initials)
-            .font(.system(size: size * 0.30, weight: .bold))
-            .foregroundStyle(player.colorSeed.isMultiple(of: 2) ? .white : .primary)
-            .frame(width: size, height: size)
-            .background(
-                player.colorSeed.isMultiple(of: 2)
-                    ? GweiloTheme.accent
-                    : Color.primary.opacity(0.08),
-                in: .circle
+        Text(title.uppercased())
+            .font(
+                GweiloTheme.labelFont(
+                    size: 12,
+                    relativeTo: .caption
+                )
             )
-            .accessibilityLabel(player.name)
+            .tracking(1.8)
+            .foregroundStyle(GweiloTheme.accentBright)
     }
 }
 

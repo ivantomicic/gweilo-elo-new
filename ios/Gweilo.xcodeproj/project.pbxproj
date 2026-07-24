@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -11,9 +11,19 @@
 		1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5228EA448D3385CA3C87F404 /* GweiloTheme.swift */; };
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
+		5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */; };
 		6088070E02E7E8AA9D32752E /* DemoModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF6A7D394A2D0829E50769F /* DemoModels.swift */; };
+		60B73CBFE72D64CD934D7972 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E67F5AF76CD8E21D79EC84 /* AppModels.swift */; };
+		67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564CF19864AC0C89C4958D12 /* SignInView.swift */; };
+		82EEEE3BD47986ACEB44E0E8 /* SupabaseAuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */; };
+		88C3C819902499ADBD167ED1 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926BC005373CE199C1266A45 /* SessionDetailView.swift */; };
+		9117A1CEE63B8E6C4ABD7EEC /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */; };
+		91288BAE4D4C088202350361 /* AppDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9391F1239E602BBF63632B /* AppDataStore.swift */; };
+		95E7DDC059E46F2C64B1B704 /* SupabaseDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */; };
 		A294C92BBDF34A6406639988 /* SessionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFA5B4C4F21832F2E27C1477 /* SessionsView.swift */; };
+		B8262BA3741DA2CD4C8CCC14 /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */; };
 		D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B97913905094E27DCF42A43 /* GweiloApp.swift */; };
+		DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */; };
 		E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24DACFB92DCB222E4F6075F /* HomeView.swift */; };
 		F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */; };
 		FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */; };
@@ -31,17 +41,28 @@
 
 /* Begin PBXFileReference section */
 		11454FC6A9CA7A8DCD47CE4D /* GweiloTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GweiloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailModelTests.swift; sourceTree = "<group>"; };
 		268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreEntryView.swift; sourceTree = "<group>"; };
 		27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScoreboardTests.swift; sourceTree = "<group>"; };
 		3FDFE13A0BFF7369FF6622CD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		48E67F5AF76CD8E21D79EC84 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
+		4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerIdentityAvatar.swift; sourceTree = "<group>"; };
 		5228EA448D3385CA3C87F404 /* GweiloTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloTheme.swift; sourceTree = "<group>"; };
+		564CF19864AC0C89C4958D12 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		6B97913905094E27DCF42A43 /* GweiloApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloApp.swift; sourceTree = "<group>"; };
+		7A9391F1239E602BBF63632B /* AppDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataStore.swift; sourceTree = "<group>"; };
 		7B184252000811E5ACACA38B /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
 		7DF6A7D394A2D0829E50769F /* DemoModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModels.swift; sourceTree = "<group>"; };
+		81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthClient.swift; sourceTree = "<group>"; };
+		926BC005373CE199C1266A45 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
+		9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComingSoonView.swift; sourceTree = "<group>"; };
-		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
 		FFA5B4C4F21832F2E27C1477 /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
+		FFB5B7E10D18D5827690DD78 /* Base.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Base.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -65,9 +86,29 @@
 		1B9D0631E73BF2D2DAC80079 /* Sessions */ = {
 			isa = PBXGroup;
 			children = (
+				926BC005373CE199C1266A45 /* SessionDetailView.swift */,
 				FFA5B4C4F21832F2E27C1477 /* SessionsView.swift */,
 			);
 			path = Sessions;
+			sourceTree = "<group>";
+		};
+		1E9891ABEC84B51223DB59B5 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */,
+				7A9391F1239E602BBF63632B /* AppDataStore.swift */,
+				81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */,
+				E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		30CA3CDD32BDD4D85A8F68A9 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				FFB5B7E10D18D5827690DD78 /* Base.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		3B74F4F8641A98B15052BB2C /* App */ = {
@@ -83,8 +124,18 @@
 			isa = PBXGroup;
 			children = (
 				ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */,
+				4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */,
 			);
 			path = Shared;
+			sourceTree = "<group>";
+		};
+		5D160016085DB3D1CAB6F3A6 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */,
+				564CF19864AC0C89C4958D12 /* SignInView.swift */,
+			);
+			path = Auth;
 			sourceTree = "<group>";
 		};
 		684A7BAE3D4FD416F6ADFC09 /* Scoring */ = {
@@ -98,6 +149,7 @@
 		7EC89615656677B025797A37 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				48E67F5AF76CD8E21D79EC84 /* AppModels.swift */,
 				7DF6A7D394A2D0829E50769F /* DemoModels.swift */,
 			);
 			path = Models;
@@ -106,6 +158,7 @@
 		85B2FBAFA91AAC7FCF1E1A96 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				5D160016085DB3D1CAB6F3A6 /* Auth */,
 				EAEFCFAF5D05D1815F508F17 /* Home */,
 				95828CD6C3CA673EAB1C3DEB /* Rankings */,
 				684A7BAE3D4FD416F6ADFC09 /* Scoring */,
@@ -119,6 +172,7 @@
 			isa = PBXGroup;
 			children = (
 				27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */,
+				17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */,
 			);
 			path = GweiloTests;
 			sourceTree = "<group>";
@@ -134,6 +188,7 @@
 		AAEC06351FBB24F8423AE245 = {
 			isa = PBXGroup;
 			children = (
+				30CA3CDD32BDD4D85A8F68A9 /* Config */,
 				B6C78A4A6757C358BCCA941E /* Gweilo */,
 				90CB05099E496F98E917229A /* GweiloTests */,
 				00F2F11908D50DB052D06866 /* Products */,
@@ -147,6 +202,7 @@
 				04A0144C9CF40B9ECAF30026 /* DesignSystem */,
 				85B2FBAFA91AAC7FCF1E1A96 /* Features */,
 				7EC89615656677B025797A37 /* Models */,
+				1E9891ABEC84B51223DB59B5 /* Services */,
 			);
 			path = Gweilo;
 			sourceTree = "<group>";
@@ -157,13 +213,6 @@
 				F24DACFB92DCB222E4F6075F /* HomeView.swift */,
 			);
 			path = Home;
-			sourceTree = "<group>";
-		};
-		"TEMP_3DAB10FE-A4C1-4A55-AC53-5E14C3CD1AAE" /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Resources;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -214,7 +263,6 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					1C09AB1BFC29BDD6DE201954 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					9D1F11CCE208E190BC7E0CFF = {
@@ -233,7 +281,6 @@
 			);
 			mainGroup = AAEC06351FBB24F8423AE245;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -249,6 +296,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */,
+				DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -256,15 +304,24 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B8262BA3741DA2CD4C8CCC14 /* AppConfiguration.swift in Sources */,
+				91288BAE4D4C088202350361 /* AppDataStore.swift in Sources */,
+				60B73CBFE72D64CD934D7972 /* AppModels.swift in Sources */,
+				9117A1CEE63B8E6C4ABD7EEC /* AuthStore.swift in Sources */,
 				FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */,
 				6088070E02E7E8AA9D32752E /* DemoModels.swift in Sources */,
 				D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */,
 				1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */,
 				E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */,
+				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
 				5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */,
 				5999C1D880A0425F482E0121 /* RootView.swift in Sources */,
 				051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */,
+				88C3C819902499ADBD167ED1 /* SessionDetailView.swift in Sources */,
 				A294C92BBDF34A6406639988 /* SessionsView.swift in Sources */,
+				67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */,
+				82EEEE3BD47986ACEB44E0E8 /* SupabaseAuthClient.swift in Sources */,
+				95E7DDC059E46F2C64B1B704 /* SupabaseDataClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -281,15 +338,13 @@
 /* Begin XCBuildConfiguration section */
 		0049FD6BBEC405FE54ED892E /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Gweilo;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				DEVELOPMENT_TEAM = 5JKSYD4AUC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Gweilo/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -365,15 +420,13 @@
 		};
 		9D91817FE7418E547A31ACAB /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Gweilo;
-				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
-				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
-				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				DEVELOPMENT_TEAM = 5JKSYD4AUC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Gweilo/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

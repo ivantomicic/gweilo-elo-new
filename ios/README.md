@@ -1,17 +1,21 @@
 # Gweilo iOS
 
-This first SwiftUI slice is intentionally powered by demo data. It exists to
-verify the native design direction, Xcode signing, simulator/device builds, and
-the score-entry interaction before Supabase authentication and live APIs are
-connected.
+This is the native SwiftUI companion to the Gweilo web app. It uses the same
+Supabase project for authentication and live data, and the same production
+Next.js backend for protected round submission and Elo updates.
 
 ## Open the project
 
 ```bash
 cd ios
+./scripts/sync-supabase-config.sh
 xcodegen generate
 open Gweilo.xcodeproj
 ```
+
+The sync script copies only the public Supabase URL and anonymous client key
+from the web app's `.env.local` into an ignored local Xcode configuration. It
+never copies the service-role key.
 
 ## Install on an iPhone
 
@@ -29,15 +33,35 @@ open Gweilo.xcodeproj
 With a free Apple account, device builds may expire after seven days. A paid
 Apple Developer account is required for TestFlight and App Store distribution.
 
-## Current demo
+## Current build
 
-- Adaptive light and dark appearances
+- Live sign-in with the same Supabase email/password account as the web app
+- Secure Keychain login persistence, token refresh, and visible sign-out
+- Live active-session and latest-session summaries
+- Live session history and completed match counts
+- Live session details with players, rounds, pairings, scores, and resting players
+- Native session creation with date/time, ordered player selection, team grouping,
+  and server-generated schedule review
+- Live singles, doubles-player, and doubles-team rankings
+- Native singles player profiles with live Elo charts and recent opponents
+- Singles head-to-head comparisons against the signed-in player
+- Native doubles-team profiles with record, sets, Elo chart, and recent opponents
+- Pull-to-refresh, loading, empty, and network-error states
+- Deliberately dark-only purple, acid-green, and near-black appearance
 - Native Liquid Glass on supported iOS versions
-- Home dashboard with an active-session card
-- Product-aligned session history for 3-, 4-, 5-, and 6-player examples
-- Singles, doubles-player, and doubles-team ranking examples
-- Six-player Round 5 with one doubles and one singles match
-- Complete-round score entry with haptics
-- Submission confirmation and success state
-- Accessibility labels and adjustable score controls
-- Unit tests for score-state behavior
+- Live score entry for every match in the active round
+- Confirmed whole-round submission to `https://www.gweilo.lol`
+- Server-owned atomic Elo updates and duplicate-submission protection
+- Submission progress, haptics, clear failures, and post-submit refresh
+- Accessibility labels and adjustable/numeric score controls
+- Unit tests for score drafts, request shape, authentication expiry, and models
+
+The app bundle contains only Supabase's public URL/key and the public production
+API address. The Supabase service-role key and other private web credentials are
+never copied into the iOS configuration.
+
+## Current boundary
+
+Sessions can be created, resumed, and fully scored natively. The Next.js
+backend owns schedule generation and Elo rules, while Supabase remains the
+shared source of truth for both the web and iOS apps.

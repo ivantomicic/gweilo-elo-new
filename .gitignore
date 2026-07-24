@@ -32,6 +32,7 @@ yarn-error.log*
 # local env files
 .env*.local
 .env
+/ios/Config/Secrets.xcconfig
 
 # vercel
 .vercel
