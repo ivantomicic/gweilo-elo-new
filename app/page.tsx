@@ -15,6 +15,10 @@ import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 import { formatRelativeTime } from "@/lib/formatRelativeTime";
 import { PollCard, type Poll } from "@/components/polls/poll-card";
+import {
+	type ActiveSession,
+	useActiveSession,
+} from "@/lib/client/use-active-session";
 
 const RivalryMissionsWidget = dynamic(
 	() =>
@@ -47,12 +51,6 @@ const PerformanceTrend = dynamic(
 		),
 	{ ssr: false },
 );
-
-type ActiveSession = {
-	id: string;
-	player_count: number;
-	created_at: string;
-};
 
 function ActiveSessionBanner({ session }: { session: ActiveSession }) {
 	const router = useRouter();
@@ -126,8 +124,7 @@ function UnansweredPollsBanner({ count }: { count: number }) {
 export default function HomePage() {
 	const { isAuthenticated, session, role } = useAuth();
 	const router = useRouter();
-	const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
-	const [loadingSession, setLoadingSession] = useState(true);
+	const { activeSession, loading: loadingSession } = useActiveSession();
 	const [unansweredPolls, setUnansweredPolls] = useState<Poll[]>([]);
 	const [loadingPolls, setLoadingPolls] = useState(true);
 	const [showDashboardWidgets, setShowDashboardWidgets] = useState(false);
@@ -148,48 +145,6 @@ export default function HomePage() {
 
 		return () => window.clearTimeout(timeoutId);
 	}, [isAuthenticated, router]);
-
-	// Fetch active session
-	useEffect(() => {
-		const fetchActiveSession = async () => {
-			if (!isAuthenticated) {
-				setActiveSession(null);
-				setLoadingSession(false);
-				return;
-			}
-
-			try {
-				setLoadingSession(true);
-
-				if (!session) {
-					setActiveSession(null);
-					return;
-				}
-
-				const response = await fetch("/api/sessions/active", {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
-				});
-
-				if (!response.ok) {
-					console.error("Failed to fetch active session");
-					setActiveSession(null);
-					return;
-				}
-
-				const data = await response.json();
-				setActiveSession(data.session || null);
-			} catch (error) {
-				console.error("Error fetching active session:", error);
-				setActiveSession(null);
-			} finally {
-				setLoadingSession(false);
-			}
-		};
-
-		fetchActiveSession();
-	}, [isAuthenticated, session]);
 
 	// Fetch unanswered polls
 	useEffect(() => {

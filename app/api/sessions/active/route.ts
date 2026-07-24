@@ -3,6 +3,10 @@ import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
+const NO_STORE_HEADERS = {
+	"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+};
+
 /**
  * GET /api/sessions/active
  *
@@ -35,7 +39,10 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		return NextResponse.json({ session: session ?? null });
+		return NextResponse.json(
+			{ session: session ?? null },
+			{ headers: NO_STORE_HEADERS },
+		);
 	} catch (error) {
 		console.error("Unexpected error in GET /api/sessions/active:", error);
 		return NextResponse.json(

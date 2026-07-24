@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useWebHaptics } from "web-haptics/react";
 import { Separator } from "@/components/vendor/shadcn/separator";
@@ -9,6 +8,7 @@ import { SidebarTrigger } from "@/components/vendor/shadcn/sidebar";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";
+import { useActiveSession } from "@/lib/client/use-active-session";
 import { t } from "@/lib/i18n";
 
 /**
@@ -47,45 +47,17 @@ export function SiteHeader({
 }) {
 	const pathname = usePathname();
 	const { trigger } = useWebHaptics();
-	const { role, session } = useAuth();
-	const [canStartSession, setCanStartSession] = useState(false);
-
-	useEffect(() => {
-		if (
-			!session ||
-			(role !== "admin" && role !== "mod")
-		) {
-			setCanStartSession(false);
-			return;
-		}
-
-		let cancelled = false;
-		const checkActiveSession = async () => {
-			try {
-				const response = await fetch("/api/sessions/active", {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
-					cache: "no-store",
-				});
-				const body = response.ok
-					? ((await response.json()) as {
-							session?: { id: string } | null;
-					  })
-					: null;
-				if (!cancelled) {
-					setCanStartSession(response.ok && !body?.session);
-				}
-			} catch {
-				if (!cancelled) setCanStartSession(false);
-			}
-		};
-
-		void checkActiveSession();
-		return () => {
-			cancelled = true;
-		};
-	}, [role, session]);
+	const { role } = useAuth();
+	const {
+		activeSession,
+		loading: loadingActiveSession,
+		error: activeSessionError,
+	} = useActiveSession();
+	const canStartSession =
+		(role === "admin" || role === "mod") &&
+		!loadingActiveSession &&
+		!activeSessionError &&
+		!activeSession;
 
 	const handleActionClick = () => {
 		void trigger();

@@ -13,6 +13,7 @@ import { SessionsLayout, SessionsState } from "./_components/sessions-layout";
 import { t } from "@/lib/i18n";
 import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
 import { prefetchSessionSummary } from "@/app/session/[id]/_lib/session-summary-client";
+import { useActiveSession } from "@/lib/client/use-active-session";
 
 const listTransition = {
 	duration: 0.2,
@@ -67,6 +68,7 @@ function SessionsPageContent() {
 	const { session: authSession } = useAuth();
 	const router = useRouter();
 	const shouldReduceMotion = useReducedMotion();
+	const { activeSession } = useActiveSession();
 	const userId = authSession?.user.id;
 	const cachedSessions = readCachedSessions(userId);
 	const [sessions, setSessions] = useState<Session[]>(
@@ -76,6 +78,18 @@ function SessionsPageContent() {
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [hasMore, setHasMore] = useState(() => cachedSessions?.hasMore ?? true);
 	const [error, setError] = useState<string | null>(null);
+	const visibleSessions =
+		activeSession && !sessions.some((session) => session.id === activeSession.id)
+			? [
+					{
+						...activeSession,
+						singles_match_count: 0,
+						doubles_match_count: 0,
+						best_worst_player: null,
+					},
+					...sessions,
+			  ]
+			: sessions;
 
 	// Fetch sessions with pagination
 	const fetchSessions = useCallback(
@@ -387,7 +401,7 @@ function SessionsPageContent() {
 
 	return (
 		<SessionsLayout>
-			{sessions.length === 0 ? (
+			{visibleSessions.length === 0 ? (
 				<motion.div
 					initial={
 						shouldReduceMotion ? false : { opacity: 0, y: 8 }
@@ -407,7 +421,7 @@ function SessionsPageContent() {
 					onLoadMore={handleLoadMore}
 				>
 					<Stack direction="column" spacing={4}>
-						{sessions.map((session, index) => (
+						{visibleSessions.map((session, index) => (
 							<motion.div
 								key={session.id}
 								initial={
