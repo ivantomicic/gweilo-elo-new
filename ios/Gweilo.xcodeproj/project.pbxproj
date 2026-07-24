@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 63;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -57,7 +57,7 @@
 		926BC005373CE199C1266A45 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComingSoonView.swift; sourceTree = "<group>"; };
-		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
@@ -215,13 +215,6 @@
 			path = Home;
 			sourceTree = "<group>";
 		};
-		"TEMP_4FF71650-57C1-4671-979D-8B79D245F5BB" /* Resources */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Resources;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -270,7 +263,6 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					1C09AB1BFC29BDD6DE201954 = {
-						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					9D1F11CCE208E190BC7E0CFF = {
@@ -289,7 +281,6 @@
 			);
 			mainGroup = AAEC06351FBB24F8423AE245;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -351,6 +342,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Gweilo/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -432,6 +424,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Gweilo/Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
