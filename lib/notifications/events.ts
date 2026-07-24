@@ -80,31 +80,6 @@ export function notifySessionCompleted({
 	});
 }
 
-export function notifySessionCancelled({
-	sessionId,
-	createdBy,
-	userIds,
-}: {
-	sessionId: string;
-	createdBy: string;
-	userIds: string[];
-}) {
-	return dispatchNotificationSafely({
-		eventType: "session_cancelled",
-		category: "sessions",
-		title: "Session cancelled",
-		body: "This session was cancelled before any results were recorded.",
-		audience: { type: "users", userIds },
-		data: {
-			sessionId,
-			route: "sessions",
-		},
-		dedupeKey: `session:${sessionId}:cancelled`,
-		collapseId: `session-${sessionId}`,
-		createdBy,
-	});
-}
-
 export function notifyPollCreated({
 	pollId,
 	question,

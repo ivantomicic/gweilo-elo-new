@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
+import { createClient } from "@supabase/supabase-js";
+import { verifyUser } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ const NO_STORE_HEADERS = {
  */
 export async function GET(request: NextRequest) {
 	try {
-		const auth = await verifyUser(request.headers.get("authorization"));
+		const authorization = request.headers.get("authorization");
+		const auth = await verifyUser(authorization);
 		if (!auth) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
@@ -23,7 +25,24 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const { data: session, error } = await createAdminClient()
+		const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+		const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+		if (!supabaseUrl || !supabaseAnonKey || !authorization) {
+			throw new Error("Missing authenticated Supabase configuration");
+		}
+
+		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+			global: {
+				headers: {
+					Authorization: authorization,
+				},
+			},
+			auth: {
+				autoRefreshToken: false,
+				persistSession: false,
+			},
+		});
+		const { data: session, error } = await supabase
 			.from("sessions")
 			.select("*")
 			.eq("status", "active")

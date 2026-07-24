@@ -27,7 +27,7 @@ extension MatchOutcome {
 struct MatchOutcomeBadge: View {
     let outcome: MatchOutcome
 
-    @ScaledMetric(relativeTo: .caption) private var size = 34.0
+    @ScaledMetric(relativeTo: .caption) private var size = 38.0
 
     var body: some View {
         Image(outcome.assetName)
@@ -36,10 +36,6 @@ struct MatchOutcomeBadge: View {
             .scaledToFill()
             .frame(width: size, height: size)
             .clipShape(.rect(cornerRadius: size * 0.18))
-            .overlay {
-                RoundedRectangle(cornerRadius: size * 0.18)
-                    .stroke(outcome.color.opacity(0.48), lineWidth: 0.8)
-            }
             .shadow(color: outcome.color.opacity(0.22), radius: 4)
             .accessibilityLabel(outcome.label)
     }

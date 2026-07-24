@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { notifySessionCancelled } from "@/lib/notifications/events";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 
 type CancellationResult = {
@@ -38,13 +37,6 @@ export async function POST(
 	}
 
 	const admin = createAdminClient();
-	const { data: sessionPlayers } = await admin
-		.from("session_players")
-		.select("player_id")
-		.eq("session_id", params.sessionId);
-	const participantIds = Array.from(
-		new Set((sessionPlayers || []).map((player) => player.player_id)),
-	);
 	const { data, error } = await admin.rpc(
 		"cancel_active_session_atomic",
 		{
@@ -64,11 +56,6 @@ export async function POST(
 	const result = data as CancellationResult;
 	switch (result.state) {
 		case "cancelled":
-			await notifySessionCancelled({
-				sessionId: params.sessionId,
-				createdBy: auth.userId,
-				userIds: participantIds,
-			});
 			return NextResponse.json({
 				success: true,
 				cancelledSessionId: result.sessionId,

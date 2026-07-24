@@ -118,11 +118,13 @@ function ensureLocalRoute() {
 }
 `;
 
-  if (fs.existsSync(routePath) && fs.readFileSync(routePath, "utf8") === route) {
-    return;
+  if (
+    !fs.existsSync(routePath) ||
+    fs.readFileSync(routePath, "utf8") !== route
+  ) {
+    fs.writeFileSync(routePath, route);
   }
 
-  fs.writeFileSync(routePath, route);
   const nginxArguments = ["-c", configPath, "-p", routerRoot];
   const validation = spawnSync(
     nginxExecutable,
@@ -142,9 +144,16 @@ function ensureLocalRoute() {
     { encoding: "utf8" },
   );
   if (reload.status !== 0) {
-    process.stderr.write(
-      `Could not reload Local's router:\n${reload.stderr}`,
+    const start = spawnSync(
+      nginxExecutable,
+      nginxArguments,
+      { encoding: "utf8" },
     );
+    if (start.status !== 0) {
+      process.stderr.write(
+        `Could not start Local's router:\n${start.stderr || reload.stderr}`,
+      );
+    }
   }
 }
 

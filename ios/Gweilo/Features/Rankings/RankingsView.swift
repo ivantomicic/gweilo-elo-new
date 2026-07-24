@@ -446,6 +446,7 @@ struct PlayerProfileView: View {
     @State private var isLoadingComparison = false
     @State private var errorMessage: String?
     @State private var comparisonErrorMessage: String?
+    @State private var hasFinishedInitialLoad: Bool
 
     init(
         player: RankingEntry,
@@ -455,15 +456,21 @@ struct PlayerProfileView: View {
     ) {
         self.player = player
         self.dataStore = dataStore
+        let cachedHistory = initialHistory
+            ?? dataStore.cachedPlayerEloHistory(for: player.id)
+        let cachedHeadToHead = initialHeadToHead
+            ?? dataStore.cachedHeadToHead(for: player.id)
+        let needsHeadToHead = player.id != dataStore.currentUserID
+        let needsRemoteData = cachedHistory == nil
+            || (needsHeadToHead && cachedHeadToHead == nil)
         _history = State(
-            initialValue: initialHistory
-                ?? dataStore.cachedPlayerEloHistory(for: player.id)
+            initialValue: cachedHistory
         )
         _headToHead = State(
-            initialValue: initialHeadToHead
-                ?? dataStore.cachedHeadToHead(for: player.id)
+            initialValue: cachedHeadToHead
         )
-        loadsRemoteData = initialHistory == nil && initialHeadToHead == nil
+        _hasFinishedInitialLoad = State(initialValue: !needsRemoteData)
+        loadsRemoteData = needsRemoteData
     }
 
     private let loadsRemoteData: Bool
@@ -481,62 +488,61 @@ struct PlayerProfileView: View {
         ZStack {
             ArenaBackground()
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 30) {
-                    PlayerProfileHeader(player: player)
-                    PlayerRecordStrip(player: player)
-                    if player.id != dataStore.currentUserID {
-                        PlayerHeadToHeadSection(
-                            comparison: headToHead,
-                            isLoading: isLoadingComparison,
-                            errorMessage: comparisonErrorMessage,
-                            retry: {
-                                Task { await loadHeadToHead() }
-                            }
-                        )
-                    }
-
-                    VStack(alignment: .leading, spacing: 14) {
-                        SectionHeading(title: "Singles Elo")
-
-                        if let history {
-                            EloHistoryChart(
-                                history: history,
-                                accessibilityTitle: "Singles Elo trend"
-                            )
-                        } else if isLoading {
-                            GweiloLoadingView(
-                                "Loading Elo history…",
-                                size: 108
-                            )
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 60)
-                        } else if let errorMessage {
-                            DataErrorNotice(
-                                message: errorMessage,
+            if hasFinishedInitialLoad {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 30) {
+                        PlayerProfileHeader(player: player)
+                        PlayerRecordStrip(player: player)
+                        if player.id != dataStore.currentUserID {
+                            PlayerHeadToHeadSection(
+                                comparison: headToHead,
+                                isLoading: isLoadingComparison,
+                                errorMessage: comparisonErrorMessage,
                                 retry: {
-                                    Task { await load() }
+                                    Task { await loadHeadToHead() }
                                 }
                             )
                         }
-                    }
 
-                    RecentEloResults(
-                        title: "Recent singles",
-                        emptyMessage: "Recent singles results will appear here.",
-                        results: recentResults
-                    )
+                        VStack(alignment: .leading, spacing: 14) {
+                            SectionHeading(title: "Singles Elo")
+
+                            if let history {
+                                EloHistoryChart(
+                                    history: history,
+                                    accessibilityTitle: "Singles Elo trend"
+                                )
+                            } else if let errorMessage {
+                                DataErrorNotice(
+                                    message: errorMessage,
+                                    retry: {
+                                        Task { await loadHistory() }
+                                    }
+                                )
+                            }
+                        }
+
+                        RecentEloResults(
+                            title: "Recent singles",
+                            emptyMessage: "Recent singles results will appear here.",
+                            results: recentResults
+                        )
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 44)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 44)
+                .scrollIndicators(.hidden)
+            } else {
+                GweiloLoadingView("Loading player…", size: 172)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .scrollIndicators(.hidden)
         }
         .navigationTitle(player.name)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: player.id) {
             if loadsRemoteData {
                 await load()
+                hasFinishedInitialLoad = true
             }
         }
         .refreshable {

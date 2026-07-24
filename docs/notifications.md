@@ -115,7 +115,6 @@ The following backend actions are connected:
 | Event | Audience | Preference |
 | --- | --- | --- |
 | Session started | Session participants | Sessions |
-| Session cancelled | Former session participants | Sessions |
 | Next round ready | Session participants | Rounds |
 | Session completed | Session participants | Results and Elo |
 | Poll created | All registered users | Polls |
