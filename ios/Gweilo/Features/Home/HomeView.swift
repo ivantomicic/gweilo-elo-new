@@ -7,11 +7,7 @@ struct HomeView: View {
     @State private var pendingCreatedSession: SessionSummary?
 
     private var topSinglesPlayers: [RankingEntry] {
-        Array(
-            dataStore.singlesRankings
-                .filter { $0.matches >= RankingCategory.singles.minimumMatches }
-                .prefix(4)
-        )
+        dataStore.topThreeSinglesPlayers
     }
 
     var body: some View {
@@ -26,7 +22,7 @@ struct HomeView: View {
                             session: dataStore.activeSession,
                             startSession: { showsStartSession = true }
                         )
-                        CompactStandings(players: topSinglesPlayers)
+                        TopThreeStandings(players: topSinglesPlayers)
                         LatestSessionResult(session: dataStore.latestCompletedSession)
 
                         if let errorMessage = dataStore.errorMessage {
@@ -251,81 +247,193 @@ private struct LiveSessionFeature: View {
     }
 }
 
-private struct CompactStandings: View {
+private struct TopThreeStandings: View {
     let players: [RankingEntry]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Current ranking")
+            HStack(alignment: .firstTextBaseline) {
+                SectionHeading(title: "Current top 3")
+
+                Spacer()
+
+                Text("15 matches · active 28d")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
 
             if players.isEmpty {
                 Text("No eligible singles rankings yet.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(players.enumerated()), id: \.element.id) { index, player in
-                        NavigationLink(value: player) {
-                            StandingRow(rank: index + 1, player: player)
+                HStack(alignment: .bottom, spacing: 8) {
+                    ForEach(podiumPlacements, id: \.player.id) { placement in
+                        NavigationLink(value: placement.player) {
+                            PodiumPlayer(
+                                rank: placement.rank,
+                                player: placement.player
+                            )
                         }
                         .buttonStyle(ResponsiveButtonStyle())
-
-                        if player.id != players.last?.id {
-                            Divider()
-                        }
                     }
                 }
+                .padding(.top, 6)
             }
         }
     }
+
+    private var podiumPlacements: [(rank: Int, player: RankingEntry)] {
+        let rankedPlayers = players.prefix(3).enumerated().map {
+            (rank: $0.offset + 1, player: $0.element)
+        }
+        guard rankedPlayers.count == 3 else {
+            return rankedPlayers
+        }
+        return [rankedPlayers[1], rankedPlayers[0], rankedPlayers[2]]
+    }
 }
 
-private struct StandingRow: View {
+private struct PodiumPlayer: View {
     let rank: Int
     let player: RankingEntry
 
-    var body: some View {
-        HStack(spacing: 12) {
-            Text("\(rank)")
-                .font(
-                    GweiloTheme.displayFont(
-                        size: 18,
-                        relativeTo: .caption
-                    )
-                )
-                .foregroundStyle(rank == 1 ? GweiloTheme.lime : .secondary)
-                .frame(width: 18, alignment: .leading)
+    private var accent: Color {
+        switch rank {
+        case 1: GweiloTheme.lime
+        case 2: GweiloTheme.cyan
+        default: GweiloTheme.accentBright
+        }
+    }
 
-            PlayerIdentityAvatar(
-                name: player.name,
-                initials: player.initials,
-                avatarURL: player.avatarURL,
-                size: 34
-            )
-            .accessibilityHidden(true)
+    private var avatarSize: CGFloat {
+        rank == 1 ? 58 : 48
+    }
+
+    private var podiumHeight: CGFloat {
+        switch rank {
+        case 1: 88
+        case 2: 64
+        default: 48
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack(alignment: .bottomTrailing) {
+                PlayerIdentityAvatar(
+                    name: player.name,
+                    initials: player.initials,
+                    avatarURL: player.avatarURL,
+                    size: avatarSize
+                )
+                .overlay {
+                    Circle()
+                        .stroke(accent, lineWidth: rank == 1 ? 2.5 : 1.5)
+                }
+
+                Text("#\(rank)")
+                    .font(.caption2.monospacedDigit().weight(.black))
+                    .foregroundStyle(GweiloTheme.background)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(accent)
+                    .offset(x: 4, y: 3)
+            }
 
             Text(player.name)
-                .font(.body.weight(.semibold))
+                .font(.caption.weight(.bold))
+                .foregroundStyle(GweiloTheme.bone)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
 
-            Spacer()
-
-            Text("\(player.elo)")
-                .font(
-                    GweiloTheme.displayFont(
-                        size: 21,
-                        relativeTo: .body
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            accent.opacity(rank == 1 ? 0.34 : 0.24),
+                            GweiloTheme.raisedSurface.opacity(0.55)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
                 )
-                .foregroundStyle(rank == 1 ? GweiloTheme.lime : GweiloTheme.bone)
-
-            Image(systemName: "chevron.right")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.tertiary)
+                .frame(height: podiumHeight)
+                .overlay(alignment: .top) {
+                    Rectangle()
+                        .fill(accent)
+                        .frame(height: 2)
+                }
+                .overlay(alignment: .top) {
+                    Text(
+                        player.elo.formatted(
+                            .number.grouping(.never)
+                        )
+                    )
+                        .font(.caption.monospacedDigit().weight(.black))
+                        .foregroundStyle(rank == 1 ? accent : GweiloTheme.bone)
+                        .padding(.top, 11)
+                }
         }
-        .foregroundStyle(.primary)
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Rank \(rank), \(player.name), \(player.elo) Elo")
+        .accessibilityHint("Opens player profile")
+    }
+}
+
+struct TopThreePreviewScreen: View {
+    private let players = [
+        RankingEntry(
+            id: UUID(),
+            name: "Ivan",
+            avatarURL: nil,
+            elo: 1_718,
+            matches: 219,
+            wins: 132,
+            losses: 77,
+            draws: 10,
+            rankDays: nil
+        ),
+        RankingEntry(
+            id: UUID(),
+            name: "Gara",
+            avatarURL: nil,
+            elo: 1_626,
+            matches: 138,
+            wins: 75,
+            losses: 54,
+            draws: 9,
+            rankDays: nil
+        ),
+        RankingEntry(
+            id: UUID(),
+            name: "Leo",
+            avatarURL: nil,
+            elo: 1_624,
+            matches: 110,
+            wins: 69,
+            losses: 30,
+            draws: 11,
+            rankDays: nil
+        )
+    ]
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                ArenaBackground()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 30) {
+                        HomeHeader()
+                        TopThreeStandings(players: players)
+                    }
+                    .padding(.horizontal, 20)
+                }
+            }
+            .toolbarVisibility(.hidden, for: .navigationBar)
+        }
     }
 }
 

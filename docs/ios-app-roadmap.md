@@ -137,8 +137,8 @@ from an iPhone.
 - ✅ Player singles Elo history and recent results
 - ✅ Player head-to-head results against the signed-in user
 - ✅ Doubles-team profile, record, sets, Elo history, and recent results
-- ⬜ Top-three statistics
-- ⬜ Rivalries
+- ✅ Server-eligible singles Top 3
+- ❌ Rivalries intentionally excluded
 
 ### General
 
@@ -290,6 +290,10 @@ No private credentials should be committed to this repository.
 - 2026-07-24: Added persisted native settings for score-entry haptics and
   round-submission confirmation. Wired both preferences into live scoring while
   preserving server-side duplicate protection.
+- 2026-07-24: Replaced the Home ranking excerpt with a native Top 3 podium.
+  Eligibility now comes from the authenticated server endpoint, so the iOS app
+  applies both the 15-match minimum and 28-day activity rule. Kept each podium
+  place linked to the existing reusable player profile.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

@@ -7,7 +7,9 @@ struct RootView: View {
 
     var body: some View {
         Group {
-            if isSettingsPreview {
+            if isTopThreePreview {
+                TopThreePreviewScreen()
+            } else if isSettingsPreview {
                 NavigationStack {
                     SettingsView()
                 }
@@ -128,6 +130,14 @@ struct RootView: View {
     private var isSettingsPreview: Bool {
         #if DEBUG
         ProcessInfo.processInfo.arguments.contains("-settings-preview")
+        #else
+        false
+        #endif
+    }
+
+    private var isTopThreePreview: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("-top-three-preview")
         #else
         false
         #endif

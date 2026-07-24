@@ -182,6 +182,18 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testTopThreeRequestUsesAuthenticatedServerEligibilityRoute() {
+        let request = makeAPIClient().makeTopThreeSinglesRequest()
+
+        XCTAssertEqual(request.url?.path, "/api/statistics/top3")
+        XCTAssertEqual(request.httpMethod, "GET")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+    }
+
+    @MainActor
     func testHeadToHeadRequestUsesBothPlayerIDs() throws {
         let playerID = UUID()
         let opponentID = UUID()

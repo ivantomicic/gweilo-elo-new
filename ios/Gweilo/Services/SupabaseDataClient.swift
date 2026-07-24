@@ -538,6 +538,18 @@ private struct PlayerEloHistoryResponse: Decodable {
     let currentElo: Double
 }
 
+private struct TopThreePlayerResponse: Decodable {
+    let playerID: UUID
+
+    private enum CodingKeys: String, CodingKey {
+        case playerID = "player_id"
+    }
+}
+
+private struct TopThreePlayersResponse: Decodable {
+    let data: [TopThreePlayerResponse]
+}
+
 private struct HeadToHeadPlayerResponse: Decodable {
     let id: UUID
     let displayName: String
@@ -688,6 +700,14 @@ struct GweiloAPIClient: Sendable {
             fallbackMessage: "Could not load this player's Elo history."
         )
         return makeEloHistory(from: responseBody)
+    }
+
+    func fetchTopThreeSinglesPlayerIDs() async throws -> [UUID] {
+        let response: TopThreePlayersResponse = try await perform(
+            makeTopThreeSinglesRequest(),
+            fallbackMessage: "Could not load the current Top 3."
+        )
+        return response.data.map(\.playerID)
     }
 
     func fetchHeadToHead(
@@ -842,6 +862,10 @@ struct GweiloAPIClient: Sendable {
         makeAuthenticatedRequest(
             path: "api/team/\(teamID.uuidString)/elo-history"
         )
+    }
+
+    func makeTopThreeSinglesRequest() -> URLRequest {
+        makeAuthenticatedRequest(path: "api/statistics/top3")
     }
 
     private func makeEloHistory(
