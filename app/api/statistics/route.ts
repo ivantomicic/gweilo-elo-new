@@ -14,6 +14,10 @@ import {
 	MIN_SINGLES_MATCHES,
 } from "@/lib/statistics/min-matches";
 import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
+import {
+	isRankingEligible,
+	STATISTICS_ELIGIBILITY,
+} from "@/lib/statistics/eligibility";
 
 export const dynamic = "force-dynamic";
 
@@ -446,21 +450,13 @@ async function getLatestCompletedSessionsFresh() {
 	return getLatestTwoCompletedSessions();
 }
 
-async function getActiveSinglesPlayerIdsFresh(): Promise<string[] | null> {
-	try {
-		return Array.from(
-			await getActiveSinglesPlayerIds(createAdminClient()),
-		);
-	} catch (error) {
-		console.error(
-			"Error fetching recent singles activity:",
-			error,
-		);
-		return null;
-	}
+async function getActiveSinglesPlayerIdsFresh(): Promise<string[]> {
+	return Array.from(
+		await getActiveSinglesPlayerIds(createAdminClient()),
+	);
 }
 
-async function getActiveDoublesTeamIdsFresh(): Promise<string[] | null> {
+async function getActiveDoublesTeamIdsFresh(): Promise<string[]> {
 		const adminClient = createAdminClient();
 		const cutoffDate = new Date(
 			Date.now() - MAX_DOUBLES_TEAM_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
@@ -477,7 +473,7 @@ async function getActiveDoublesTeamIdsFresh(): Promise<string[] | null> {
 				"Error fetching recent completed sessions for doubles team activity:",
 				sessionsError
 			);
-			return null;
+			throw new Error("Failed to fetch doubles team activity");
 		}
 
 		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
@@ -501,7 +497,7 @@ async function getActiveDoublesTeamIdsFresh(): Promise<string[] | null> {
 				"Error fetching recent doubles matches for team activity filter:",
 				matchesError
 			);
-			return null;
+			throw new Error("Failed to fetch doubles team activity");
 		}
 
 		const activeTeamIds = new Set<string>();
@@ -516,7 +512,7 @@ async function getActiveDoublesTeamIdsFresh(): Promise<string[] | null> {
 		return Array.from(activeTeamIds);
 }
 
-async function getActiveDoublesPlayerIdsFresh(): Promise<string[] | null> {
+async function getActiveDoublesPlayerIdsFresh(): Promise<string[]> {
 		const adminClient = createAdminClient();
 		const cutoffDate = new Date(
 			Date.now() - MAX_DOUBLES_PLAYER_INACTIVITY_DAYS * 24 * 60 * 60 * 1000
@@ -533,7 +529,7 @@ async function getActiveDoublesPlayerIdsFresh(): Promise<string[] | null> {
 				"Error fetching recent completed sessions for doubles player activity:",
 				sessionsError
 			);
-			return null;
+			throw new Error("Failed to fetch doubles player activity");
 		}
 
 		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
@@ -557,7 +553,7 @@ async function getActiveDoublesPlayerIdsFresh(): Promise<string[] | null> {
 				"Error fetching recent doubles matches for player activity filter:",
 				matchesError
 			);
-			return null;
+			throw new Error("Failed to fetch doubles player activity");
 		}
 
 		const activePlayerIds = new Set<string>();
@@ -619,13 +615,15 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 					}))
 				: ((ratingsResult.data || []) as SinglesRatingRecord[]);
 
-		const activeSinglesPlayerSet =
-			activeSinglesPlayerIds === null
-				? null
-				: new Set(activeSinglesPlayerIds);
+		const activeSinglesPlayerSet = new Set(activeSinglesPlayerIds);
 		const singlesStats = sourceRows
 			.filter((rating) =>
-				activeSinglesPlayerSet ? activeSinglesPlayerSet.has(rating.player_id) : true
+				isRankingEligible({
+					entityId: rating.player_id,
+					matchesPlayed: rating.matches_played,
+					activeEntityIds: activeSinglesPlayerSet,
+					minimumMatches: MIN_SINGLES_MATCHES,
+				})
 			)
 			.map((rating): PlayerStats => {
 				const profile = profilesMap.get(rating.player_id);
@@ -663,11 +661,8 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 			});
 		}
 
-		const rankedSinglesStats = singlesStats.filter(
-			(stat) => stat.matches_played >= MIN_SINGLES_MATCHES
-		);
 		const rankDurations = await computeCurrentRankDurations({
-			currentEntities: rankedSinglesStats.map((stat) => ({
+			currentEntities: singlesStats.map((stat) => ({
 				entityId: stat.player_id,
 				elo: stat.elo,
 			})),
@@ -737,21 +732,16 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 					}))
 				: ((ratingsResult.data || []) as DoublesPlayerRatingRecord[]);
 
-		const activeDoublesPlayerSet =
-			activeDoublesPlayerIds === null
-				? null
-				: new Set(activeDoublesPlayerIds);
+		const activeDoublesPlayerSet = new Set(activeDoublesPlayerIds);
 		const doublesPlayerStats = sourceRows
-			.filter((rating) => {
-				const matchesPlayed = rating.matches_played ?? 0;
-				const passesMatchMinimum =
-					matchesPlayed >= MIN_DOUBLES_PLAYER_MATCHES;
-				const passesActivity =
-					activeDoublesPlayerSet === null ||
-					activeDoublesPlayerSet.has(rating.player_id);
-
-				return passesMatchMinimum && passesActivity;
-			})
+			.filter((rating) =>
+				isRankingEligible({
+					entityId: rating.player_id,
+					matchesPlayed: rating.matches_played,
+					activeEntityIds: activeDoublesPlayerSet,
+					minimumMatches: MIN_DOUBLES_PLAYER_MATCHES,
+				})
+			)
 			.map((rating): PlayerStats => {
 				const profile = profilesMap.get(rating.player_id);
 				return {
@@ -866,19 +856,16 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 						elo: toNumber(row.elo, 1500),
 					}))
 				: ((ratingsResult.data || []) as DoublesTeamRatingRecord[]);
-		const activeDoublesTeamSet =
-			activeDoublesTeamIds === null ? null : new Set(activeDoublesTeamIds);
+		const activeDoublesTeamSet = new Set(activeDoublesTeamIds);
 		const doublesTeamStats = sourceRows
-			.filter((rating) => {
-				const matchesPlayed = rating.matches_played ?? 0;
-				const passesMatchMinimum =
-					matchesPlayed >= MIN_DOUBLES_TEAM_MATCHES;
-				const passesActivity =
-					activeDoublesTeamSet === null ||
-					activeDoublesTeamSet.has(rating.team_id);
-
-				return passesMatchMinimum && passesActivity;
-			})
+			.filter((rating) =>
+				isRankingEligible({
+					entityId: rating.team_id,
+					matchesPlayed: rating.matches_played,
+					activeEntityIds: activeDoublesTeamSet,
+					minimumMatches: MIN_DOUBLES_TEAM_MATCHES,
+				})
+			)
 			.map((rating): TeamStats | null => {
 				const team = teamsMap.get(rating.team_id);
 				if (!team) {
@@ -1003,7 +990,10 @@ export async function GET(request: NextRequest) {
 			singles?: PlayerStats[];
 			doublesPlayers?: PlayerStats[];
 			doublesTeams?: TeamStats[];
-		} = {};
+			eligibility: typeof STATISTICS_ELIGIBILITY;
+		} = {
+			eligibility: STATISTICS_ELIGIBILITY,
+		};
 
 		if (viewParam === "all") {
 			const [singles, doublesPlayers, doublesTeams] = await Promise.all([

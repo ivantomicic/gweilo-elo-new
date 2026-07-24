@@ -11,11 +11,38 @@ enum RankingCategory: String, CaseIterable, Identifiable, Sendable {
     case doublesTeams = "Doubles teams"
 
     var id: Self { self }
+}
 
-    var minimumMatches: Int {
-        switch self {
-        case .singles: 15
-        case .doublesPlayers, .doublesTeams: 6
+struct RankingEligibilityRule: Decodable, Hashable, Sendable {
+    let minimumMatches: Int
+    let maximumInactivityDays: Int
+}
+
+struct RankingEligibility: Decodable, Hashable, Sendable {
+    let singles: RankingEligibilityRule
+    let doublesPlayers: RankingEligibilityRule
+    let doublesTeams: RankingEligibilityRule
+
+    static let fallback = RankingEligibility(
+        singles: RankingEligibilityRule(
+            minimumMatches: 15,
+            maximumInactivityDays: 28
+        ),
+        doublesPlayers: RankingEligibilityRule(
+            minimumMatches: 6,
+            maximumInactivityDays: 56
+        ),
+        doublesTeams: RankingEligibilityRule(
+            minimumMatches: 6,
+            maximumInactivityDays: 56
+        )
+    )
+
+    func rule(for category: RankingCategory) -> RankingEligibilityRule {
+        switch category {
+        case .singles: singles
+        case .doublesPlayers: doublesPlayers
+        case .doublesTeams: doublesTeams
         }
     }
 }
@@ -30,6 +57,31 @@ struct RankingEntry: Identifiable, Hashable, Sendable {
     let losses: Int
     let draws: Int
     let rankDays: Int?
+    let recentForm: [Double]
+
+    init(
+        id: UUID,
+        name: String,
+        avatarURL: URL?,
+        elo: Int,
+        matches: Int,
+        wins: Int,
+        losses: Int,
+        draws: Int,
+        rankDays: Int?,
+        recentForm: [Double] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.avatarURL = avatarURL
+        self.elo = elo
+        self.matches = matches
+        self.wins = wins
+        self.losses = losses
+        self.draws = draws
+        self.rankDays = rankDays
+        self.recentForm = recentForm
+    }
 
     var initials: String {
         name

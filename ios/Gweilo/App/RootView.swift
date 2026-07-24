@@ -288,7 +288,7 @@ private struct AccountView: View {
 
                     Section("CLUB") {
                         NavigationLink {
-                            RulesView()
+                            RulesView(eligibility: dataStore.rankingEligibility)
                         } label: {
                             Label("Rules", systemImage: "book.closed")
                         }
@@ -393,29 +393,48 @@ private struct LeaderboardRule: Identifiable {
 }
 
 private struct RulesView: View {
-    private let rules = [
+    let eligibility: RankingEligibility
+
+    init(eligibility: RankingEligibility = .fallback) {
+        self.eligibility = eligibility
+    }
+
+    private var rules: [LeaderboardRule] {
+        [
         LeaderboardRule(
             id: "singles",
-            marker: "15 / 28",
+            marker:
+                "\(eligibility.singles.minimumMatches) / "
+                + "\(eligibility.singles.maximumInactivityDays)",
             title: "Singles leaderboard",
             description:
-                "Play at least 15 singles matches and at least one singles match during the last 28 days.",
+                "Play at least \(eligibility.singles.minimumMatches) singles matches "
+                + "and at least one singles match during the last "
+                + "\(eligibility.singles.maximumInactivityDays) days.",
             accent: GweiloTheme.lime
         ),
         LeaderboardRule(
             id: "doubles-players",
-            marker: "6 / 56",
+            marker:
+                "\(eligibility.doublesPlayers.minimumMatches) / "
+                + "\(eligibility.doublesPlayers.maximumInactivityDays)",
             title: "Doubles players",
             description:
-                "Play at least 6 doubles matches and at least one doubles match during the last 56 days.",
+                "Play at least \(eligibility.doublesPlayers.minimumMatches) doubles matches "
+                + "and at least one doubles match during the last "
+                + "\(eligibility.doublesPlayers.maximumInactivityDays) days.",
             accent: GweiloTheme.accentBright
         ),
         LeaderboardRule(
             id: "doubles-teams",
-            marker: "6 / 56",
+            marker:
+                "\(eligibility.doublesTeams.minimumMatches) / "
+                + "\(eligibility.doublesTeams.maximumInactivityDays)",
             title: "Doubles teams",
             description:
-                "A team needs at least 6 matches together and must have played together during the last 56 days.",
+                "A team needs at least \(eligibility.doublesTeams.minimumMatches) matches "
+                + "together and must have played together during the last "
+                + "\(eligibility.doublesTeams.maximumInactivityDays) days.",
             accent: GweiloTheme.cyan
         ),
         LeaderboardRule(
@@ -426,7 +445,8 @@ private struct RulesView: View {
                 "Results and Elo are never deleted. A player or team returns automatically as soon as the eligibility rules are met again.",
             accent: GweiloTheme.coral
         )
-    ]
+        ]
+    }
 
     var body: some View {
         ZStack {

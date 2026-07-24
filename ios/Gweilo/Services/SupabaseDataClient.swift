@@ -80,84 +80,15 @@ private struct ProfileRecord: Decodable, Sendable {
     }
 }
 
-private struct PlayerRatingRecord: Decodable, Sendable {
-    let playerID: UUID
-    let matchesPlayed: Int?
-    let wins: Int?
-    let losses: Int?
-    let draws: Int?
-    let elo: Double?
-
-    private enum CodingKeys: String, CodingKey {
-        case playerID = "player_id"
-        case matchesPlayed = "matches_played"
-        case wins
-        case losses
-        case draws
-        case elo
-    }
-}
-
-private struct TeamRecord: Decodable, Sendable {
-    let id: UUID
-    let playerOneID: UUID
-    let playerTwoID: UUID
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case playerOneID = "player_1_id"
-        case playerTwoID = "player_2_id"
-    }
-}
-
-private struct TeamRatingRecord: Decodable, Sendable {
-    let teamID: UUID
-    let matchesPlayed: Int?
-    let wins: Int?
-    let losses: Int?
-    let draws: Int?
-    let elo: Double?
-
-    private enum CodingKeys: String, CodingKey {
-        case teamID = "team_id"
-        case matchesPlayed = "matches_played"
-        case wins
-        case losses
-        case draws
-        case elo
-    }
-}
-
 private struct PostgrestErrorResponse: Decodable {
     let message: String?
     let details: String?
-}
-
-struct LiveDataSnapshot: Sendable {
-    let sessions: [SessionSummary]
-    let singles: [RankingEntry]
-    let doublesPlayers: [RankingEntry]
-    let doublesTeams: [RankingEntry]
 }
 
 struct SupabaseDataClient: Sendable {
     let configuration: AppConfiguration
     let accessToken: String
     var session: URLSession = .shared
-
-    func fetchSnapshot() async throws -> LiveDataSnapshot {
-        async let sessions = fetchSessions()
-        async let singles = fetchPlayerRankings(table: "player_ratings")
-        async let doublesPlayers = fetchPlayerRankings(table: "player_double_ratings")
-        async let doublesTeams = fetchTeamRankings()
-
-        return try await LiveDataSnapshot(
-            sessions: sessions,
-            singles: singles,
-            doublesPlayers: doublesPlayers,
-            doublesTeams: doublesTeams
-        )
-    }
 
     func fetchSessionDetail(session summary: SessionSummary) async throws -> SessionDetail {
         async let sessionPlayersRequest: [SessionPlayerRecord] = get(
@@ -288,7 +219,7 @@ struct SupabaseDataClient: Sendable {
         )
     }
 
-    private func fetchSessions() async throws -> [SessionSummary] {
+    func fetchSessions() async throws -> [SessionSummary] {
         let records: [SessionRecord] = try await get(
             table: "sessions",
             queryItems: [
@@ -333,88 +264,6 @@ struct SupabaseDataClient: Sendable {
                 bestDelta: record.bestPlayerDelta.map { Int($0.rounded()) },
                 worstPlayer: record.worstPlayerDisplayName,
                 worstDelta: record.worstPlayerDelta.map { Int($0.rounded()) }
-            )
-        }
-    }
-
-    private func fetchPlayerRankings(table: String) async throws -> [RankingEntry] {
-        async let profilesRequest: [ProfileRecord] = get(
-            table: "profiles",
-            queryItems: [.init(name: "select", value: "id,display_name,avatar_url")]
-        )
-        async let ratingsRequest: [PlayerRatingRecord] = get(
-            table: table,
-            queryItems: [
-                .init(
-                    name: "select",
-                    value: "player_id,matches_played,wins,losses,draws,elo"
-                ),
-                .init(name: "order", value: "elo.desc")
-            ]
-        )
-
-        let (profiles, ratings) = try await (profilesRequest, ratingsRequest)
-        let names = Dictionary(
-            uniqueKeysWithValues: profiles.map { ($0.id, $0.displayName ?? "User") }
-        )
-
-        return ratings.map { rating in
-            RankingEntry(
-                id: rating.playerID,
-                name: names[rating.playerID] ?? "User",
-                avatarURL: profiles
-                    .first { $0.id == rating.playerID }
-                    .flatMap(\.avatarURL)
-                    .flatMap(URL.init(string:)),
-                elo: Int((rating.elo ?? 1_500).rounded()),
-                matches: rating.matchesPlayed ?? 0,
-                wins: rating.wins ?? 0,
-                losses: rating.losses ?? 0,
-                draws: rating.draws ?? 0,
-                rankDays: nil
-            )
-        }
-    }
-
-    private func fetchTeamRankings() async throws -> [RankingEntry] {
-        async let profilesRequest: [ProfileRecord] = get(
-            table: "profiles",
-            queryItems: [.init(name: "select", value: "id,display_name,avatar_url")]
-        )
-        async let teamsRequest: [TeamRecord] = get(
-            table: "double_teams",
-            queryItems: [.init(name: "select", value: "id,player_1_id,player_2_id")]
-        )
-        async let ratingsRequest: [TeamRatingRecord] = get(
-            table: "double_team_ratings",
-            queryItems: [
-                .init(name: "select", value: "team_id,matches_played,wins,losses,draws,elo"),
-                .init(name: "order", value: "elo.desc")
-            ]
-        )
-
-        let (profiles, teams, ratings) = try await (
-            profilesRequest,
-            teamsRequest,
-            ratingsRequest
-        )
-        let names = Dictionary(
-            uniqueKeysWithValues: profiles.map { ($0.id, $0.displayName ?? "User") }
-        )
-        let teamByID = Dictionary(uniqueKeysWithValues: teams.map { ($0.id, $0) })
-
-        return ratings.compactMap { rating in
-            guard let team = teamByID[rating.teamID] else { return nil }
-            return RankingEntry(
-                id: rating.teamID,
-                name: "\(names[team.playerOneID] ?? "User") + \(names[team.playerTwoID] ?? "User")",
-                avatarURL: nil,
-                elo: Int((rating.elo ?? 1_500).rounded()),
-                matches: rating.matchesPlayed ?? 0,
-                wins: rating.wins ?? 0,
-                losses: rating.losses ?? 0,
-                draws: rating.draws ?? 0,
-                rankDays: nil
             )
         }
     }
@@ -551,6 +400,82 @@ private struct TopThreePlayerResponse: Decodable {
 
 private struct TopThreePlayersResponse: Decodable {
     let data: [TopThreePlayerResponse]
+}
+
+private struct StatisticsPlayerResponse: Decodable {
+    let playerID: UUID
+    let displayName: String
+    let avatar: String?
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let elo: Double
+    let rankDurationDays: Int?
+    let recentForm: [Double]
+
+    private enum CodingKeys: String, CodingKey {
+        case playerID = "player_id"
+        case displayName = "display_name"
+        case avatar
+        case matchesPlayed = "matches_played"
+        case wins
+        case losses
+        case draws
+        case elo
+        case rankDurationDays = "rank_duration_days"
+        case recentForm = "recent_form"
+    }
+}
+
+private struct StatisticsTeamMemberResponse: Decodable {
+    let id: UUID
+    let displayName: String
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+    }
+}
+
+private struct StatisticsTeamResponse: Decodable {
+    let teamID: UUID
+    let player1: StatisticsTeamMemberResponse
+    let player2: StatisticsTeamMemberResponse
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let elo: Double
+    let rankDurationDays: Int?
+    let recentForm: [Double]
+
+    private enum CodingKeys: String, CodingKey {
+        case teamID = "team_id"
+        case player1
+        case player2
+        case matchesPlayed = "matches_played"
+        case wins
+        case losses
+        case draws
+        case elo
+        case rankDurationDays = "rank_duration_days"
+        case recentForm = "recent_form"
+    }
+}
+
+private struct StatisticsResponse: Decodable {
+    let singles: [StatisticsPlayerResponse]
+    let doublesPlayers: [StatisticsPlayerResponse]
+    let doublesTeams: [StatisticsTeamResponse]
+    let eligibility: RankingEligibility?
+}
+
+struct RankingsSnapshot: Sendable {
+    let singles: [RankingEntry]
+    let doublesPlayers: [RankingEntry]
+    let doublesTeams: [RankingEntry]
+    let eligibility: RankingEligibility
 }
 
 private struct HeadToHeadPlayerResponse: Decodable {
@@ -711,6 +636,49 @@ struct GweiloAPIClient: Sendable {
             fallbackMessage: "Could not load the current Top 3."
         )
         return response.data.map(\.playerID)
+    }
+
+    func fetchRankings() async throws -> RankingsSnapshot {
+        let response: StatisticsResponse = try await perform(
+            makeStatisticsRequest(),
+            fallbackMessage: "Could not load the current rankings."
+        )
+        let eligibility = response.eligibility ?? .fallback
+
+        return RankingsSnapshot(
+            singles: response.singles
+                .filter {
+                    response.eligibility != nil ||
+                    $0.matchesPlayed >= eligibility.singles.minimumMatches
+                }
+                .map { makeRankingEntry(from: $0) },
+            doublesPlayers: response.doublesPlayers
+                .filter {
+                    response.eligibility != nil ||
+                    $0.matchesPlayed >= eligibility.doublesPlayers.minimumMatches
+                }
+                .map { makeRankingEntry(from: $0) },
+            doublesTeams: response.doublesTeams
+                .filter {
+                    response.eligibility != nil ||
+                    $0.matchesPlayed >= eligibility.doublesTeams.minimumMatches
+                }
+                .map { team in
+                    RankingEntry(
+                        id: team.teamID,
+                        name: "\(team.player1.displayName) + \(team.player2.displayName)",
+                        avatarURL: nil,
+                        elo: Int(team.elo.rounded()),
+                        matches: team.matchesPlayed,
+                        wins: team.wins,
+                        losses: team.losses,
+                        draws: team.draws,
+                        rankDays: team.rankDurationDays,
+                        recentForm: team.recentForm
+                    )
+                },
+            eligibility: eligibility
+        )
     }
 
     func fetchHeadToHead(
@@ -876,6 +844,27 @@ struct GweiloAPIClient: Sendable {
 
     func makeTopThreeSinglesRequest() -> URLRequest {
         makeAuthenticatedRequest(path: "api/statistics/top3")
+    }
+
+    func makeStatisticsRequest() -> URLRequest {
+        makeAuthenticatedRequest(path: "api/statistics")
+    }
+
+    private func makeRankingEntry(
+        from player: StatisticsPlayerResponse
+    ) -> RankingEntry {
+        RankingEntry(
+            id: player.playerID,
+            name: player.displayName,
+            avatarURL: player.avatar.flatMap(URL.init(string:)),
+            elo: Int(player.elo.rounded()),
+            matches: player.matchesPlayed,
+            wins: player.wins,
+            losses: player.losses,
+            draws: player.draws,
+            rankDays: player.rankDurationDays,
+            recentForm: player.recentForm
+        )
     }
 
     private func makeEloHistory(

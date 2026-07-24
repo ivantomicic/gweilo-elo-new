@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getLatestTwoCompletedSessions } from "@/lib/elo/rank-movements";
-import {
-	MAX_SINGLES_INACTIVITY_DAYS,
-	MIN_SINGLES_MATCHES,
-} from "@/lib/statistics/min-matches";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
+import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
+import {
+	isRankingEligible,
+	STATISTICS_ELIGIBILITY,
+} from "@/lib/statistics/eligibility";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -16,14 +17,6 @@ export const dynamic = "force-dynamic";
 if (!supabaseUrl || !supabaseAnonKey) {
 	throw new Error("Missing Supabase environment variables");
 }
-
-type RecentSessionRecord = {
-	id: string;
-};
-
-type RecentSinglesMatchRecord = {
-	player_ids: string[] | null;
-};
 
 type SinglesRatingRecord = {
 	player_id: string;
@@ -96,63 +89,7 @@ export async function GET(request: NextRequest) {
 		}
 
 		const adminClient = createAdminClient();
-		const cutoffDate = new Date(
-			Date.now() - MAX_SINGLES_INACTIVITY_DAYS * 24 * 60 * 60 * 1000,
-		).toISOString();
-
-		const { data: recentSessions, error: sessionsError } = await adminClient
-			.from("sessions")
-			.select("id")
-			.eq("status", "completed")
-			.gte("completed_at", cutoffDate);
-
-		if (sessionsError) {
-			console.error(
-				"Error fetching recent completed sessions for top 3:",
-				sessionsError,
-			);
-			return NextResponse.json(
-				{ error: "Failed to fetch top players" },
-				{ status: 500 },
-			);
-		}
-
-		const sessionIds = ((recentSessions || []) as RecentSessionRecord[]).map(
-			(session) => session.id,
-		);
-
-		if (sessionIds.length === 0) {
-			return NextResponse.json({ data: [] });
-		}
-
-		const { data: recentSinglesMatches, error: matchesError } = await adminClient
-			.from("session_matches")
-			.select("player_ids")
-			.eq("match_type", "singles")
-			.eq("status", "completed")
-			.in("session_id", sessionIds);
-
-		if (matchesError) {
-			console.error(
-				"Error fetching recent singles matches for top 3:",
-				matchesError,
-			);
-			return NextResponse.json(
-				{ error: "Failed to fetch top players" },
-				{ status: 500 },
-			);
-		}
-
-		const activePlayerIds = new Set<string>();
-		for (const match of (recentSinglesMatches ||
-			[]) as RecentSinglesMatchRecord[]) {
-			const playerIds = match.player_ids || [];
-			for (const playerId of playerIds.slice(0, 2)) {
-				if (playerId) {
-					activePlayerIds.add(playerId);
-				}
-			}
-		}
+		const activePlayerIds = await getActiveSinglesPlayerIds(adminClient);
 
 		if (activePlayerIds.size === 0) {
 			return NextResponse.json({ data: [] });
@@ -207,10 +144,14 @@ export async function GET(request: NextRequest) {
 		}
 
 		const topSinglesRatings = sourceRows
-			.filter(
-				(rating) =>
-					(rating.matches_played ?? 0) >= MIN_SINGLES_MATCHES &&
-					activePlayerIds.has(rating.player_id),
+			.filter((rating) =>
+				isRankingEligible({
+					entityId: rating.player_id,
+					matchesPlayed: rating.matches_played,
+					activeEntityIds: activePlayerIds,
+					minimumMatches:
+						STATISTICS_ELIGIBILITY.singles.minimumMatches,
+				})
 			)
 			.sort(
 				(a, b) =>

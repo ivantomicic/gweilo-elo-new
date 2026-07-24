@@ -325,6 +325,41 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testStatisticsResponseDrivesEligibilityAndRecentForm() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StatisticsResponseURLProtocol.self]
+        let client = GweiloAPIClient(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "public-anon-key",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            accessToken: "member-access-token",
+            session: URLSession(configuration: configuration)
+        )
+
+        let rankings = try await client.fetchRankings()
+
+        XCTAssertEqual(rankings.singles.map(\.name), ["Ivan"])
+        XCTAssertEqual(rankings.singles.first?.recentForm, [8, -7, 3])
+        XCTAssertEqual(rankings.doublesTeams.first?.name, "Ivan + Gara")
+        XCTAssertEqual(rankings.eligibility.singles.minimumMatches, 15)
+        XCTAssertEqual(rankings.eligibility.singles.maximumInactivityDays, 28)
+        XCTAssertEqual(rankings.eligibility.doublesTeams.minimumMatches, 6)
+    }
+
+    @MainActor
+    func testStatisticsRequestUsesAuthenticatedSharedRankingRoute() {
+        let request = makeAPIClient().makeStatisticsRequest()
+
+        XCTAssertEqual(request.url?.path, "/api/statistics")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+    }
+
+    @MainActor
     func testHeadToHeadRequestUsesBothPlayerIDs() throws {
         let playerID = UUID(
             uuidString: "ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB"
@@ -641,6 +676,87 @@ private final class HeadToHeadResponseURLProtocol: URLProtocol {
             "setsLost": 67
           },
           "totalMatches": 30
+        }
+        """
+        let data = Data(body.utf8)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+
+        client?.urlProtocol(
+            self,
+            didReceive: response,
+            cacheStoragePolicy: .notAllowed
+        )
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
+}
+
+private final class StatisticsResponseURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let body = """
+        {
+          "singles": [{
+            "player_id": "00000000-0000-0000-0000-000000000001",
+            "display_name": "Ivan",
+            "avatar": null,
+            "matches_played": 219,
+            "wins": 132,
+            "losses": 77,
+            "draws": 10,
+            "elo": 1717.51,
+            "rank_duration_days": 12,
+            "recent_form": [8, -7, 3]
+          }],
+          "doublesPlayers": [],
+          "doublesTeams": [{
+            "team_id": "00000000-0000-0000-0000-000000000010",
+            "player1": {
+              "id": "00000000-0000-0000-0000-000000000001",
+              "display_name": "Ivan",
+              "avatar": null
+            },
+            "player2": {
+              "id": "00000000-0000-0000-0000-000000000002",
+              "display_name": "Gara",
+              "avatar": null
+            },
+            "matches_played": 30,
+            "wins": 18,
+            "losses": 11,
+            "draws": 1,
+            "elo": 1642,
+            "rank_duration_days": 5,
+            "recent_form": [9, -2, 7]
+          }],
+          "eligibility": {
+            "singles": {
+              "minimumMatches": 15,
+              "maximumInactivityDays": 28
+            },
+            "doublesPlayers": {
+              "minimumMatches": 6,
+              "maximumInactivityDays": 56
+            },
+            "doublesTeams": {
+              "minimumMatches": 6,
+              "maximumInactivityDays": 56
+            }
+          }
         }
         """
         let data = Data(body.utf8)

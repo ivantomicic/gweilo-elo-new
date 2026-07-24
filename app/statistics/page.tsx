@@ -24,11 +24,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
-import {
-	MIN_DOUBLES_TEAM_MATCHES,
-	MIN_DOUBLES_PLAYER_MATCHES,
-	MIN_SINGLES_MATCHES,
-} from "@/lib/statistics/min-matches";
 import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
 
 const MotionTableRow = motion(TableRow);
@@ -517,22 +512,6 @@ function StatisticsPageContent() {
 											? statistics.doublesPlayers
 											: statistics.doublesTeams;
 
-									const minMatches =
-										activeView === "singles"
-											? MIN_SINGLES_MATCHES
-											: activeView === "doubles_player"
-											? MIN_DOUBLES_PLAYER_MATCHES
-											: MIN_DOUBLES_TEAM_MATCHES;
-
-									const filteredData =
-										minMatches === null
-											? currentData
-											: currentData.filter(
-													(item) =>
-														"matches_played" in item &&
-														item.matches_played >= minMatches,
-											  );
-
 									// Show loading state for current view if data is not loaded yet
 									if (currentViewLoading && currentData.length === 0) {
 										return (
@@ -633,7 +612,7 @@ function StatisticsPageContent() {
 													</TableRow>
 												</TableHeader>
 												<TableBody>
-													{filteredData.map(
+													{currentData.map(
 														(item, index) => {
 															const isTeam =
 																"team_id" in

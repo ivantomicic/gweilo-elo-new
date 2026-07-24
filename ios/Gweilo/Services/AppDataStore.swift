@@ -45,6 +45,7 @@ final class AppDataStore {
     private(set) var doublesPlayerRankings: [RankingEntry] = []
     private(set) var doublesTeamRankings: [RankingEntry] = []
     private(set) var topThreeSinglesPlayers: [RankingEntry] = []
+    private(set) var rankingEligibility = RankingEligibility.fallback
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var errorMessage: String?
@@ -245,26 +246,19 @@ final class AppDataStore {
         }
 
         do {
-            async let snapshotRequest = client.fetchSnapshot()
-            async let topThreeRequest = apiClient.fetchTopThreeSinglesPlayerIDs()
+            async let sessionsRequest = client.fetchSessions()
+            async let rankingsRequest = apiClient.fetchRankings()
 
-            let snapshot = try await snapshotRequest
-            sessions = snapshot.sessions
-            singlesRankings = snapshot.singles
-            doublesPlayerRankings = snapshot.doublesPlayers
-            doublesTeamRankings = snapshot.doublesTeams
-
-            let topThreePlayerIDs = try? await topThreeRequest
-            if let topThreePlayerIDs {
-                topThreeSinglesPlayers = topThreePlayerIDs.compactMap { playerID in
-                    snapshot.singles.first { $0.id == playerID }
-                }
-            } else if !topThreeSinglesPlayers.isEmpty {
-                let previousIDs = topThreeSinglesPlayers.map(\.id)
-                topThreeSinglesPlayers = previousIDs.compactMap { playerID in
-                    snapshot.singles.first { $0.id == playerID }
-                }
-            }
+            let (loadedSessions, rankings) = try await (
+                sessionsRequest,
+                rankingsRequest
+            )
+            sessions = loadedSessions
+            singlesRankings = rankings.singles
+            doublesPlayerRankings = rankings.doublesPlayers
+            doublesTeamRankings = rankings.doublesTeams
+            rankingEligibility = rankings.eligibility
+            topThreeSinglesPlayers = Array(rankings.singles.prefix(3))
         } catch {
             errorMessage = error.localizedDescription
         }

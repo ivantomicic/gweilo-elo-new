@@ -13,7 +13,6 @@ struct RankingsView: View {
 
     private var entries: [RankingEntry] {
         dataStore.rankings(for: category)
-            .filter { $0.matches >= category.minimumMatches }
     }
 
     var body: some View {
@@ -31,6 +30,9 @@ struct RankingsView: View {
                         ZStack(alignment: .topLeading) {
                             RankingsCategoryPage(
                                 category: category,
+                                eligibilityRule: dataStore.rankingEligibility.rule(
+                                    for: category
+                                ),
                                 entries: entries,
                                 destination: {
                                     destination(for: $0, in: category)
@@ -179,6 +181,7 @@ private struct RankingsHeader: View {
 
 private struct RankingsCategoryPage: View {
     let category: RankingCategory
+    let eligibilityRule: RankingEligibilityRule
     let entries: [RankingEntry]
     let destination: (RankingEntry) -> RankingDestination?
     let isLoading: Bool
@@ -187,7 +190,7 @@ private struct RankingsCategoryPage: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            EligibilityNote(category: category)
+            EligibilityNote(rule: eligibilityRule)
             RankingsContent(
                 entries: entries,
                 destination: destination,
@@ -200,10 +203,13 @@ private struct RankingsCategoryPage: View {
 }
 
 private struct EligibilityNote: View {
-    let category: RankingCategory
+    let rule: RankingEligibilityRule
 
     var body: some View {
-        Text("Ranked after \(category.minimumMatches) completed matches")
+        Text(
+            "\(rule.minimumMatches) matches · active in the last "
+                + "\(rule.maximumInactivityDays) days"
+        )
             .font(.caption)
             .foregroundStyle(.secondary)
     }
@@ -287,10 +293,10 @@ private struct RankingColumnLabels: View {
                 .frame(width: 24, alignment: .leading)
             Text("PLAYER")
             Spacer()
-            Text("W-D-L")
-                .frame(width: 62, alignment: .trailing)
+            Text("FORM")
+                .frame(width: 56, alignment: .center)
             Text("ELO")
-                .frame(width: 48, alignment: .trailing)
+                .frame(width: 56, alignment: .trailing)
         }
         .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
         .tracking(0.8)
@@ -329,7 +335,10 @@ private struct RankingRecord: View {
                         Text(entry.name)
                             .font(.body.weight(.semibold))
                             .lineLimit(1)
-                        Text("\(entry.matches) matches")
+                        Text(
+                            "\(entry.matches) matches · "
+                                + "\(entry.wins)-\(entry.draws)-\(entry.losses)"
+                        )
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -338,14 +347,15 @@ private struct RankingRecord: View {
 
             Spacer(minLength: 8)
 
-            Text("\(entry.wins)-\(entry.draws)-\(entry.losses)")
-                .font(.caption.monospacedDigit().weight(.medium))
-                .frame(width: 62, alignment: .trailing)
+            RecentFormBar(values: entry.recentForm)
+                .frame(width: 56)
 
             Text("\(entry.elo)")
                 .font(GweiloTheme.displayFont(size: 19, relativeTo: .body).monospacedDigit())
                 .foregroundStyle(GweiloTheme.bone)
-                .frame(width: 48, alignment: .trailing)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+                .frame(width: 56, alignment: .trailing)
 
             if showsDisclosure {
                 Image(systemName: "chevron.right")
@@ -360,6 +370,69 @@ private struct RankingRecord: View {
         .accessibilityLabel(
             "Rank \(rank), \(entry.name), \(entry.elo) Elo, \(entry.wins) wins, \(entry.draws) draws, \(entry.losses) losses"
         )
+    }
+}
+
+private struct RecentFormBar: View {
+    let values: [Double]
+
+    private var paddedValues: [Double?] {
+        let recent = values.suffix(5).map(Optional.some)
+        return Array(repeating: nil, count: max(0, 5 - recent.count)) + recent
+    }
+
+    private var gradient: LinearGradient {
+        let colors = paddedValues.map(color)
+        var stops = [
+            Gradient.Stop(color: colors[0], location: 0)
+        ]
+
+        for index in 0..<(colors.count - 1) {
+            let boundary = Double(index + 1) / Double(colors.count)
+            stops.append(
+                Gradient.Stop(
+                    color: colors[index],
+                    location: max(0, boundary - 0.1)
+                )
+            )
+            stops.append(
+                Gradient.Stop(
+                    color: colors[index + 1],
+                    location: min(1, boundary + 0.1)
+                )
+            )
+        }
+        stops.append(Gradient.Stop(color: colors[colors.count - 1], location: 1))
+
+        return LinearGradient(
+            gradient: Gradient(stops: stops),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+    }
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(gradient)
+            .frame(height: 8)
+            .accessibilityLabel("Form over the last five sessions")
+            .accessibilityValue(accessibilityValue)
+    }
+
+    private func color(for value: Double?) -> Color {
+        guard let value else {
+            return GweiloTheme.muted.opacity(0.18)
+        }
+        return EloPerformanceBand(delta: value).color
+    }
+
+    private var accessibilityValue: String {
+        paddedValues.map { value in
+            guard let value else { return "no result" }
+            let prefix = value > 0 ? "+" : ""
+            return "\(prefix)\(Int(value.rounded())) Elo"
+        }
+        .joined(separator: ", ")
     }
 }
 
@@ -742,7 +815,8 @@ struct RankingsPreviewScreen: View {
                     wins: $0.wins,
                     losses: $0.losses,
                     draws: $0.draws,
-                    rankDays: nil
+                    rankDays: nil,
+                    recentForm: Array($0.recentForm.reversed())
                 )
             },
             doublesTeams: Array(players.prefix(4)).map {
@@ -755,7 +829,8 @@ struct RankingsPreviewScreen: View {
                     wins: $0.wins / 2,
                     losses: $0.losses / 2,
                     draws: $0.draws,
-                    rankDays: nil
+                    rankDays: nil,
+                    recentForm: Array($0.recentForm.dropFirst()) + [8]
                 )
             }
         )
@@ -797,8 +872,19 @@ struct RankingsPreviewScreen: View {
             wins: wins,
             losses: losses,
             draws: draws,
-            rankDays: nil
+            rankDays: nil,
+            recentForm: previewForm(for: suffix)
         )
+    }
+
+    private static func previewForm(for suffix: Int) -> [Double] {
+        switch suffix {
+        case 1: [12, 8, 11, 7, 3]
+        case 2: [-8, 9, 6, -7, -12]
+        case 3: [4, 7, -2, -9, 11]
+        case 4: [-8, 2, 9, 4, 7]
+        default: [2, -9, 4, 3, 1]
+        }
     }
 }
 
