@@ -23,10 +23,16 @@ targets:
     sources:
       - path: Gweilo
         excludes:
-          - Resources/Assets.xcassets
           - Resources/Info.plist
+          - Resources/GweiloIcon.icon
+      - path: Gweilo/Resources/GweiloIcon.icon
+        type: file
+        buildPhase: resources
+        group: Gweilo/Resources
     settings:
       base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: GweiloIcon
+        DEVELOPMENT_TEAM: 5JKSYD4AUC
         PRODUCT_BUNDLE_IDENTIFIER: com.ivantomicic.gweilo
         PRODUCT_NAME: Gweilo
         GENERATE_INFOPLIST_FILE: NO

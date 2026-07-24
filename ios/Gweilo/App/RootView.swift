@@ -34,7 +34,7 @@ struct RootView: View {
             } else if isSessionDetailPreview {
                 SessionDetailPreviewScreen()
             } else if authStore.isRestoringSession {
-                ProgressView("Restoring your club…")
+                GweiloLoadingView("Restoring your club…", size: 172)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(ArenaBackground())
             } else if authStore.session == nil {
@@ -45,7 +45,7 @@ struct RootView: View {
                     authStore: authStore
                 )
             } else {
-                ProgressView("Loading your club…")
+                GweiloLoadingView("Loading your club…", size: 172)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(ArenaBackground())
             }
@@ -340,7 +340,7 @@ private struct SettingsView: View {
     @AppStorage(GweiloPreferenceKey.hapticsEnabled)
     private var hapticsEnabled = true
     @AppStorage(GweiloPreferenceKey.confirmRoundSubmission)
-    private var confirmsRoundSubmission = true
+    private var confirmsRoundSubmission = false
 
     var body: some View {
         ZStack {

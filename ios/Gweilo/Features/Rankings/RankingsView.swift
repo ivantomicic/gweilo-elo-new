@@ -224,7 +224,7 @@ private struct RankingsContent: View {
 
     var body: some View {
         if isLoading, entries.isEmpty {
-            ProgressView("Loading rankings…")
+            GweiloLoadingView("Loading rankings…")
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
         } else if let errorMessage, entries.isEmpty {
@@ -505,7 +505,10 @@ struct PlayerProfileView: View {
                                 accessibilityTitle: "Singles Elo trend"
                             )
                         } else if isLoading {
-                            ProgressView("Loading Elo history…")
+                            GweiloLoadingView(
+                                "Loading Elo history…",
+                                size: 108
+                            )
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 60)
                         } else if let errorMessage {
@@ -650,7 +653,7 @@ struct DoublesTeamProfileView: View {
                             results: recentResults
                         )
                     } else if isLoading {
-                        ProgressView("Loading doubles team…")
+                        GweiloLoadingView("Loading doubles team…")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 80)
                     } else if let errorMessage {
@@ -1253,7 +1256,10 @@ private struct PlayerHeadToHeadSection: View {
             if let comparison {
                 HeadToHeadScoreboard(comparison: comparison)
             } else if isLoading {
-                ProgressView("Loading head-to-head…")
+                GweiloLoadingView(
+                    "Loading head-to-head…",
+                    size: 96
+                )
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
             } else if let errorMessage {

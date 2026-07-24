@@ -612,12 +612,49 @@ struct SessionMatch: Identifiable, Hashable, Sendable {
     let isCompleted: Bool
     let teamOneScore: Int?
     let teamTwoScore: Int?
+    let eloPrediction: MatchEloPrediction?
+
+    nonisolated init(
+        id: UUID,
+        roundNumber: Int,
+        type: SessionMatchType,
+        order: Int,
+        playerIDs: [UUID],
+        isCompleted: Bool,
+        teamOneScore: Int?,
+        teamTwoScore: Int?,
+        eloPrediction: MatchEloPrediction? = nil
+    ) {
+        self.id = id
+        self.roundNumber = roundNumber
+        self.type = type
+        self.order = order
+        self.playerIDs = playerIDs
+        self.isCompleted = isCompleted
+        self.teamOneScore = teamOneScore
+        self.teamTwoScore = teamTwoScore
+        self.eloPrediction = eloPrediction
+    }
 }
 
 struct RoundMatchScoreSubmission: Codable, Equatable, Sendable {
     let matchId: UUID
     let team1Score: Int
     let team2Score: Int
+}
+
+struct EloSidePrediction: Codable, Hashable, Sendable {
+    let rating: Double
+    let win: Double
+    let draw: Double
+    let loss: Double
+}
+
+struct MatchEloPrediction: Codable, Hashable, Sendable {
+    let matchId: UUID
+    let ratingType: String
+    let team1: EloSidePrediction
+    let team2: EloSidePrediction
 }
 
 struct RoundScoreDraft: Equatable, Sendable {

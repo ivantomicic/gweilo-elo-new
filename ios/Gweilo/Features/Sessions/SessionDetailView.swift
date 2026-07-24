@@ -7,7 +7,6 @@ struct SessionDetailView: View {
 
     @State private var detail: SessionDetail?
     @State private var expandedRounds: Set<Int> = []
-    @State private var scoringRound: SessionRound?
     @State private var isLoading = false
     @State private var isManagingSession = false
     @State private var showsManagementConfirmation = false
@@ -20,43 +19,49 @@ struct SessionDetailView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 30) {
-                    SessionHero(
-                        session: detail?.session ?? session,
-                        totalMatchCount: detail?.rounds.reduce(0) {
-                            $0 + $1.matches.count
-                        }
-                    )
-
                     if let detail {
-                        if shouldShowSessionManagement(for: detail) {
-                            SessionManagementAction(
-                                hasCompletedMatches: hasCompletedMatches(in: detail),
-                                isWorking: isManagingSession,
-                                action: {
-                                    showsManagementConfirmation = true
-                                }
-                            )
-                        }
-
-                        if let currentRound = currentRound(in: detail) {
-                            CurrentRoundStage(
+                        if shouldShowScorekeeper(for: detail),
+                           let currentRound = currentRound(in: detail) {
+                            ScoreEntryView(
                                 round: currentRound,
                                 detail: detail,
-                                enterScores: {
-                                    scoringRound = currentRound
+                                submit: { scores in
+                                    try await dataStore.submitRound(
+                                        sessionID: detail.session.id,
+                                        roundNumber: currentRound.number,
+                                        scores: scores
+                                    )
+                                },
+                                onSubmitted: {
+                                    await load()
                                 }
                             )
-                        } else if detail.session.status == .completed {
-                            CompletedSessionOutcome(session: detail.session)
+                            .id(currentRound.id)
+                        } else {
+                            SessionHero(
+                                session: detail.session,
+                                totalMatchCount: detail.rounds.reduce(0) {
+                                    $0 + $1.matches.count
+                                }
+                            )
+
+                            if let currentRound = currentRound(in: detail) {
+                                ReadOnlyCurrentRound(
+                                    round: currentRound,
+                                    detail: detail
+                                )
+                            } else if detail.session.status == .completed {
+                                CompletedSessionOutcome(session: detail.session)
+                            }
+
+                            PlayerRoster(participants: detail.participants)
+
+                            RoundTimeline(
+                                detail: detail,
+                                expandedRounds: expandedRounds,
+                                toggleRound: toggleRound
+                            )
                         }
-
-                        PlayerRoster(participants: detail.participants)
-
-                        RoundTimeline(
-                            detail: detail,
-                            expandedRounds: expandedRounds,
-                            toggleRound: toggleRound
-                        )
                     } else if isLoading {
                         SessionDetailSkeleton()
                     } else if let errorMessage {
@@ -72,31 +77,33 @@ struct SessionDetailView: View {
             .refreshable {
                 await load()
             }
+            .scrollDismissesKeyboard(.interactively)
             .scrollIndicators(.hidden)
         }
         .navigationTitle("Session")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.visible, for: .navigationBar)
+        .toolbar {
+            if let detail, shouldShowSessionManagement(for: detail) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button(managementButtonTitle, role: .destructive) {
+                            showsManagementConfirmation = true
+                        }
+                        .disabled(isManagingSession)
+                    } label: {
+                        if isManagingSession {
+                            ProgressView()
+                        } else {
+                            Image(systemName: "ellipsis")
+                        }
+                    }
+                    .accessibilityLabel("Session actions")
+                }
+            }
+        }
         .task(id: session.id) {
             await load()
-        }
-        .sheet(item: $scoringRound) { round in
-            if let detail {
-                ScoreEntryView(
-                    round: round,
-                    detail: detail,
-                    submit: { scores in
-                        try await dataStore.submitRound(
-                            sessionID: detail.session.id,
-                            roundNumber: round.number,
-                            scores: scores
-                        )
-                    },
-                    onSubmitted: {
-                        await load()
-                    }
-                )
-            }
         }
         .confirmationDialog(
             managementConfirmationTitle,
@@ -164,6 +171,10 @@ struct SessionDetailView: View {
         dataStore.canManageSessions && detail.session.status == .active
     }
 
+    private func shouldShowScorekeeper(for detail: SessionDetail) -> Bool {
+        dataStore.canManageSessions && detail.session.status == .active
+    }
+
     private func manageActiveSession() async {
         guard let detail, !isManagingSession else { return }
         isManagingSession = true
@@ -213,51 +224,6 @@ struct SessionDetailView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-}
-
-private struct SessionManagementAction: View {
-    let hasCompletedMatches: Bool
-    let isWorking: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                if isWorking {
-                    ProgressView()
-                        .tint(GweiloTheme.coral)
-                } else {
-                    Image(
-                        systemName: hasCompletedMatches
-                            ? "stop.circle"
-                            : "trash"
-                    )
-                }
-
-                Text(
-                    hasCompletedMatches
-                        ? "Force close session"
-                        : "Cancel accidental session"
-                )
-                .font(.subheadline.weight(.bold))
-
-                Spacer()
-            }
-            .foregroundStyle(GweiloTheme.coral)
-            .padding(.vertical, 14)
-            .contentShape(.rect)
-        }
-        .buttonStyle(.plain)
-        .disabled(isWorking)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
-        .accessibilityHint(
-            hasCompletedMatches
-                ? "Keeps submitted results and ends the session"
-                : "Removes this session because it has no submitted scores"
-        )
     }
 }
 
@@ -356,32 +322,16 @@ private struct HeroMetric: View {
     }
 }
 
-private struct CurrentRoundStage: View {
+private struct ReadOnlyCurrentRound: View {
     let round: SessionRound
     let detail: SessionDetail
-    let enterScores: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("PLAYING NOW")
-                        .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
-                        .tracking(1.7)
-                        .foregroundStyle(GweiloTheme.lime)
-
-                    Text("ROUND \(round.number)")
-                        .font(GweiloTheme.displayFont(size: 40, relativeTo: .title))
-                        .tracking(-0.35)
-                        .foregroundStyle(GweiloTheme.bone)
-                }
-
-                Spacer()
-
-                Text("\(round.number) / \(detail.session.totalRounds)")
-                    .font(.caption.monospacedDigit().weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 12) {
+            SectionLabel(
+                title: "Playing now",
+                value: "Round \(round.number)"
+            )
 
             ForEach(round.matches) { match in
                 ScoreboardMatch(
@@ -392,46 +342,6 @@ private struct CurrentRoundStage: View {
             }
 
             RestingLine(players: round.restingPlayers)
-
-            Button(action: enterScores) {
-                HStack {
-                    Text("Enter round scores")
-                    Spacer()
-                    Image(systemName: "square.and.pencil")
-                }
-                .font(GweiloTheme.labelFont(size: 17, relativeTo: .headline))
-                .foregroundStyle(GweiloTheme.background)
-                .padding(.horizontal, 15)
-                .frame(height: 48)
-                .background(GweiloTheme.lime)
-            }
-            .buttonStyle(ResponsiveButtonStyle())
-            .accessibilityHint("Opens score entry for every match in this round")
-        }
-        .padding(.vertical, 15)
-        .padding(.leading, 16)
-        .padding(.trailing, 14)
-        .background(
-            LinearGradient(
-                colors: [
-                    GweiloTheme.raisedSurface,
-                    GweiloTheme.accent.opacity(0.11)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .overlay(alignment: .leading) {
-            LinearGradient(
-                colors: [GweiloTheme.lime, GweiloTheme.accentBright],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-                .frame(width: 3)
-        }
-        .overlay {
-            Rectangle()
-                .stroke(GweiloTheme.accent.opacity(0.30), lineWidth: 0.8)
         }
     }
 }
@@ -814,7 +724,7 @@ private struct AvatarStack: View {
     }
 }
 
-private struct RestingLine: View {
+struct RestingLine: View {
     let players: [SessionParticipant]
 
     var body: some View {
@@ -854,13 +764,7 @@ private struct SectionLabel: View {
 
 private struct SessionDetailSkeleton: View {
     var body: some View {
-        VStack(spacing: 12) {
-            ProgressView()
-                .controlSize(.regular)
-            Text("Loading session")
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.secondary)
-        }
+        GweiloLoadingView("Loading session")
         .frame(maxWidth: .infinity)
         .padding(.vertical, 70)
     }
@@ -886,9 +790,6 @@ private struct SessionDetailError: View {
 
 #if DEBUG
 struct SessionDetailPreviewScreen: View {
-    @State private var expandedRounds: Set<Int> = [2]
-    @State private var scoringRound: SessionRound?
-
     private let detail = SessionDetail.preview
 
     var body: some View {
@@ -897,39 +798,25 @@ struct SessionDetailPreviewScreen: View {
                 ArenaBackground()
 
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 30) {
-                        SessionHero(
-                            session: detail.session,
-                            totalMatchCount: detail.rounds.reduce(0) {
-                                $0 + $1.matches.count
-                            }
-                        )
-
-                        SessionManagementAction(
-                            hasCompletedMatches: true,
-                            isWorking: false,
-                            action: {}
-                        )
-
+                    LazyVStack(alignment: .leading, spacing: 18) {
                         if let currentRound = detail.rounds.first(
                             where: { $0.number == detail.session.currentRound }
                         ) {
-                            CurrentRoundStage(
+                            ScoreEntryView(
                                 round: currentRound,
                                 detail: detail,
-                                enterScores: {
-                                    scoringRound = currentRound
+                                submit: { _ in
+                                    try await Task.sleep(for: .milliseconds(700))
+                                    return RoundSubmissionResult(
+                                        success: true,
+                                        message: "Round submitted",
+                                        ratingsDeferred: false,
+                                        ratingsApplied: true,
+                                        combinedWithRound: nil
+                                    )
                                 }
                             )
                         }
-
-                        PlayerRoster(participants: detail.participants)
-
-                        RoundTimeline(
-                            detail: detail,
-                            expandedRounds: expandedRounds,
-                            toggleRound: toggleRound
-                        )
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 48)
@@ -938,33 +825,6 @@ struct SessionDetailPreviewScreen: View {
             }
             .navigationTitle("Session")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(item: $scoringRound) { round in
-                ScoreEntryView(
-                    round: round,
-                    detail: detail,
-                    submit: { _ in
-                        try await Task.sleep(for: .milliseconds(700))
-                        return RoundSubmissionResult(
-                            success: true,
-                            message: "Round submitted",
-                            ratingsDeferred: false,
-                            ratingsApplied: true,
-                            combinedWithRound: nil
-                        )
-                    },
-                    onSubmitted: {}
-                )
-            }
-        }
-    }
-
-    private func toggleRound(_ number: Int) {
-        withAnimation(.snappy(duration: 0.18)) {
-            if expandedRounds.contains(number) {
-                expandedRounds.remove(number)
-            } else {
-                expandedRounds.insert(number)
-            }
         }
     }
 }
@@ -985,6 +845,8 @@ extension SessionDetail {
                 team: ["A", "A", "B", "B", "C", "C"][index]
             )
         }
+        let currentDoublesMatchID = UUID()
+        let currentSinglesMatchID = UUID()
         let rounds = [
             SessionRound(
                 number: 1,
@@ -1032,24 +894,56 @@ extension SessionDetail {
                 number: 3,
                 matches: [
                     SessionMatch(
-                        id: UUID(),
+                        id: currentDoublesMatchID,
                         roundNumber: 3,
                         type: .doubles,
                         order: 0,
                         playerIDs: [ids[0], ids[1], ids[2], ids[3]],
                         isCompleted: false,
                         teamOneScore: nil,
-                        teamTwoScore: nil
+                        teamTwoScore: nil,
+                        eloPrediction: MatchEloPrediction(
+                            matchId: currentDoublesMatchID,
+                            ratingType: "team",
+                            team1: EloSidePrediction(
+                                rating: 1_640,
+                                win: 13.25,
+                                draw: -2.75,
+                                loss: -18.75
+                            ),
+                            team2: EloSidePrediction(
+                                rating: 1_580,
+                                win: 18.75,
+                                draw: 2.75,
+                                loss: -13.25
+                            )
+                        )
                     ),
                     SessionMatch(
-                        id: UUID(),
+                        id: currentSinglesMatchID,
                         roundNumber: 3,
                         type: .singles,
                         order: 1,
                         playerIDs: [ids[4], ids[5]],
                         isCompleted: false,
                         teamOneScore: nil,
-                        teamTwoScore: nil
+                        teamTwoScore: nil,
+                        eloPrediction: MatchEloPrediction(
+                            matchId: currentSinglesMatchID,
+                            ratingType: "singles",
+                            team1: EloSidePrediction(
+                                rating: 1_494,
+                                win: 5.58,
+                                draw: -6.42,
+                                loss: -18.42
+                            ),
+                            team2: EloSidePrediction(
+                                rating: 1_287,
+                                win: 30.7,
+                                draw: 10.7,
+                                loss: -9.3
+                            )
+                        )
                     )
                 ],
                 restingPlayers: []

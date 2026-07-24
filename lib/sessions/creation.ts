@@ -1,4 +1,5 @@
 import type { FourPlayerFormat, SessionRound } from "./schedule";
+import { normalizePlayerID, normalizePlayerIDs } from "./player-id";
 
 export type SessionCreationPlayer = {
 	id: string;
@@ -52,7 +53,8 @@ export function validateSessionCreation({
 	}
 	if (
 		players.some((player) => !UUID_PATTERN.test(player.id)) ||
-		new Set(players.map((player) => player.id)).size !== playerCount
+		new Set(players.map((player) => normalizePlayerID(player.id))).size !==
+			playerCount
 	) {
 		return "Each selected player must have a unique valid ID";
 	}
@@ -60,7 +62,9 @@ export function validateSessionCreation({
 		return "Schedule must contain at least one round";
 	}
 
-	const selectedPlayerIDs = new Set(players.map((player) => player.id));
+	const selectedPlayerIDs = new Set(
+		players.map((player) => normalizePlayerID(player.id)),
+	);
 	const roundNumbers = new Set<number>();
 
 	for (const round of rounds) {
@@ -76,7 +80,9 @@ export function validateSessionCreation({
 
 		for (const match of round.matches) {
 			const expectedPlayers = match.type === "singles" ? 2 : 4;
-			const playerIDs = match.players.map((player) => player.id);
+			const playerIDs = match.players.map((player) =>
+				normalizePlayerID(player.id),
+			);
 			if (
 				playerIDs.length !== expectedPlayers ||
 				new Set(playerIDs).size !== expectedPlayers ||
@@ -116,7 +122,9 @@ export async function buildAtomicSessionPayload({
 	const matches: AtomicSessionMatch[] = [];
 	for (const round of rounds) {
 		for (const [matchOrder, match] of round.matches.entries()) {
-			const playerIDs = match.players.map((player) => player.id);
+			const playerIDs = normalizePlayerIDs(
+				match.players.map((player) => player.id),
+			);
 			const isDoubles = match.type === "doubles";
 			matches.push({
 				roundNumber: round.roundNumber,
@@ -135,7 +143,7 @@ export async function buildAtomicSessionPayload({
 
 	return {
 		players: players.map((player, index) => ({
-			id: player.id,
+			id: normalizePlayerID(player.id),
 			team:
 				players.length === 6
 					? (["A", "B", "C"] as const)[Math.floor(index / 2)]

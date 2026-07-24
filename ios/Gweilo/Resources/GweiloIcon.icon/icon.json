@@ -1,0 +1,29 @@
+{
+  "fill" : {
+    "automatic-gradient" : "display-p3:0.51644,0.00000,0.89969,1.00000"
+  },
+  "groups" : [
+    {
+      "layers" : [
+        {
+          "image-name" : "mascot-icon-clear-glass-foreground-1024.png",
+          "name" : "mascot-icon-clear-glass-foreground-1024"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.5
+      }
+    }
+  ],
+  "supported-platforms" : {
+    "circles" : [
+      "watchOS"
+    ],
+    "squares" : "shared"
+  }
+}

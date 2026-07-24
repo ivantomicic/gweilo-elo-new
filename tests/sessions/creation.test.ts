@@ -50,6 +50,23 @@ describe("session creation boundary", () => {
 		);
 		assert.equal(
 			validateSessionCreation({
+				players: [
+					{
+						...players[0],
+						id: "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF",
+					},
+					{
+						...players[1],
+						id: "abcdefab-cdef-4abc-8def-abcdefabcdef",
+					},
+				],
+				rounds: generateSchedule(players.slice(0, 2)),
+				playerCount: 2,
+			}),
+			"Each selected player must have a unique valid ID",
+		);
+		assert.equal(
+			validateSessionCreation({
 				players: players.slice(0, 2),
 				rounds: [
 					{
@@ -97,6 +114,32 @@ describe("session creation boundary", () => {
 			payload.matches
 				.filter((match) => match.matchType === "doubles")
 				.every((match) => match.team1Id && match.team2Id),
+		);
+	});
+
+	it("normalizes UUID casing before persisting session players and matches", async () => {
+		const uppercasedPlayers = players.slice(0, 2).map((player, index) => ({
+			...player,
+			id:
+				index === 0
+					? "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF"
+					: "FEDCBAFE-DCBA-4FED-8CBA-FEDCBAFEDCBA",
+		}));
+		const payload = await buildAtomicSessionPayload({
+			players: uppercasedPlayers,
+			rounds: generateSchedule(uppercasedPlayers),
+			resolveTeam: async () => {
+				throw new Error("A two-player session should not resolve teams");
+			},
+		});
+
+		assert.deepEqual(
+			payload.players.map((player) => player.id),
+			uppercasedPlayers.map((player) => player.id.toLowerCase()),
+		);
+		assert.deepEqual(
+			payload.matches[0].playerIds,
+			uppercasedPlayers.map((player) => player.id.toLowerCase()),
 		);
 	});
 });

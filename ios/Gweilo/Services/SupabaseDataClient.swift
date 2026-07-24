@@ -80,6 +80,10 @@ private struct ProfileRecord: Decodable, Sendable {
     }
 }
 
+private struct SessionEloPredictionsResponse: Decodable, Sendable {
+    let predictions: [MatchEloPrediction]
+}
+
 private struct PostgrestErrorResponse: Decodable {
     let message: String?
     let details: String?
@@ -91,6 +95,9 @@ struct SupabaseDataClient: Sendable {
     var session: URLSession = .shared
 
     func fetchSessionDetail(session summary: SessionSummary) async throws -> SessionDetail {
+        async let eloPredictionsRequest = fetchSessionEloPredictions(
+            sessionID: summary.id
+        )
         async let sessionPlayersRequest: [SessionPlayerRecord] = get(
             table: "session_players",
             queryItems: [
@@ -113,6 +120,10 @@ struct SupabaseDataClient: Sendable {
         let (sessionPlayers, matchRecords) = try await (
             sessionPlayersRequest,
             matchesRequest
+        )
+        let eloPredictions = (try? await eloPredictionsRequest)?.predictions ?? []
+        let eloPredictionsByMatchID = Dictionary(
+            uniqueKeysWithValues: eloPredictions.map { ($0.matchId, $0) }
         )
         let participantIDs = Set(
             sessionPlayers.map(\.playerID)
@@ -169,7 +180,8 @@ struct SupabaseDataClient: Sendable {
                 playerIDs: record.playerIDs,
                 isCompleted: record.status == "completed",
                 teamOneScore: record.teamOneScore,
-                teamTwoScore: record.teamTwoScore
+                teamTwoScore: record.teamTwoScore,
+                eloPrediction: eloPredictionsByMatchID[record.id]
             )
         }
         let matchesByRound = Dictionary(grouping: matches, by: \.roundNumber)
@@ -216,6 +228,29 @@ struct SupabaseDataClient: Sendable {
             session: refreshedSummary,
             participants: participants,
             rounds: rounds
+        )
+    }
+
+    private func fetchSessionEloPredictions(
+        sessionID: UUID
+    ) async throws -> SessionEloPredictionsResponse {
+        let endpoint = configuration.apiBaseURL.appending(
+            path: "api/sessions/\(sessionID.uuidString.lowercased())/elo-predictions"
+        )
+        var request = URLRequest(url: endpoint)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard
+            let httpResponse = response as? HTTPURLResponse,
+            (200..<300).contains(httpResponse.statusCode)
+        else {
+            throw LiveDataError.invalidResponse
+        }
+        return try JSONDecoder().decode(
+            SessionEloPredictionsResponse.self,
+            from: data
         )
     }
 

@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -12,11 +12,15 @@
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
 		5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */; };
+		5E538D8615FAC95CD084862D /* GweiloLoader.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 50BE1BBE42923C1E7EBBCE70 /* GweiloLoader.mp4 */; };
 		6088070E02E7E8AA9D32752E /* DemoModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DF6A7D394A2D0829E50769F /* DemoModels.swift */; };
 		60B73CBFE72D64CD934D7972 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E67F5AF76CD8E21D79EC84 /* AppModels.swift */; };
 		67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 564CF19864AC0C89C4958D12 /* SignInView.swift */; };
+		81AEEF5CD87CC4533B850FC1 /* GweiloIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 8FABDA5AA002D968B8801C21 /* GweiloIcon.icon */; };
 		82EEEE3BD47986ACEB44E0E8 /* SupabaseAuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */; };
+		86BD73C990C5813C363CF084 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A3118FC902F9D393E9F67543 /* Assets.xcassets */; };
 		88C3C819902499ADBD167ED1 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926BC005373CE199C1266A45 /* SessionDetailView.swift */; };
+		9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */; };
 		9117A1CEE63B8E6C4ABD7EEC /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */; };
 		91288BAE4D4C088202350361 /* AppDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9391F1239E602BBF63632B /* AppDataStore.swift */; };
 		95E7DDC059E46F2C64B1B704 /* SupabaseDataClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */; };
@@ -47,6 +51,7 @@
 		3FDFE13A0BFF7369FF6622CD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		48E67F5AF76CD8E21D79EC84 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
 		4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerIdentityAvatar.swift; sourceTree = "<group>"; };
+		50BE1BBE42923C1E7EBBCE70 /* GweiloLoader.mp4 */ = {isa = PBXFileReference; path = GweiloLoader.mp4; sourceTree = "<group>"; };
 		5228EA448D3385CA3C87F404 /* GweiloTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloTheme.swift; sourceTree = "<group>"; };
 		564CF19864AC0C89C4958D12 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		6B97913905094E27DCF42A43 /* GweiloApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloApp.swift; sourceTree = "<group>"; };
@@ -54,10 +59,13 @@
 		7B184252000811E5ACACA38B /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
 		7DF6A7D394A2D0829E50769F /* DemoModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModels.swift; sourceTree = "<group>"; };
 		81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthClient.swift; sourceTree = "<group>"; };
+		8FABDA5AA002D968B8801C21 /* GweiloIcon.icon */ = {isa = PBXFileReference; path = GweiloIcon.icon; sourceTree = "<group>"; };
 		926BC005373CE199C1266A45 /* SessionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailView.swift; sourceTree = "<group>"; };
 		9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		A3118FC902F9D393E9F67543 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComingSoonView.swift; sourceTree = "<group>"; };
-		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloLoadingView.swift; sourceTree = "<group>"; };
+		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthStore.swift; sourceTree = "<group>"; };
@@ -124,6 +132,7 @@
 			isa = PBXGroup;
 			children = (
 				ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */,
+				AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */,
 				4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */,
 			);
 			path = Shared;
@@ -202,9 +211,20 @@
 				04A0144C9CF40B9ECAF30026 /* DesignSystem */,
 				85B2FBAFA91AAC7FCF1E1A96 /* Features */,
 				7EC89615656677B025797A37 /* Models */,
+				D371E3EBA7E3922782D83E7F /* Resources */,
 				1E9891ABEC84B51223DB59B5 /* Services */,
 			);
 			path = Gweilo;
+			sourceTree = "<group>";
+		};
+		D371E3EBA7E3922782D83E7F /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A3118FC902F9D393E9F67543 /* Assets.xcassets */,
+				8FABDA5AA002D968B8801C21 /* GweiloIcon.icon */,
+				50BE1BBE42923C1E7EBBCE70 /* GweiloLoader.mp4 */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		EAEFCFAF5D05D1815F508F17 /* Home */ = {
@@ -223,6 +243,7 @@
 			buildConfigurationList = 5D6961C363C4DFDFB9104A96 /* Build configuration list for PBXNativeTarget "Gweilo" */;
 			buildPhases = (
 				40BEEA23F580F18C2331A9B3 /* Sources */,
+				775ED290DFD6028D20503CB0 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -263,6 +284,7 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					1C09AB1BFC29BDD6DE201954 = {
+						DevelopmentTeam = 5JKSYD4AUC;
 						ProvisioningStyle = Automatic;
 					};
 					9D1F11CCE208E190BC7E0CFF = {
@@ -281,6 +303,7 @@
 			);
 			mainGroup = AAEC06351FBB24F8423AE245;
 			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -289,6 +312,19 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		775ED290DFD6028D20503CB0 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				86BD73C990C5813C363CF084 /* Assets.xcassets in Resources */,
+				81AEEF5CD87CC4533B850FC1 /* GweiloIcon.icon in Resources */,
+				5E538D8615FAC95CD084862D /* GweiloLoader.mp4 in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		3D65861666EB2268D5C31844 /* Sources */ = {
@@ -311,6 +347,7 @@
 				FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */,
 				6088070E02E7E8AA9D32752E /* DemoModels.swift in Sources */,
 				D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */,
+				9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */,
 				1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */,
 				E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */,
 				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
@@ -340,7 +377,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = GweiloIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -422,7 +459,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = GweiloIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				DEVELOPMENT_TEAM = 5JKSYD4AUC;
 				GENERATE_INFOPLIST_FILE = NO;

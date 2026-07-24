@@ -39,6 +39,10 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import {
+	normalizePlayerID,
+	normalizePlayerIDs,
+} from "@/lib/sessions/player-id";
 import { t } from "@/lib/i18n";
 import {
 	CalculationTerminal,
@@ -567,7 +571,10 @@ function SessionPageContent() {
 			}
 
 			const playersData = await playersResponse.json();
-			return playersData.players as Player[];
+			return (playersData.players as Player[]).map((player) => ({
+				...player,
+				id: normalizePlayerID(player.id),
+			}));
 		},
 		[sessionId],
 	);
@@ -666,7 +673,12 @@ function SessionPageContent() {
 				}
 
 				const sessionRecord = sessionResult.data;
-				const matches = (matchesResult.data || []) as Match[];
+				const matches = ((matchesResult.data || []) as Match[]).map(
+					(match) => ({
+						...match,
+						player_ids: normalizePlayerIDs(match.player_ids),
+					}),
+				);
 
 				// Group matches by round_number
 				const matchesByRound = (matches || []).reduce(
@@ -1556,7 +1568,10 @@ function SessionPageContent() {
 							matchesError,
 						);
 					} else if (matchesData) {
-						allMatches = matchesData as Match[];
+						allMatches = (matchesData as Match[]).map((match) => ({
+							...match,
+							player_ids: normalizePlayerIDs(match.player_ids),
+						}));
 					}
 				}
 

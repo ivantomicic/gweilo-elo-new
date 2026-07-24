@@ -147,7 +147,7 @@ private struct SessionsContent: View {
 
     var body: some View {
         if dataStore.isLoading, dataStore.sessions.isEmpty {
-            ProgressView("Loading sessions…")
+            GweiloLoadingView("Loading sessions…")
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
         } else if let errorMessage = dataStore.errorMessage,
@@ -682,7 +682,7 @@ private struct SessionPlayersStep: View {
                 }
 
                 if isLoading {
-                    ProgressView("Loading players…")
+                    GweiloLoadingView("Loading players…")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 60)
                 } else {
@@ -803,7 +803,7 @@ private struct SessionReviewStep: View {
                         ScheduleRoundRow(round: round)
                     }
                 } else {
-                    ProgressView("Building schedule…")
+                    GweiloLoadingView("Building schedule…")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 60)
                 }

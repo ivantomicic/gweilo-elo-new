@@ -14,6 +14,7 @@ import {
 	type AtomicScore,
 } from "@/lib/elo/round-transaction";
 import { loadAtomicRatingInputs } from "@/lib/elo/round-transaction-loader";
+import { normalizePlayerIDs } from "@/lib/sessions/player-id";
 import { getAuthToken } from "../../../../../_utils/auth";
 
 type MatchScore = {
@@ -280,19 +281,23 @@ export async function POST(
 		}
 
 		// Fetch all matches for this round
-		const { data: matches, error: matchesError } = await adminClient
+		const { data: rawMatches, error: matchesError } = await adminClient
 			.from("session_matches")
 			.select("*")
 			.eq("session_id", sessionId)
 			.eq("round_number", roundNum)
 			.order("match_order", { ascending: true });
 
-		if (matchesError || !matches || matches.length === 0) {
+		if (matchesError || !rawMatches || rawMatches.length === 0) {
 			return NextResponse.json(
 				{ error: "No matches found for this round" },
 				{ status: 404 },
 			);
 		}
+		const matches = (rawMatches as SessionMatchRecord[]).map((match) => ({
+			...match,
+			player_ids: normalizePlayerIDs(match.player_ids),
+		}));
 
 		// Validate: All matches must be pending
 		const completedMatches = matches.filter(
