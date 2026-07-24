@@ -91,7 +91,7 @@ export async function GET(
 		}
 
 		const adminClient = createAdminClient();
-		const teamId = params.teamId;
+		const teamId = params.teamId.toLowerCase();
 
 		const [{ data: currentTeam, error: teamError }, { data: currentRating, error: ratingError }] =
 			await Promise.all([

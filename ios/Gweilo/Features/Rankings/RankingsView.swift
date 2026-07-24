@@ -999,7 +999,7 @@ private struct EloHistoryChart: View {
                 )
                 .foregroundStyle(GweiloTheme.accent)
                 .lineStyle(StrokeStyle(lineWidth: 2.5))
-                .interpolationMethod(.catmullRom)
+                .interpolationMethod(.monotone)
 
                 if point.id == history.points.last?.id {
                     PointMark(

@@ -842,11 +842,16 @@ struct GweiloAPIClient: Sendable {
     ) throws -> URLRequest {
         var components = URLComponents(
             url: configuration.apiBaseURL
-                .appending(path: "api/player/\(playerID.uuidString)/head-to-head"),
+                .appending(
+                    path: "api/player/\(playerID.uuidString.lowercased())/head-to-head"
+                ),
             resolvingAgainstBaseURL: false
         )
         components?.queryItems = [
-            URLQueryItem(name: "opponentId", value: opponentID.uuidString)
+            URLQueryItem(
+                name: "opponentId",
+                value: opponentID.uuidString.lowercased()
+            )
         ]
         guard let endpoint = components?.url else {
             throw BackendAPIError.invalidResponse
@@ -855,12 +860,14 @@ struct GweiloAPIClient: Sendable {
     }
 
     func makeDoublesTeamProfileRequest(teamID: UUID) -> URLRequest {
-        makeAuthenticatedRequest(path: "api/team/\(teamID.uuidString)")
+        makeAuthenticatedRequest(
+            path: "api/team/\(teamID.uuidString.lowercased())"
+        )
     }
 
     func makeDoublesTeamEloHistoryRequest(teamID: UUID) -> URLRequest {
         makeAuthenticatedRequest(
-            path: "api/team/\(teamID.uuidString)/elo-history"
+            path: "api/team/\(teamID.uuidString.lowercased())/elo-history"
         )
     }
 
@@ -928,7 +935,10 @@ struct GweiloAPIClient: Sendable {
             resolvingAgainstBaseURL: false
         )
         components?.queryItems = [
-            URLQueryItem(name: "playerId", value: playerID.uuidString)
+            URLQueryItem(
+                name: "playerId",
+                value: playerID.uuidString.lowercased()
+            )
         ]
         guard let endpoint = components?.url else {
             throw BackendAPIError.invalidResponse

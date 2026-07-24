@@ -57,10 +57,10 @@ export async function GET(request: NextRequest) {
 
 		// Get optional playerId from query parameters
 		const { searchParams } = new URL(request.url);
-		const requestedPlayerId = searchParams.get("playerId");
+		const requestedPlayerId = searchParams.get("playerId")?.toLowerCase();
 
 		// Use requested playerId if provided, otherwise use authenticated user's ID
-		const userId = requestedPlayerId || user.id;
+		const userId = requestedPlayerId || user.id.toLowerCase();
 
 		// Fetch all match Elo history entries where the user is player1_id or player2_id
 		const { data: eloHistory, error: historyError } = await supabase

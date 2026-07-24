@@ -294,6 +294,11 @@ No private credentials should be committed to this repository.
   Eligibility now comes from the authenticated server endpoint, so the iOS app
   applies both the 15-match minimum and 28-day activity rule. Kept each podium
   place linked to the existing reusable player profile.
+- 2026-07-24: Fixed player and doubles-team Elo charts and head-to-head loading.
+  UUIDs are now canonicalized before API requests and backend comparisons, so
+  history rows always use the selected player's or team's Elo rather than the
+  opponent's value. Replaced the overshooting Catmull-Rom chart curve with
+  monotone interpolation and added request/response regression tests.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

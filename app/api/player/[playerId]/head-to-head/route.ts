@@ -59,9 +59,9 @@ export async function GET(
 			);
 		}
 
-		const playerId = params.playerId;
+		const playerId = params.playerId.toLowerCase();
 		const { searchParams } = new URL(request.url);
-		const opponentId = searchParams.get("opponentId");
+		const opponentId = searchParams.get("opponentId")?.toLowerCase();
 
 		if (!opponentId) {
 			return NextResponse.json(

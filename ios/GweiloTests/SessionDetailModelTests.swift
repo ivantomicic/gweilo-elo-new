@@ -154,7 +154,9 @@ final class SessionDetailModelTests: XCTestCase {
 
     @MainActor
     func testPlayerHistoryRequestUsesAuthenticatedProductionRoute() throws {
-        let playerID = UUID()
+        let playerID = UUID(
+            uuidString: "ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB"
+        )!
         let configuration = AppConfiguration(
             supabaseURL: URL(string: "https://example.supabase.co")!,
             supabaseAnonKey: "public-anon-key",
@@ -173,7 +175,7 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(components.path, "/api/player/elo-history")
         XCTAssertEqual(
             components.queryItems?.first(where: { $0.name == "playerId" })?.value,
-            playerID.uuidString
+            playerID.uuidString.lowercased()
         )
         XCTAssertEqual(
             request.value(forHTTPHeaderField: "Authorization"),
@@ -195,8 +197,12 @@ final class SessionDetailModelTests: XCTestCase {
 
     @MainActor
     func testHeadToHeadRequestUsesBothPlayerIDs() throws {
-        let playerID = UUID()
-        let opponentID = UUID()
+        let playerID = UUID(
+            uuidString: "ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB"
+        )!
+        let opponentID = UUID(
+            uuidString: "FEDCBAFE-DCBA-FEDC-BAFE-DCBAFEDCBAFE"
+        )!
         let client = makeAPIClient()
 
         let request = try client.makeHeadToHeadRequest(
@@ -209,11 +215,11 @@ final class SessionDetailModelTests: XCTestCase {
 
         XCTAssertEqual(
             components.path,
-            "/api/player/\(playerID.uuidString)/head-to-head"
+            "/api/player/\(playerID.uuidString.lowercased())/head-to-head"
         )
         XCTAssertEqual(
             components.queryItems?.first(where: { $0.name == "opponentId" })?.value,
-            opponentID.uuidString
+            opponentID.uuidString.lowercased()
         )
         XCTAssertEqual(
             request.value(forHTTPHeaderField: "Authorization"),
@@ -222,8 +228,36 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testHeadToHeadResponseDecodesProductionFieldNames() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [HeadToHeadResponseURLProtocol.self]
+        let client = GweiloAPIClient(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "public-anon-key",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            accessToken: "member-access-token",
+            session: URLSession(configuration: configuration)
+        )
+
+        let result = try await client.fetchHeadToHead(
+            playerID: ivanID,
+            opponentID: garaID
+        )
+
+        XCTAssertEqual(result.player.name, "Ivan")
+        XCTAssertEqual(result.player.wins, 18)
+        XCTAssertEqual(result.player.setsWon, 67)
+        XCTAssertEqual(result.opponent.losses, 18)
+        XCTAssertEqual(result.totalMatches, 30)
+    }
+
+    @MainActor
     func testDoublesTeamRequestsUseAuthenticatedProductionRoutes() {
-        let teamID = UUID()
+        let teamID = UUID(
+            uuidString: "ABCDEFAB-CDEF-ABCD-EFAB-CDEFABCDEFAB"
+        )!
         let client = makeAPIClient()
 
         let profileRequest = client.makeDoublesTeamProfileRequest(teamID: teamID)
@@ -231,11 +265,11 @@ final class SessionDetailModelTests: XCTestCase {
 
         XCTAssertEqual(
             profileRequest.url?.path,
-            "/api/team/\(teamID.uuidString)"
+            "/api/team/\(teamID.uuidString.lowercased())"
         )
         XCTAssertEqual(
             historyRequest.url?.path,
-            "/api/team/\(teamID.uuidString)/elo-history"
+            "/api/team/\(teamID.uuidString.lowercased())/elo-history"
         )
         XCTAssertEqual(
             profileRequest.value(forHTTPHeaderField: "Authorization"),
@@ -441,4 +475,61 @@ final class SessionDetailModelTests: XCTestCase {
             rounds: []
         )
     }
+}
+
+private final class HeadToHeadResponseURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let body = """
+        {
+          "player1": {
+            "id": "00000000-0000-0000-0000-000000000001",
+            "display_name": "Ivan",
+            "avatar": null,
+            "elo": 1717.51,
+            "wins": 18,
+            "losses": 11,
+            "draws": 1,
+            "setsWon": 67,
+            "setsLost": 49
+          },
+          "player2": {
+            "id": "00000000-0000-0000-0000-000000000002",
+            "display_name": "Gara",
+            "avatar": null,
+            "elo": 1626.17,
+            "wins": 11,
+            "losses": 18,
+            "draws": 1,
+            "setsWon": 49,
+            "setsLost": 67
+          },
+          "totalMatches": 30
+        }
+        """
+        let data = Data(body.utf8)
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+
+        client?.urlProtocol(
+            self,
+            didReceive: response,
+            cacheStoragePolicy: .notAllowed
+        )
+        client?.urlProtocol(self, didLoad: data)
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
