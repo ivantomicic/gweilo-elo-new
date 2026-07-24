@@ -1837,19 +1837,6 @@ private extension EloPerformanceBand {
     }
 }
 
-private extension MatchOutcome {
-    var color: Color {
-        switch self {
-        case .win:
-            GweiloTheme.lime
-        case .loss:
-            GweiloTheme.coral
-        case .draw:
-            GweiloTheme.amber
-        }
-    }
-}
-
 struct ChartScrubPreviewScreen: View {
     private let history = PlayerEloHistory(
         points: [
@@ -2107,16 +2094,20 @@ private struct RecentMatchOutcomeBadge: View {
     }
 
     var body: some View {
-        Text(label)
-            .font(GweiloTheme.labelFont(size: 13, relativeTo: .caption))
-            .foregroundStyle(color)
-            .frame(width: 34, height: 34)
-            .background(color.opacity(0.12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 5)
-                    .stroke(color.opacity(0.42), lineWidth: 1)
-            }
-            .clipShape(.rect(cornerRadius: 5))
+        if let outcome {
+            MatchOutcomeBadge(outcome: outcome)
+        } else {
+            Text(label)
+                .font(GweiloTheme.labelFont(size: 13, relativeTo: .caption))
+                .foregroundStyle(color)
+                .frame(width: 34, height: 34)
+                .background(color.opacity(0.12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(color.opacity(0.42), lineWidth: 1)
+                }
+                .clipShape(.rect(cornerRadius: 5))
+        }
     }
 }
 

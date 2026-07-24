@@ -597,20 +597,18 @@ private struct ScoreboardMatch: View {
             : Array(match.playerIDs.dropFirst().prefix(1))
     }
 
-    private var teamOneWon: Bool {
-        guard
-            let teamOneScore = match.teamOneScore,
-            let teamTwoScore = match.teamTwoScore
-        else { return false }
-        return teamOneScore > teamTwoScore
+    private var teamOneOutcome: MatchOutcome? {
+        outcome(
+            score: match.teamOneScore,
+            opponentScore: match.teamTwoScore
+        )
     }
 
-    private var teamTwoWon: Bool {
-        guard
-            let teamOneScore = match.teamOneScore,
-            let teamTwoScore = match.teamTwoScore
-        else { return false }
-        return teamTwoScore > teamOneScore
+    private var teamTwoOutcome: MatchOutcome? {
+        outcome(
+            score: match.teamTwoScore,
+            opponentScore: match.teamOneScore
+        )
     }
 
     var body: some View {
@@ -635,7 +633,7 @@ private struct ScoreboardMatch: View {
             TeamScoreRow(
                 playerIDs: teamOneIDs,
                 score: match.teamOneScore,
-                isWinner: teamOneWon,
+                outcome: teamOneOutcome,
                 detail: detail
             )
 
@@ -645,7 +643,7 @@ private struct ScoreboardMatch: View {
             TeamScoreRow(
                 playerIDs: teamTwoIDs,
                 score: match.teamTwoScore,
-                isWinner: teamTwoWon,
+                outcome: teamTwoOutcome,
                 detail: detail
             )
         }
@@ -666,16 +664,30 @@ private struct ScoreboardMatch: View {
         }
         .accessibilityElement(children: .combine)
     }
+
+    private func outcome(
+        score: Int?,
+        opponentScore: Int?
+    ) -> MatchOutcome? {
+        guard let score, let opponentScore else { return nil }
+        if score > opponentScore { return .win }
+        if score < opponentScore { return .loss }
+        return .draw
+    }
 }
 
 private struct TeamScoreRow: View {
     let playerIDs: [UUID]
     let score: Int?
-    let isWinner: Bool
+    let outcome: MatchOutcome?
     let detail: SessionDetail
 
     private var teamName: String {
         playerIDs.map { detail.name(for: $0) }.joined(separator: " + ")
+    }
+
+    private var isWinner: Bool {
+        outcome == .win
     }
 
     var body: some View {
@@ -692,6 +704,10 @@ private struct TeamScoreRow: View {
                 .lineLimit(2)
 
             Spacer(minLength: 8)
+
+            if let outcome {
+                MatchOutcomeBadge(outcome: outcome)
+            }
 
             Text(score.map(String.init) ?? "—")
                 .font(GweiloTheme.displayFont(size: 31, relativeTo: .title2).monospacedDigit())

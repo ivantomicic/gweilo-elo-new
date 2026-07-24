@@ -1,13 +1,13 @@
 {
   "fill" : {
-    "automatic-gradient" : "display-p3:0.51644,0.00000,0.89969,1.00000"
+    "automatic-gradient" : "display-p3:0.06848,0.00000,0.11383,1.00000"
   },
   "groups" : [
     {
       "layers" : [
         {
-          "image-name" : "mascot-icon-clear-glass-foreground-1024.png",
-          "name" : "mascot-icon-clear-glass-foreground-1024"
+          "image-name" : "higgsfield-rally-impact-icon-composer-1024.png",
+          "name" : "higgsfield-rally-impact-icon-composer-1024"
         }
       ],
       "shadow" : {

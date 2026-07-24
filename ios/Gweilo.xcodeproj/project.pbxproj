@@ -35,6 +35,7 @@
 		E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24DACFB92DCB222E4F6075F /* HomeView.swift */; };
 		F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */; };
 		FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */; };
+		FDD5CB33EA3792E1AB6CB315 /* MatchOutcomeBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70068E15F92AF56CD3CA6C2 /* MatchOutcomeBadge.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -73,6 +74,7 @@
 		AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloLoadingView.swift; sourceTree = "<group>"; };
 		B8DBC3CFD3C7019804CD84D8 /* Gweilo.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Gweilo.entitlements; sourceTree = "<group>"; };
 		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D70068E15F92AF56CD3CA6C2 /* MatchOutcomeBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchOutcomeBadge.swift; sourceTree = "<group>"; };
 		E0A27FBB6BA961B030145968 /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModelsTests.swift; sourceTree = "<group>"; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 			isa = PBXGroup;
 			children = (
 				5228EA448D3385CA3C87F404 /* GweiloTheme.swift */,
+				D70068E15F92AF56CD3CA6C2 /* MatchOutcomeBadge.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -378,6 +381,7 @@
 				9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */,
 				1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */,
 				E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */,
+				FDD5CB33EA3792E1AB6CB315 /* MatchOutcomeBadge.swift in Sources */,
 				92F1BDB8E8BFF855BA726198 /* NotificationModels.swift in Sources */,
 				C04A0434CFBFF3FE50EDB5BF /* NotificationSettingsSection.swift in Sources */,
 				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
