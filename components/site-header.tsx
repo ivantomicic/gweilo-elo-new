@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useWebHaptics } from "web-haptics/react";
 import { Separator } from "@/components/vendor/shadcn/separator";
@@ -46,7 +47,45 @@ export function SiteHeader({
 }) {
 	const pathname = usePathname();
 	const { trigger } = useWebHaptics();
-	const { role } = useAuth();
+	const { role, session } = useAuth();
+	const [canStartSession, setCanStartSession] = useState(false);
+
+	useEffect(() => {
+		if (
+			!session ||
+			(role !== "admin" && role !== "mod")
+		) {
+			setCanStartSession(false);
+			return;
+		}
+
+		let cancelled = false;
+		const checkActiveSession = async () => {
+			try {
+				const response = await fetch("/api/sessions/active", {
+					headers: {
+						Authorization: `Bearer ${session.access_token}`,
+					},
+					cache: "no-store",
+				});
+				const body = response.ok
+					? ((await response.json()) as {
+							session?: { id: string } | null;
+					  })
+					: null;
+				if (!cancelled) {
+					setCanStartSession(response.ok && !body?.session);
+				}
+			} catch {
+				if (!cancelled) setCanStartSession(false);
+			}
+		};
+
+		void checkActiveSession();
+		return () => {
+			cancelled = true;
+		};
+	}, [role, session]);
 
 	const handleActionClick = () => {
 		void trigger();
@@ -59,7 +98,7 @@ export function SiteHeader({
 	// Show default "Start Session" button for admins and mods
 	const showDefaultAction =
 		!hasCustomAction &&
-		(role === "admin" || role === "mod") &&
+		canStartSession &&
 		!isStartSessionRoute;
 	// Only show button area if there's something to show
 	const showActionButton = hasCustomAction || showDefaultAction;

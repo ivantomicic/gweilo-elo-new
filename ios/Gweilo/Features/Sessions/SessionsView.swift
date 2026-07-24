@@ -15,6 +15,7 @@ struct SessionsView: View {
                     LazyVStack(alignment: .leading, spacing: 26) {
                         SessionsHeader(
                             isLoading: dataStore.isLoading,
+                            canStartSession: dataStore.canStartNewSession,
                             startSession: { showsStartSession = true },
                             refresh: {
                                 Task { await dataStore.load() }
@@ -58,6 +59,7 @@ struct SessionsView: View {
 }
 private struct SessionsHeader: View {
     let isLoading: Bool
+    let canStartSession: Bool
     let startSession: () -> Void
     let refresh: () -> Void
 
@@ -88,14 +90,16 @@ private struct SessionsHeader: View {
             Spacer()
 
             HStack(spacing: 10) {
-                Button(action: startSession) {
-                    Image(systemName: "plus")
-                        .font(.subheadline.weight(.bold))
-                        .frame(width: 42, height: 42)
+                if canStartSession {
+                    Button(action: startSession) {
+                        Image(systemName: "plus")
+                            .font(.subheadline.weight(.bold))
+                            .frame(width: 42, height: 42)
+                    }
+                    .buttonStyle(.plain)
+                    .modifier(RefreshButtonSurface())
+                    .accessibilityLabel("Start a session")
                 }
-                .buttonStyle(.plain)
-                .modifier(RefreshButtonSurface())
-                .accessibilityLabel("Start a session")
 
                 Button(action: refresh) {
                     Image(systemName: "arrow.clockwise")
@@ -353,7 +357,11 @@ struct StartSessionView: View {
                     case .review:
                         SessionReviewStep(
                             draft: draft,
-                            preview: preview
+                            preview: preview,
+                            isRandomizing: isPreparingSchedule,
+                            randomize: {
+                                Task { await prepareSchedule(showReview: false) }
+                            }
                         )
                     }
                 }
@@ -457,25 +465,31 @@ struct StartSessionView: View {
         }
     }
 
-    private func prepareSchedule() async {
+    private func prepareSchedule(showReview: Bool = true) async {
         isPreparingSchedule = true
         defer { isPreparingSchedule = false }
         do {
             preview = try await dataStore.previewSession(
-                players: draft.selectedPlayers,
+                players: draft.selectedPlayers.shuffled(),
                 format: draft.fourPlayerFormat
             )
-            withAnimation(.smooth) { step = .review }
+            if showReview {
+                withAnimation(.smooth) { step = .review }
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
     private func createSession() async {
+        guard let preview else { return }
         isCreating = true
         defer { isCreating = false }
         do {
-            let session = try await dataStore.createSession(from: draft)
+            let session = try await dataStore.createSession(
+                from: draft,
+                preview: preview
+            )
             onCreated(session)
             dismiss()
         } catch {
@@ -545,20 +559,6 @@ private struct SessionSetupStep: View {
                     title: "SET THE TABLE"
                 )
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("When")
-                        .font(.headline)
-
-                    DatePicker(
-                        "Session time",
-                        selection: $draft.scheduledAt,
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
-                    .datePickerStyle(.compact)
-                    .labelsHidden()
-                    .tint(GweiloTheme.lime)
-                }
-
                 VStack(alignment: .leading, spacing: 14) {
                     Text("How many players?")
                         .font(.headline)
@@ -620,8 +620,8 @@ private struct SessionSetupStep: View {
                 }
 
                 SessionCreationNote(
-                    icon: "point.3.filled.connected.trianglepath.dotted",
-                    text: "The server builds the same official Gweilo schedule used by the web app."
+                    icon: "play.fill",
+                    text: "The session starts immediately. The server builds the same randomized Gweilo schedule used by the web app."
                 )
             }
             .padding(20)
@@ -650,7 +650,7 @@ private struct SessionPlayersStep: View {
             LazyVStack(alignment: .leading, spacing: 18) {
                 SessionCreationEyebrow(
                     number: "02",
-                    title: "PICK IN PLAYING ORDER"
+                    title: "CHOOSE THE PLAYERS"
                 )
 
                 HStack(spacing: 10) {
@@ -674,10 +674,11 @@ private struct SessionPlayersStep: View {
                 .frame(height: 46)
                 .flatSurface(cornerRadius: 4)
 
-                if draft.playerCount == 6 {
-                    SixPlayerTeamsPreview(players: draft.selectedPlayers)
-                } else if !draft.selectedPlayers.isEmpty {
-                    SelectedPlayersStrip(players: draft.selectedPlayers)
+                if !draft.selectedPlayers.isEmpty {
+                    SessionCreationNote(
+                        icon: "shuffle",
+                        text: "\(draft.selectedPlayers.count) selected. Order does not matter; teams and schedule are randomized next."
+                    )
                 }
 
                 if isLoading {
@@ -688,9 +689,7 @@ private struct SessionPlayersStep: View {
                     ForEach(filteredPlayers) { player in
                         PlayerSelectionRow(
                             player: player,
-                            selectionNumber: draft.selectionNumber(
-                                for: player.id
-                            ),
+                            isSelected: draft.selectionNumber(for: player.id) != nil,
                             isFull: draft.selectedPlayers.count >= draft.playerCount,
                             action: { draft.toggle(player) }
                         )
@@ -706,7 +705,7 @@ private struct SessionPlayersStep: View {
 
 private struct PlayerSelectionRow: View {
     let player: SessionCreationPlayer
-    let selectionNumber: Int?
+    let isSelected: Bool
     let isFull: Bool
     let action: () -> Void
 
@@ -733,9 +732,9 @@ private struct PlayerSelectionRow: View {
 
                 Spacer()
 
-                if let selectionNumber {
-                    Text("\(selectionNumber)")
-                        .font(.subheadline.monospacedDigit().weight(.black))
+                if isSelected {
+                    Image(systemName: "checkmark")
+                        .font(.subheadline.weight(.black))
                         .foregroundStyle(GweiloTheme.background)
                         .frame(width: 30, height: 30)
                         .background(GweiloTheme.lime, in: .circle)
@@ -748,81 +747,24 @@ private struct PlayerSelectionRow: View {
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
-        .disabled(isFull && selectionNumber == nil)
-        .opacity(isFull && selectionNumber == nil ? 0.42 : 1)
+        .disabled(isFull && !isSelected)
+        .opacity(isFull && !isSelected ? 0.42 : 1)
         .overlay(alignment: .bottom) {
             Divider()
         }
         .accessibilityLabel(
-            selectionNumber.map {
-                "\(player.name), selected number \($0)"
-            } ?? "\(player.name), not selected"
+            isSelected
+                ? "\(player.name), selected"
+                : "\(player.name), not selected"
         )
-    }
-}
-
-private struct SelectedPlayersStrip: View {
-    let players: [SessionCreationPlayer]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("ORDER")
-                .font(.caption2.weight(.bold))
-                .tracking(1.3)
-                .foregroundStyle(GweiloTheme.lime)
-            Text(
-                players.enumerated().map {
-                    "\($0.offset + 1). \($0.element.name)"
-                }.joined(separator: "  ·  ")
-            )
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .flatSurface(cornerRadius: 4)
-    }
-}
-
-private struct SixPlayerTeamsPreview: View {
-    let players: [SessionCreationPlayer]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ForEach(Array(["A", "B", "C"].enumerated()), id: \.element) {
-                index, team in
-                let members = Array(
-                    players.dropFirst(index * 2).prefix(2)
-                )
-                HStack {
-                    Text("TEAM \(team)")
-                        .font(.caption2.weight(.black))
-                        .tracking(1)
-                        .foregroundStyle(
-                            index == 0 ? GweiloTheme.lime : GweiloTheme.accentBright
-                        )
-                        .frame(width: 62, alignment: .leading)
-
-                    Text(
-                        members.isEmpty
-                            ? "Waiting for two players"
-                            : members.map(\.name).joined(separator: " + ")
-                    )
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(members.isEmpty ? .tertiary : .primary)
-                }
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .flatSurface(cornerRadius: 4)
-        .accessibilityElement(children: .combine)
     }
 }
 
 private struct SessionReviewStep: View {
     let draft: SessionCreationDraft
     let preview: SessionSchedulePreview?
+    let isRandomizing: Bool
+    let randomize: () -> Void
 
     var body: some View {
         ScrollView {
@@ -835,15 +777,28 @@ private struct SessionReviewStep: View {
                 HStack(spacing: 0) {
                     ReviewMetric(value: "\(draft.playerCount)", label: "PLAYERS")
                     ReviewMetric(value: "\(preview?.rounds.count ?? 0)", label: "ROUNDS")
-                    ReviewMetric(
-                        value: draft.scheduledAt.formatted(
-                            .dateTime.hour().minute()
-                        ),
-                        label: "START"
-                    )
+                    ReviewMetric(value: "NOW", label: "START")
                 }
 
                 if let preview {
+                    Button(action: randomize) {
+                        Label(
+                            isRandomizing ? "Randomizing…" : "Randomize schedule",
+                            systemImage: "shuffle"
+                        )
+                        .font(.subheadline.weight(.bold))
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(GweiloTheme.lime)
+                    .overlay {
+                        Rectangle()
+                            .stroke(GweiloTheme.lime.opacity(0.5), lineWidth: 1)
+                    }
+                    .disabled(isRandomizing)
+                    .accessibilityHint("Builds a different randomized schedule")
+
                     ForEach(preview.rounds) { round in
                         ScheduleRoundRow(round: round)
                     }

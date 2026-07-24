@@ -369,9 +369,28 @@ private struct SessionPlayerPayload: Encodable {
 }
 
 private struct SessionCreationRequest: Encodable {
+    let playerCount: Int
     let players: [SessionPlayerPayload]
-    let createdAt: String?
+    let rounds: [SessionScheduleRound]?
     let fourPlayerFormat: FourPlayerSessionFormat
+}
+
+private struct ActiveSessionResponse: Decodable {
+    struct ActiveSession: Decodable {
+        let id: UUID
+    }
+
+    let session: ActiveSession?
+}
+
+private struct CancelSessionResponse: Decodable {
+    let success: Bool
+    let cancelledSessionId: UUID
+}
+
+private struct ForceCloseSessionResponse: Decodable {
+    let success: Bool
+    let message: String?
 }
 
 private struct PlayerEloHistoryPointResponse: Decodable {
@@ -761,12 +780,46 @@ struct GweiloAPIClient: Sendable {
     }
 
     func createSession(
-        from draft: SessionCreationDraft
+        from draft: SessionCreationDraft,
+        preview: SessionSchedulePreview
     ) async throws -> CreatedSessionResult {
-        let request = try makeCreateSessionRequest(from: draft)
+        let request = try makeCreateSessionRequest(
+            from: draft,
+            preview: preview
+        )
         return try await perform(
             request,
             fallbackMessage: "Could not create this session."
+        )
+    }
+
+    func fetchActiveSessionID() async throws -> UUID? {
+        let response: ActiveSessionResponse = try await perform(
+            makeAuthenticatedRequest(path: "api/sessions/active"),
+            fallbackMessage: "Could not check the active session."
+        )
+        return response.session?.id
+    }
+
+    func cancelSession(sessionID: UUID) async throws {
+        var request = makeAuthenticatedRequest(
+            path: "api/sessions/\(sessionID.uuidString.lowercased())/cancel"
+        )
+        request.httpMethod = "POST"
+        let _: CancelSessionResponse = try await perform(
+            request,
+            fallbackMessage: "Could not cancel this session."
+        )
+    }
+
+    func forceCloseSession(sessionID: UUID) async throws {
+        var request = makeAuthenticatedRequest(
+            path: "api/sessions/\(sessionID.uuidString.lowercased())/force-close"
+        )
+        request.httpMethod = "POST"
+        let _: ForceCloseSessionResponse = try await perform(
+            request,
+            fallbackMessage: "Could not force-close this session."
         )
     }
 
@@ -791,20 +844,26 @@ struct GweiloAPIClient: Sendable {
         try makeSessionCreationRequest(
             path: "api/sessions/preview",
             players: players,
-            createdAt: nil,
+            rounds: nil,
             format: format
         )
     }
 
     func makeCreateSessionRequest(
-        from draft: SessionCreationDraft
+        from draft: SessionCreationDraft,
+        preview: SessionSchedulePreview
     ) throws -> URLRequest {
-        try makeSessionCreationRequest(
+        var request = try makeSessionCreationRequest(
             path: "api/sessions",
-            players: draft.selectedPlayers,
-            createdAt: ISO8601DateFormatter().string(from: draft.scheduledAt),
+            players: preview.players,
+            rounds: preview.rounds,
             format: draft.fourPlayerFormat
         )
+        request.setValue(
+            draft.idempotencyKey.uuidString.lowercased(),
+            forHTTPHeaderField: "Idempotency-Key"
+        )
+        return request
     }
 
     func makeHeadToHeadRequest(
@@ -961,7 +1020,7 @@ struct GweiloAPIClient: Sendable {
     private func makeSessionCreationRequest(
         path: String,
         players: [SessionCreationPlayer],
-        createdAt: String?,
+        rounds: [SessionScheduleRound]?,
         format: FourPlayerSessionFormat
     ) throws -> URLRequest {
         var request = makeAuthenticatedRequest(path: path)
@@ -969,6 +1028,7 @@ struct GweiloAPIClient: Sendable {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(
             SessionCreationRequest(
+                playerCount: players.count,
                 players: players.map {
                     SessionPlayerPayload(
                         id: $0.id,
@@ -976,7 +1036,7 @@ struct GweiloAPIClient: Sendable {
                         avatar: $0.avatarURL?.absoluteString
                     )
                 },
-                createdAt: createdAt,
+                rounds: rounds,
                 fourPlayerFormat: format
             )
         )

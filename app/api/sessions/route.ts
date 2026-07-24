@@ -1,131 +1,101 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { getAuthToken } from "../_utils/auth";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import {
+	buildAtomicSessionPayload,
+	isValidIdempotencyKey,
+	type SessionCreationBody,
+	validateSessionCreation,
+} from "@/lib/sessions/creation";
 import {
 	generateSchedule,
 	getSixPlayerCandidateTeams,
-	type FourPlayerFormat,
 } from "@/lib/sessions/schedule";
 import {
 	getPreferredRound5SinglesTeam,
 	loadRecentRound5SinglesPairs,
 } from "@/lib/sessions/round5-team";
+import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const dynamic = "force-dynamic";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-	throw new Error("Missing Supabase environment variables");
-}
-
-type Player = {
-	id: string;
-	name: string;
-	avatar: string | null;
-};
-
-type Match = {
-	type: "singles" | "doubles";
-	players: Player[];
-};
-
-type Round = {
-	id: string;
-	roundNumber: number;
-	matches: Match[];
-	restingPlayers?: Player[];
+type AtomicCreationResult = {
+	state: "created" | "replayed" | "active_exists";
+	sessionId: string;
 };
 
 /**
  * POST /api/sessions
  *
- * Create a new session with players and matches
- *
- * Security:
- * - Requires authentication
- * - RLS policies enforce that users can only create sessions they own
- *
- * Request body:
- * {
- *   playerCount: number,
- *   players: Player[],
- *   rounds: Round[],
- *   createdAt?: string (ISO 8601 timestamp, optional)
- * }
+ * Creates and immediately starts a session. Custom/future dates are not
+ * supported. Mods and admins only. The database atomically inserts the session,
+ * players, matches, and idempotency record while enforcing one active session.
  */
 export async function POST(request: NextRequest) {
 	try {
-		// Get JWT token from Authorization header
-		const token = getAuthToken(request);
-		if (!token) {
+		const auth = await verifyUser(request.headers.get("authorization"));
+		if (!auth) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ status: 401 },
+			);
+		}
+		if (auth.role !== "admin" && auth.role !== "mod") {
+			return NextResponse.json(
+				{ error: "Only admins and mods can start sessions." },
+				{ status: 403 },
 			);
 		}
 
-		// Create Supabase client with user's JWT token (so RLS works correctly)
-		const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
-			global: {
-				headers: {
-					Authorization: `Bearer ${token}`,
-				},
-			},
-		});
-
-		// Verify user is authenticated
-		const {
-			data: { user },
-			error: userError,
-		} = await supabase.auth.getUser(token);
-
-		if (userError || !user) {
+		const idempotencyKey = request.headers.get("idempotency-key");
+		if (!isValidIdempotencyKey(idempotencyKey)) {
 			return NextResponse.json(
-				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 }
+				{ error: "A valid Idempotency-Key header is required." },
+				{ status: 400 },
 			);
 		}
 
-		// Parse request body
-		const body = (await request.json()) as {
-			playerCount?: number;
-			players?: Player[];
-			rounds?: Round[];
-			createdAt?: string;
-			fourPlayerFormat?: FourPlayerFormat;
-		};
+		const body = (await request.json()) as SessionCreationBody;
+		if (body.createdAt !== undefined) {
+			return NextResponse.json(
+				{ error: "Custom session dates are not supported." },
+				{ status: 400 },
+			);
+		}
+
 		const players = body.players ?? [];
 		const playerCount = body.playerCount ?? players.length;
-		const createdAt = body.createdAt;
 		let rounds = body.rounds;
+		const adminClient = createAdminClient();
 
-		// Validate required fields
-		if (!playerCount || players.length === 0) {
-			return NextResponse.json(
-				{ error: "Missing required field: players" },
-				{ status: 400 }
-			);
+		const { data: replay } = await adminClient
+			.from("session_creation_requests")
+			.select("session_id")
+			.eq("created_by", auth.userId)
+			.eq("idempotency_key", idempotencyKey)
+			.maybeSingle();
+		if (replay?.session_id) {
+			return NextResponse.json({
+				sessionId: replay.session_id,
+				message: "Session already created successfully",
+				rounds: rounds ?? [],
+				replayed: true,
+			});
 		}
 
-		if (playerCount < 2 || playerCount > 6) {
+		const { data: activeSession } = await adminClient
+			.from("sessions")
+			.select("id")
+			.eq("status", "active")
+			.order("created_at", { ascending: false })
+			.limit(1)
+			.maybeSingle();
+		if (activeSession) {
 			return NextResponse.json(
-				{ error: "Player count must be between 2 and 6" },
-				{ status: 400 },
-			);
-		}
-
-		if (players.length !== playerCount) {
-			return NextResponse.json(
-				{ error: "Player count mismatch: players array length does not match playerCount" },
-				{ status: 400 }
-			);
-		}
-
-		if (new Set(players.map((player) => player.id)).size !== playerCount) {
-			return NextResponse.json(
-				{ error: "Each selected player must be unique" },
-				{ status: 400 },
+				{
+					error: "A session is already active.",
+					activeSessionId: activeSession.id,
+				},
+				{ status: 409 },
 			);
 		}
 
@@ -134,227 +104,79 @@ export async function POST(request: NextRequest) {
 			const candidateTeams = getSixPlayerCandidateTeams(players);
 			if (candidateTeams) {
 				const recentPairs = await loadRecentRound5SinglesPairs(
-					supabase,
-					user.id,
+					adminClient,
+					auth.userId,
 				);
 				sixPlayerRound5SinglesTeam = getPreferredRound5SinglesTeam(
 					candidateTeams,
 					recentPairs,
 				);
 			}
-
 			rounds = generateSchedule(players, {
 				fourPlayerFormat: body.fourPlayerFormat,
 				sixPlayerRound5SinglesTeam,
 			});
 		}
 
-		if (rounds.length === 0) {
+		const validationError = validateSessionCreation({
+			players,
+			rounds,
+			playerCount,
+		});
+		if (validationError) {
 			return NextResponse.json(
-				{ error: "Rounds array cannot be empty" },
-				{ status: 400 }
+				{ error: validationError },
+				{ status: 400 },
 			);
 		}
 
-		// Determine team assignments for doubles mode (6 players)
-		// Teams are assigned based on selection order: first 2 = A, next 2 = B, last 2 = C
-		const getTeamForPlayer = (playerIndex: number): string | null => {
-			if (playerCount !== 6) return null;
-			if (playerIndex < 2) return "A";
-			if (playerIndex < 4) return "B";
-			return "C";
-		};
-
-		// Step 1: Create session
-		const sessionData: {
-			player_count: number;
-			created_by: string;
-			created_at?: string;
-		} = {
-			player_count: playerCount,
-			created_by: user.id,
-		};
-
-		// If createdAt is provided, use it (otherwise database will use DEFAULT NOW())
-		if (createdAt) {
-			sessionData.created_at = createdAt;
-		}
-
-		const { data: session, error: sessionError } = await supabase
-			.from("sessions")
-			.insert(sessionData)
-			.select()
-			.single();
-
-		if (sessionError) {
-			console.error("Error creating session:", sessionError);
+		const atomicPayload = await buildAtomicSessionPayload({
+			players,
+			rounds,
+			resolveTeam: getOrCreateDoubleTeam,
+		});
+		const { data, error } = await adminClient.rpc("create_session_atomic", {
+			p_created_by: auth.userId,
+			p_idempotency_key: idempotencyKey,
+			p_players: atomicPayload.players,
+			p_matches: atomicPayload.matches,
+		});
+		if (error) {
+			console.error("Atomic session creation failed:", error);
 			return NextResponse.json(
-				{ error: "Failed to create session" },
-				{ status: 500 }
+				{ error: "Failed to create session." },
+				{ status: 500 },
 			);
 		}
 
-		const sessionId = session.id;
-
-		// Step 2: Insert session players
-		const sessionPlayersData = players.map((player, index) => ({
-			session_id: sessionId,
-			player_id: player.id,
-			team: getTeamForPlayer(index),
-		}));
-
-		const { error: playersError } = await supabase
-			.from("session_players")
-			.insert(sessionPlayersData);
-
-		if (playersError) {
-			console.error("Error inserting session players:", playersError);
-			// Clean up session if players insert fails
-			await supabase.from("sessions").delete().eq("id", sessionId);
+		const result = data as AtomicCreationResult;
+		if (result.state === "active_exists") {
 			return NextResponse.json(
-				{ error: "Failed to create session players" },
-				{ status: 500 }
+				{
+					error: "A session is already active.",
+					activeSessionId: result.sessionId,
+				},
+				{ status: 409 },
 			);
 		}
 
-		// Step 3: Create/get double teams for 6-player sessions (if needed)
-		const teamMap = new Map<string, string>(); // Maps "player1_id-player2_id" to team_id
-
-		if (playerCount === 6) {
-			// For 6-player sessions, create/get teams for all doubles matches
-			// Teams are: [0,1], [2,3], [4,5]
-			const teamPairs = [
-				[players[0].id, players[1].id],
-				[players[2].id, players[3].id],
-				[players[4].id, players[5].id],
-			];
-
-			for (const [p1, p2] of teamPairs) {
-				const teamKey = p1 < p2 ? `${p1}-${p2}` : `${p2}-${p1}`;
-				if (!teamMap.has(teamKey)) {
-					try {
-						const teamId = await getOrCreateDoubleTeam(p1, p2);
-						teamMap.set(teamKey, teamId);
-					} catch (error) {
-						console.error("Error creating double team:", error);
-						// Clean up session
-						await supabase.from("sessions").delete().eq("id", sessionId);
-						return NextResponse.json(
-							{ error: "Failed to create double teams" },
-							{ status: 500 }
-						);
-					}
-				}
-			}
-		}
-
-		// Step 4: Insert matches directly (no rounds table needed)
-		// Flatten all matches from all rounds into a single array
-		const allMatchesData: Array<{
-			session_id: string;
-			round_number: number;
-			match_type: string;
-			match_order: number;
-			player_ids: string[];
-			team_1_id?: string | null;
-			team_2_id?: string | null;
-		}> = [];
-
-		for (const round of rounds) {
-			for (let matchIndex = 0; matchIndex < round.matches.length; matchIndex++) {
-				const match = round.matches[matchIndex];
-				const playerIds = match.players.map((p) => p.id);
-
-				const matchData: {
-					session_id: string;
-					round_number: number;
-					match_type: string;
-					match_order: number;
-					player_ids: string[];
-					team_1_id?: string | null;
-					team_2_id?: string | null;
-				} = {
-					session_id: sessionId,
-					round_number: round.roundNumber,
-					match_type: match.type,
-					match_order: matchIndex,
-					player_ids: playerIds,
-				};
-
-				// For doubles matches, add team IDs
-				if (match.type === "doubles" && playerIds.length === 4) {
-					// Team 1: playerIds[0] + playerIds[1]
-					// Team 2: playerIds[2] + playerIds[3]
-					const team1Key =
-						playerIds[0] < playerIds[1]
-							? `${playerIds[0]}-${playerIds[1]}`
-							: `${playerIds[1]}-${playerIds[0]}`;
-					const team2Key =
-						playerIds[2] < playerIds[3]
-							? `${playerIds[2]}-${playerIds[3]}`
-							: `${playerIds[3]}-${playerIds[2]}`;
-
-					// Get or create teams for doubles matches
-					try {
-						// Check cache first
-						let team1Id = teamMap.get(team1Key);
-						let team2Id = teamMap.get(team2Key);
-
-						// Create if not in cache
-						if (!team1Id) {
-							team1Id = await getOrCreateDoubleTeam(playerIds[0], playerIds[1]);
-							teamMap.set(team1Key, team1Id);
-						}
-						if (!team2Id) {
-							team2Id = await getOrCreateDoubleTeam(playerIds[2], playerIds[3]);
-							teamMap.set(team2Key, team2Id);
-						}
-
-						matchData.team_1_id = team1Id;
-						matchData.team_2_id = team2Id;
-					} catch (error) {
-						console.error("Error creating double team for match:", error);
-						// Clean up session
-						await supabase.from("sessions").delete().eq("id", sessionId);
-						return NextResponse.json(
-							{ error: "Failed to create double teams for match" },
-							{ status: 500 }
-						);
-					}
-				}
-
-				allMatchesData.push(matchData);
-			}
-		}
-
-		const { error: matchesError } = await supabase
-			.from("session_matches")
-			.insert(allMatchesData);
-
-		if (matchesError) {
-			console.error("Error inserting matches:", matchesError);
-			// Clean up on error (cascade deletes will handle related records)
-			await supabase.from("sessions").delete().eq("id", sessionId);
-			return NextResponse.json(
-				{ error: "Failed to create matches" },
-				{ status: 500 }
-			);
-		}
-
-		// Success - return session ID
 		return NextResponse.json(
 			{
-				sessionId: sessionId,
-				message: "Session created successfully",
+				sessionId: result.sessionId,
+				message:
+					result.state === "replayed"
+						? "Session already created successfully"
+						: "Session created successfully",
 				rounds,
+				replayed: result.state === "replayed",
 			},
-			{ status: 201 }
+			{ status: result.state === "created" ? 201 : 200 },
 		);
 	} catch (error) {
 		console.error("Unexpected error in POST /api/sessions:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 }
+			{ status: 500 },
 		);
 	}
 }

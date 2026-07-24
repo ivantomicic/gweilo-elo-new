@@ -216,6 +216,37 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionManagementRoleComesFromSupabaseAppMetadata() throws {
+        let moderatorJSON = """
+        {
+          "id": "00000000-0000-4000-8000-000000000001",
+          "email": "mod@example.com",
+          "app_metadata": { "role": "mod", "roles": ["mod"] }
+        }
+        """
+        let memberJSON = """
+        {
+          "id": "00000000-0000-4000-8000-000000000002",
+          "email": "member@example.com",
+          "app_metadata": { "role": "user" }
+        }
+        """
+
+        let moderator = try JSONDecoder().decode(
+            AuthenticatedUser.self,
+            from: Data(moderatorJSON.utf8)
+        )
+        let member = try JSONDecoder().decode(
+            AuthenticatedUser.self,
+            from: Data(memberJSON.utf8)
+        )
+
+        XCTAssertTrue(moderator.canManageSessions)
+        XCTAssertFalse(moderator.isAdmin)
+        XCTAssertFalse(member.canManageSessions)
+    }
+
+    @MainActor
     func testRoundSubmissionRequestCarriesWholeRoundToProductionAPI() throws {
         let sessionID = UUID()
         let matches = makeMatches()
@@ -483,41 +514,65 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
-    func testCreateSessionRequestSendsIntentWithoutClientSchedule() throws {
+    func testCreateSessionRequestSendsPreviewedScheduleAndIdempotencyKey() throws {
         var draft = SessionCreationDraft()
         draft.setPlayerCount(2)
-        draft.scheduledAt = Date(timeIntervalSince1970: 1_800_000_000)
-        draft.toggle(
-            SessionCreationPlayer(
-                id: ivanID,
-                name: "Ivan",
-                avatarURL: URL(string: "https://example.com/ivan.jpg"),
-                elo: 1_700
-            )
+        let ivan = SessionCreationPlayer(
+            id: ivanID,
+            name: "Ivan",
+            avatarURL: URL(string: "https://example.com/ivan.jpg"),
+            elo: 1_700
         )
-        draft.toggle(
-            SessionCreationPlayer(
-                id: garaID,
-                name: "Gara",
-                avatarURL: nil,
-                elo: 1_600
-            )
+        let gara = SessionCreationPlayer(
+            id: garaID,
+            name: "Gara",
+            avatarURL: nil,
+            elo: 1_600
+        )
+        draft.toggle(ivan)
+        draft.toggle(gara)
+        let preview = SessionSchedulePreview(
+            playerCount: 2,
+            players: [gara, ivan],
+            rounds: [
+                SessionScheduleRound(
+                    id: "1",
+                    roundNumber: 1,
+                    matches: [
+                        SessionScheduleMatch(
+                            type: .singles,
+                            players: [gara, ivan]
+                        )
+                    ],
+                    isDynamic: nil
+                )
+            ],
+            fourPlayerFormat: .mixed
         )
 
-        let request = try makeAPIClient().makeCreateSessionRequest(from: draft)
+        let request = try makeAPIClient().makeCreateSessionRequest(
+            from: draft,
+            preview: preview
+        )
         let body = try XCTUnwrap(request.httpBody)
         let json = try XCTUnwrap(
             JSONSerialization.jsonObject(with: body) as? [String: Any]
         )
         let players = try XCTUnwrap(json["players"] as? [[String: Any]])
+        let rounds = try XCTUnwrap(json["rounds"] as? [[String: Any]])
 
         XCTAssertEqual(request.url?.path, "/api/sessions")
         XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Idempotency-Key"),
+            draft.idempotencyKey.uuidString.lowercased()
+        )
         XCTAssertEqual(json["fourPlayerFormat"] as? String, "mixed")
-        XCTAssertNil(json["rounds"])
+        XCTAssertNil(json["createdAt"])
+        XCTAssertEqual(rounds.count, 1)
         XCTAssertEqual(players.map { $0["id"] as? String }, [
-            ivanID.uuidString,
-            garaID.uuidString
+            garaID.uuidString,
+            ivanID.uuidString
         ])
     }
 
@@ -542,7 +597,7 @@ final class SessionDetailModelTests: XCTestCase {
     func testCreatedSessionSummaryCanOpenBeforeRefreshCompletes() {
         var draft = SessionCreationDraft()
         draft.setPlayerCount(3)
-        draft.scheduledAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let startedAt = Date.now
         let result = CreatedSessionResult(
             sessionId: UUID(),
             message: "Created",
@@ -575,7 +630,8 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(summary.currentRound, 1)
         XCTAssertEqual(summary.totalRounds, 3)
         XCTAssertEqual(summary.status, .active)
-        XCTAssertEqual(summary.createdAt, draft.scheduledAt)
+        XCTAssertGreaterThanOrEqual(summary.createdAt, startedAt)
+        XCTAssertLessThanOrEqual(summary.createdAt, .now)
     }
 
     private func makeMatches() -> [SessionMatch] {

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { SessionCreationGuard } from "@/components/auth/session-creation-guard";
 import { AppShell } from "@/components/app-shell";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
@@ -38,6 +39,9 @@ function SelectPlayersPageContent() {
 	const [loadingUsers, setLoadingUsers] = useState(true);
 	const [selectedPlayers, setSelectedPlayers] = useState<User[]>([]);
 	const [isStartingSession, setIsStartingSession] = useState(false);
+	const creationKey = useRef(
+		typeof crypto === "undefined" ? "" : crypto.randomUUID(),
+	);
 	
 	// Scroll indicators state
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -196,11 +200,6 @@ function SelectPlayersPageContent() {
 				return;
 			}
 
-			const sessionDateTime =
-				typeof window !== "undefined"
-					? sessionStorage.getItem("sessionDateTime")
-					: null;
-
 			const playersPayload = selectedPlayers.map((player) => ({
 				id: player.id,
 				name: player.name,
@@ -225,17 +224,21 @@ function SelectPlayersPageContent() {
 				headers: {
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${session.access_token}`,
+					"Idempotency-Key": creationKey.current,
 				},
 				body: JSON.stringify({
 					playerCount,
 					players: playersPayload,
 					rounds,
-					createdAt: sessionDateTime || undefined,
 				}),
 			});
 
 			if (!response.ok) {
 				const data = await response.json();
+				if (response.status === 409 && data.activeSessionId) {
+					router.replace(`/session/${data.activeSessionId}`);
+					return;
+				}
 				console.error("Failed to create session:", data.error);
 				return;
 			}
@@ -787,7 +790,9 @@ function SelectPlayersPageContent() {
 export default function SelectPlayersPage() {
 	return (
 		<AuthGuard>
-			<SelectPlayersPageContent />
+			<SessionCreationGuard>
+				<SelectPlayersPageContent />
+			</SessionCreationGuard>
 		</AuthGuard>
 	);
 }

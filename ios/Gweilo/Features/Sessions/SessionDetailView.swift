@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SessionDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     let session: SessionSummary
     let dataStore: AppDataStore
 
@@ -8,7 +9,10 @@ struct SessionDetailView: View {
     @State private var expandedRounds: Set<Int> = []
     @State private var scoringRound: SessionRound?
     @State private var isLoading = false
+    @State private var isManagingSession = false
+    @State private var showsManagementConfirmation = false
     @State private var errorMessage: String?
+    @State private var managementErrorMessage: String?
 
     var body: some View {
         ZStack {
@@ -24,6 +28,16 @@ struct SessionDetailView: View {
                     )
 
                     if let detail {
+                        if shouldShowSessionManagement(for: detail) {
+                            SessionManagementAction(
+                                hasCompletedMatches: hasCompletedMatches(in: detail),
+                                isWorking: isManagingSession,
+                                action: {
+                                    showsManagementConfirmation = true
+                                }
+                            )
+                        }
+
                         if let currentRound = currentRound(in: detail) {
                             CurrentRoundStage(
                                 round: currentRound,
@@ -84,6 +98,50 @@ struct SessionDetailView: View {
                 )
             }
         }
+        .confirmationDialog(
+            managementConfirmationTitle,
+            isPresented: $showsManagementConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(managementButtonTitle, role: .destructive) {
+                Task { await manageActiveSession() }
+            }
+            Button("Keep session", role: .cancel) {}
+        } message: {
+            Text(managementConfirmationMessage)
+        }
+        .alert("Couldn’t update session", isPresented: managementErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(managementErrorMessage ?? "Please try again.")
+        }
+    }
+
+    private var managementErrorBinding: Binding<Bool> {
+        Binding(
+            get: { managementErrorMessage != nil },
+            set: { if !$0 { managementErrorMessage = nil } }
+        )
+    }
+
+    private var isCancelling: Bool {
+        guard let detail else { return true }
+        return !hasCompletedMatches(in: detail)
+    }
+
+    private var managementButtonTitle: String {
+        isCancelling ? "Cancel session" : "Force close session"
+    }
+
+    private var managementConfirmationTitle: String {
+        isCancelling ? "Cancel this session?" : "Force close this session?"
+    }
+
+    private var managementConfirmationMessage: String {
+        if isCancelling {
+            return "No scores have been submitted, so the accidental session will be removed."
+        }
+        return "The submitted results will be kept and the session will be completed immediately."
     }
 
     private func currentRound(in detail: SessionDetail) -> SessionRound? {
@@ -94,6 +152,35 @@ struct SessionDetailView: View {
             return nil
         }
         return detail.rounds.first { $0.number == currentRoundNumber }
+    }
+
+    private func hasCompletedMatches(in detail: SessionDetail) -> Bool {
+        detail.rounds.contains { round in
+            round.matches.contains(where: \.isCompleted)
+        }
+    }
+
+    private func shouldShowSessionManagement(for detail: SessionDetail) -> Bool {
+        dataStore.canManageSessions && detail.session.status == .active
+    }
+
+    private func manageActiveSession() async {
+        guard let detail, !isManagingSession else { return }
+        isManagingSession = true
+        managementErrorMessage = nil
+        defer { isManagingSession = false }
+
+        do {
+            if hasCompletedMatches(in: detail) {
+                try await dataStore.forceCloseSession(sessionID: detail.session.id)
+                await load()
+            } else {
+                try await dataStore.cancelSession(sessionID: detail.session.id)
+                dismiss()
+            }
+        } catch {
+            managementErrorMessage = error.localizedDescription
+        }
     }
 
     private func toggleRound(_ roundNumber: Int) {
@@ -126,6 +213,51 @@ struct SessionDetailView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+}
+
+private struct SessionManagementAction: View {
+    let hasCompletedMatches: Bool
+    let isWorking: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if isWorking {
+                    ProgressView()
+                        .tint(GweiloTheme.coral)
+                } else {
+                    Image(
+                        systemName: hasCompletedMatches
+                            ? "stop.circle"
+                            : "trash"
+                    )
+                }
+
+                Text(
+                    hasCompletedMatches
+                        ? "Force close session"
+                        : "Cancel accidental session"
+                )
+                .font(.subheadline.weight(.bold))
+
+                Spacer()
+            }
+            .foregroundStyle(GweiloTheme.coral)
+            .padding(.vertical, 14)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .disabled(isWorking)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .accessibilityHint(
+            hasCompletedMatches
+                ? "Keeps submitted results and ends the session"
+                : "Removes this session because it has no submitted scores"
+        )
     }
 }
 
@@ -771,6 +903,12 @@ struct SessionDetailPreviewScreen: View {
                             totalMatchCount: detail.rounds.reduce(0) {
                                 $0 + $1.matches.count
                             }
+                        )
+
+                        SessionManagementAction(
+                            hasCompletedMatches: true,
+                            isWorking: false,
+                            action: {}
                         )
 
                         if let currentRound = detail.rounds.first(

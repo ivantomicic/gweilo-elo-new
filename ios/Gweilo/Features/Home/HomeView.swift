@@ -20,6 +20,7 @@ struct HomeView: View {
                         HomeHeader()
                         HomeLiveSession(
                             session: dataStore.activeSession,
+                            canStartSession: dataStore.canStartNewSession,
                             startSession: { showsStartSession = true }
                         )
                         TopThreeStandings(players: topSinglesPlayers)
@@ -135,6 +136,7 @@ private struct HomeHeader: View {
 
 private struct HomeLiveSession: View {
     let session: SessionSummary?
+    let canStartSession: Bool
     let startSession: () -> Void
 
     var body: some View {
@@ -153,13 +155,15 @@ private struct HomeLiveSession: View {
                 Text("The next live session will appear here.")
                     .font(.headline)
 
-                Button(action: startSession) {
-                    Label("Start a session", systemImage: "plus")
-                        .font(.subheadline.weight(.semibold))
+                if canStartSession {
+                    Button(action: startSession) {
+                        Label("Start a session", systemImage: "plus")
+                            .font(.subheadline.weight(.semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(GweiloTheme.lime)
+                    .padding(.top, 4)
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(GweiloTheme.lime)
-                .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 8)

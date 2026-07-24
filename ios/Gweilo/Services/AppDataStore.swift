@@ -46,6 +46,10 @@ final class AppDataStore {
     private(set) var doublesTeamRankings: [RankingEntry] = []
     private(set) var topThreeSinglesPlayers: [RankingEntry] = []
     private(set) var rankingEligibility = RankingEligibility.fallback
+    private(set) var clubActiveSessionID: UUID?
+    private(set) var hasCheckedActiveSession = false
+    private(set) var canManageSessions: Bool
+    private(set) var isAdmin: Bool
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var errorMessage: String?
@@ -74,6 +78,8 @@ final class AppDataStore {
     init(configuration: AppConfiguration, session: AuthSession) {
         self.configuration = configuration
         currentUserID = session.user.id
+        canManageSessions = session.user.canManageSessions
+        isAdmin = session.user.isAdmin
         client = SupabaseDataClient(
             configuration: configuration,
             accessToken: session.accessToken
@@ -85,6 +91,8 @@ final class AppDataStore {
     }
 
     func updateSession(_ session: AuthSession) {
+        canManageSessions = session.user.canManageSessions
+        isAdmin = session.user.isAdmin
         client = SupabaseDataClient(
             configuration: configuration,
             accessToken: session.accessToken
@@ -97,6 +105,10 @@ final class AppDataStore {
 
     var activeSession: SessionSummary? {
         sessions.first { $0.status == .active }
+    }
+
+    var canStartNewSession: Bool {
+        canManageSessions && hasCheckedActiveSession && clubActiveSessionID == nil
     }
 
     var latestCompletedSession: SessionSummary? {
@@ -228,17 +240,37 @@ final class AppDataStore {
     }
 
     func createSession(
-        from draft: SessionCreationDraft
+        from draft: SessionCreationDraft,
+        preview: SessionSchedulePreview
     ) async throws -> SessionSummary {
-        let result = try await apiClient.createSession(from: draft)
+        let result = try await apiClient.createSession(
+            from: draft,
+            preview: preview
+        )
+        clubActiveSessionID = result.sessionId
         await load()
         return sessions.first { $0.id == result.sessionId }
             ?? result.makeSummary(for: draft)
     }
 
+    func cancelSession(sessionID: UUID) async throws {
+        try await apiClient.cancelSession(sessionID: sessionID)
+        clubActiveSessionID = nil
+        invalidateProfileCaches()
+        await load()
+    }
+
+    func forceCloseSession(sessionID: UUID) async throws {
+        try await apiClient.forceCloseSession(sessionID: sessionID)
+        clubActiveSessionID = nil
+        invalidateProfileCaches()
+        await load()
+    }
+
     func load() async {
         guard !isLoading else { return }
         isLoading = true
+        hasCheckedActiveSession = false
         errorMessage = nil
         defer {
             isLoading = false
@@ -248,10 +280,12 @@ final class AppDataStore {
         do {
             async let sessionsRequest = client.fetchSessions()
             async let rankingsRequest = apiClient.fetchRankings()
+            async let activeSessionRequest = apiClient.fetchActiveSessionID()
 
-            let (loadedSessions, rankings) = try await (
+            let (loadedSessions, rankings, activeSessionID) = try await (
                 sessionsRequest,
-                rankingsRequest
+                rankingsRequest,
+                activeSessionRequest
             )
             sessions = loadedSessions
             singlesRankings = rankings.singles
@@ -259,6 +293,8 @@ final class AppDataStore {
             doublesTeamRankings = rankings.doublesTeams
             rankingEligibility = rankings.eligibility
             topThreeSinglesPlayers = Array(rankings.singles.prefix(3))
+            clubActiveSessionID = activeSessionID
+            hasCheckedActiveSession = true
         } catch {
             errorMessage = error.localizedDescription
         }

@@ -7,6 +7,7 @@ import {
 	type CandidateTeams,
 } from "@/lib/sessions/round5-team";
 import type { SixPlayerTeamKey } from "@/lib/sessions/schedule";
+import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
 				{ status: 401 },
+			);
+		}
+		const role = getManagedRoleFromAuthUser(user);
+		if (role !== "admin" && role !== "mod") {
+			return NextResponse.json(
+				{ error: "Only admins and mods can prepare sessions." },
+				{ status: 403 },
 			);
 		}
 

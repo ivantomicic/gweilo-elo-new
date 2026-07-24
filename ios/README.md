@@ -40,8 +40,10 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Live active-session and latest-session summaries
 - Live session history and completed match counts
 - Live session details with players, rounds, pairings, scores, and resting players
-- Native session creation with date/time, ordered player selection, team grouping,
-  and server-generated schedule review
+- Native immediate session creation with unordered player selection, randomized
+  server-generated schedule review, and one-tap reshuffling
+- Club-wide active-session protection, idempotent creation retries, and
+  cancel/force-close controls for moderators and admins
 - Automatic navigation into a newly created live session
 - Native leaderboard eligibility rules
 - Persisted score-entry haptics and round-confirmation settings
@@ -59,7 +61,8 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Server-owned atomic Elo updates and duplicate-submission protection
 - Submission progress, haptics, clear failures, and post-submit refresh
 - Accessibility labels and adjustable/numeric score controls
-- Unit tests for score drafts, request shape, authentication expiry, and models
+- Unit and database concurrency tests for score drafts, request shape,
+  authentication expiry, atomic creation, and duplicate protection
 
 The app bundle contains only Supabase's public URL/key and the public production
 API address. The Supabase service-role key and other private web credentials are

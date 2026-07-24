@@ -72,6 +72,14 @@ export async function POST(
 			);
 		}
 
+		const role = getManagedRoleFromAuthUser(user);
+		if (role !== "admin" && role !== "mod") {
+			return NextResponse.json(
+				{ error: "Only admins and mods can force close sessions." },
+				{ status: 403 },
+			);
+		}
+
 		// Fetch session and verify ownership
 		const { data: session, error: sessionError } = await supabase
 			.from("sessions")
@@ -87,7 +95,7 @@ export async function POST(
 		}
 
 		// Verify user owns the session OR is admin
-		const isAdmin = getManagedRoleFromAuthUser(user) === "admin";
+		const isAdmin = role === "admin";
 		if (session.created_by !== user.id && !isAdmin) {
 			return NextResponse.json(
 				{

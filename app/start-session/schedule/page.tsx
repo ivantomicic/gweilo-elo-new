@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { SessionCreationGuard } from "@/components/auth/session-creation-guard";
 import { AppShell } from "@/components/app-shell";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
@@ -591,19 +592,9 @@ function SchedulePageContent() {
 		return [];
 	});
 
-	// Get session date/time from sessionStorage
-	const sessionDateTime = (() => {
-		if (typeof window === "undefined") return null;
-		const stored = sessionStorage.getItem("sessionDateTime");
-		if (stored) {
-			try {
-				return new Date(stored);
-			} catch (e) {
-				return null;
-			}
-		}
-		return null;
-	})();
+	const creationKey = useRef(
+		typeof crypto === "undefined" ? "" : crypto.randomUUID(),
+	);
 	const [sixPlayerRound5SinglesTeam, setSixPlayerRound5SinglesTeam] =
 		useState<SixPlayerTeamKey>("C");
 	const [isLoadingSixPlayerRound5Team, setIsLoadingSixPlayerRound5Team] =
@@ -842,17 +833,21 @@ function SchedulePageContent() {
 				headers: {
 					"Content-Type": "application/json",
 					Authorization: `Bearer ${session.access_token}`,
+					"Idempotency-Key": creationKey.current,
 				},
 				body: JSON.stringify({
 					playerCount,
 					players: shuffledPlayers,
 					rounds: rounds,
-					createdAt: sessionDateTime?.toISOString(),
 				}),
 			});
 
 			if (!response.ok) {
 				const data = await response.json();
+				if (response.status === 409 && data.activeSessionId) {
+					router.replace(`/session/${data.activeSessionId}`);
+					return;
+				}
 				console.error("Failed to create session:", data.error);
 				return;
 			}
@@ -985,7 +980,9 @@ function SchedulePageContent() {
 export default function SchedulePage() {
 	return (
 		<AuthGuard>
-			<SchedulePageContent />
+			<SessionCreationGuard>
+				<SchedulePageContent />
+			</SessionCreationGuard>
 		</AuthGuard>
 	);
 }

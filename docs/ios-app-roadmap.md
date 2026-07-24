@@ -117,8 +117,15 @@ from an iPhone.
 - ✅ Read-only sessions list with live match counts
 - ✅ Read-only session detail with participants, rounds, matches, scores, and status
 - ✅ Start a new session
-- ✅ Select players in pairing/team order
+- ✅ Select players without assigning an order
+- ✅ Start immediately; future-date scheduling is intentionally unsupported
 - ✅ Review the server-generated schedule
+- ✅ Randomize the schedule again before starting
+- ✅ Prevent creation while any club session is active
+- ✅ Make creation atomic and idempotent across concurrent web/iOS requests
+- ✅ Hide session creation from regular members
+- ✅ Cancel an accidental scoreless session
+- ✅ Force-close an active session after results have been entered
 - ✅ Display singles and doubles matches before creation
 - ✅ Enter and validate live scores
 - ✅ Submit a complete round through the shared production backend
@@ -158,7 +165,6 @@ score-entry flow.
 
 - ⏸️ Edit historical match results
 - ⏸️ Recalculate Elo after an edit
-- ⏸️ Force-close sessions
 - ⏸️ Delete sessions
 - ⏸️ Import sessions from JSON
 
@@ -276,12 +282,19 @@ No private credentials should be committed to this repository.
   with member identities, record, sets, Elo history, and recent opponents.
   Reused the same chart and recent-results components across both profile types.
 - 2026-07-24: Added fully native session creation. The iOS app now supports
-  date/time and player-count setup, four-player format selection, ordered live
-  player selection, explicit six-player team grouping, server-generated
-  schedule review, duplicate-tap-safe creation, and automatic live-data
+  immediate player-count setup, four-player format selection, unordered live
+  player selection, randomized server-generated schedule review,
+  duplicate-tap-safe creation, and automatic live-data
   refresh. Extracted the web scheduler into a shared backend module, added an
   authenticated preview endpoint, kept six-player Round 5 fairness server-side,
   and covered every 2–6 player format with tests.
+- 2026-07-24: Hardened session setup across web and iOS. Session creation now
+  runs as one database transaction, uses idempotency keys, and enforces one
+  club-wide active session even when devices submit concurrently. Removed
+  future-date scheduling and selection-order team assignment, restricted setup
+  to moderators/admins, and added native cancellation for scoreless accidental
+  sessions plus force-close after play begins. Added PostgreSQL race, rollback,
+  replay, and cancellation integration tests.
 - 2026-07-24: Completed the post-creation handoff so Home and Sessions
   automatically open the newly created live session after the creation sheet
   dismisses. Replaced the web-only Rules link with a native leaderboard

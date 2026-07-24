@@ -481,7 +481,7 @@ enum FourPlayerSessionFormat: String, CaseIterable, Codable, Identifiable, Senda
     }
 }
 
-struct SessionCreationPlayer: Identifiable, Hashable, Decodable, Sendable {
+struct SessionCreationPlayer: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     let name: String
     let avatarURL: URL?
@@ -506,7 +506,7 @@ struct SessionCreationPlayer: Identifiable, Hashable, Decodable, Sendable {
 }
 
 struct SessionCreationDraft: Equatable, Sendable {
-    var scheduledAt = Date.now
+    let idempotencyKey = UUID()
     var playerCount = 4
     var fourPlayerFormat = FourPlayerSessionFormat.mixed
     private(set) var selectedPlayers: [SessionCreationPlayer] = []
@@ -530,29 +530,17 @@ struct SessionCreationDraft: Equatable, Sendable {
         }
     }
 
-    mutating func movePlayer(fromOffsets: IndexSet, toOffset: Int) {
-        guard let source = fromOffsets.first, source < selectedPlayers.count else {
-            return
-        }
-        let player = selectedPlayers.remove(at: source)
-        let destination = source < toOffset ? toOffset - 1 : toOffset
-        selectedPlayers.insert(
-            player,
-            at: min(max(0, destination), selectedPlayers.count)
-        )
-    }
-
     func selectionNumber(for playerID: UUID) -> Int? {
         selectedPlayers.firstIndex(where: { $0.id == playerID }).map { $0 + 1 }
     }
 }
 
-struct SessionScheduleMatch: Hashable, Decodable, Sendable {
+struct SessionScheduleMatch: Hashable, Codable, Sendable {
     let type: SessionMatchType
     let players: [SessionCreationPlayer]
 }
 
-struct SessionScheduleRound: Identifiable, Hashable, Decodable, Sendable {
+struct SessionScheduleRound: Identifiable, Hashable, Codable, Sendable {
     let id: String
     let roundNumber: Int
     let matches: [SessionScheduleMatch]
@@ -561,7 +549,7 @@ struct SessionScheduleRound: Identifiable, Hashable, Decodable, Sendable {
     var matchCount: Int { matches.count }
 }
 
-struct SessionSchedulePreview: Hashable, Decodable, Sendable {
+struct SessionSchedulePreview: Hashable, Codable, Sendable {
     let playerCount: Int
     let players: [SessionCreationPlayer]
     let rounds: [SessionScheduleRound]
@@ -576,7 +564,7 @@ struct CreatedSessionResult: Decodable, Sendable {
     func makeSummary(for draft: SessionCreationDraft) -> SessionSummary {
         SessionSummary(
             id: sessionId,
-            createdAt: draft.scheduledAt,
+            createdAt: .now,
             playerCount: draft.playerCount,
             status: .active,
             currentRound: 1,

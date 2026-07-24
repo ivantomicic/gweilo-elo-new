@@ -1,8 +1,45 @@
 import Foundation
 
+private struct AuthAppMetadata: Codable, Sendable {
+    let role: String?
+    let roles: [String]?
+}
+
 struct AuthenticatedUser: Codable, Sendable {
     let id: UUID
     let email: String?
+    private let appMetadata: AuthAppMetadata?
+
+    init(
+        id: UUID,
+        email: String?,
+        role: String? = nil
+    ) {
+        self.id = id
+        self.email = email
+        appMetadata = AuthAppMetadata(
+            role: role,
+            roles: role.map { [$0] }
+        )
+    }
+
+    var canManageSessions: Bool {
+        let roles = Set(
+            (appMetadata?.roles ?? []) + [appMetadata?.role].compactMap { $0 }
+        )
+        return roles.contains("admin") || roles.contains("mod")
+    }
+
+    var isAdmin: Bool {
+        appMetadata?.role == "admin" ||
+        appMetadata?.roles?.contains("admin") == true
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case email
+        case appMetadata = "app_metadata"
+    }
 }
 
 struct AuthSession: Codable, Sendable {
