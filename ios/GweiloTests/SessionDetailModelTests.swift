@@ -235,6 +235,99 @@ final class SessionDetailModelTests: XCTestCase {
         )
     }
 
+    @MainActor
+    func testSessionDraftKeepsSelectionOrderAndPlayerLimit() {
+        var draft = SessionCreationDraft()
+        draft.setPlayerCount(2)
+        let players = [
+            SessionCreationPlayer(
+                id: ivanID,
+                name: "Ivan",
+                avatarURL: nil,
+                elo: 1_700
+            ),
+            SessionCreationPlayer(
+                id: garaID,
+                name: "Gara",
+                avatarURL: nil,
+                elo: 1_600
+            ),
+            SessionCreationPlayer(
+                id: leoID,
+                name: "Leo",
+                avatarURL: nil,
+                elo: 1_500
+            )
+        ]
+
+        players.forEach { draft.toggle($0) }
+
+        XCTAssertEqual(draft.selectedPlayers.map(\.id), [ivanID, garaID])
+        XCTAssertTrue(draft.canPreview)
+        XCTAssertEqual(draft.selectionNumber(for: garaID), 2)
+
+        draft.toggle(players[0])
+
+        XCTAssertEqual(draft.selectedPlayers.map(\.id), [garaID])
+        XCTAssertFalse(draft.canPreview)
+    }
+
+    @MainActor
+    func testCreateSessionRequestSendsIntentWithoutClientSchedule() throws {
+        var draft = SessionCreationDraft()
+        draft.setPlayerCount(2)
+        draft.scheduledAt = Date(timeIntervalSince1970: 1_800_000_000)
+        draft.toggle(
+            SessionCreationPlayer(
+                id: ivanID,
+                name: "Ivan",
+                avatarURL: URL(string: "https://example.com/ivan.jpg"),
+                elo: 1_700
+            )
+        )
+        draft.toggle(
+            SessionCreationPlayer(
+                id: garaID,
+                name: "Gara",
+                avatarURL: nil,
+                elo: 1_600
+            )
+        )
+
+        let request = try makeAPIClient().makeCreateSessionRequest(from: draft)
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [String: Any]
+        )
+        let players = try XCTUnwrap(json["players"] as? [[String: Any]])
+
+        XCTAssertEqual(request.url?.path, "/api/sessions")
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(json["fourPlayerFormat"] as? String, "mixed")
+        XCTAssertNil(json["rounds"])
+        XCTAssertEqual(players.map { $0["id"] as? String }, [
+            ivanID.uuidString,
+            garaID.uuidString
+        ])
+    }
+
+    @MainActor
+    func testSessionPlayerListExcludesGuests() {
+        let request = makeAPIClient().makeAvailableSessionPlayersRequest()
+        let components = URLComponents(
+            url: request.url!,
+            resolvingAgainstBaseURL: false
+        )
+
+        XCTAssertEqual(components?.path, "/api/admin/users")
+        XCTAssertEqual(
+            components?.queryItems?.first {
+                $0.name == "excludeGuests"
+            }?.value,
+            "true"
+        )
+    }
+
     private func makeMatches() -> [SessionMatch] {
         [
             SessionMatch(

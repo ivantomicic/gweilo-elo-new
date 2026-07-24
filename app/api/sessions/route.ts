@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthToken } from "../_utils/auth";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import {
+	generateSchedule,
+	getSixPlayerCandidateTeams,
+	type FourPlayerFormat,
+} from "@/lib/sessions/schedule";
+import {
+	getPreferredRound5SinglesTeam,
+	loadRecentRound5SinglesPairs,
+} from "@/lib/sessions/round5-team";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -79,14 +88,30 @@ export async function POST(request: NextRequest) {
 		}
 
 		// Parse request body
-		const body = await request.json();
-		const { playerCount, players, rounds, createdAt }: { playerCount: number; players: Player[]; rounds: Round[]; createdAt?: string } = body;
+		const body = (await request.json()) as {
+			playerCount?: number;
+			players?: Player[];
+			rounds?: Round[];
+			createdAt?: string;
+			fourPlayerFormat?: FourPlayerFormat;
+		};
+		const players = body.players ?? [];
+		const playerCount = body.playerCount ?? players.length;
+		const createdAt = body.createdAt;
+		let rounds = body.rounds;
 
 		// Validate required fields
-		if (!playerCount || !players || !rounds) {
+		if (!playerCount || players.length === 0) {
 			return NextResponse.json(
-				{ error: "Missing required fields: playerCount, players, and rounds are required" },
+				{ error: "Missing required field: players" },
 				{ status: 400 }
+			);
+		}
+
+		if (playerCount < 2 || playerCount > 6) {
+			return NextResponse.json(
+				{ error: "Player count must be between 2 and 6" },
+				{ status: 400 },
 			);
 		}
 
@@ -95,6 +120,33 @@ export async function POST(request: NextRequest) {
 				{ error: "Player count mismatch: players array length does not match playerCount" },
 				{ status: 400 }
 			);
+		}
+
+		if (new Set(players.map((player) => player.id)).size !== playerCount) {
+			return NextResponse.json(
+				{ error: "Each selected player must be unique" },
+				{ status: 400 },
+			);
+		}
+
+		if (!rounds) {
+			let sixPlayerRound5SinglesTeam;
+			const candidateTeams = getSixPlayerCandidateTeams(players);
+			if (candidateTeams) {
+				const recentPairs = await loadRecentRound5SinglesPairs(
+					supabase,
+					user.id,
+				);
+				sixPlayerRound5SinglesTeam = getPreferredRound5SinglesTeam(
+					candidateTeams,
+					recentPairs,
+				);
+			}
+
+			rounds = generateSchedule(players, {
+				fourPlayerFormat: body.fourPlayerFormat,
+				sixPlayerRound5SinglesTeam,
+			});
 		}
 
 		if (rounds.length === 0) {
@@ -294,6 +346,7 @@ export async function POST(request: NextRequest) {
 			{
 				sessionId: sessionId,
 				message: "Session created successfully",
+				rounds,
 			},
 			{ status: 201 }
 		);

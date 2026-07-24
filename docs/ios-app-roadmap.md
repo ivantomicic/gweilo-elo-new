@@ -20,7 +20,9 @@ The native SwiftUI app exists in `ios/`, builds for both simulator and physical
 iPhone SDKs, securely restores and refreshes Supabase logins, and reads live
 Home, Sessions, Rankings, and session-detail data. An active round can now be
 scored and submitted from iOS through the production atomic backend at
-`www.gweilo.lol`; Elo remains server-owned and is never calculated on-device.
+`www.gweilo.lol`. New sessions can also be configured, previewed, and created
+natively. Session scheduling and Elo both remain server-owned and are never
+calculated on-device.
 
 The safe round-submission foundation is implemented and tested:
 
@@ -42,7 +44,9 @@ The safe round-submission foundation is implemented and tested:
 - The Next.js backend calculates Elo.
 - Supabase validates and commits each complete round as one transaction.
 - The iOS app sends scores to the same backend endpoint as the web app.
+- The web app and iOS app use the same server-side schedule generator.
 - Elo calculations will not be duplicated in Swift.
+- Session schedule rules will not be duplicated in Swift.
 - The iOS app will never contain the Supabase service-role key.
 - The iOS app may contain the Supabase public URL and anonymous key.
 - The existing web application remains available alongside the native app.
@@ -106,17 +110,16 @@ from an iPhone.
 - ✅ Active-session card (live Supabase data)
 - ✅ Current ranking summary (live Supabase data)
 - ✅ Recent session summary (live Supabase data)
-- 🚧 Quick action to start or resume a live session (native resume; creation
-  currently opens the existing web flow)
+- ✅ Quick action to start or resume a live session
 
 ### Sessions
 
 - ✅ Read-only sessions list with live match counts
 - ✅ Read-only session detail with participants, rounds, matches, scores, and status
-- ⬜ Start a new session
-- ⬜ Select players
-- ⬜ Review generated schedule
-- ⬜ Display singles and doubles matches
+- ✅ Start a new session
+- ✅ Select players in pairing/team order
+- ✅ Review the server-generated schedule
+- ✅ Display singles and doubles matches before creation
 - ✅ Enter and validate live scores
 - ✅ Submit a complete round through the shared production backend
 - ✅ Prevent accidental double submission in the UI
@@ -226,8 +229,7 @@ No private credentials should be committed to this repository.
 ## Definition of done for the first TestFlight build
 
 - ✅ A user can authenticate
-- 🚧 A user can create or resume a session (resume is native; creation still
-  opens the web app)
+- ✅ A user can create or resume a session natively
 - ✅ A user can enter and submit every round
 - ✅ Duplicate taps or concurrent clients cannot apply Elo twice
 - ✅ Rankings and session summaries refresh after submitted results
@@ -242,13 +244,12 @@ No private credentials should be committed to this repository.
 
 1. Complete one real active round from the iPhone and confirm the web app,
    session history, and rankings show the same committed result.
-2. Decide whether first TestFlight requires fully native session creation or
-   may temporarily open the existing web creation flow.
-3. Configure Google OAuth if it is required for the first TestFlight build.
-4. Choose the Apple Developer team, confirm the final bundle identifier, and
+2. Create one real session from the iPhone and verify its schedule against the
+   web app before using it for live play.
+3. Choose the Apple Developer team, confirm the final bundle identifier, and
    prepare signing/TestFlight.
-5. Add native head-to-head comparison and doubles-team history after the
-   live-session smoke test.
+4. Configure Google OAuth only if it is required for the first TestFlight.
+5. Continue UI polish and add the remaining first-release settings/rules work.
 
 ## Change log
 
@@ -274,6 +275,13 @@ No private credentials should be committed to this repository.
   profiles and enabled doubles-team ranking navigation to native team profiles
   with member identities, record, sets, Elo history, and recent opponents.
   Reused the same chart and recent-results components across both profile types.
+- 2026-07-24: Added fully native session creation. The iOS app now supports
+  date/time and player-count setup, four-player format selection, ordered live
+  player selection, explicit six-player team grouping, server-generated
+  schedule review, duplicate-tap-safe creation, and automatic live-data
+  refresh. Extracted the web scheduler into a shared backend module, added an
+  authenticated preview endpoint, kept six-player Round 5 fairness server-side,
+  and covered every 2–6 player format with tests.
 - 2026-07-23: Aligned the native prototype with the existing product model.
   Removed the rounded typography and invented league/upcoming-session concepts.
   Sessions now use the real date/status/player/match-count/best-worst fields;

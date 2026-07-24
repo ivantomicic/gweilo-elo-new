@@ -40,6 +40,8 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Live active-session and latest-session summaries
 - Live session history and completed match counts
 - Live session details with players, rounds, pairings, scores, and resting players
+- Native session creation with date/time, ordered player selection, team grouping,
+  and server-generated schedule review
 - Live singles, doubles-player, and doubles-team rankings
 - Native singles player profiles with live Elo charts and recent opponents
 - Singles head-to-head comparisons against the signed-in player
@@ -60,6 +62,6 @@ never copied into the iOS configuration.
 
 ## Current boundary
 
-Active sessions can be resumed and fully scored natively. Starting a new
-session currently opens the existing web creation flow; fully native player
-selection and schedule review remain the largest first-release decision.
+Sessions can be created, resumed, and fully scored natively. The Next.js
+backend owns schedule generation and Elo rules, while Supabase remains the
+shared source of truth for both the web and iOS apps.

@@ -143,6 +143,113 @@ struct SessionSummary: Identifiable, Hashable, Sendable {
     }
 }
 
+enum FourPlayerSessionFormat: String, CaseIterable, Codable, Identifiable, Sendable {
+    case singles
+    case mixed
+
+    var id: Self { self }
+
+    var label: String {
+        switch self {
+        case .singles: "Singles only"
+        case .mixed: "Singles + doubles"
+        }
+    }
+}
+
+struct SessionCreationPlayer: Identifiable, Hashable, Decodable, Sendable {
+    let id: UUID
+    let name: String
+    let avatarURL: URL?
+    let elo: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case avatarURL = "avatar"
+        case elo
+    }
+
+    var initials: String {
+        name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+}
+
+struct SessionCreationDraft: Equatable, Sendable {
+    var scheduledAt = Date.now
+    var playerCount = 4
+    var fourPlayerFormat = FourPlayerSessionFormat.mixed
+    private(set) var selectedPlayers: [SessionCreationPlayer] = []
+
+    var canPreview: Bool {
+        selectedPlayers.count == playerCount
+    }
+
+    mutating func setPlayerCount(_ count: Int) {
+        playerCount = min(6, max(2, count))
+        if selectedPlayers.count > playerCount {
+            selectedPlayers = Array(selectedPlayers.prefix(playerCount))
+        }
+    }
+
+    mutating func toggle(_ player: SessionCreationPlayer) {
+        if let index = selectedPlayers.firstIndex(where: { $0.id == player.id }) {
+            selectedPlayers.remove(at: index)
+        } else if selectedPlayers.count < playerCount {
+            selectedPlayers.append(player)
+        }
+    }
+
+    mutating func movePlayer(fromOffsets: IndexSet, toOffset: Int) {
+        guard let source = fromOffsets.first, source < selectedPlayers.count else {
+            return
+        }
+        let player = selectedPlayers.remove(at: source)
+        let destination = source < toOffset ? toOffset - 1 : toOffset
+        selectedPlayers.insert(
+            player,
+            at: min(max(0, destination), selectedPlayers.count)
+        )
+    }
+
+    func selectionNumber(for playerID: UUID) -> Int? {
+        selectedPlayers.firstIndex(where: { $0.id == playerID }).map { $0 + 1 }
+    }
+}
+
+struct SessionScheduleMatch: Hashable, Decodable, Sendable {
+    let type: SessionMatchType
+    let players: [SessionCreationPlayer]
+}
+
+struct SessionScheduleRound: Identifiable, Hashable, Decodable, Sendable {
+    let id: String
+    let roundNumber: Int
+    let matches: [SessionScheduleMatch]
+    let isDynamic: Bool?
+
+    var matchCount: Int { matches.count }
+}
+
+struct SessionSchedulePreview: Hashable, Decodable, Sendable {
+    let playerCount: Int
+    let players: [SessionCreationPlayer]
+    let rounds: [SessionScheduleRound]
+    let fourPlayerFormat: FourPlayerSessionFormat
+}
+
+struct CreatedSessionResult: Decodable, Sendable {
+    let sessionId: UUID
+    let message: String?
+    let rounds: [SessionScheduleRound]
+}
+
 struct SessionParticipant: Identifiable, Hashable, Sendable {
     let id: UUID
     let name: String

@@ -94,6 +94,40 @@ final class AppDataStore {
         try await apiClient.fetchDoublesTeamEloHistory(teamID: teamID)
     }
 
+    func availableSessionPlayers() async throws -> [SessionCreationPlayer] {
+        let players = try await apiClient.fetchAvailableSessionPlayers()
+        let eloByPlayerID = Dictionary(
+            uniqueKeysWithValues: singlesRankings.map { ($0.id, $0.elo) }
+        )
+        return players
+            .map {
+                SessionCreationPlayer(
+                    id: $0.id,
+                    name: $0.name,
+                    avatarURL: $0.avatarURL,
+                    elo: eloByPlayerID[$0.id]
+                )
+            }
+            .sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+    }
+
+    func previewSession(
+        players: [SessionCreationPlayer],
+        format: FourPlayerSessionFormat
+    ) async throws -> SessionSchedulePreview {
+        try await apiClient.previewSession(players: players, format: format)
+    }
+
+    func createSession(
+        from draft: SessionCreationDraft
+    ) async throws -> UUID {
+        let result = try await apiClient.createSession(from: draft)
+        await load()
+        return result.sessionId
+    }
+
     func load() async {
         guard !isLoading else { return }
         isLoading = true

@@ -503,6 +503,28 @@ private struct APIErrorResponse: Decodable {
     let detail: String?
 }
 
+private struct AdminUsersResponse: Decodable {
+    let users: [AdminUserResponse]
+}
+
+private struct AdminUserResponse: Decodable {
+    let id: UUID
+    let name: String
+    let avatar: String?
+}
+
+private struct SessionPlayerPayload: Encodable {
+    let id: UUID
+    let name: String
+    let avatar: String?
+}
+
+private struct SessionCreationRequest: Encodable {
+    let players: [SessionPlayerPayload]
+    let createdAt: String?
+    let fourPlayerFormat: FourPlayerSessionFormat
+}
+
 private struct PlayerEloHistoryPointResponse: Decodable {
     let match: Int
     let elo: Double
@@ -717,6 +739,83 @@ struct GweiloAPIClient: Sendable {
         return makeEloHistory(from: response)
     }
 
+    func fetchAvailableSessionPlayers() async throws -> [SessionCreationPlayer] {
+        let request = makeAvailableSessionPlayersRequest()
+        let response: AdminUsersResponse = try await perform(
+            request,
+            fallbackMessage: "Could not load the player list."
+        )
+        return response.users.map {
+            SessionCreationPlayer(
+                id: $0.id,
+                name: $0.name,
+                avatarURL: $0.avatar.flatMap(URL.init(string:)),
+                elo: nil
+            )
+        }
+    }
+
+    func previewSession(
+        players: [SessionCreationPlayer],
+        format: FourPlayerSessionFormat
+    ) async throws -> SessionSchedulePreview {
+        let request = try makeSessionPreviewRequest(
+            players: players,
+            format: format
+        )
+        return try await perform(
+            request,
+            fallbackMessage: "Could not prepare this schedule."
+        )
+    }
+
+    func createSession(
+        from draft: SessionCreationDraft
+    ) async throws -> CreatedSessionResult {
+        let request = try makeCreateSessionRequest(from: draft)
+        return try await perform(
+            request,
+            fallbackMessage: "Could not create this session."
+        )
+    }
+
+    func makeAvailableSessionPlayersRequest() -> URLRequest {
+        var components = URLComponents(
+            url: configuration.apiBaseURL.appending(path: "api/admin/users"),
+            resolvingAgainstBaseURL: false
+        )
+        components?.queryItems = [
+            URLQueryItem(name: "excludeGuests", value: "true")
+        ]
+        return makeAuthenticatedRequest(
+            url: components?.url
+                ?? configuration.apiBaseURL.appending(path: "api/admin/users")
+        )
+    }
+
+    func makeSessionPreviewRequest(
+        players: [SessionCreationPlayer],
+        format: FourPlayerSessionFormat
+    ) throws -> URLRequest {
+        try makeSessionCreationRequest(
+            path: "api/sessions/preview",
+            players: players,
+            createdAt: nil,
+            format: format
+        )
+    }
+
+    func makeCreateSessionRequest(
+        from draft: SessionCreationDraft
+    ) throws -> URLRequest {
+        try makeSessionCreationRequest(
+            path: "api/sessions",
+            players: draft.selectedPlayers,
+            createdAt: ISO8601DateFormatter().string(from: draft.scheduledAt),
+            format: draft.fourPlayerFormat
+        )
+    }
+
     func makeHeadToHeadRequest(
         playerID: UUID,
         opponentID: UUID
@@ -827,6 +926,31 @@ struct GweiloAPIClient: Sendable {
         var request = URLRequest(url: url)
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return request
+    }
+
+    private func makeSessionCreationRequest(
+        path: String,
+        players: [SessionCreationPlayer],
+        createdAt: String?,
+        format: FourPlayerSessionFormat
+    ) throws -> URLRequest {
+        var request = makeAuthenticatedRequest(path: path)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            SessionCreationRequest(
+                players: players.map {
+                    SessionPlayerPayload(
+                        id: $0.id,
+                        name: $0.name,
+                        avatar: $0.avatarURL?.absoluteString
+                    )
+                },
+                createdAt: createdAt,
+                fourPlayerFormat: format
+            )
+        )
         return request
     }
 

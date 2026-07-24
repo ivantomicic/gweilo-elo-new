@@ -2,6 +2,7 @@ import SwiftUI
 
 struct HomeView: View {
     let dataStore: AppDataStore
+    @State private var showsStartSession = false
 
     private var topSinglesPlayers: [RankingEntry] {
         Array(
@@ -19,7 +20,10 @@ struct HomeView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 30) {
                         HomeHeader()
-                        HomeLiveSession(session: dataStore.activeSession)
+                        HomeLiveSession(
+                            session: dataStore.activeSession,
+                            startSession: { showsStartSession = true }
+                        )
                         CompactStandings(players: topSinglesPlayers)
                         LatestSessionResult(session: dataStore.latestCompletedSession)
 
@@ -52,6 +56,9 @@ struct HomeView: View {
                     player: player,
                     dataStore: dataStore
                 )
+            }
+            .sheet(isPresented: $showsStartSession) {
+                StartSessionView(dataStore: dataStore)
             }
         }
     }
@@ -117,6 +124,7 @@ private struct HomeHeader: View {
 
 private struct HomeLiveSession: View {
     let session: SessionSummary?
+    let startSession: () -> Void
 
     var body: some View {
         if let session {
@@ -134,10 +142,12 @@ private struct HomeLiveSession: View {
                 Text("The next live session will appear here.")
                     .font(.headline)
 
-                Link(destination: URL(string: "https://www.gweilo.lol/start-session")!) {
-                    Label("Start on the web", systemImage: "safari")
+                Button(action: startSession) {
+                    Label("Start a session", systemImage: "plus")
                         .font(.subheadline.weight(.semibold))
                 }
+                .buttonStyle(.plain)
+                .foregroundStyle(GweiloTheme.lime)
                 .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
