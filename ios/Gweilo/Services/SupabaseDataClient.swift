@@ -84,6 +84,74 @@ private struct SessionEloPredictionsResponse: Decodable, Sendable {
     let predictions: [MatchEloPrediction]
 }
 
+private struct SessionPlayerSummaryRecord: Decodable, Sendable {
+    let playerID: UUID
+    let eloBefore: Double
+    let eloAfter: Double
+    let eloChange: Double
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case playerID = "player_id"
+        case eloBefore = "elo_before"
+        case eloAfter = "elo_after"
+        case eloChange = "elo_change"
+        case matchesPlayed = "matches_played"
+        case wins
+        case losses
+        case draws
+    }
+}
+
+private struct SessionTeamSummaryRecord: Decodable, Sendable {
+    let teamID: UUID
+    let playerOneID: UUID
+    let playerTwoID: UUID
+    let playerOneName: String
+    let playerTwoName: String
+    let playerOneAvatar: String?
+    let playerTwoAvatar: String?
+    let eloBefore: Double
+    let eloAfter: Double
+    let eloChange: Double
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case teamID = "team_id"
+        case playerOneID = "player1_id"
+        case playerTwoID = "player2_id"
+        case playerOneName = "player1_name"
+        case playerTwoName = "player2_name"
+        case playerOneAvatar = "player1_avatar"
+        case playerTwoAvatar = "player2_avatar"
+        case eloBefore = "elo_before"
+        case eloAfter = "elo_after"
+        case eloChange = "elo_change"
+        case matchesPlayed = "matches_played"
+        case wins
+        case losses
+        case draws
+    }
+}
+
+private struct SessionSummaryResponse: Decodable, Sendable {
+    let singles: [SessionPlayerSummaryRecord]?
+    let doublesPlayer: [SessionPlayerSummaryRecord]?
+    let doublesTeam: [SessionTeamSummaryRecord]?
+
+    private enum CodingKeys: String, CodingKey {
+        case singles
+        case doublesPlayer = "doubles_player"
+        case doublesTeam = "doubles_team"
+    }
+}
+
 private struct PostgrestErrorResponse: Decodable {
     let message: String?
     let details: String?
@@ -107,6 +175,9 @@ struct SupabaseDataClient: Sendable {
             ]
         )
         async let eloPredictionsRequest = fetchSessionEloPredictions(
+            sessionID: summary.id
+        )
+        async let sessionSummaryRequest = fetchSessionSummary(
             sessionID: summary.id
         )
         async let sessionPlayersRequest: [SessionPlayerRecord] = get(
@@ -135,6 +206,7 @@ struct SupabaseDataClient: Sendable {
         )
         let latestSession = sessionRecords.first
         let eloPredictions = (try? await eloPredictionsRequest)?.predictions ?? []
+        let sessionSummary = try? await sessionSummaryRequest
         let eloPredictionsByMatchID = Dictionary(
             uniqueKeysWithValues: eloPredictions.map { ($0.matchId, $0) }
         )
@@ -210,6 +282,15 @@ struct SupabaseDataClient: Sendable {
                 }
             )
         }
+        let singlesPerformance = makePlayerPerformance(
+            from: sessionSummary?.singles ?? []
+        )
+        let doublesPlayerPerformance = makePlayerPerformance(
+            from: sessionSummary?.doublesPlayer ?? []
+        )
+        let doublesTeamPerformance = makeTeamPerformance(
+            from: sessionSummary?.doublesTeam ?? []
+        )
 
         let completedMatches = matchRecords.filter { $0.status == "completed" }
         let pendingRounds = matchRecords
@@ -242,8 +323,81 @@ struct SupabaseDataClient: Sendable {
         return SessionDetail(
             session: refreshedSummary,
             participants: participants,
+            singlesPerformance: singlesPerformance,
+            doublesPlayerPerformance: doublesPlayerPerformance,
+            doublesTeamPerformance: doublesTeamPerformance,
             rounds: rounds
         )
+    }
+
+    private func fetchSessionSummary(
+        sessionID: UUID
+    ) async throws -> SessionSummaryResponse {
+        let endpoint = configuration.apiBaseURL.appending(
+            path: "api/sessions/\(sessionID.uuidString.lowercased())/summary"
+        )
+        var request = URLRequest(url: endpoint)
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard
+            let httpResponse = response as? HTTPURLResponse,
+            (200..<300).contains(httpResponse.statusCode)
+        else {
+            throw LiveDataError.invalidResponse
+        }
+        return try JSONDecoder().decode(SessionSummaryResponse.self, from: data)
+    }
+
+    private func makePlayerPerformance(
+        from records: [SessionPlayerSummaryRecord]
+    ) -> [SessionPlayerPerformance] {
+        records.map { record in
+            SessionPlayerPerformance(
+                playerID: record.playerID,
+                matchesPlayed: record.matchesPlayed,
+                wins: record.wins,
+                losses: record.losses,
+                draws: record.draws,
+                eloBefore: record.eloBefore,
+                eloAfter: record.eloAfter,
+                eloChange: record.eloChange
+            )
+        }
+        .sorted {
+            if $0.wins != $1.wins { return $0.wins > $1.wins }
+            if $0.losses != $1.losses { return $0.losses < $1.losses }
+            return $0.eloChange > $1.eloChange
+        }
+    }
+
+    private func makeTeamPerformance(
+        from records: [SessionTeamSummaryRecord]
+    ) -> [SessionTeamPerformance] {
+        records.map { record in
+            SessionTeamPerformance(
+                id: record.teamID,
+                playerOneID: record.playerOneID,
+                playerTwoID: record.playerTwoID,
+                playerOneName: record.playerOneName,
+                playerTwoName: record.playerTwoName,
+                playerOneAvatarURL: record.playerOneAvatar.flatMap(URL.init(string:)),
+                playerTwoAvatarURL: record.playerTwoAvatar.flatMap(URL.init(string:)),
+                matchesPlayed: record.matchesPlayed,
+                wins: record.wins,
+                losses: record.losses,
+                draws: record.draws,
+                eloBefore: record.eloBefore,
+                eloAfter: record.eloAfter,
+                eloChange: record.eloChange
+            )
+        }
+        .sorted {
+            if $0.wins != $1.wins { return $0.wins > $1.wins }
+            if $0.losses != $1.losses { return $0.losses < $1.losses }
+            return $0.eloChange > $1.eloChange
+        }
     }
 
     private func fetchSessionEloPredictions(
@@ -448,6 +602,7 @@ private struct PlayerEloHistoryPointResponse: Decodable {
     let elo: Double
     let date: String
     let opponent: String?
+    let opponentId: UUID?
     let delta: Double?
     let result: String?
     let scoreFor: Int?
@@ -995,6 +1150,7 @@ struct GweiloAPIClient: Sendable {
                 elo: point.elo,
                 date: date,
                 opponent: point.opponent,
+                opponentID: point.opponentId,
                 delta: point.delta,
                 outcome: point.result.flatMap(MatchOutcome.init(rawValue:)),
                 scoreFor: point.scoreFor,

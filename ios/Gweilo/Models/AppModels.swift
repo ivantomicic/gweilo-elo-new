@@ -11,6 +11,17 @@ enum RankingCategory: String, CaseIterable, Identifiable, Sendable {
     case doublesTeams = "Doubles teams"
 
     var id: Self { self }
+
+    var displayName: String {
+        switch self {
+        case .singles:
+            "Singlovi"
+        case .doublesPlayers:
+            "Dublovi"
+        case .doublesTeams:
+            "Timovi"
+        }
+    }
 }
 
 struct RankingEligibilityRule: Decodable, Hashable, Sendable {
@@ -101,6 +112,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
     let elo: Double
     let date: Date
     let opponent: String?
+    let opponentID: UUID?
     let delta: Double?
     let outcome: MatchOutcome?
     let scoreFor: Int?
@@ -111,6 +123,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
         elo: Double,
         date: Date,
         opponent: String?,
+        opponentID: UUID? = nil,
         delta: Double?,
         outcome: MatchOutcome? = nil,
         scoreFor: Int? = nil,
@@ -120,6 +133,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
         self.elo = elo
         self.date = date
         self.opponent = opponent
+        self.opponentID = opponentID
         self.delta = delta
         self.outcome = outcome
         self.scoreFor = scoreFor
@@ -475,8 +489,8 @@ enum FourPlayerSessionFormat: String, CaseIterable, Codable, Identifiable, Senda
 
     var label: String {
         switch self {
-        case .singles: "Singles only"
-        case .mixed: "Singles + doubles"
+        case .singles: "Samo singlovi"
+        case .mixed: "Singlovi + dublovi"
         }
     }
 }
@@ -515,6 +529,13 @@ struct SessionCreationDraft: Equatable, Sendable {
         selectedPlayers.count == playerCount
     }
 
+    var doublesTeams: [[SessionCreationPlayer]] {
+        guard playerCount == 6 else { return [] }
+        return stride(from: 0, to: 6, by: 2).map { startIndex in
+            Array(selectedPlayers.dropFirst(startIndex).prefix(2))
+        }
+    }
+
     mutating func setPlayerCount(_ count: Int) {
         playerCount = min(6, max(2, count))
         if selectedPlayers.count > playerCount {
@@ -530,6 +551,11 @@ struct SessionCreationDraft: Equatable, Sendable {
         }
     }
 
+    mutating func removeSelectedPlayer(at index: Int) {
+        guard selectedPlayers.indices.contains(index) else { return }
+        selectedPlayers.remove(at: index)
+    }
+
     func selectionNumber(for playerID: UUID) -> Int? {
         selectedPlayers.firstIndex(where: { $0.id == playerID }).map { $0 + 1 }
     }
@@ -540,11 +566,31 @@ struct SessionScheduleMatch: Hashable, Codable, Sendable {
     let players: [SessionCreationPlayer]
 }
 
+struct SessionScheduleDynamicNote: Hashable, Codable, Sendable {
+    let title: String
+    let description: String
+}
+
 struct SessionScheduleRound: Identifiable, Hashable, Codable, Sendable {
     let id: String
     let roundNumber: Int
     let matches: [SessionScheduleMatch]
     let isDynamic: Bool?
+    let dynamicNote: SessionScheduleDynamicNote?
+
+    init(
+        id: String,
+        roundNumber: Int,
+        matches: [SessionScheduleMatch],
+        isDynamic: Bool?,
+        dynamicNote: SessionScheduleDynamicNote? = nil
+    ) {
+        self.id = id
+        self.roundNumber = roundNumber
+        self.matches = matches
+        self.isDynamic = isDynamic
+        self.dynamicNote = dynamicNote
+    }
 
     var matchCount: Int { matches.count }
 }
@@ -554,6 +600,181 @@ struct SessionSchedulePreview: Hashable, Codable, Sendable {
     let players: [SessionCreationPlayer]
     let rounds: [SessionScheduleRound]
     let fourPlayerFormat: FourPlayerSessionFormat
+}
+
+enum SessionScheduleRandomizer {
+    static func preservingFixedTeams(
+        in preview: SessionSchedulePreview
+    ) -> SessionSchedulePreview {
+        switch preview.playerCount {
+        case 4:
+            randomizeFourPlayerPreview(preview)
+        case 6:
+            randomizeSixPlayerPreview(preview)
+        default:
+            preview
+        }
+    }
+
+    private static func randomizeFourPlayerPreview(
+        _ preview: SessionSchedulePreview
+    ) -> SessionSchedulePreview {
+        guard preview.players.count == 4 else { return preview }
+
+        let fixedDoublesRounds = preview.rounds.filter {
+            $0.roundNumber >= 4
+        }
+        let currentSignature = scheduleSignature(
+            preview.rounds.filter { $0.roundNumber <= 3 }
+        )
+
+        for _ in 0..<8 {
+            let shuffledPlayers = preview.players.shuffled()
+            let singlesRounds = fourPlayerSinglesRounds(
+                players: shuffledPlayers
+            )
+            guard scheduleSignature(singlesRounds) != currentSignature else {
+                continue
+            }
+
+            return SessionSchedulePreview(
+                playerCount: preview.playerCount,
+                players: preview.players,
+                rounds: singlesRounds + fixedDoublesRounds,
+                fourPlayerFormat: preview.fourPlayerFormat
+            )
+        }
+
+        return preview
+    }
+
+    private static func randomizeSixPlayerPreview(
+        _ preview: SessionSchedulePreview
+    ) -> SessionSchedulePreview {
+        guard preview.players.count == 6 else { return preview }
+
+        let fixedMixedRounds = preview.rounds.filter {
+            $0.roundNumber >= 5
+        }
+        let partnerMatchups = singlesMatchups(in: fixedMixedRounds)
+        let currentSignature = scheduleSignature(
+            preview.rounds.filter { $0.roundNumber <= 4 }
+        )
+        let fixedTeams = stride(from: 0, to: 6, by: 2).map {
+            Array(preview.players[$0...($0 + 1)])
+        }
+
+        for _ in 0..<12 {
+            let shuffledPlayers = fixedTeams
+                .shuffled()
+                .flatMap { team in
+                    Bool.random() ? team : Array(team.reversed())
+                }
+            let singlesRounds = sixPlayerSinglesRounds(
+                players: shuffledPlayers
+            )
+
+            guard singlesMatchups(in: singlesRounds).isDisjoint(
+                with: partnerMatchups
+            ), scheduleSignature(singlesRounds) != currentSignature else {
+                continue
+            }
+
+            return SessionSchedulePreview(
+                playerCount: preview.playerCount,
+                players: preview.players,
+                rounds: singlesRounds + fixedMixedRounds,
+                fourPlayerFormat: preview.fourPlayerFormat
+            )
+        }
+
+        return preview
+    }
+
+    private static func fourPlayerSinglesRounds(
+        players: [SessionCreationPlayer]
+    ) -> [SessionScheduleRound] {
+        guard players.count == 4 else { return [] }
+        let a = players[0]
+        let b = players[1]
+        let c = players[2]
+        let d = players[3]
+
+        return [
+            makeRound(1, singles: [(a, b), (c, d)]),
+            makeRound(2, singles: [(a, c), (b, d)]),
+            makeRound(3, singles: [(a, d), (b, c)])
+        ]
+    }
+
+    private static func sixPlayerSinglesRounds(
+        players: [SessionCreationPlayer]
+    ) -> [SessionScheduleRound] {
+        guard players.count == 6 else { return [] }
+        let a = players[0]
+        let b = players[1]
+        let c = players[2]
+        let d = players[3]
+        let e = players[4]
+        let f = players[5]
+
+        return [
+            makeRound(1, singles: [(a, c), (b, e), (d, f)]),
+            makeRound(2, singles: [(a, d), (b, f), (c, e)]),
+            makeRound(3, singles: [(a, e), (b, d), (c, f)]),
+            makeRound(4, singles: [(a, f), (b, c), (d, e)])
+        ]
+    }
+
+    private static func makeRound(
+        _ number: Int,
+        singles: [(SessionCreationPlayer, SessionCreationPlayer)]
+    ) -> SessionScheduleRound {
+        SessionScheduleRound(
+            id: String(number),
+            roundNumber: number,
+            matches: singles.map { players in
+                SessionScheduleMatch(
+                    type: .singles,
+                    players: [players.0, players.1]
+                )
+            },
+            isDynamic: nil
+        )
+    }
+
+    private static func singlesMatchups(
+        in rounds: [SessionScheduleRound]
+    ) -> Set<String> {
+        Set(
+            rounds
+                .flatMap(\.matches)
+                .filter { $0.type == .singles && $0.players.count == 2 }
+                .map { match in
+                    match.players
+                        .map { $0.id.uuidString.lowercased() }
+                        .sorted()
+                        .joined(separator: ":")
+                }
+        )
+    }
+
+    private static func scheduleSignature(
+        _ rounds: [SessionScheduleRound]
+    ) -> String {
+        rounds
+            .sorted { $0.roundNumber < $1.roundNumber }
+            .map { round in
+                round.matches
+                    .map { match in
+                        match.players
+                            .map { $0.id.uuidString.lowercased() }
+                            .joined(separator: ":")
+                    }
+                    .joined(separator: "|")
+            }
+            .joined(separator: "/")
+    }
 }
 
 struct CreatedSessionResult: Decodable, Sendable {
@@ -593,6 +814,40 @@ struct SessionParticipant: Identifiable, Hashable, Sendable {
             .map(String.init)
             .joined()
             .uppercased()
+    }
+}
+
+struct SessionPlayerPerformance: Identifiable, Hashable, Sendable {
+    let playerID: UUID
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let eloBefore: Double
+    let eloAfter: Double
+    let eloChange: Double
+
+    var id: UUID { playerID }
+}
+
+struct SessionTeamPerformance: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let playerOneID: UUID
+    let playerTwoID: UUID
+    let playerOneName: String
+    let playerTwoName: String
+    let playerOneAvatarURL: URL?
+    let playerTwoAvatarURL: URL?
+    let matchesPlayed: Int
+    let wins: Int
+    let losses: Int
+    let draws: Int
+    let eloBefore: Double
+    let eloAfter: Double
+    let eloChange: Double
+
+    var name: String {
+        "\(playerOneName) + \(playerTwoName)"
     }
 }
 
@@ -743,6 +998,9 @@ struct SessionRound: Identifiable, Hashable, Sendable {
 struct SessionDetail: Hashable, Sendable {
     let session: SessionSummary
     let participants: [SessionParticipant]
+    let singlesPerformance: [SessionPlayerPerformance]
+    let doublesPlayerPerformance: [SessionPlayerPerformance]
+    let doublesTeamPerformance: [SessionTeamPerformance]
     let rounds: [SessionRound]
 
     func participant(for playerID: UUID) -> SessionParticipant? {

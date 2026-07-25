@@ -68,6 +68,7 @@ private struct AuthSessionVault {
 final class AuthStore {
     private(set) var session: AuthSession?
     private(set) var isSigningIn = false
+    private(set) var isSigningInWithGoogle = false
     private(set) var isRestoringSession = true
     private(set) var errorMessage: String?
 
@@ -109,6 +110,38 @@ final class AuthStore {
                 .signIn(email: email, password: password)
             try vault.save(authenticatedSession)
             session = authenticatedSession
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func signInWithGoogle(
+        authenticate: @MainActor (URL) async throws -> URL
+    ) async {
+        guard let configuration else {
+            errorMessage = "Supabase is not configured for this build."
+            return
+        }
+
+        isSigningIn = true
+        isSigningInWithGoogle = true
+        errorMessage = nil
+        defer {
+            isSigningIn = false
+            isSigningInWithGoogle = false
+        }
+
+        do {
+            let client = SupabaseAuthClient(configuration: configuration)
+            let authorizationURL = try client.googleAuthorizationURL()
+            let callbackURL = try await authenticate(authorizationURL)
+            let authenticatedSession = try await client.session(
+                fromOAuthCallback: callbackURL
+            )
+            try vault.save(authenticatedSession)
+            session = authenticatedSession
+        } catch AuthenticationError.cancelled {
+            // Closing the browser is an intentional action, not a sign-in error.
         } catch {
             errorMessage = error.localizedDescription
         }

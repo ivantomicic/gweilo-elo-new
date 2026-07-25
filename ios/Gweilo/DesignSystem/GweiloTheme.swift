@@ -122,6 +122,49 @@ struct AdaptiveSurfaceModifier: ViewModifier {
     }
 }
 
+struct GweiloPrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    var keepsColorWhenDisabled = false
+    var height: CGFloat = 56
+
+    func makeBody(configuration: Configuration) -> some View {
+        let usesProminentColors = isEnabled || keepsColorWhenDisabled
+
+        configuration.label
+            .font(.headline.weight(.bold))
+            .foregroundStyle(
+                usesProminentColors
+                    ? GweiloTheme.background
+                    : GweiloTheme.muted
+            )
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity)
+            .frame(height: height)
+            .background(
+                usesProminentColors
+                    ? GweiloTheme.lime
+                    : GweiloTheme.raisedSurface,
+                in: .capsule
+            )
+            .opacity(
+                configuration.isPressed
+                    ? 0.82
+                    : (isEnabled || !keepsColorWhenDisabled ? 1 : 0.72)
+            )
+            .scaleEffect(configuration.isPressed ? 0.965 : 1)
+            .animation(
+                .smooth(duration: 0.12),
+                value: configuration.isPressed
+            )
+            .sensoryFeedback(
+                .impact(weight: .light, intensity: 0.65),
+                trigger: configuration.isPressed
+            ) { wasPressed, isPressed in
+                !wasPressed && isPressed
+            }
+    }
+}
+
 struct PhantomMark: View {
     let size: CGFloat
     var showsGlow = true

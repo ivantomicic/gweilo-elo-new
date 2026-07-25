@@ -151,6 +151,7 @@ export async function GET(request: NextRequest) {
 			elo: number;
 			date: string;
 			opponent: string;
+			opponentId: string | null;
 			delta: number;
 			scoreFor: number | null;
 			scoreAgainst: number | null;
@@ -220,6 +221,7 @@ export async function GET(request: NextRequest) {
 						elo: eloNum,
 						date: sessionDate,
 						opponent: opponentName,
+						opponentId,
 						delta: deltaNum,
 						...matchResult,
 					});

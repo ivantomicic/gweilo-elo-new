@@ -17,68 +17,72 @@ struct SessionDetailView: View {
         ZStack {
             ArenaBackground()
 
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 30) {
-                    if let detail {
-                        if shouldShowScorekeeper(for: detail),
-                           let currentRound = currentRound(in: detail) {
-                            ScoreEntryView(
-                                round: currentRound,
-                                detail: detail,
-                                submit: { scores in
-                                    try await dataStore.submitRound(
-                                        sessionID: detail.session.id,
-                                        roundNumber: currentRound.number,
-                                        scores: scores
-                                    )
-                                },
-                                onSubmitted: {
-                                    await load()
-                                }
-                            )
-                            .id(currentRound.id)
-                        } else {
-                            SessionHero(
-                                session: detail.session,
-                                totalMatchCount: detail.rounds.reduce(0) {
-                                    $0 + $1.matches.count
-                                }
-                            )
-
-                            if let currentRound = currentRound(in: detail) {
-                                ReadOnlyCurrentRound(
+            if detail == nil, isLoading {
+                GweiloFullScreenLoadingView("Učitavam termin…")
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 30) {
+                        if let detail {
+                            if shouldShowScorekeeper(for: detail),
+                               let currentRound = currentRound(in: detail) {
+                                ScoreEntryView(
                                     round: currentRound,
-                                    detail: detail
+                                    detail: detail,
+                                    submit: { scores in
+                                        try await dataStore.submitRound(
+                                            sessionID: detail.session.id,
+                                            roundNumber: currentRound.number,
+                                            scores: scores
+                                        )
+                                    },
+                                    onSubmitted: {
+                                        await load()
+                                    }
                                 )
-                            } else if detail.session.status == .completed {
-                                CompletedSessionOutcome(session: detail.session)
+                                .id(currentRound.id)
+                            } else {
+                                SessionHero(
+                                    session: detail.session,
+                                    totalMatchCount: detail.rounds.reduce(0) {
+                                        $0 + $1.matches.count
+                                    }
+                                )
+
+                                if let currentRound = currentRound(in: detail) {
+                                    ReadOnlyCurrentRound(
+                                        round: currentRound,
+                                        detail: detail
+                                    )
+                                } else if detail.session.status == .completed {
+                                    SessionPerformanceTable(detail: detail)
+                                }
+
+                                if detail.session.status == .active {
+                                    PlayerRoster(participants: detail.participants)
+                                }
+
+                                RoundTimeline(
+                                    detail: detail,
+                                    expandedRounds: expandedRounds,
+                                    toggleRound: toggleRound
+                                )
                             }
-
-                            PlayerRoster(participants: detail.participants)
-
-                            RoundTimeline(
-                                detail: detail,
-                                expandedRounds: expandedRounds,
-                                toggleRound: toggleRound
+                        } else if let errorMessage {
+                            SessionDetailError(
+                                message: errorMessage,
+                                retry: load
                             )
                         }
-                    } else if isLoading {
-                        SessionDetailSkeleton()
-                    } else if let errorMessage {
-                        SessionDetailError(
-                            message: errorMessage,
-                            retry: load
-                        )
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 48)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 48)
+                .refreshable {
+                    await load()
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .scrollIndicators(.hidden)
             }
-            .refreshable {
-                await load()
-            }
-            .scrollDismissesKeyboard(.interactively)
-            .scrollIndicators(.hidden)
         }
         .navigationTitle("Session")
         .navigationBarTitleDisplayMode(.inline)
@@ -217,9 +221,8 @@ struct SessionDetailView: View {
             let loadedDetail = try await dataStore.sessionDetail(for: currentSummary)
             detail = loadedDetail
 
-            if currentSummary.status == .completed,
-               let latestRound = loadedDetail.rounds.last {
-                expandedRounds = [latestRound.number]
+            if loadedDetail.session.status == .completed {
+                expandedRounds = Set(loadedDetail.rounds.map(\.number))
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -272,7 +275,7 @@ private struct SessionHero: View {
                     .foregroundStyle(.secondary)
             }
 
-            if let totalMatchCount {
+            if session.status == .active, let totalMatchCount {
                 VStack(spacing: 10) {
                     ProgressView(
                         value: Double(completedMatchCount),
@@ -348,61 +351,519 @@ private struct ReadOnlyCurrentRound: View {
     }
 }
 
-private struct CompletedSessionOutcome: View {
-    let session: SessionSummary
+private struct SessionPerformanceTable: View {
+    let detail: SessionDetail
+    @State private var selection: SessionPerformanceCategory = .singles
+    @Namespace private var selectionIndicator
+
+    private var availableCategories: [SessionPerformanceCategory] {
+        SessionPerformanceCategory.allCases.filter { category in
+            switch category {
+            case .singles:
+                !detail.singlesPerformance.isEmpty
+            case .doublesPlayers:
+                !detail.doublesPlayerPerformance.isEmpty
+            case .doublesTeams:
+                !detail.doublesTeamPerformance.isEmpty
+            }
+        }
+    }
+
+    private var activeCategory: SessionPerformanceCategory {
+        availableCategories.contains(selection)
+            ? selection
+            : availableCategories.first ?? .singles
+    }
 
     var body: some View {
-        if session.bestPlayer != nil || session.worstPlayer != nil {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionLabel(title: "Session form", value: "FINAL")
+        VStack(alignment: .leading, spacing: 14) {
+            SectionLabel(title: "Učinak", value: "KRAJ")
 
-                HStack(alignment: .top, spacing: 18) {
-                    OutcomePlayer(
-                        label: "BEST",
-                        name: session.bestPlayer,
-                        delta: session.bestDelta,
-                        color: GweiloTheme.lime,
-                        symbol: "arrow.up"
-                    )
-
-                    Divider()
-
-                    OutcomePlayer(
-                        label: "TOUGHEST",
-                        name: session.worstPlayer,
-                        delta: session.worstDelta,
-                        color: GweiloTheme.coral,
-                        symbol: "arrow.down"
+            if availableCategories.isEmpty {
+                Text("Statistika još nije dostupna.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                if availableCategories.count > 1 {
+                    SessionPerformanceTabs(
+                        categories: availableCategories,
+                        selection: Binding(
+                            get: { activeCategory },
+                            set: { selection = $0 }
+                        ),
+                        selectionIndicator: selectionIndicator
                     )
                 }
+
+                VStack(spacing: 0) {
+                    PerformanceTableHeader(category: activeCategory)
+                    Divider()
+
+                    switch activeCategory {
+                    case .singles:
+                        playerRows(detail.singlesPerformance)
+                    case .doublesPlayers:
+                        playerRows(detail.doublesPlayerPerformance)
+                    case .doublesTeams:
+                        teamRows(detail.doublesTeamPerformance)
+                    }
+                }
+                .id(activeCategory)
+                .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
+        }
+        .animation(.smooth(duration: 0.24), value: activeCategory)
+    }
+
+    @ViewBuilder
+    private func playerRows(
+        _ performances: [SessionPlayerPerformance]
+    ) -> some View {
+        ForEach(Array(performances.enumerated()), id: \.element.id) {
+            index,
+            performance in
+            PerformanceTableRow(
+                rank: index + 1,
+                participant: detail.participant(for: performance.playerID),
+                performance: performance
+            )
+
+            if performance.id != performances.last?.id {
+                Divider()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func teamRows(
+        _ performances: [SessionTeamPerformance]
+    ) -> some View {
+        ForEach(Array(performances.enumerated()), id: \.element.id) {
+            index,
+            performance in
+            TeamPerformanceTableRow(
+                rank: index + 1,
+                performance: performance
+            )
+
+            if performance.id != performances.last?.id {
+                Divider()
             }
         }
     }
 }
 
-private struct OutcomePlayer: View {
-    let label: String
-    let name: String?
-    let delta: Int?
-    let color: Color
-    let symbol: String
+private enum SessionPerformanceCategory: String, CaseIterable, Identifiable {
+    case singles
+    case doublesPlayers
+    case doublesTeams
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .singles:
+            "Singlovi"
+        case .doublesPlayers:
+            "Dublovi"
+        case .doublesTeams:
+            "Timovi"
+        }
+    }
+}
+
+private struct SessionPerformanceTabs: View {
+    let categories: [SessionPerformanceCategory]
+    @Binding var selection: SessionPerformanceCategory
+    let selectionIndicator: Namespace.ID
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(label, systemImage: symbol)
-                .font(.caption2.weight(.bold))
-                .tracking(0.8)
-                .foregroundStyle(color)
+        HStack(spacing: 24) {
+            ForEach(categories) { category in
+                Button {
+                    selection = category
+                } label: {
+                    VStack(spacing: 7) {
+                        Text(category.title.uppercased())
+                            .font(
+                                GweiloTheme.labelFont(
+                                    size: 12,
+                                    relativeTo: .caption
+                                )
+                            )
+                            .tracking(0.7)
+                            .foregroundStyle(
+                                selection == category
+                                    ? GweiloTheme.bone
+                                    : GweiloTheme.muted
+                            )
 
-            Text(name ?? "—")
-                .font(.headline)
-                .lineLimit(1)
+                        ZStack {
+                            Color.clear.frame(height: 2)
 
-            Text(delta.map { $0 > 0 ? "+\($0) Elo" : "\($0) Elo" } ?? "—")
-                .font(.subheadline.monospacedDigit().weight(.semibold))
-                .foregroundStyle(.secondary)
+                            if selection == category {
+                                Rectangle()
+                                    .fill(GweiloTheme.lime)
+                                    .matchedGeometryEffect(
+                                        id: "session-performance-category",
+                                        in: selectionIndicator
+                                    )
+                            }
+                        }
+                        .frame(height: 2)
+                    }
+                    .frame(minHeight: 44, alignment: .bottom)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(ResponsiveButtonStyle())
+                .accessibilityAddTraits(
+                    selection == category ? .isSelected : []
+                )
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .sensoryFeedback(.selection, trigger: selection)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(GweiloTheme.hairline)
+                .frame(height: 1)
+        }
+    }
+}
+
+private struct PerformanceTableHeader: View {
+    let category: SessionPerformanceCategory
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(category == .doublesTeams ? "TIM" : "IGRAČ")
+            Spacer()
+            Text("UČINAK")
+                .frame(width: 56, alignment: .center)
+            Text("ELO")
+                .frame(width: 60, alignment: .trailing)
+        }
+        .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
+        .tracking(0.8)
+        .foregroundStyle(GweiloTheme.muted)
+        .padding(.vertical, 9)
+    }
+}
+
+private struct PerformanceTableRow: View {
+    let rank: Int
+    let participant: SessionParticipant?
+    let performance: SessionPlayerPerformance
+
+    private var eloChangeText: String {
+        let rounded = Int(performance.eloChange.rounded())
+        return rounded > 0 ? "+\(rounded)" : "\(rounded)"
+    }
+
+    private var eloColor: Color {
+        if performance.eloChange > 0 { return GweiloTheme.lime }
+        if performance.eloChange < 0 { return GweiloTheme.coral }
+        return .secondary
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SessionRankedPlayerAvatar(
+                rank: rank,
+                name: participant?.name ?? "Nepoznat igrač",
+                initials: participant?.initials ?? "?",
+                avatarURL: participant?.avatarURL
+            )
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(participant?.name ?? "Nepoznat igrač")
+                    .font(.body.weight(.semibold))
+                    .lineLimit(1)
+
+                SessionRecordSummary(
+                    matches: performance.matchesPlayed,
+                    wins: performance.wins,
+                    draws: performance.draws,
+                    losses: performance.losses
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            SessionRecordBar(
+                matches: performance.matchesPlayed,
+                wins: performance.wins,
+                draws: performance.draws,
+                losses: performance.losses
+            )
+            .frame(width: 56, height: 8)
+
+            SessionEloResult(
+                eloAfter: performance.eloAfter,
+                changeText: eloChangeText,
+                changeColor: eloColor
+            )
+        }
+        .padding(.vertical, 13)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(participant?.name ?? "Nepoznat igrač"), mesto \(rank), "
+                + "\(performance.wins) pobeda, \(performance.draws) nerešenih, "
+                + "\(performance.losses) poraza, \(eloChangeText) Elo"
+        )
+    }
+}
+
+private struct TeamPerformanceTableRow: View {
+    let rank: Int
+    let performance: SessionTeamPerformance
+
+    private var eloChangeText: String {
+        let rounded = Int(performance.eloChange.rounded())
+        return rounded > 0 ? "+\(rounded)" : "\(rounded)"
+    }
+
+    private var eloColor: Color {
+        if performance.eloChange > 0 { return GweiloTheme.lime }
+        if performance.eloChange < 0 { return GweiloTheme.coral }
+        return .secondary
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            SessionRankedTeamAvatar(rank: rank, performance: performance)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(performance.name)
+                    .font(.body.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+
+                SessionRecordSummary(
+                    matches: performance.matchesPlayed,
+                    wins: performance.wins,
+                    draws: performance.draws,
+                    losses: performance.losses
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            SessionRecordBar(
+                matches: performance.matchesPlayed,
+                wins: performance.wins,
+                draws: performance.draws,
+                losses: performance.losses
+            )
+            .frame(width: 56, height: 8)
+
+            SessionEloResult(
+                eloAfter: performance.eloAfter,
+                changeText: eloChangeText,
+                changeColor: eloColor
+            )
+        }
+        .padding(.vertical, 13)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(performance.name), mesto \(rank), "
+                + "\(performance.wins) pobeda, \(performance.draws) nerešenih, "
+                + "\(performance.losses) poraza, \(eloChangeText) Elo"
+        )
+    }
+}
+
+private struct SessionRankedPlayerAvatar: View {
+    let rank: Int
+    let name: String
+    let initials: String
+    let avatarURL: URL?
+
+    var body: some View {
+        PlayerIdentityAvatar(
+            name: name,
+            initials: initials,
+            avatarURL: avatarURL,
+            size: 38
+        )
+        .overlay(alignment: .topLeading) {
+            SessionRankBadge(rank: rank)
+                .offset(x: -4, y: -4)
+        }
+        .padding(.leading, 2)
+    }
+}
+
+private struct SessionRankedTeamAvatar: View {
+    let rank: Int
+    let performance: SessionTeamPerformance
+
+    var body: some View {
+        ZStack {
+            PlayerIdentityAvatar(
+                name: performance.playerOneName,
+                initials: initials(for: performance.playerOneName),
+                avatarURL: performance.playerOneAvatarURL,
+                size: 32
+            )
+            .offset(x: -7)
+
+            PlayerIdentityAvatar(
+                name: performance.playerTwoName,
+                initials: initials(for: performance.playerTwoName),
+                avatarURL: performance.playerTwoAvatarURL,
+                size: 32
+            )
+            .offset(x: 7)
+        }
+        .frame(width: 46, height: 38)
+        .overlay(alignment: .topLeading) {
+            SessionRankBadge(rank: rank)
+                .offset(x: -4, y: -4)
+        }
+        .padding(.leading, 2)
+    }
+
+    private func initials(for name: String) -> String {
+        name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+}
+
+private struct SessionRankBadge: View {
+    let rank: Int
+
+    var body: some View {
+        Text("\(rank)")
+            .font(
+                GweiloTheme.labelFont(size: 10, relativeTo: .caption2)
+                    .monospacedDigit()
+            )
+            .foregroundStyle(
+                rank <= 3 ? GweiloTheme.background : GweiloTheme.bone
+            )
+            .padding(.horizontal, 4)
+            .frame(minWidth: 17, minHeight: 17)
+            .background(badgeBackground, in: .capsule)
+            .overlay {
+                Capsule()
+                    .stroke(GweiloTheme.background.opacity(0.88), lineWidth: 1.5)
+            }
+    }
+
+    private var badgeBackground: Color {
+        switch rank {
+        case 1:
+            GweiloTheme.lime
+        case 2:
+            GweiloTheme.cyan
+        case 3:
+            GweiloTheme.accentBright
+        default:
+            GweiloTheme.raisedSurface
+        }
+    }
+}
+
+private struct SessionRecordSummary: View {
+    let matches: Int
+    let wins: Int
+    let draws: Int
+    let losses: Int
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Text("\(matches)")
+                .foregroundStyle(.secondary)
+            Text("\(wins)")
+                .foregroundStyle(GweiloTheme.lime)
+            Text("–")
+                .foregroundStyle(.secondary)
+            Text("\(draws)")
+                .foregroundStyle(GweiloTheme.amber)
+            Text("–")
+                .foregroundStyle(.secondary)
+            Text("\(losses)")
+                .foregroundStyle(GweiloTheme.coral)
+        }
+        .font(.caption2.monospacedDigit())
+        .lineLimit(1)
+    }
+}
+
+private struct SessionEloResult: View {
+    let eloAfter: Double
+    let changeText: String
+    let changeColor: Color
+
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 1) {
+            Text("\(Int(eloAfter.rounded()))")
+                .font(
+                    GweiloTheme.displayFont(size: 19, relativeTo: .body)
+                        .monospacedDigit()
+                )
+                .foregroundStyle(GweiloTheme.bone)
+
+            Text(changeText)
+                .font(.caption2.monospacedDigit().weight(.bold))
+                .foregroundStyle(changeColor)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(width: 60, alignment: .trailing)
+    }
+}
+
+private struct SessionRecordBar: View {
+    let matches: Int
+    let wins: Int
+    let draws: Int
+    let losses: Int
+
+    private var total: CGFloat {
+        CGFloat(max(matches, 1))
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let spacing = CGFloat(1)
+            let availableWidth = max(0, proxy.size.width - (spacing * 2))
+
+            HStack(spacing: spacing) {
+                recordSegment(
+                    count: wins,
+                    color: GweiloTheme.lime,
+                    availableWidth: availableWidth
+                )
+                recordSegment(
+                    count: draws,
+                    color: GweiloTheme.amber,
+                    availableWidth: availableWidth
+                )
+                recordSegment(
+                    count: losses,
+                    color: GweiloTheme.coral,
+                    availableWidth: availableWidth
+                )
+            }
+        }
+        .clipShape(.capsule)
+        .accessibilityHidden(true)
+    }
+
+    private func recordSegment(
+        count: Int,
+        color: Color,
+        availableWidth: CGFloat
+    ) -> some View {
+        Capsule()
+            .fill(count > 0 ? color : GweiloTheme.surface)
+            .frame(width: availableWidth * CGFloat(count) / total)
     }
 }
 
@@ -472,7 +933,12 @@ private struct RoundTimeline: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionLabel(title: "Round history", value: "\(rounds.count)")
+            SectionLabel(
+                title: detail.session.status == .completed
+                    ? "Match results"
+                    : "Round history",
+                value: "\(rounds.count) ROUNDS"
+            )
 
             if rounds.isEmpty {
                 Text("Earlier rounds will appear here.")
@@ -780,14 +1246,6 @@ private struct SectionLabel: View {
     }
 }
 
-private struct SessionDetailSkeleton: View {
-    var body: some View {
-        GweiloLoadingView("Loading session")
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 70)
-    }
-}
-
 private struct SessionDetailError: View {
     let message: String
     let retry: () async -> Void
@@ -983,6 +1441,9 @@ extension SessionDetail {
                 worstDelta: nil
             ),
             participants: participants,
+            singlesPerformance: [],
+            doublesPlayerPerformance: [],
+            doublesTeamPerformance: [],
             rounds: rounds
         )
     }()

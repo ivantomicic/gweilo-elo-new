@@ -30,13 +30,21 @@ struct MatchOutcomeBadge: View {
     @ScaledMetric(relativeTo: .caption) private var size = 38.0
 
     var body: some View {
+        MatchOutcomeArtwork(outcome: outcome, size: size)
+    }
+}
+
+struct MatchOutcomeArtwork: View {
+    let outcome: MatchOutcome
+    let size: CGFloat
+
+    var body: some View {
         Image(outcome.assetName)
             .resizable()
             .interpolation(.high)
             .scaledToFill()
             .frame(width: size, height: size)
             .clipShape(.rect(cornerRadius: size * 0.18))
-            .shadow(color: outcome.color.opacity(0.22), radius: 4)
             .accessibilityLabel(outcome.label)
     }
 }

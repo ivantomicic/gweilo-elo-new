@@ -40,7 +40,7 @@ struct RootView: View {
                     .background(ArenaBackground())
             } else if authStore.session == nil {
                 SignInView(authStore: authStore)
-            } else if let appDataStore {
+            } else if let appDataStore, appDataStore.hasLoaded {
                 MainTabView(
                     dataStore: appDataStore,
                     authStore: authStore,
@@ -227,33 +227,33 @@ private struct StartSessionPreviewScreen: View {
 }
 #endif
 
-private struct MainTabView: View {
-    private enum TabSelection: Hashable {
-        case home
-        case sessions
-        case rankings
-        case more
-    }
+private enum MainTabSelection: Hashable {
+    case home
+    case sessions
+    case rankings
+    case more
+}
 
+private struct MainTabView: View {
     let dataStore: AppDataStore
     let authStore: AuthStore
     let pushNotifications: PushNotificationManager
-    @State private var selectedTab = TabSelection.home
+    @State private var selectedTab = MainTabSelection.home
 
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab(
                 "Home",
                 systemImage: "house.fill",
-                value: TabSelection.home
+                value: MainTabSelection.home
             ) {
                 HomeView(dataStore: dataStore)
             }
 
             Tab(
                 "Sessions",
-                systemImage: "sportscourt.fill",
-                value: TabSelection.sessions
+                systemImage: "figure.table.tennis",
+                value: MainTabSelection.sessions
             ) {
                 SessionsView(
                     dataStore: dataStore,
@@ -266,8 +266,8 @@ private struct MainTabView: View {
 
             Tab(
                 "Rankings",
-                systemImage: "chart.line.uptrend.xyaxis",
-                value: TabSelection.rankings
+                systemImage: "trophy.fill",
+                value: MainTabSelection.rankings
             ) {
                 RankingsView(dataStore: dataStore)
             }
@@ -275,7 +275,7 @@ private struct MainTabView: View {
             Tab(
                 "More",
                 systemImage: "ellipsis",
-                value: TabSelection.more
+                value: MainTabSelection.more
             ) {
                 AccountView(
                     email: authStore.session?.user.email,

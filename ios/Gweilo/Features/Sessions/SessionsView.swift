@@ -5,8 +5,6 @@ struct SessionsView: View {
     let requestedSessionID: UUID?
     let didOpenRequestedSession: (UUID) -> Void
     @State private var navigationPath = NavigationPath()
-    @State private var showsStartSession = false
-    @State private var pendingCreatedSession: SessionSummary?
 
     init(
         dataStore: AppDataStore,
@@ -23,25 +21,27 @@ struct SessionsView: View {
             ZStack {
                 ArenaBackground()
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 26) {
-                        SessionsHeader(
-                            isLoading: dataStore.isLoading,
-                            canStartSession: dataStore.canStartNewSession,
-                            startSession: { showsStartSession = true },
-                            refresh: {
-                                Task { await dataStore.load() }
-                            }
-                        )
-                        SessionsContent(dataStore: dataStore)
+                if dataStore.isLoading, dataStore.sessions.isEmpty {
+                    GweiloFullScreenLoadingView("Učitavam termine…")
+                } else {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 26) {
+                            SessionsHeader(
+                                isLoading: dataStore.isLoading,
+                                refresh: {
+                                    Task { await dataStore.load() }
+                                }
+                            )
+                            SessionsContent(dataStore: dataStore)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 40)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 40)
+                    .refreshable {
+                        await dataStore.load()
+                    }
+                    .scrollIndicators(.hidden)
                 }
-                .refreshable {
-                    await dataStore.load()
-                }
-                .scrollIndicators(.hidden)
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
             .navigationDestination(for: SessionSummary.self) { session in
@@ -49,22 +49,6 @@ struct SessionsView: View {
                     session: session,
                     dataStore: dataStore
                 )
-            }
-            .sheet(isPresented: $showsStartSession) {
-                StartSessionView(
-                    dataStore: dataStore,
-                    onCreated: { pendingCreatedSession = $0 }
-                )
-            }
-            .onChange(of: showsStartSession) { _, isPresented in
-                guard
-                    !isPresented,
-                    let pendingCreatedSession
-                else {
-                    return
-                }
-                self.pendingCreatedSession = nil
-                navigationPath.append(pendingCreatedSession)
             }
             .task(id: requestedSessionID) {
                 await openRequestedSession()
@@ -91,8 +75,6 @@ struct SessionsView: View {
 }
 private struct SessionsHeader: View {
     let isLoading: Bool
-    let canStartSession: Bool
-    let startSession: () -> Void
     let refresh: () -> Void
 
     var body: some View {
@@ -122,17 +104,6 @@ private struct SessionsHeader: View {
             Spacer()
 
             HStack(spacing: 10) {
-                if canStartSession {
-                    Button(action: startSession) {
-                        Image(systemName: "plus")
-                            .font(.subheadline.weight(.bold))
-                            .frame(width: 42, height: 42)
-                    }
-                    .buttonStyle(.plain)
-                    .modifier(RefreshButtonSurface())
-                    .accessibilityLabel("Start a session")
-                }
-
                 Button(action: refresh) {
                     Image(systemName: "arrow.clockwise")
                         .font(.subheadline.weight(.semibold))
@@ -178,12 +149,8 @@ private struct SessionsContent: View {
     let dataStore: AppDataStore
 
     var body: some View {
-        if dataStore.isLoading, dataStore.sessions.isEmpty {
-            GweiloLoadingView("Loading sessions…")
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 60)
-        } else if let errorMessage = dataStore.errorMessage,
-                  dataStore.sessions.isEmpty {
+        if let errorMessage = dataStore.errorMessage,
+           dataStore.sessions.isEmpty {
             ContentUnavailableView {
                 Label("Couldn’t load sessions", systemImage: "wifi.exclamationmark")
             } description: {
@@ -332,9 +299,9 @@ struct StartSessionView: View {
 
         var title: String {
             switch self {
-            case .setup: "New session"
-            case .players: "Choose players"
-            case .review: "Review schedule"
+            case .setup: "Nova sesija"
+            case .players: "Izaberi igrače"
+            case .review: "Raspored"
             }
         }
     }
@@ -441,20 +408,20 @@ struct StartSessionView: View {
 
     private var footerTitle: String {
         switch step {
-        case .setup: "Choose players"
-        case .players: "Build schedule"
-        case .review: "Start session"
+        case .setup: "Izaberi igrače"
+        case .players: "Napravi raspored"
+        case .review: "Pokreni sesiju"
         }
     }
 
     private var footerDetail: String {
         switch step {
         case .setup:
-            "\(draft.playerCount) players"
+            "\(draft.playerCount) igrača"
         case .players:
-            "\(draft.selectedPlayers.count) of \(draft.playerCount) selected"
+            "\(draft.selectedPlayers.count) od \(draft.playerCount)"
         case .review:
-            "\(preview?.rounds.count ?? 0) rounds"
+            "\(preview?.rounds.count ?? 0) rundi"
         }
     }
 
@@ -501,10 +468,27 @@ struct StartSessionView: View {
         isPreparingSchedule = true
         defer { isPreparingSchedule = false }
         do {
-            preview = try await dataStore.previewSession(
-                players: draft.selectedPlayers.shuffled(),
-                format: draft.fourPlayerFormat
-            )
+            if !showReview,
+               let preview,
+               draft.playerCount == 4 || draft.playerCount == 6 {
+                self.preview = SessionScheduleRandomizer
+                    .preservingFixedTeams(in: preview)
+            } else {
+                let keepsTeamOrder =
+                    draft.playerCount == 4 || draft.playerCount == 6
+                let requestedPlayers = keepsTeamOrder
+                    ? draft.selectedPlayers
+                    : draft.selectedPlayers.shuffled()
+                let serverPreview = try await dataStore.previewSession(
+                    players: requestedPlayers,
+                    format: draft.fourPlayerFormat
+                )
+                preview = keepsTeamOrder
+                    ? SessionScheduleRandomizer.preservingFixedTeams(
+                        in: serverPreview
+                    )
+                    : serverPreview
+            }
             if showReview {
                 withAnimation(.smooth) { step = .review }
             }
@@ -588,11 +572,11 @@ private struct SessionSetupStep: View {
             VStack(alignment: .leading, spacing: 26) {
                 SessionCreationEyebrow(
                     number: "01",
-                    title: "SET THE TABLE"
+                    title: "POSTAVI STO"
                 )
 
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("How many players?")
+                    Text("Koliko igrača?")
                         .font(.headline)
 
                     HStack(spacing: 8) {
@@ -625,7 +609,7 @@ private struct SessionSetupStep: View {
                                     }
                             }
                             .buttonStyle(ResponsiveButtonStyle())
-                            .accessibilityLabel("\(count) players")
+                            .accessibilityLabel("\(count) igrača")
                             .accessibilityAddTraits(
                                 draft.playerCount == count ? .isSelected : []
                             )
@@ -635,11 +619,11 @@ private struct SessionSetupStep: View {
 
                 if draft.playerCount == 4 {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Four-player format")
+                        Text("Format za četiri igrača")
                             .font(.headline)
 
                         Picker(
-                            "Four-player format",
+                            "Format za četiri igrača",
                             selection: $draft.fourPlayerFormat
                         ) {
                             ForEach(FourPlayerSessionFormat.allCases) { format in
@@ -653,7 +637,7 @@ private struct SessionSetupStep: View {
 
                 SessionCreationNote(
                     icon: "play.fill",
-                    text: "The session starts immediately. The server builds the same randomized Gweilo schedule used by the web app."
+                    text: "Sesija počinje odmah. Raspored i dinamičke runde koriste ista pravila kao web aplikacija."
                 )
             }
             .padding(20)
@@ -669,6 +653,7 @@ private struct SessionPlayersStep: View {
     let players: [SessionCreationPlayer]
     let isLoading: Bool
     @State private var query = ""
+    @Namespace private var playerTransition
 
     private var filteredPlayers: [SessionCreationPlayer] {
         guard !query.isEmpty else { return players }
@@ -677,54 +662,80 @@ private struct SessionPlayersStep: View {
         }
     }
 
+    private var availableSixPlayerPlayers: [SessionCreationPlayer] {
+        let selectedIDs = Set(draft.selectedPlayers.map(\.id))
+        return players.filter { !selectedIDs.contains($0.id) }
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 18) {
-                SessionCreationEyebrow(
-                    number: "02",
-                    title: "CHOOSE THE PLAYERS"
-                )
-
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search players", text: $query)
-                        .textInputAutocapitalization(.words)
-                        .autocorrectionDisabled()
-                    if !query.isEmpty {
-                        Button {
-                            query = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Clear search")
-                    }
-                }
-                .padding(.horizontal, 13)
-                .frame(height: 46)
-                .flatSurface(cornerRadius: 4)
-
-                if !draft.selectedPlayers.isEmpty {
-                    SessionCreationNote(
-                        icon: "shuffle",
-                        text: "\(draft.selectedPlayers.count) selected. Order does not matter; teams and schedule are randomized next."
-                    )
-                }
-
-                if isLoading {
-                    GweiloLoadingView("Loading players…")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 60)
-                } else {
-                    ForEach(filteredPlayers) { player in
-                        PlayerSelectionRow(
-                            player: player,
-                            isSelected: draft.selectionNumber(for: player.id) != nil,
-                            isFull: draft.selectedPlayers.count >= draft.playerCount,
-                            action: { draft.toggle(player) }
+                if draft.playerCount == 6 {
+                    if isLoading {
+                        GweiloLoadingView("Učitavam igrače…")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 60)
+                    } else {
+                        AvailableSessionPlayerRail(
+                            players: availableSixPlayerPlayers,
+                            namespace: playerTransition,
+                            selectPlayer: selectPlayer
                         )
+
+                        SessionDoublesTeamBuilder(
+                            draft: $draft,
+                            namespace: playerTransition
+                        )
+                    }
+                } else {
+                    SessionCreationEyebrow(
+                        number: "02",
+                        title: "IZABERI IGRAČE"
+                    )
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Pretraži igrače", text: $query)
+                            .textInputAutocapitalization(.words)
+                            .autocorrectionDisabled()
+                        if !query.isEmpty {
+                            Button {
+                                query = ""
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Obriši pretragu")
+                        }
+                    }
+                    .padding(.horizontal, 13)
+                    .frame(height: 46)
+                    .flatSurface(cornerRadius: 14)
+
+                    if !draft.selectedPlayers.isEmpty {
+                        SessionCreationNote(
+                            icon: "shuffle",
+                            text: "\(draft.selectedPlayers.count) izabrano. Raspored mečeva možeš promeniti na sledećem koraku."
+                        )
+                    }
+
+                    if isLoading {
+                        GweiloLoadingView("Učitavam igrače…")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 60)
+                    } else {
+                        ForEach(filteredPlayers) { player in
+                            PlayerSelectionRow(
+                                player: player,
+                                selectionNumber: draft.selectionNumber(
+                                    for: player.id
+                                ),
+                                isFull: draft.selectedPlayers.count >= draft.playerCount,
+                                action: { selectPlayer(player) }
+                            )
+                        }
                     }
                 }
             }
@@ -733,13 +744,278 @@ private struct SessionPlayersStep: View {
         }
         .scrollIndicators(.hidden)
     }
+
+    private func selectPlayer(_ player: SessionCreationPlayer) {
+        withAnimation(.snappy(duration: 0.2)) {
+            draft.toggle(player)
+        }
+    }
+}
+
+private struct AvailableSessionPlayerRail: View {
+    let players: [SessionCreationPlayer]
+    let namespace: Namespace.ID
+    let selectPlayer: (SessionCreationPlayer) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("DOSTUPNI IGRAČI")
+                    .font(.caption.weight(.black))
+                    .tracking(1.4)
+                    .foregroundStyle(GweiloTheme.accentBright)
+
+                Spacer()
+
+                Text("DODIRNI ZA DODAVANJE")
+                    .font(.system(size: 9, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(.secondary)
+            }
+
+            ZStack(alignment: .leading) {
+                if players.isEmpty {
+                    Label(
+                        "Svi igrači su raspoređeni",
+                        systemImage: "checkmark"
+                    )
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(GweiloTheme.lime)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .transition(.opacity)
+                } else {
+                    ScrollView(.horizontal) {
+                        LazyHStack(spacing: 18) {
+                            ForEach(players) { player in
+                                AvailableSessionPlayerButton(
+                                    player: player,
+                                    namespace: namespace,
+                                    action: { selectPlayer(player) }
+                                )
+                                .transition(
+                                    .opacity.combined(
+                                        with: .scale(scale: 0.96)
+                                    )
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                    }
+                    .scrollIndicators(.hidden)
+                    .transition(.opacity)
+                }
+            }
+            .frame(height: 84)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Dostupni igrači")
+    }
+}
+
+private struct AvailableSessionPlayerButton: View {
+    let player: SessionCreationPlayer
+    let namespace: Namespace.ID
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                PlayerIdentityAvatar(
+                    name: player.name,
+                    initials: player.initials,
+                    avatarURL: player.avatarURL,
+                    size: 56
+                )
+                .matchedGeometryEffect(id: player.id, in: namespace)
+
+                Text(player.name)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            .frame(width: 68)
+        }
+        .buttonStyle(ResponsiveButtonStyle())
+        .accessibilityLabel("Dodaj \(player.name)")
+    }
+}
+
+private enum SessionDoublesTeam: Int, CaseIterable, Identifiable {
+    case a
+    case b
+    case c
+
+    var id: Self { self }
+
+    var letter: String {
+        switch self {
+        case .a: "A"
+        case .b: "B"
+        case .c: "C"
+        }
+    }
+
+    var startIndex: Int {
+        rawValue * 2
+    }
+}
+
+private struct SessionDoublesTeamBuilder: View {
+    @Binding var draft: SessionCreationDraft
+    let namespace: Namespace.ID
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("DUBL TIMOVI")
+                    .font(.caption.weight(.black))
+                    .tracking(1.4)
+                    .foregroundStyle(GweiloTheme.accentBright)
+
+                Spacer()
+
+                Text("\(draft.selectedPlayers.count)/6")
+                    .font(.caption.monospacedDigit().weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 4)
+
+            ForEach(SessionDoublesTeam.allCases) { team in
+                SessionDoublesTeamRow(
+                    team: team,
+                    players: draft.doublesTeams[team.rawValue],
+                    namespace: namespace,
+                    removePlayer: { playerIndex in
+                        removePlayer(at: team.startIndex + playerIndex)
+                    }
+                )
+            }
+        }
+    }
+
+    private func removePlayer(at index: Int) {
+        withAnimation(.snappy(duration: 0.2)) {
+            draft.removeSelectedPlayer(at: index)
+        }
+    }
+}
+
+private struct SessionDoublesTeamRow: View {
+    let team: SessionDoublesTeam
+    let players: [SessionCreationPlayer]
+    let namespace: Namespace.ID
+    let removePlayer: (Int) -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(team.letter)
+                .font(
+                    GweiloTheme.displayFont(
+                        size: 24,
+                        relativeTo: .title3
+                    )
+                )
+                .foregroundStyle(
+                    players.count == 2
+                        ? GweiloTheme.lime
+                        : GweiloTheme.muted
+                )
+                .frame(width: 24)
+
+            ForEach(0..<2, id: \.self) { playerIndex in
+                DoublesTeamPlayerSlot(
+                    player: players.indices.contains(playerIndex)
+                        ? players[playerIndex]
+                        : nil,
+                    namespace: namespace,
+                    remove: { removePlayer(playerIndex) }
+                )
+
+                if playerIndex == 0 {
+                    Divider()
+                        .frame(height: 38)
+                }
+            }
+        }
+        .frame(height: 66)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tim \(team.letter)")
+    }
+}
+
+private struct DoublesTeamPlayerSlot: View {
+    let player: SessionCreationPlayer?
+    let namespace: Namespace.ID
+    let remove: () -> Void
+
+    var body: some View {
+        Group {
+            if let player {
+                Button(action: remove) {
+                    HStack(spacing: 8) {
+                        PlayerIdentityAvatar(
+                            name: player.name,
+                            initials: player.initials,
+                            avatarURL: player.avatarURL,
+                            size: 42
+                        )
+                        .matchedGeometryEffect(id: player.id, in: namespace)
+
+                        Text(player.name)
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+
+                        Spacer(minLength: 0)
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(ResponsiveButtonStyle())
+                .accessibilityLabel("Ukloni \(player.name) iz tima")
+                .transition(.opacity)
+            } else {
+                HStack(spacing: 8) {
+                    Circle()
+                        .strokeBorder(
+                            GweiloTheme.hairline,
+                            style: StrokeStyle(
+                                lineWidth: 1,
+                                dash: [3, 3]
+                            )
+                        )
+                        .frame(width: 42, height: 42)
+                        .overlay {
+                            Image(systemName: "plus")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(GweiloTheme.muted)
+                        }
+
+                    Text("Igrač")
+                        .font(.subheadline)
+                        .foregroundStyle(GweiloTheme.muted)
+
+                    Spacer(minLength: 0)
+                }
+                .accessibilityHidden(true)
+                .transition(.opacity)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 private struct PlayerSelectionRow: View {
     let player: SessionCreationPlayer
-    let isSelected: Bool
+    let selectionNumber: Int?
     let isFull: Bool
     let action: () -> Void
+
+    private var isSelected: Bool {
+        selectionNumber != nil
+    }
 
     var body: some View {
         Button(action: action) {
@@ -765,8 +1041,8 @@ private struct PlayerSelectionRow: View {
                 Spacer()
 
                 if isSelected {
-                    Image(systemName: "checkmark")
-                        .font(.subheadline.weight(.black))
+                    Text("\(selectionNumber ?? 0)")
+                        .font(.caption.monospacedDigit().weight(.black))
                         .foregroundStyle(GweiloTheme.background)
                         .frame(width: 30, height: 30)
                         .background(GweiloTheme.lime, in: .circle)
@@ -778,7 +1054,7 @@ private struct PlayerSelectionRow: View {
             .padding(.vertical, 10)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ResponsiveButtonStyle())
         .disabled(isFull && !isSelected)
         .opacity(isFull && !isSelected ? 0.42 : 1)
         .overlay(alignment: .bottom) {
@@ -786,8 +1062,8 @@ private struct PlayerSelectionRow: View {
         }
         .accessibilityLabel(
             isSelected
-                ? "\(player.name), selected"
-                : "\(player.name), not selected"
+                ? "\(player.name), izabran kao \(selectionNumber ?? 0)"
+                : "\(player.name), nije izabran"
         )
     }
 }
@@ -800,42 +1076,90 @@ private struct SessionReviewStep: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
+            LazyVStack(alignment: .leading, spacing: 20) {
                 SessionCreationEyebrow(
                     number: "03",
-                    title: "OFFICIAL SCHEDULE"
+                    title: "RASPORED JE SPREMAN"
                 )
 
-                HStack(spacing: 0) {
-                    ReviewMetric(value: "\(draft.playerCount)", label: "PLAYERS")
-                    ReviewMetric(value: "\(preview?.rounds.count ?? 0)", label: "ROUNDS")
-                    ReviewMetric(value: "NOW", label: "START")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(reviewTitle)
+                        .font(
+                            GweiloTheme.displayFont(
+                                size: 36,
+                                relativeTo: .title
+                            )
+                        )
+                        .foregroundStyle(GweiloTheme.bone)
+
+                    Text(reviewSubtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
                 }
 
                 if let preview {
+                    HStack(spacing: 10) {
+                        ReviewMetric(
+                            value: "\(draft.playerCount)",
+                            label: "IGRAČA"
+                        )
+                        ReviewMetric(
+                            value: "\(preview.rounds.count)",
+                            label: "RUNDI"
+                        )
+                        ReviewMetric(value: "SADA", label: "POČETAK")
+                    }
+
+                    if draft.playerCount == 6 {
+                        SessionReviewTeams(
+                            teams: draft.doublesTeams,
+                            preview: preview
+                        )
+                    }
+
                     Button(action: randomize) {
                         Label(
-                            isRandomizing ? "Randomizing…" : "Randomize schedule",
+                            isRandomizing
+                                ? "Menjam raspored…"
+                                : randomizeTitle,
                             systemImage: "shuffle"
                         )
                         .font(.subheadline.weight(.bold))
                         .frame(maxWidth: .infinity)
-                        .frame(height: 44)
+                        .frame(height: 48)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ResponsiveButtonStyle())
                     .foregroundStyle(GweiloTheme.lime)
+                    .background(
+                        GweiloTheme.lime.opacity(0.08),
+                        in: .rect(cornerRadius: 14)
+                    )
                     .overlay {
-                        Rectangle()
-                            .stroke(GweiloTheme.lime.opacity(0.5), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(
+                                GweiloTheme.lime.opacity(0.42),
+                                lineWidth: 0.8
+                            )
                     }
                     .disabled(isRandomizing)
-                    .accessibilityHint("Builds a different randomized schedule")
+                    .accessibilityHint(
+                        draft.playerCount == 6
+                            ? "Menja singl parove, ali čuva izabrane dubl timove"
+                            : "Pravi drugačiji raspored mečeva"
+                    )
 
                     ForEach(preview.rounds) { round in
-                        ScheduleRoundRow(round: round)
+                        if let phase = phaseHeader(before: round) {
+                            SchedulePhaseHeader(
+                                title: phase.title,
+                                detail: phase.detail
+                            )
+                        }
+
+                        ScheduleRoundCard(round: round)
                     }
                 } else {
-                    GweiloLoadingView("Building schedule…")
+                    GweiloLoadingView("Pravim raspored…")
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 60)
                 }
@@ -845,59 +1169,388 @@ private struct SessionReviewStep: View {
         }
         .scrollIndicators(.hidden)
     }
+
+    private var reviewTitle: String {
+        switch draft.playerCount {
+        case 6: "TRI TIMA. SEDAM RUNDI."
+        case 5: "DUPLA ROTACIJA."
+        default: "SPREMNI ZA IGRU."
+        }
+    }
+
+    private var reviewSubtitle: String {
+        switch draft.playerCount {
+        case 6:
+            "Dubl partneri ostaju zajedno. Singl parovi mogu da se promene."
+        case 5:
+            "Svako odmara dva puta i svaki par igra dva puta."
+        default:
+            "Pregledaj mečeve pre nego što pokreneš sesiju."
+        }
+    }
+
+    private var randomizeTitle: String {
+        draft.playerCount == 4 || draft.playerCount == 6
+            ? "Promeni singl raspored"
+            : "Promeni raspored"
+    }
+
+    private func phaseHeader(
+        before round: SessionScheduleRound
+    ) -> (title: String, detail: String)? {
+        switch (draft.playerCount, round.roundNumber) {
+        case (6, 1):
+            ("SINGL ROTACIJA", "4 runde · partneri se ne sastaju")
+        case (6, 5):
+            ("ZAVRŠNICA", "5. runda odlučuje sledeće mečeve")
+        case (4, 1):
+            ("SINGLOVI", "svako igra protiv svakoga")
+        case (4, 4):
+            ("DUBLOVI", "svako igra sa svakim partnerom")
+        default:
+            nil
+        }
+    }
 }
 
-private struct ScheduleRoundRow: View {
-    let round: SessionScheduleRound
+private struct SessionReviewTeams: View {
+    let teams: [[SessionCreationPlayer]]
+    let preview: SessionSchedulePreview
+
+    private let colors = [
+        GweiloTheme.lime,
+        GweiloTheme.cyan,
+        GweiloTheme.accentBright
+    ]
+
+    private var roundFiveSinglesIDs: Set<UUID> {
+        Set(
+            preview.rounds
+                .first { $0.roundNumber == 5 }?
+                .matches
+                .first { $0.type == .singles }?
+                .players
+                .map(\.id) ?? []
+        )
+    }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 16) {
-            Text(String(format: "%02d", round.roundNumber))
-                .font(
-                    GweiloTheme.displayFont(
-                        size: 31,
-                        relativeTo: .title2
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("DUBL TIMOVI")
+                    .font(.caption.weight(.black))
+                    .tracking(1.4)
+                    .foregroundStyle(.secondary)
+
+                Spacer()
+
+                Text("FIKSNI")
+                    .font(.caption2.weight(.black))
+                    .tracking(1)
+                    .foregroundStyle(GweiloTheme.lime)
+            }
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 10) {
+                    ForEach(Array(teams.enumerated()), id: \.offset) {
+                        index,
+                        team in
+                        SessionReviewTeamCard(
+                            index: index,
+                            players: team,
+                            color: colors[index],
+                            playsRoundFiveSingles:
+                                Set(team.map(\.id)) == roundFiveSinglesIDs
+                        )
+                    }
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+private struct SessionReviewTeamCard: View {
+    let index: Int
+    let players: [SessionCreationPlayer]
+    let color: Color
+    let playsRoundFiveSingles: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("TIM \(teamLetter)")
+                    .font(.caption2.weight(.black))
+                    .tracking(1)
+                    .foregroundStyle(color)
+
+                Spacer()
+
+                if playsRoundFiveSingles {
+                    Text("SINGL U 5.")
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(0.7)
+                        .foregroundStyle(GweiloTheme.background)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .background(GweiloTheme.amber, in: .capsule)
+                }
+            }
+
+            HStack(spacing: -8) {
+                ForEach(players) { player in
+                    PlayerIdentityAvatar(
+                        name: player.name,
+                        initials: player.initials,
+                        avatarURL: player.avatarURL,
+                        size: 38
                     )
-                )
-                .foregroundStyle(
-                    round.isDynamic == true
-                        ? GweiloTheme.accentBright
-                        : GweiloTheme.lime
-                )
-                .frame(width: 38, alignment: .leading)
-
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(
-                    Array(round.matches.enumerated()),
-                    id: \.offset
-                ) { _, match in
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(match.type.label)
-                            .font(.caption2.weight(.black))
-                            .tracking(0.9)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 58, alignment: .leading)
-
-                        Text(matchLabel(match))
-                            .font(.subheadline.weight(.semibold))
+                    .overlay {
+                        Circle().stroke(GweiloTheme.surface, lineWidth: 2)
                     }
                 }
             }
 
-            Spacer(minLength: 0)
+            Text(players.map(\.name).joined(separator: " + "))
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
         }
-        .padding(.vertical, 14)
-        .overlay(alignment: .bottom) {
-            Divider()
+        .padding(13)
+        .frame(width: 176, height: 116, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [
+                    color.opacity(0.12),
+                    GweiloTheme.surface
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: .rect(cornerRadius: 16)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(color.opacity(0.28), lineWidth: 0.8)
+        }
+    }
+
+    private var teamLetter: String {
+        ["A", "B", "C"][index]
+    }
+}
+
+private struct SchedulePhaseHeader: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.caption.weight(.black))
+                .tracking(1.5)
+                .foregroundStyle(GweiloTheme.accentBright)
+
+            Spacer()
+
+            Text(detail)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.top, 8)
+    }
+}
+
+private struct ScheduleRoundCard: View {
+    let round: SessionScheduleRound
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack {
+                Text("RUNDA")
+                    .font(.caption2.weight(.black))
+                    .tracking(1.2)
+                    .foregroundStyle(.secondary)
+
+                Text("\(round.roundNumber)")
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 28,
+                            relativeTo: .title2
+                        )
+                    )
+                    .foregroundStyle(
+                        round.isDynamic == true
+                            ? GweiloTheme.accentBright
+                            : GweiloTheme.lime
+                    )
+
+                Spacer()
+
+                if round.isDynamic == true {
+                    Label("DINAMIČKA", systemImage: "bolt.fill")
+                        .font(.system(size: 10, weight: .black))
+                        .tracking(0.8)
+                        .foregroundStyle(GweiloTheme.accentBright)
+                } else {
+                    Text("\(round.matchCount) \(matchCountLabel)")
+                        .font(.caption2.monospacedDigit().weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            if round.isDynamic == true {
+                DynamicRoundExplanation(roundNumber: round.roundNumber)
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(
+                        Array(round.matches.enumerated()),
+                        id: \.offset
+                    ) { _, match in
+                        ScheduleMatchCard(match: match)
+                    }
+                }
+            }
+        }
+        .padding(15)
+        .background(
+            round.isDynamic == true
+                ? GweiloTheme.accent.opacity(0.09)
+                : GweiloTheme.surface,
+            in: .rect(cornerRadius: 18)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(
+                    round.isDynamic == true
+                        ? GweiloTheme.accentBright.opacity(0.32)
+                        : GweiloTheme.hairline,
+                    lineWidth: 0.8
+                )
         }
         .accessibilityElement(children: .combine)
     }
 
-    private func matchLabel(_ match: SessionScheduleMatch) -> String {
-        if match.type == .doubles, match.players.count == 4 {
-            return "\(match.players[0].name) + \(match.players[1].name)  vs  \(match.players[2].name) + \(match.players[3].name)"
+    private var matchCountLabel: String {
+        round.matchCount == 1 ? "meč" : "meča"
+    }
+}
+
+private struct DynamicRoundExplanation: View {
+    let roundNumber: Int
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "arrow.triangle.branch")
+                .font(.title3.weight(.semibold))
+                .foregroundStyle(GweiloTheme.accentBright)
+                .frame(width: 34, height: 34)
+                .background(
+                    GweiloTheme.accent.opacity(0.16),
+                    in: .rect(cornerRadius: 10)
+                )
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.weight(.bold))
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
-        return match.players.map(\.name).joined(separator: "  vs  ")
+    }
+
+    private var title: String {
+        roundNumber == 6
+            ? "Rezultat 5. runde bira parove"
+            : "Drugi deo završnice"
+    }
+
+    private var detail: String {
+        if roundNumber == 6 {
+            return "Pobednici dubla ostaju zajedno i igraju protiv singl para. Poraženi igraju međusobni singl."
+        }
+        return "Poraženi dubl tim igra protiv singl para, a pobednički tim igra međusobni singl."
+    }
+}
+
+private struct ScheduleMatchCard: View {
+    let match: SessionScheduleMatch
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Label(
+                match.type == .doubles ? "DUBL" : "SINGL",
+                systemImage: match.type == .doubles
+                    ? "person.2.fill"
+                    : "figure.table.tennis"
+            )
+            .font(.system(size: 10, weight: .black))
+            .tracking(1)
+            .foregroundStyle(
+                match.type == .doubles
+                    ? GweiloTheme.cyan
+                    : GweiloTheme.lime
+            )
+
+            HStack(spacing: 10) {
+                MatchSide(players: firstSide)
+
+                Text("VS")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.secondary)
+
+                MatchSide(players: secondSide)
+            }
+        }
+        .padding(11)
+        .background(
+            GweiloTheme.raisedSurface,
+            in: .rect(cornerRadius: 13)
+        )
+    }
+
+    private var firstSide: [SessionCreationPlayer] {
+        match.type == .doubles
+            ? Array(match.players.prefix(2))
+            : Array(match.players.prefix(1))
+    }
+
+    private var secondSide: [SessionCreationPlayer] {
+        match.type == .doubles
+            ? Array(match.players.dropFirst(2).prefix(2))
+            : Array(match.players.dropFirst(1).prefix(1))
+    }
+}
+
+private struct MatchSide: View {
+    let players: [SessionCreationPlayer]
+
+    var body: some View {
+        HStack(spacing: 7) {
+            HStack(spacing: -7) {
+                ForEach(players) { player in
+                    PlayerIdentityAvatar(
+                        name: player.name,
+                        initials: player.initials,
+                        avatarURL: player.avatarURL,
+                        size: 30
+                    )
+                    .overlay {
+                        Circle().stroke(
+                            GweiloTheme.raisedSurface,
+                            lineWidth: 1.5
+                        )
+                    }
+                }
+            }
+
+            Text(players.map(\.name).joined(separator: " + "))
+                .font(.caption.weight(.semibold))
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -919,7 +1572,16 @@ private struct ReviewMetric: View {
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
         }
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            GweiloTheme.surface,
+            in: .rect(cornerRadius: 14)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(GweiloTheme.hairline, lineWidth: 0.8)
+        }
     }
 }
 
@@ -987,19 +1649,9 @@ private struct SessionCreationFooter: View {
 
                     Image(systemName: "arrow.right")
                 }
-                .font(.subheadline.weight(.black))
-                .foregroundStyle(GweiloTheme.background)
-                .padding(.horizontal, 18)
-                .frame(height: 56)
-                .background(GweiloTheme.lime)
-                .overlay {
-                    Rectangle()
-                        .stroke(Color.white.opacity(0.28), lineWidth: 0.7)
-                }
             }
-            .buttonStyle(ResponsiveButtonStyle())
+            .buttonStyle(GweiloPrimaryButtonStyle())
             .disabled(!isEnabled || isWorking)
-            .opacity(isEnabled ? 1 : 0.44)
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }

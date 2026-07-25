@@ -514,6 +514,61 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSixPlayerDraftBuildsDoublesTeamsFromSelectionOrder() {
+        var draft = SessionCreationDraft()
+        draft.setPlayerCount(6)
+        let players = makeCreationPlayers(count: 6)
+
+        players.forEach { draft.toggle($0) }
+
+        XCTAssertEqual(
+            draft.doublesTeams.map { $0.map(\.id) },
+            [
+                [players[0].id, players[1].id],
+                [players[2].id, players[3].id],
+                [players[4].id, players[5].id]
+            ]
+        )
+
+        draft.removeSelectedPlayer(at: 1)
+
+        XCTAssertEqual(
+            draft.doublesTeams[0].map(\.id),
+            [players[0].id, players[2].id]
+        )
+    }
+
+    @MainActor
+    func testSixPlayerRandomizerPreservesTeamsAndDynamicRounds() {
+        let players = makeCreationPlayers(count: 6)
+        let preview = makeSixPlayerSchedulePreview(players: players)
+
+        let randomized = SessionScheduleRandomizer.preservingFixedTeams(
+            in: preview
+        )
+
+        XCTAssertEqual(randomized.players.map(\.id), players.map(\.id))
+        XCTAssertEqual(
+            randomized.rounds.filter { $0.roundNumber >= 5 },
+            preview.rounds.filter { $0.roundNumber >= 5 }
+        )
+
+        let partnerKeys = stride(from: 0, to: 6, by: 2).map {
+            matchupKey(players[$0].id, players[$0 + 1].id)
+        }
+        let singlesKeys = randomized.rounds
+            .filter { $0.roundNumber <= 4 }
+            .flatMap(\.matches)
+            .map {
+                matchupKey($0.players[0].id, $0.players[1].id)
+            }
+
+        XCTAssertEqual(Set(singlesKeys).count, 12)
+        XCTAssertTrue(Set(singlesKeys).isDisjoint(with: Set(partnerKeys)))
+        XCTAssertEqual(randomized.rounds[5].dynamicNote?.title, "Dynamic")
+    }
+
+    @MainActor
     func testCreateSessionRequestSendsPreviewedScheduleAndIdempotencyKey() throws {
         var draft = SessionCreationDraft()
         draft.setPlayerCount(2)
@@ -659,6 +714,113 @@ final class SessionDetailModelTests: XCTestCase {
         ]
     }
 
+    private func makeCreationPlayers(
+        count: Int
+    ) -> [SessionCreationPlayer] {
+        (1...count).map { index in
+            SessionCreationPlayer(
+                id: UUID(
+                    uuidString: String(
+                        format: "00000000-0000-0000-0000-%012d",
+                        index
+                    )
+                )!,
+                name: "Player \(index)",
+                avatarURL: nil,
+                elo: 1_500 + index
+            )
+        }
+    }
+
+    @MainActor
+    private func makeSixPlayerSchedulePreview(
+        players: [SessionCreationPlayer]
+    ) -> SessionSchedulePreview {
+        let placeholderRounds = (1...4).map {
+            SessionScheduleRound(
+                id: "\($0)",
+                roundNumber: $0,
+                matches: [
+                    SessionScheduleMatch(
+                        type: .singles,
+                        players: [players[0], players[2]]
+                    )
+                ],
+                isDynamic: nil
+            )
+        }
+        let mixedRounds = [
+            SessionScheduleRound(
+                id: "5",
+                roundNumber: 5,
+                matches: [
+                    SessionScheduleMatch(
+                        type: .doubles,
+                        players: Array(players[0...3])
+                    ),
+                    SessionScheduleMatch(
+                        type: .singles,
+                        players: Array(players[4...5])
+                    )
+                ],
+                isDynamic: nil
+            ),
+            SessionScheduleRound(
+                id: "6",
+                roundNumber: 6,
+                matches: [
+                    SessionScheduleMatch(
+                        type: .doubles,
+                        players: [
+                            players[0], players[1],
+                            players[4], players[5]
+                        ]
+                    ),
+                    SessionScheduleMatch(
+                        type: .singles,
+                        players: Array(players[2...3])
+                    )
+                ],
+                isDynamic: true,
+                dynamicNote: SessionScheduleDynamicNote(
+                    title: "Dynamic",
+                    description: "Round five decides this round."
+                )
+            ),
+            SessionScheduleRound(
+                id: "7",
+                roundNumber: 7,
+                matches: [
+                    SessionScheduleMatch(
+                        type: .doubles,
+                        players: [
+                            players[2], players[3],
+                            players[4], players[5]
+                        ]
+                    ),
+                    SessionScheduleMatch(
+                        type: .singles,
+                        players: Array(players[0...1])
+                    )
+                ],
+                isDynamic: true
+            )
+        ]
+
+        return SessionSchedulePreview(
+            playerCount: 6,
+            players: players,
+            rounds: placeholderRounds + mixedRounds,
+            fourPlayerFormat: .mixed
+        )
+    }
+
+    private func matchupKey(_ first: UUID, _ second: UUID) -> String {
+        [first.uuidString, second.uuidString]
+            .sorted()
+            .joined(separator: ":")
+    }
+
     private func makeAPIClient() -> GweiloAPIClient {
         GweiloAPIClient(
             configuration: AppConfiguration(
@@ -670,6 +832,7 @@ final class SessionDetailModelTests: XCTestCase {
         )
     }
 
+    @MainActor
     private func makeDetail() -> SessionDetail {
         SessionDetail(
             session: SessionSummary(
@@ -692,6 +855,9 @@ final class SessionDetailModelTests: XCTestCase {
                 SessionParticipant(id: leoID, name: "Leo", avatarURL: nil, team: nil),
                 SessionParticipant(id: miladinID, name: "Miladin", avatarURL: nil, team: nil)
             ],
+            singlesPerformance: [],
+            doublesPlayerPerformance: [],
+            doublesTeamPerformance: [],
             rounds: []
         )
     }

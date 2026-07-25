@@ -104,11 +104,14 @@ private struct SupabaseErrorResponse: Decodable {
 }
 
 enum AuthenticationError: LocalizedError {
+    case cancelled
     case invalidResponse
     case rejected(String)
 
     var errorDescription: String? {
         switch self {
+        case .cancelled:
+            "Sign-in was cancelled."
         case .invalidResponse:
             "Supabase returned an invalid response."
         case let .rejected(message):
@@ -120,6 +123,54 @@ enum AuthenticationError: LocalizedError {
 struct SupabaseAuthClient: Sendable {
     let configuration: AppConfiguration
     var session: URLSession = .shared
+
+    func googleAuthorizationURL() throws -> URL {
+        let endpoint = configuration.supabaseURL.appending(path: "auth/v1/authorize")
+        guard var components = URLComponents(url: endpoint, resolvingAgainstBaseURL: false) else {
+            throw AuthenticationError.invalidResponse
+        }
+        components.queryItems = [
+            URLQueryItem(name: "provider", value: "google"),
+            URLQueryItem(name: "redirect_to", value: "gweilo://login-callback")
+        ]
+        guard let url = components.url else {
+            throw AuthenticationError.invalidResponse
+        }
+        return url
+    }
+
+    func session(fromOAuthCallback callbackURL: URL) async throws -> AuthSession {
+        guard
+            callbackURL.scheme == "gweilo",
+            callbackURL.host == "login-callback"
+        else {
+            throw AuthenticationError.invalidResponse
+        }
+        let values = oauthCallbackValues(from: callbackURL)
+
+        if let message = values["error_description"] ?? values["error"] {
+            throw AuthenticationError.rejected(message)
+        }
+        guard
+            let accessToken = values["access_token"],
+            let refreshToken = values["refresh_token"]
+        else {
+            throw AuthenticationError.invalidResponse
+        }
+
+        let expiresIn = Int(values["expires_in"] ?? "") ?? 3600
+        let expiresAt = Int(values["expires_at"] ?? "")
+            ?? Int(Date.now.timeIntervalSince1970) + expiresIn
+        let user = try await user(accessToken: accessToken)
+
+        return AuthSession(
+            accessToken: accessToken,
+            refreshToken: refreshToken,
+            expiresIn: expiresIn,
+            expiresAt: expiresAt,
+            user: user
+        )
+    }
 
     func signIn(email: String, password: String) async throws -> AuthSession {
         let endpoint = configuration.supabaseURL
@@ -172,5 +223,37 @@ struct SupabaseAuthClient: Sendable {
         }
 
         return try JSONDecoder().decode(AuthSession.self, from: data)
+    }
+
+    private func user(accessToken: String) async throws -> AuthenticatedUser {
+        let endpoint = configuration.supabaseURL.appending(path: "auth/v1/user")
+        var request = URLRequest(url: endpoint)
+        request.setValue(configuration.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await session.data(for: request)
+        guard
+            let httpResponse = response as? HTTPURLResponse,
+            (200..<300).contains(httpResponse.statusCode)
+        else {
+            throw AuthenticationError.invalidResponse
+        }
+        return try JSONDecoder().decode(AuthenticatedUser.self, from: data)
+    }
+
+    private func oauthCallbackValues(from callbackURL: URL) -> [String: String] {
+        var values: [String: String] = [:]
+
+        URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .forEach { values[$0.name] = $0.value }
+
+        if let fragment = callbackURL.fragment {
+            URLComponents(string: "?\(fragment)")?
+                .queryItems?
+                .forEach { values[$0.name] = $0.value }
+        }
+
+        return values
     }
 }

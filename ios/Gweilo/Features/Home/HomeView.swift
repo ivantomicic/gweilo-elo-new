@@ -17,7 +17,10 @@ struct HomeView: View {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 30) {
-                        HomeHeader()
+                        HomeHeader(
+                            playerName: dataStore.currentUserFirstName,
+                            lastSessionDelta: dataStore.currentUserLatestSessionDelta
+                        )
                         HomeLiveSession(
                             session: dataStore.activeSession,
                             canStartSession: dataStore.canStartNewSession,
@@ -102,6 +105,9 @@ struct DataErrorNotice: View {
 }
 
 private struct HomeHeader: View {
+    let playerName: String
+    let lastSessionDelta: Double?
+
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
@@ -115,7 +121,7 @@ private struct HomeHeader: View {
                     .tracking(2.2)
                     .foregroundStyle(GweiloTheme.lime)
 
-                Text(Date.now.formatted(.dateTime.weekday(.wide)))
+                Text("Poy, \(playerName)")
                     .font(
                         GweiloTheme.displayFont(
                             size: 44,
@@ -128,9 +134,71 @@ private struct HomeHeader: View {
 
             Spacer()
 
-            PhantomMark(size: 58)
+            LastSessionMascot(delta: lastSessionDelta)
         }
         .padding(.top, 18)
+    }
+}
+
+private struct LastSessionMascot: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+    let delta: Double?
+
+    private var outcome: MatchOutcome {
+        switch EloPerformanceBand(delta: delta) {
+        case .gain: .win
+        case .steady: .draw
+        case .loss: .loss
+        }
+    }
+
+    private var deltaText: String? {
+        guard let delta else { return nil }
+        let rounded = Int(delta.rounded())
+        return rounded > 0 ? "+\(rounded)" : "\(rounded)"
+    }
+
+    private var videoResourceName: String {
+        switch outcome {
+        case .win: "MatchResultWin"
+        case .draw: "MatchResultDraw"
+        case .loss: "MatchResultLoss"
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if reduceMotion {
+                MatchOutcomeArtwork(outcome: outcome, size: 124)
+            } else {
+                LoopingBundleVideo(
+                    resourceName: videoResourceName,
+                    isPlaying: scenePhase == .active
+                )
+                .frame(width: 124, height: 124)
+                .blendMode(.screen)
+                .allowsHitTesting(false)
+            }
+
+            if let deltaText {
+                Text(deltaText)
+                    .font(.caption2.monospacedDigit().weight(.black))
+                    .foregroundStyle(GweiloTheme.background)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 3)
+                    .background(outcome.color, in: .capsule)
+                    .offset(x: 1, y: 2)
+            }
+        }
+        .frame(width: 88, height: 88, alignment: .topTrailing)
+        .offset(y: -6)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            deltaText.map {
+                "\(outcome.label), \($0) Elo in the latest session"
+            } ?? "No recent session performance"
+        )
     }
 }
 
@@ -430,7 +498,7 @@ struct TopThreePreviewScreen: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 30) {
-                        HomeHeader()
+                        HomeHeader(playerName: "Ivan", lastSessionDelta: 12)
                         TopThreeStandings(players: players)
                     }
                     .padding(.horizontal, 20)
@@ -516,8 +584,14 @@ struct SectionHeading: View {
 struct ResponsiveButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.84 : 1)
             .animation(.smooth(duration: 0.12), value: configuration.isPressed)
+            .sensoryFeedback(
+                .impact(weight: .light, intensity: 0.55),
+                trigger: configuration.isPressed
+            ) { wasPressed, isPressed in
+                !wasPressed && isPressed
+            }
     }
 }

@@ -512,19 +512,8 @@ private struct SubmitRoundBar: View {
                     Image(systemName: isFinalRound ? "checkmark" : "arrow.right")
                 }
             }
-            .font(GweiloTheme.labelFont(size: 17, relativeTo: .headline))
-            .foregroundStyle(
-                isReady ? GweiloTheme.background : GweiloTheme.muted
-            )
-            .padding(.horizontal, 18)
-            .frame(height: 54)
-            .frame(maxWidth: .infinity)
-            .background(
-                isReady ? GweiloTheme.lime : GweiloTheme.raisedSurface,
-                in: .rect(cornerRadius: 9)
-            )
         }
-        .buttonStyle(ResponsiveButtonStyle())
+        .buttonStyle(GweiloPrimaryButtonStyle())
         .disabled(!isReady || isSubmitting)
         .accessibilityHint(
             isReady

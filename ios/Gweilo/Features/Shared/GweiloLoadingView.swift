@@ -1,18 +1,42 @@
-import AVFoundation
 import SwiftUI
-import UIKit
+
+private enum GweiloLoadingQuote {
+    static let all = [
+        "Ping-pong—or, as the Chinese call it, ping-pong.",
+        "Less talking, more ping-pong.",
+        "What didn’t you understand about “sudden death”?",
+        "Farewell, ladies, gentlemen, and athletes.",
+        "Who told you to grab the cricket from my hand?",
+        "Don’t hit flies—hit bees!",
+        "I’m the Boggle master!",
+        "Stop—this is boring. Eliminate them both.",
+        "Welcome to ping-pong’s dangerous underworld.",
+        "Defeat is so close, it smells like your cheap cologne."
+    ]
+
+    static func random() -> String {
+        all.randomElement() ?? "Less talking, more ping-pong."
+    }
+}
 
 struct GweiloLoadingView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @ScaledMetric(relativeTo: .body) private var defaultSize = 132.0
+    @State private var quote = GweiloLoadingQuote.random()
 
     private let label: String
     private let requestedSize: CGFloat?
+    private let showsLabel: Bool
 
-    init(_ label: String = "Loading", size: CGFloat? = nil) {
+    init(
+        _ label: String = "Loading",
+        size: CGFloat? = nil,
+        showsLabel: Bool = true
+    ) {
         self.label = label
         requestedSize = size
+        self.showsLabel = showsLabel
     }
 
     var body: some View {
@@ -23,16 +47,25 @@ struct GweiloLoadingView: View {
                     .aspectRatio(contentMode: .fit)
 
                 if !reduceMotion {
-                    LoopingLoaderVideo(isPlaying: scenePhase == .active)
+                    LoopingBundleVideo(
+                        resourceName: "GweiloLoader",
+                        isPlaying: scenePhase == .active
+                    )
                 }
             }
             .frame(width: loaderSize, height: loaderSize)
 
-            Text(label)
-                .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
-                .tracking(1.2)
-                .textCase(.uppercase)
-                .foregroundStyle(GweiloTheme.muted)
+            if showsLabel {
+                Text(quote)
+                    .font(.subheadline.weight(.medium))
+                    .italic()
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.85)
+                    .frame(maxWidth: 320)
+                    .padding(.horizontal, 20)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(label)
@@ -43,76 +76,17 @@ struct GweiloLoadingView: View {
     }
 }
 
-private struct LoopingLoaderVideo: UIViewRepresentable {
-    let isPlaying: Bool
+struct GweiloFullScreenLoadingView: View {
+    private let label: String
+    private let size: CGFloat?
 
-    func makeUIView(context: Context) -> LoopingPlayerView {
-        LoopingPlayerView()
+    init(_ label: String = "Loading", size: CGFloat? = nil) {
+        self.label = label
+        self.size = size
     }
 
-    func updateUIView(_ view: LoopingPlayerView, context: Context) {
-        view.setPlaying(isPlaying)
-    }
-
-    static func dismantleUIView(
-        _ view: LoopingPlayerView,
-        coordinator: Void
-    ) {
-        view.stop()
-    }
-}
-
-private final class LoopingPlayerView: UIView {
-    private let player = AVQueuePlayer()
-    private var looper: AVPlayerLooper?
-
-    override class var layerClass: AnyClass {
-        AVPlayerLayer.self
-    }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        configurePlayer()
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) {
-        nil
-    }
-
-    func setPlaying(_ isPlaying: Bool) {
-        if isPlaying {
-            player.play()
-        } else {
-            player.pause()
-        }
-    }
-
-    func stop() {
-        player.pause()
-        player.removeAllItems()
-        looper = nil
-    }
-
-    private func configurePlayer() {
-        backgroundColor = .clear
-
-        let playerLayer = layer as? AVPlayerLayer
-        playerLayer?.player = player
-        playerLayer?.videoGravity = .resizeAspect
-        playerLayer?.backgroundColor = UIColor.clear.cgColor
-
-        player.isMuted = true
-        player.preventsDisplaySleepDuringVideoPlayback = false
-
-        guard let url = Bundle.main.url(
-            forResource: "GweiloLoader",
-            withExtension: "mp4"
-        ) else {
-            return
-        }
-
-        let item = AVPlayerItem(url: url)
-        looper = AVPlayerLooper(player: player, templateItem: item)
+    var body: some View {
+        GweiloLoadingView(label, size: size)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

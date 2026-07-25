@@ -76,10 +76,12 @@ final class AppDataStore {
     @ObservationIgnored
     private var loadGeneration = 0
     let currentUserID: UUID
+    private(set) var authenticatedUserFallbackName: String
 
     init(configuration: AppConfiguration, session: AuthSession) {
         self.configuration = configuration
         currentUserID = session.user.id
+        authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
         isAdmin = session.user.isAdmin
         client = SupabaseDataClient(
@@ -93,6 +95,7 @@ final class AppDataStore {
     }
 
     func updateSession(_ session: AuthSession) {
+        authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
         isAdmin = session.user.isAdmin
         client = SupabaseDataClient(
@@ -115,6 +118,39 @@ final class AppDataStore {
 
     var latestCompletedSession: SessionSummary? {
         sessions.first { $0.status == .completed }
+    }
+
+    var currentUserLatestSessionDelta: Double? {
+        singlesRankings
+            .first { $0.id == currentUserID }?
+            .recentForm
+            .last
+    }
+
+    var currentUserFirstName: String {
+        let displayName =
+            singlesRankings.first { $0.id == currentUserID }?.name ??
+            doublesPlayerRankings.first { $0.id == currentUserID }?.name ??
+            authenticatedUserFallbackName
+
+        return displayName
+            .split(whereSeparator: \.isWhitespace)
+            .first
+            .map(String.init) ?? "Player"
+    }
+
+    private static func fallbackName(for email: String?) -> String {
+        guard
+            let localPart = email?.split(separator: "@").first,
+            let firstComponent = localPart.split(whereSeparator: {
+                $0 == "." || $0 == "_" || $0 == "-"
+            }).first,
+            !firstComponent.isEmpty
+        else {
+            return "Player"
+        }
+
+        return String(firstComponent).capitalized
     }
 
     func rankings(for category: RankingCategory) -> [RankingEntry] {
