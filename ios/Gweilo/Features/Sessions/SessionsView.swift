@@ -27,15 +27,12 @@ struct SessionsView: View {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 26) {
                             SessionsHeader(
-                                isLoading: dataStore.isLoading,
-                                refresh: {
-                                    Task { await dataStore.load() }
-                                }
+                                sessionCount: dataStore.sessions.count
                             )
                             SessionsContent(dataStore: dataStore)
                         }
                         .padding(.horizontal, 20)
-                        .padding(.bottom, 40)
+                        .padding(.bottom, 110)
                     }
                     .refreshable {
                         await dataStore.load()
@@ -73,14 +70,14 @@ struct SessionsView: View {
         didOpenRequestedSession(requestedSessionID)
     }
 }
+
 private struct SessionsHeader: View {
-    let isLoading: Bool
-    let refresh: () -> Void
+    let sessionCount: Int
 
     var body: some View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("MATCH HISTORY")
+                Text("ISTORIJA MEČEVA")
                     .font(
                         GweiloTheme.labelFont(
                             size: 12,
@@ -90,7 +87,7 @@ private struct SessionsHeader: View {
                     .tracking(2)
                     .foregroundStyle(GweiloTheme.lime)
 
-                Text("Sessions")
+                Text("Sesije")
                     .font(
                         GweiloTheme.displayFont(
                             size: 46,
@@ -103,204 +100,473 @@ private struct SessionsHeader: View {
 
             Spacer()
 
-            HStack(spacing: 10) {
-                Button(action: refresh) {
-                    Image(systemName: "arrow.clockwise")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(width: 42, height: 42)
-                }
-                .buttonStyle(.plain)
-                .disabled(isLoading)
-                .opacity(isLoading ? 0.45 : 1)
-                .modifier(RefreshButtonSurface())
-                .accessibilityLabel("Refresh sessions")
-            }
+            Text("\(sessionCount) \(SessionHistoryFormatter.sessionWord(sessionCount))")
+                .font(
+                    GweiloTheme.labelFont(
+                        size: 11,
+                        relativeTo: .caption
+                    )
+                )
+                .tracking(1.3)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 7)
         }
         .padding(.top, 18)
-    }
-}
-
-private struct RefreshButtonSurface: ViewModifier {
-    @Environment(\.colorScheme) private var colorScheme
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26, *) {
-            content
-                .glassEffect(.regular.interactive(), in: .circle)
-        } else {
-            content
-                .background(
-                    GweiloTheme.surface(for: colorScheme),
-                    in: .circle
-                )
-                .overlay {
-                    Circle()
-                        .stroke(
-                            GweiloTheme.hairline(for: colorScheme),
-                            lineWidth: 0.75
-                        )
-                }
-        }
     }
 }
 
 private struct SessionsContent: View {
     let dataStore: AppDataStore
 
+    private var activeSessions: [SessionSummary] {
+        dataStore.sessions.filter { $0.status == .active }
+    }
+
+    private var historyGroups: [SessionMonthGroup] {
+        let calendar = Calendar.autoupdatingCurrent
+        let completedSessions = dataStore.sessions.filter {
+            $0.status == .completed
+        }
+        let grouped = Dictionary(grouping: completedSessions) { session in
+            calendar.date(
+                from: calendar.dateComponents(
+                    [.year, .month],
+                    from: session.createdAt
+                )
+            ) ?? session.createdAt
+        }
+
+        return grouped
+            .map { monthStart, sessions in
+                SessionMonthGroup(
+                    monthStart: monthStart,
+                    sessions: sessions.sorted { $0.createdAt > $1.createdAt }
+                )
+            }
+            .sorted { $0.monthStart > $1.monthStart }
+    }
+
     var body: some View {
         if let errorMessage = dataStore.errorMessage,
            dataStore.sessions.isEmpty {
             ContentUnavailableView {
-                Label("Couldn’t load sessions", systemImage: "wifi.exclamationmark")
+                Label("Sesije nisu učitane", systemImage: "wifi.exclamationmark")
             } description: {
                 Text(errorMessage)
             } actions: {
-                Button("Try again") {
+                Button("Pokušaj ponovo") {
                     Task { await dataStore.load() }
                 }
                 .buttonStyle(.borderedProminent)
             }
         } else if dataStore.sessions.isEmpty {
             ContentUnavailableView(
-                "No sessions yet",
+                "Još nema sesija",
                 systemImage: "sportscourt",
-                description: Text("Tap + to start your first session.")
+                description: Text("Dodirni + da pokreneš prvu sesiju.")
             )
         } else {
-            ForEach(dataStore.sessions) { session in
-                SessionRecord(session: session)
+            VStack(alignment: .leading, spacing: 30) {
+                if !activeSessions.isEmpty {
+                    VStack(alignment: .leading, spacing: 12) {
+                        SessionSectionHeader(
+                            title: "U TOKU",
+                            detail: activeSessions.count == 1
+                                ? "AKTIVNA SESIJA"
+                                : "\(activeSessions.count) AKTIVNE"
+                        )
 
-                if session.id != dataStore.sessions.last?.id {
-                    Divider()
+                        ForEach(activeSessions) { session in
+                            ActiveSessionRecord(session: session)
+                        }
+                    }
+                }
+
+                ForEach(historyGroups) { group in
+                    VStack(alignment: .leading, spacing: 0) {
+                        SessionSectionHeader(
+                            title: group.title,
+                            detail: "\(group.sessions.count) \(SessionHistoryFormatter.sessionWord(group.sessions.count))"
+                        )
+                        .padding(.bottom, 4)
+
+                        ForEach(Array(group.sessions.enumerated()), id: \.element.id) { index, session in
+                            SessionRecord(
+                                session: session,
+                                rankings: dataStore.singlesRankings
+                            )
+
+                            if index < group.sessions.count - 1 {
+                                Rectangle()
+                                    .fill(GweiloTheme.hairline)
+                                    .frame(height: 1)
+                                    .padding(.vertical, 12)
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+private struct SessionMonthGroup: Identifiable {
+    let monthStart: Date
+    let sessions: [SessionSummary]
+
+    var id: Date { monthStart }
+    var title: String {
+        SessionHistoryFormatter.monthTitle(monthStart)
+    }
+}
+
+private struct SessionSectionHeader: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(
+                    GweiloTheme.labelFont(
+                        size: 13,
+                        relativeTo: .caption
+                    )
+                )
+                .tracking(1.8)
+                .foregroundStyle(GweiloTheme.accentBright)
+
+            Spacer()
+
+            Text(detail)
+                .font(.caption.weight(.semibold))
+                .tracking(0.5)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+private struct ActiveSessionRecord: View {
+    let session: SessionSummary
+
+    private var currentRound: Int {
+        max(session.currentRound ?? 1, 1)
+    }
+
+    private var progress: Double {
+        guard session.totalRounds > 0 else { return 0 }
+        return min(
+            Double(currentRound) / Double(session.totalRounds),
+            1
+        )
+    }
+
+    var body: some View {
+        NavigationLink(value: session) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SESIJA U TOKU")
+                            .font(
+                                GweiloTheme.labelFont(
+                                    size: 12,
+                                    relativeTo: .caption
+                                )
+                            )
+                            .tracking(1.5)
+                            .foregroundStyle(GweiloTheme.lime)
+
+                        Text(SessionHistoryFormatter.fullDate(session.createdAt))
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(GweiloTheme.lime)
+                        .padding(.top, 4)
+                }
+
+                VStack(alignment: .leading, spacing: 9) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Runda \(currentRound)")
+                            .font(
+                                GweiloTheme.displayFont(
+                                    size: 31,
+                                    relativeTo: .title2
+                                )
+                            )
+
+                        Text("od \(session.totalRounds)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Text(SessionHistoryFormatter.matchSummary(session))
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    GeometryReader { proxy in
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.08))
+
+                            Capsule()
+                                .fill(GweiloTheme.lime)
+                                .frame(width: proxy.size.width * progress)
+                        }
+                    }
+                    .frame(height: 5)
+                }
+
+                HStack {
+                    Label("Nastavi sesiju", systemImage: "play.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundStyle(GweiloTheme.lime)
+
+                    Spacer()
+
+                    Text("\(session.playerCount) igrača")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(18)
+            .background(
+                GweiloTheme.lime.opacity(0.065),
+                in: .rect(cornerRadius: 18)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(GweiloTheme.lime.opacity(0.22), lineWidth: 1)
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(ResponsiveButtonStyle())
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("Otvara aktivnu sesiju")
     }
 }
 
 private struct SessionRecord: View {
     let session: SessionSummary
+    let rankings: [RankingEntry]
+
+    private var bestRanking: RankingEntry? {
+        ranking(named: session.bestPlayer)
+    }
+
+    private var worstRanking: RankingEntry? {
+        ranking(named: session.worstPlayer)
+    }
 
     var body: some View {
         NavigationLink(value: session) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(session.dateLabel)
-                        .font(.headline)
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Text(SessionHistoryFormatter.compactDate(session.createdAt))
+                        .font(
+                            GweiloTheme.displayFont(
+                                size: 25,
+                                relativeTo: .title3
+                            )
+                        )
                         .foregroundStyle(.primary)
 
-                    Spacer()
+                    Spacer(minLength: 8)
 
-                    Text(session.status.label)
-                        .font(.caption2.weight(.bold))
-                        .tracking(0.8)
-                        .foregroundStyle(
-                            session.status == .active
-                                ? GweiloTheme.lime
-                                : .secondary
-                        )
-                }
+                    Text(SessionHistoryFormatter.matchSummary(session))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
 
-                HStack(spacing: 0) {
-                    SessionValue(value: "\(session.playerCount)", label: "PLAYERS")
-                    SessionValue(value: "\(session.singlesMatches)", label: "SINGLES")
-                    SessionValue(value: "\(session.doublesMatches)", label: "DOUBLES")
-                    SessionValue(value: "\(session.totalRounds)", label: "ROUNDS")
-                }
-
-                HStack {
-                    if session.status == .active {
-                        Label(
-                            "Round \(session.currentRound ?? 1) of \(session.totalRounds)",
-                            systemImage: "circle.fill"
-                        )
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(GweiloTheme.lime)
-                    } else if let bestPlayer = session.bestPlayer,
-                              let bestDelta = session.bestDelta,
-                              let worstPlayer = session.worstPlayer,
-                              let worstDelta = session.worstDelta {
-                        HStack(spacing: 16) {
-                            SessionDelta(
-                                symbol: "arrow.up",
-                                player: bestPlayer,
-                                delta: bestDelta,
-                                color: GweiloTheme.lime
-                            )
-                            SessionDelta(
-                                symbol: "arrow.down",
-                                player: worstPlayer,
-                                delta: worstDelta,
-                                color: GweiloTheme.coral
-                            )
-                        }
-                    }
-
-                    Spacer()
                     Image(systemName: "chevron.right")
                         .font(.caption.weight(.bold))
                         .foregroundStyle(.tertiary)
                 }
+
+                if let bestPlayer = session.bestPlayer,
+                   let bestDelta = session.bestDelta,
+                   let worstPlayer = session.worstPlayer,
+                   let worstDelta = session.worstDelta {
+                    HStack(spacing: 12) {
+                        SessionPerformer(
+                            name: bestPlayer,
+                            delta: bestDelta,
+                            ranking: bestRanking,
+                            color: GweiloTheme.lime
+                        )
+
+                        Rectangle()
+                            .fill(GweiloTheme.hairline)
+                            .frame(width: 1, height: 38)
+
+                        SessionPerformer(
+                            name: worstPlayer,
+                            delta: worstDelta,
+                            ranking: worstRanking,
+                            color: GweiloTheme.coral
+                        )
+                    }
+                }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, 12)
             .contentShape(.rect)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ResponsiveButtonStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Opens session details")
+        .accessibilityHint("Otvara detalje sesije")
     }
-}
 
-private struct SessionValue: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(
-                    GweiloTheme.displayFont(
-                        size: 24,
-                        relativeTo: .title3
-                    )
-                )
-            Text(label)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
+    private func ranking(named name: String?) -> RankingEntry? {
+        guard let name else { return nil }
+        return rankings.first {
+            $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-private struct SessionDelta: View {
-    let symbol: String
-    let player: String
+private struct SessionPerformer: View {
+    let name: String
     let delta: Int
+    let ranking: RankingEntry?
     let color: Color
 
     var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: symbol)
-            Text(player)
-            Text(delta > 0 ? "+\(delta)" : "\(delta)")
-                .monospacedDigit()
+        HStack(spacing: 8) {
+            PlayerIdentityAvatar(
+                name: name,
+                initials: ranking?.initials ?? initials,
+                avatarURL: ranking?.avatarURL,
+                size: 35
+            )
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(name)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Text(delta > 0 ? "+\(delta) Elo" : "\(delta) Elo")
+                    .font(.caption.weight(.bold))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+            }
         }
-        .font(.caption.weight(.semibold))
-        .foregroundStyle(color)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var initials: String {
+        name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+}
+
+private enum SessionHistoryFormatter {
+    static let locale = Locale(identifier: "sr_Latn_RS")
+
+    static func monthTitle(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .month(.wide)
+                .year()
+                .locale(locale)
+        )
+        .uppercased()
+    }
+
+    static func day(_ date: Date) -> String {
+        date.formatted(.dateTime.day().locale(locale))
+    }
+
+    static func compactDate(_ date: Date) -> String {
+        "\(weekday(date)), \(day(date))."
+    }
+
+    static func weekday(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .weekday(.wide)
+                .locale(locale)
+        )
+        .uppercased()
+        .replacingOccurrences(of: ".", with: "")
+    }
+
+    static func fullDate(_ date: Date) -> String {
+        date.formatted(
+            .dateTime
+                .weekday(.wide)
+                .day()
+                .month(.wide)
+                .locale(locale)
+        )
+    }
+
+    static func matchSummary(_ session: SessionSummary) -> String {
+        var values: [String] = []
+        if session.singlesMatches > 0 {
+            values.append(
+                "\(session.singlesMatches) \(singlesWord(session.singlesMatches))"
+            )
+        }
+        if session.doublesMatches > 0 {
+            values.append(
+                "\(session.doublesMatches) \(doublesWord(session.doublesMatches))"
+            )
+        }
+        return values.joined(separator: " · ")
+    }
+
+    static func sessionWord(_ value: Int) -> String {
+        pluralized(value, one: "sesija", few: "sesije", many: "sesija")
+    }
+
+    private static func singlesWord(_ value: Int) -> String {
+        pluralized(value, one: "singl", few: "singla", many: "singlova")
+    }
+
+    private static func doublesWord(_ value: Int) -> String {
+        pluralized(value, one: "dubl", few: "dubla", many: "dublova")
+    }
+
+    private static func pluralized(
+        _ value: Int,
+        one: String,
+        few: String,
+        many: String
+    ) -> String {
+        let lastTwo = abs(value) % 100
+        let last = abs(value) % 10
+        if last == 1, lastTwo != 11 {
+            return one
+        }
+        if (2...4).contains(last), !(12...14).contains(lastTwo) {
+            return few
+        }
+        return many
     }
 }
 
 struct StartSessionView: View {
-    private enum Step: Int {
+    private enum Step {
         case setup
-        case players
         case review
 
         var title: String {
             switch self {
             case .setup: "Nova sesija"
-            case .players: "Izaberi igrače"
             case .review: "Raspored"
             }
         }
@@ -313,6 +579,7 @@ struct StartSessionView: View {
 
     @State private var step = Step.setup
     @State private var draft = SessionCreationDraft()
+    @State private var selectedPlayerCount: Int?
     @State private var availablePlayers: [SessionCreationPlayer] = []
     @State private var preview: SessionSchedulePreview?
     @State private var isLoadingPlayers = true
@@ -330,9 +597,14 @@ struct StartSessionView: View {
         self.onCreated = onCreated
 
         if previewMode {
-            _step = State(initialValue: .players)
+            _step = State(initialValue: .setup)
             _availablePlayers = State(
                 initialValue: SessionCreationPlayer.previewPlayers
+            )
+            _isLoadingPlayers = State(initialValue: false)
+        } else if dataStore.hasLoadedAvailableSessionPlayers {
+            _availablePlayers = State(
+                initialValue: dataStore.cachedAvailableSessionPlayers
             )
             _isLoadingPlayers = State(initialValue: false)
         }
@@ -346,10 +618,9 @@ struct StartSessionView: View {
                 Group {
                     switch step {
                     case .setup:
-                        SessionSetupStep(draft: $draft)
-                    case .players:
-                        SessionPlayersStep(
+                        SessionSetupStep(
                             draft: $draft,
+                            selectedPlayerCount: $selectedPlayerCount,
                             players: availablePlayers,
                             isLoading: isLoadingPlayers
                         )
@@ -379,14 +650,14 @@ struct StartSessionView: View {
             .safeAreaInset(edge: .bottom) {
                 SessionCreationFooter(
                     title: footerTitle,
-                    detail: footerDetail,
                     isWorking: isPreparingSchedule || isCreating,
                     isEnabled: canContinue,
                     action: continueFlow
                 )
             }
             .task {
-                if !previewMode {
+                if !previewMode,
+                   !dataStore.hasLoadedAvailableSessionPlayers {
                     await loadPlayers()
                 }
             }
@@ -408,29 +679,17 @@ struct StartSessionView: View {
 
     private var footerTitle: String {
         switch step {
-        case .setup: "Izaberi igrače"
-        case .players: "Napravi raspored"
+        case .setup: "Napravi raspored"
         case .review: "Pokreni sesiju"
-        }
-    }
-
-    private var footerDetail: String {
-        switch step {
-        case .setup:
-            "\(draft.playerCount) igrača"
-        case .players:
-            "\(draft.selectedPlayers.count) od \(draft.playerCount)"
-        case .review:
-            "\(preview?.rounds.count ?? 0) rundi"
         }
     }
 
     private var canContinue: Bool {
         switch step {
         case .setup:
-            !isLoadingPlayers
-        case .players:
-            draft.canPreview
+            selectedPlayerCount != nil
+                && draft.canPreview
+                && !isLoadingPlayers
         case .review:
             preview != nil
         }
@@ -438,7 +697,7 @@ struct StartSessionView: View {
 
     private func goBack() {
         withAnimation(.smooth) {
-            step = Step(rawValue: step.rawValue - 1) ?? .setup
+            step = .setup
         }
     }
 
@@ -446,8 +705,6 @@ struct StartSessionView: View {
         guard canContinue, !isPreparingSchedule, !isCreating else { return }
         switch step {
         case .setup:
-            withAnimation(.smooth) { step = .players }
-        case .players:
             Task { await prepareSchedule() }
         case .review:
             Task { await createSession() }
@@ -565,197 +822,208 @@ private extension SessionCreationPlayer {
 #endif
 
 private struct SessionSetupStep: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Binding var draft: SessionCreationDraft
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 26) {
-                SessionCreationEyebrow(
-                    number: "01",
-                    title: "POSTAVI STO"
-                )
-
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Koliko igrača?")
-                        .font(.headline)
-
-                    HStack(spacing: 8) {
-                        ForEach(2...6, id: \.self) { count in
-                            Button {
-                                draft.setPlayerCount(count)
-                            } label: {
-                                Text("\(count)")
-                                    .font(.headline.monospacedDigit())
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
-                                    .foregroundStyle(
-                                        draft.playerCount == count
-                                            ? GweiloTheme.background
-                                            : .primary
-                                    )
-                                    .background(
-                                        draft.playerCount == count
-                                            ? GweiloTheme.lime
-                                            : GweiloTheme.raisedSurface
-                                    )
-                                    .overlay {
-                                        Rectangle()
-                                            .stroke(
-                                                draft.playerCount == count
-                                                    ? GweiloTheme.lime
-                                                    : GweiloTheme.hairline,
-                                                lineWidth: 1
-                                            )
-                                    }
-                            }
-                            .buttonStyle(ResponsiveButtonStyle())
-                            .accessibilityLabel("\(count) igrača")
-                            .accessibilityAddTraits(
-                                draft.playerCount == count ? .isSelected : []
-                            )
-                        }
-                    }
-                }
-
-                if draft.playerCount == 4 {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Format za četiri igrača")
-                            .font(.headline)
-
-                        Picker(
-                            "Format za četiri igrača",
-                            selection: $draft.fourPlayerFormat
-                        ) {
-                            ForEach(FourPlayerSessionFormat.allCases) { format in
-                                Text(format.label).tag(format)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-
-                SessionCreationNote(
-                    icon: "play.fill",
-                    text: "Sesija počinje odmah. Raspored i dinamičke runde koriste ista pravila kao web aplikacija."
-                )
-            }
-            .padding(20)
-            .padding(.bottom, 100)
-        }
-        .scrollIndicators(.hidden)
-        .animation(.smooth, value: draft.playerCount)
-    }
-}
-
-private struct SessionPlayersStep: View {
-    @Binding var draft: SessionCreationDraft
+    @Binding var selectedPlayerCount: Int?
     let players: [SessionCreationPlayer]
     let isLoading: Bool
-    @State private var query = ""
     @Namespace private var playerTransition
 
-    private var filteredPlayers: [SessionCreationPlayer] {
-        guard !query.isEmpty else { return players }
-        return players.filter {
-            $0.name.localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    private var availableSixPlayerPlayers: [SessionCreationPlayer] {
+    private var availablePlayers: [SessionCreationPlayer] {
         let selectedIDs = Set(draft.selectedPlayers.map(\.id))
         return players.filter { !selectedIDs.contains($0.id) }
     }
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 18) {
-                if draft.playerCount == 6 {
+            LazyVStack(alignment: .leading, spacing: 20) {
+                SessionPlayerCountPicker(
+                    playerCount: selectedPlayerCount,
+                    selectionCount: draft.selectedPlayers.count,
+                    select: selectPlayerCount
+                )
+
+                if let selectedPlayerCount {
+                    if selectedPlayerCount == 4 {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("FORMAT")
+                                .font(.caption.weight(.black))
+                                .tracking(1.4)
+                                .foregroundStyle(GweiloTheme.accentBright)
+
+                            Picker(
+                                "Format",
+                                selection: $draft.fourPlayerFormat
+                            ) {
+                                ForEach(FourPlayerSessionFormat.allCases) {
+                                    format in
+                                    Text(format.label)
+                                        .tag(format)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .transition(
+                            .opacity.combined(with: .move(edge: .top))
+                        )
+                    }
+
                     if isLoading {
                         GweiloLoadingView("Učitavam igrače…")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 60)
                     } else {
                         AvailableSessionPlayerRail(
-                            players: availableSixPlayerPlayers,
+                            players: availablePlayers,
+                            isSelectionFull: draft.canPreview,
                             namespace: playerTransition,
                             selectPlayer: selectPlayer
                         )
 
-                        SessionDoublesTeamBuilder(
-                            draft: $draft,
-                            namespace: playerTransition
-                        )
-                    }
-                } else {
-                    SessionCreationEyebrow(
-                        number: "02",
-                        title: "IZABERI IGRAČE"
-                    )
-
-                    HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Pretraži igrače", text: $query)
-                            .textInputAutocapitalization(.words)
-                            .autocorrectionDisabled()
-                        if !query.isEmpty {
-                            Button {
-                                query = ""
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("Obriši pretragu")
-                        }
-                    }
-                    .padding(.horizontal, 13)
-                    .frame(height: 46)
-                    .flatSurface(cornerRadius: 14)
-
-                    if !draft.selectedPlayers.isEmpty {
-                        SessionCreationNote(
-                            icon: "shuffle",
-                            text: "\(draft.selectedPlayers.count) izabrano. Raspored mečeva možeš promeniti na sledećem koraku."
-                        )
-                    }
-
-                    if isLoading {
-                        GweiloLoadingView("Učitavam igrače…")
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 60)
-                    } else {
-                        ForEach(filteredPlayers) { player in
-                            PlayerSelectionRow(
-                                player: player,
-                                selectionNumber: draft.selectionNumber(
-                                    for: player.id
-                                ),
-                                isFull: draft.selectedPlayers.count >= draft.playerCount,
-                                action: { selectPlayer(player) }
+                        if selectedPlayerCount == 6 {
+                            SessionDoublesTeamBuilder(
+                                draft: $draft,
+                                namespace: playerTransition,
+                                reduceMotion: reduceMotion
+                            )
+                        } else {
+                            SessionSelectedPlayerBuilder(
+                                draft: $draft,
+                                namespace: playerTransition,
+                                reduceMotion: reduceMotion
                             )
                         }
                     }
+                } else {
+                    SessionPlayerCountPlaceholder()
+                        .transition(.opacity)
                 }
             }
             .padding(20)
             .padding(.bottom, 100)
         }
         .scrollIndicators(.hidden)
+        .animation(.smooth, value: selectedPlayerCount)
+    }
+
+    private func selectPlayerCount(_ count: Int) {
+        guard selectedPlayerCount != count else { return }
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+            selectedPlayerCount = count
+            draft.setPlayerCount(count)
+        }
     }
 
     private func selectPlayer(_ player: SessionCreationPlayer) {
-        withAnimation(.snappy(duration: 0.2)) {
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
             draft.toggle(player)
         }
     }
 }
 
+private struct SessionPlayerCountPicker: View {
+    let playerCount: Int?
+    let selectionCount: Int
+    let select: (Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("BROJ IGRAČA")
+                    .font(.caption.weight(.black))
+                    .tracking(1.4)
+                    .foregroundStyle(GweiloTheme.accentBright)
+
+                Spacer()
+
+                Text(selectionDetail)
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 4) {
+                ForEach(2...6, id: \.self) { count in
+                    Button {
+                        select(count)
+                    } label: {
+                        Text("\(count)")
+                            .font(.headline.monospacedDigit().weight(.bold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 40)
+                            .foregroundStyle(
+                                playerCount == count
+                                    ? GweiloTheme.background
+                                    : .primary
+                            )
+                            .background {
+                                if playerCount == count {
+                                    Capsule()
+                                        .fill(GweiloTheme.lime)
+                                }
+                            }
+                    }
+                    .buttonStyle(ResponsiveButtonStyle())
+                    .accessibilityLabel("\(count) igrača")
+                    .accessibilityAddTraits(
+                        playerCount == count ? .isSelected : []
+                    )
+                }
+            }
+            .padding(4)
+            .background(
+                GweiloTheme.raisedSurface,
+                in: Capsule()
+            )
+            .overlay {
+                Capsule()
+                    .stroke(GweiloTheme.hairline, lineWidth: 1)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private var selectionDetail: String {
+        guard let playerCount else { return "IZABERI 2–6" }
+        return "\(selectionCount)/\(playerCount) izabrano"
+    }
+}
+
+private struct SessionPlayerCountPlaceholder: View {
+    var body: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "figure.table.tennis")
+                .font(.system(size: 34, weight: .light))
+                .foregroundStyle(GweiloTheme.accentBright)
+
+            Text("Koliko vas igra?")
+                .font(.headline.weight(.bold))
+
+            Text("Izaberi broj igrača da postaviš sto.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: 240)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct PlayerRailScrollEdges: Equatable {
+    let showsLeadingFade: Bool
+    let showsTrailingFade: Bool
+
+    static let hidden = PlayerRailScrollEdges(
+        showsLeadingFade: false,
+        showsTrailingFade: false
+    )
+}
+
 private struct AvailableSessionPlayerRail: View {
     let players: [SessionCreationPlayer]
+    let isSelectionFull: Bool
     let namespace: Namespace.ID
     let selectPlayer: (SessionCreationPlayer) -> Void
+    @State private var scrollEdges = PlayerRailScrollEdges.hidden
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -785,10 +1053,11 @@ private struct AvailableSessionPlayerRail: View {
                     .transition(.opacity)
                 } else {
                     ScrollView(.horizontal) {
-                        LazyHStack(spacing: 18) {
+                        LazyHStack(spacing: 12) {
                             ForEach(players) { player in
                                 AvailableSessionPlayerButton(
                                     player: player,
+                                    isDisabled: isSelectionFull,
                                     namespace: namespace,
                                     action: { selectPlayer(player) }
                                 )
@@ -802,6 +1071,27 @@ private struct AvailableSessionPlayerRail: View {
                         .padding(.horizontal, 2)
                     }
                     .scrollIndicators(.hidden)
+                    .onScrollGeometryChange(
+                        for: PlayerRailScrollEdges.self
+                    ) { geometry in
+                        let offset = max(0, geometry.contentOffset.x)
+                        let maximumOffset = max(
+                            0,
+                            geometry.contentSize.width
+                                - geometry.containerSize.width
+                        )
+                        return PlayerRailScrollEdges(
+                            showsLeadingFade: offset > 4,
+                            showsTrailingFade: offset < maximumOffset - 4
+                        )
+                    } action: { _, newValue in
+                        if scrollEdges != newValue {
+                            scrollEdges = newValue
+                        }
+                    }
+                    .overlay {
+                        PlayerRailEdgeFades(edges: scrollEdges)
+                    }
                     .transition(.opacity)
                 }
             }
@@ -812,8 +1102,43 @@ private struct AvailableSessionPlayerRail: View {
     }
 }
 
+private struct PlayerRailEdgeFades: View {
+    let edges: PlayerRailScrollEdges
+
+    var body: some View {
+        HStack(spacing: 0) {
+            edgeFade(startPoint: .leading, endPoint: .trailing)
+                .opacity(edges.showsLeadingFade ? 1 : 0)
+
+            Spacer(minLength: 0)
+
+            edgeFade(startPoint: .trailing, endPoint: .leading)
+                .opacity(edges.showsTrailingFade ? 1 : 0)
+        }
+        .animation(.easeOut(duration: 0.15), value: edges)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func edgeFade(
+        startPoint: UnitPoint,
+        endPoint: UnitPoint
+    ) -> some View {
+        LinearGradient(
+            colors: [
+                GweiloTheme.background,
+                GweiloTheme.background.opacity(0)
+            ],
+            startPoint: startPoint,
+            endPoint: endPoint
+        )
+        .frame(width: 30)
+    }
+}
+
 private struct AvailableSessionPlayerButton: View {
     let player: SessionCreationPlayer
+    let isDisabled: Bool
     let namespace: Namespace.ID
     let action: () -> Void
 
@@ -836,6 +1161,8 @@ private struct AvailableSessionPlayerButton: View {
             .frame(width: 68)
         }
         .buttonStyle(ResponsiveButtonStyle())
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.4 : 1)
         .accessibilityLabel("Dodaj \(player.name)")
     }
 }
@@ -863,6 +1190,7 @@ private enum SessionDoublesTeam: Int, CaseIterable, Identifiable {
 private struct SessionDoublesTeamBuilder: View {
     @Binding var draft: SessionCreationDraft
     let namespace: Namespace.ID
+    let reduceMotion: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -894,8 +1222,71 @@ private struct SessionDoublesTeamBuilder: View {
     }
 
     private func removePlayer(at index: Int) {
-        withAnimation(.snappy(duration: 0.2)) {
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
             draft.removeSelectedPlayer(at: index)
+        }
+    }
+}
+
+private struct SessionSelectedPlayerBuilder: View {
+    @Binding var draft: SessionCreationDraft
+    let namespace: Namespace.ID
+    let reduceMotion: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("IZABRANI IGRAČI")
+                    .font(.caption.weight(.black))
+                    .tracking(1.4)
+                    .foregroundStyle(GweiloTheme.accentBright)
+
+                Spacer()
+
+                Text(
+                    "\(draft.selectedPlayers.count)/\(draft.playerCount)"
+                )
+                .font(.caption.monospacedDigit().weight(.bold))
+                .foregroundStyle(.secondary)
+            }
+            .padding(.bottom, 4)
+
+            ForEach(0..<draft.playerCount, id: \.self) { playerIndex in
+                SessionSelectedPlayerRow(
+                    player: draft.selectedPlayers.indices.contains(playerIndex)
+                        ? draft.selectedPlayers[playerIndex]
+                        : nil,
+                    position: playerIndex + 1,
+                    namespace: namespace,
+                    remove: { removePlayer(at: playerIndex) }
+                )
+            }
+        }
+    }
+
+    private func removePlayer(at index: Int) {
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+            draft.removeSelectedPlayer(at: index)
+        }
+    }
+}
+
+private struct SessionSelectedPlayerRow: View {
+    let player: SessionCreationPlayer?
+    let position: Int
+    let namespace: Namespace.ID
+    let remove: () -> Void
+
+    var body: some View {
+        SessionPlayerSlot(
+            player: player,
+            emptyLabel: "Igrač \(position)",
+            namespace: namespace,
+            remove: remove
+        )
+        .frame(height: 62)
+        .overlay(alignment: .bottom) {
+            Divider()
         }
     }
 }
@@ -923,10 +1314,11 @@ private struct SessionDoublesTeamRow: View {
                 .frame(width: 24)
 
             ForEach(0..<2, id: \.self) { playerIndex in
-                DoublesTeamPlayerSlot(
+                SessionPlayerSlot(
                     player: players.indices.contains(playerIndex)
                         ? players[playerIndex]
                         : nil,
+                    emptyLabel: "Igrač",
                     namespace: namespace,
                     remove: { removePlayer(playerIndex) }
                 )
@@ -946,8 +1338,9 @@ private struct SessionDoublesTeamRow: View {
     }
 }
 
-private struct DoublesTeamPlayerSlot: View {
+private struct SessionPlayerSlot: View {
     let player: SessionCreationPlayer?
+    let emptyLabel: String
     let namespace: Namespace.ID
     let remove: () -> Void
 
@@ -974,7 +1367,7 @@ private struct DoublesTeamPlayerSlot: View {
                     .contentShape(.rect)
                 }
                 .buttonStyle(ResponsiveButtonStyle())
-                .accessibilityLabel("Ukloni \(player.name) iz tima")
+                .accessibilityLabel("Ukloni \(player.name)")
                 .transition(.opacity)
             } else {
                 HStack(spacing: 8) {
@@ -993,7 +1386,7 @@ private struct DoublesTeamPlayerSlot: View {
                                 .foregroundStyle(GweiloTheme.muted)
                         }
 
-                    Text("Igrač")
+                    Text(emptyLabel)
                         .font(.subheadline)
                         .foregroundStyle(GweiloTheme.muted)
 
@@ -1007,156 +1400,38 @@ private struct DoublesTeamPlayerSlot: View {
     }
 }
 
-private struct PlayerSelectionRow: View {
-    let player: SessionCreationPlayer
-    let selectionNumber: Int?
-    let isFull: Bool
-    let action: () -> Void
-
-    private var isSelected: Bool {
-        selectionNumber != nil
-    }
-
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 13) {
-                PlayerIdentityAvatar(
-                    name: player.name,
-                    initials: player.initials,
-                    avatarURL: player.avatarURL,
-                    size: 48
-                )
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(player.name)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    if let elo = player.elo {
-                        Text("ELO \(elo)")
-                            .font(.caption.monospacedDigit().weight(.semibold))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer()
-
-                if isSelected {
-                    Text("\(selectionNumber ?? 0)")
-                        .font(.caption.monospacedDigit().weight(.black))
-                        .foregroundStyle(GweiloTheme.background)
-                        .frame(width: 30, height: 30)
-                        .background(GweiloTheme.lime, in: .circle)
-                } else {
-                    Image(systemName: "plus")
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.vertical, 10)
-            .contentShape(.rect)
-        }
-        .buttonStyle(ResponsiveButtonStyle())
-        .disabled(isFull && !isSelected)
-        .opacity(isFull && !isSelected ? 0.42 : 1)
-        .overlay(alignment: .bottom) {
-            Divider()
-        }
-        .accessibilityLabel(
-            isSelected
-                ? "\(player.name), izabran kao \(selectionNumber ?? 0)"
-                : "\(player.name), nije izabran"
-        )
-    }
-}
-
 private struct SessionReviewStep: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let draft: SessionCreationDraft
     let preview: SessionSchedulePreview?
     let isRandomizing: Bool
     let randomize: () -> Void
+    @State private var shuffleTrigger = 0
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                SessionCreationEyebrow(
-                    number: "03",
-                    title: "RASPORED JE SPREMAN"
-                )
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(reviewTitle)
-                        .font(
-                            GweiloTheme.displayFont(
-                                size: 36,
-                                relativeTo: .title
-                            )
-                        )
-                        .foregroundStyle(GweiloTheme.bone)
-
-                    Text(reviewSubtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
+            LazyVStack(alignment: .leading, spacing: 24) {
                 if let preview {
-                    HStack(spacing: 10) {
-                        ReviewMetric(
-                            value: "\(draft.playerCount)",
-                            label: "IGRAČA"
-                        )
-                        ReviewMetric(
-                            value: "\(preview.rounds.count)",
-                            label: "RUNDI"
-                        )
-                        ReviewMetric(value: "SADA", label: "POČETAK")
-                    }
-
                     if draft.playerCount == 6 {
                         SessionReviewTeams(
-                            teams: draft.doublesTeams,
-                            preview: preview
+                            teams: draft.doublesTeams
                         )
                     }
 
-                    Button(action: randomize) {
-                        Label(
-                            isRandomizing
-                                ? "Menjam raspored…"
-                                : randomizeTitle,
-                            systemImage: "shuffle"
-                        )
-                        .font(.subheadline.weight(.bold))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 48)
-                    }
-                    .buttonStyle(ResponsiveButtonStyle())
-                    .foregroundStyle(GweiloTheme.lime)
-                    .background(
-                        GweiloTheme.lime.opacity(0.08),
-                        in: .rect(cornerRadius: 14)
-                    )
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14)
-                            .stroke(
-                                GweiloTheme.lime.opacity(0.42),
-                                lineWidth: 0.8
-                            )
-                    }
-                    .disabled(isRandomizing)
-                    .accessibilityHint(
-                        draft.playerCount == 6
-                            ? "Menja singl parove, ali čuva izabrane dubl timove"
-                            : "Pravi drugačiji raspored mečeva"
-                    )
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(preview.rounds) { round in
+                            if let phase = phaseHeader(before: round) {
+                                SchedulePhaseHeader(
+                                    title: phase.title,
+                                    detail: phase.detail
+                                )
+                            }
 
-                    ForEach(preview.rounds) { round in
-                        if let phase = phaseHeader(before: round) {
-                            SchedulePhaseHeader(
-                                title: phase.title,
-                                detail: phase.detail
+                            ScheduleRoundCard(
+                                round: round,
+                                reduceMotion: reduceMotion
                             )
                         }
-
-                        ScheduleRoundCard(round: round)
                     }
                 } else {
                     GweiloLoadingView("Pravim raspored…")
@@ -1168,25 +1443,34 @@ private struct SessionReviewStep: View {
             .padding(.bottom, 100)
         }
         .scrollIndicators(.hidden)
-    }
-
-    private var reviewTitle: String {
-        switch draft.playerCount {
-        case 6: "TRI TIMA. SEDAM RUNDI."
-        case 5: "DUPLA ROTACIJA."
-        default: "SPREMNI ZA IGRU."
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: shuffleSchedule) {
+                    Image(systemName: "shuffle")
+                        .rotationEffect(
+                            .degrees(
+                                reduceMotion
+                                    ? 0
+                                    : Double(shuffleTrigger) * 180
+                            )
+                        )
+                        .animation(
+                            reduceMotion
+                                ? nil
+                                : .smooth(duration: 0.24),
+                            value: shuffleTrigger
+                        )
+                }
+                .disabled(isRandomizing)
+                .accessibilityLabel(randomizeTitle)
+                .accessibilityHint(
+                    draft.playerCount == 6
+                        ? "Menja singl parove, ali čuva izabrane dubl timove"
+                        : "Pravi drugačiji raspored mečeva"
+                )
+            }
         }
-    }
-
-    private var reviewSubtitle: String {
-        switch draft.playerCount {
-        case 6:
-            "Dubl partneri ostaju zajedno. Singl parovi mogu da se promene."
-        case 5:
-            "Svako odmara dva puta i svaki par igra dva puta."
-        default:
-            "Pregledaj mečeve pre nego što pokreneš sesiju."
-        }
+        .sensoryFeedback(.selection, trigger: shuffleTrigger)
     }
 
     private var randomizeTitle: String {
@@ -1197,12 +1481,10 @@ private struct SessionReviewStep: View {
 
     private func phaseHeader(
         before round: SessionScheduleRound
-    ) -> (title: String, detail: String)? {
+    ) -> (title: String, detail: String?)? {
         switch (draft.playerCount, round.roundNumber) {
-        case (6, 1):
-            ("SINGL ROTACIJA", "4 runde · partneri se ne sastaju")
         case (6, 5):
-            ("ZAVRŠNICA", "5. runda odlučuje sledeće mečeve")
+            ("ZAVRŠNICA", nil)
         case (4, 1):
             ("SINGLOVI", "svako igra protiv svakoga")
         case (4, 4):
@@ -1211,11 +1493,15 @@ private struct SessionReviewStep: View {
             nil
         }
     }
+
+    private func shuffleSchedule() {
+        shuffleTrigger += 1
+        randomize()
+    }
 }
 
 private struct SessionReviewTeams: View {
     let teams: [[SessionCreationPlayer]]
-    let preview: SessionSchedulePreview
 
     private let colors = [
         GweiloTheme.lime,
@@ -1223,50 +1509,32 @@ private struct SessionReviewTeams: View {
         GweiloTheme.accentBright
     ]
 
-    private var roundFiveSinglesIDs: Set<UUID> {
-        Set(
-            preview.rounds
-                .first { $0.roundNumber == 5 }?
-                .matches
-                .first { $0.type == .singles }?
-                .players
-                .map(\.id) ?? []
-        )
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("DUBL TIMOVI")
-                    .font(.caption.weight(.black))
-                    .tracking(1.4)
-                    .foregroundStyle(.secondary)
+        VStack(spacing: 12) {
+            Text("DUBL PAROVI")
+                .font(.caption2.weight(.black))
+                .tracking(1.2)
+                .foregroundStyle(.secondary)
 
-                Spacer()
+            HStack(spacing: 0) {
+                ForEach(Array(teams.enumerated()), id: \.offset) {
+                    index,
+                    team in
+                    SessionReviewTeamCard(
+                        index: index,
+                        players: team,
+                        color: colors[index]
+                    )
+                    .frame(maxWidth: .infinity)
 
-                Text("FIKSNI")
-                    .font(.caption2.weight(.black))
-                    .tracking(1)
-                    .foregroundStyle(GweiloTheme.lime)
-            }
-
-            ScrollView(.horizontal) {
-                HStack(spacing: 10) {
-                    ForEach(Array(teams.enumerated()), id: \.offset) {
-                        index,
-                        team in
-                        SessionReviewTeamCard(
-                            index: index,
-                            players: team,
-                            color: colors[index],
-                            playsRoundFiveSingles:
-                                Set(team.map(\.id)) == roundFiveSinglesIDs
-                        )
+                    if index < teams.count - 1 {
+                        Divider()
+                            .frame(height: 48)
                     }
                 }
             }
-            .scrollIndicators(.hidden)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
@@ -1274,64 +1542,40 @@ private struct SessionReviewTeamCard: View {
     let index: Int
     let players: [SessionCreationPlayer]
     let color: Color
-    let playsRoundFiveSingles: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("TIM \(teamLetter)")
-                    .font(.caption2.weight(.black))
-                    .tracking(1)
-                    .foregroundStyle(color)
-
-                Spacer()
-
-                if playsRoundFiveSingles {
-                    Text("SINGL U 5.")
-                        .font(.system(size: 9, weight: .black))
-                        .tracking(0.7)
-                        .foregroundStyle(GweiloTheme.background)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(GweiloTheme.amber, in: .capsule)
-                }
-            }
-
+        VStack(spacing: 6) {
             HStack(spacing: -8) {
                 ForEach(players) { player in
                     PlayerIdentityAvatar(
                         name: player.name,
                         initials: player.initials,
                         avatarURL: player.avatarURL,
-                        size: 38
+                        size: 30
                     )
                     .overlay {
-                        Circle().stroke(GweiloTheme.surface, lineWidth: 2)
+                        Circle()
+                            .stroke(GweiloTheme.background, lineWidth: 2)
                     }
                 }
             }
 
-            Text(players.map(\.name).joined(separator: " + "))
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
+            HStack(spacing: 4) {
+                Text(teamLetter)
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(color)
+
+                Text(players.map(\.name).joined(separator: " & "))
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
         }
-        .padding(13)
-        .frame(width: 176, height: 116, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    color.opacity(0.12),
-                    GweiloTheme.surface
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: .rect(cornerRadius: 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "Tim \(teamLetter), "
+                + players.map(\.name).joined(separator: " i ")
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(color.opacity(0.28), lineWidth: 0.8)
-        }
     }
 
     private var teamLetter: String {
@@ -1341,92 +1585,84 @@ private struct SessionReviewTeamCard: View {
 
 private struct SchedulePhaseHeader: View {
     let title: String
-    let detail: String
+    let detail: String?
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text(title)
-                .font(.caption.weight(.black))
-                .tracking(1.5)
-                .foregroundStyle(GweiloTheme.accentBright)
+                .font(.caption2.weight(.black))
+                .tracking(1.2)
+                .foregroundStyle(GweiloTheme.lime)
 
-            Spacer()
+            if let detail {
+                Text("·")
+                    .foregroundStyle(.tertiary)
 
-            Text(detail)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
-        .padding(.top, 8)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 18)
+        .padding(.bottom, 6)
     }
 }
 
 private struct ScheduleRoundCard: View {
     let round: SessionScheduleRound
+    let reduceMotion: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            HStack {
-                Text("RUNDA")
-                    .font(.caption2.weight(.black))
-                    .tracking(1.2)
-                    .foregroundStyle(.secondary)
-
-                Text("\(round.roundNumber)")
-                    .font(
-                        GweiloTheme.displayFont(
-                            size: 28,
-                            relativeTo: .title2
-                        )
-                    )
-                    .foregroundStyle(
-                        round.isDynamic == true
-                            ? GweiloTheme.accentBright
-                            : GweiloTheme.lime
-                    )
-
-                Spacer()
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Runda \(round.roundNumber)")
+                    .font(.headline.weight(.bold))
 
                 if round.isDynamic == true {
-                    Label("DINAMIČKA", systemImage: "bolt.fill")
-                        .font(.system(size: 10, weight: .black))
-                        .tracking(0.8)
-                        .foregroundStyle(GweiloTheme.accentBright)
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+
+                    Text("zavisi od rezultata")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(GweiloTheme.amber)
                 } else {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+
                     Text("\(round.matchCount) \(matchCountLabel)")
                         .font(.caption2.monospacedDigit().weight(.bold))
                         .foregroundStyle(.secondary)
                 }
             }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
 
             if round.isDynamic == true {
                 DynamicRoundExplanation(roundNumber: round.roundNumber)
+                    .padding(.bottom, 14)
             } else {
-                VStack(spacing: 8) {
-                    ForEach(
-                        Array(round.matches.enumerated()),
-                        id: \.offset
-                    ) { _, match in
-                        ScheduleMatchCard(match: match)
+                VStack(spacing: 0) {
+                    ForEach(Array(round.matches.enumerated()), id: \.offset) {
+                        index,
+                        match in
+                        ScheduleMatchSlot(
+                            match: match,
+                            animationDelay: Double(index) * 0.025,
+                            reduceMotion: reduceMotion
+                        )
+
+                        if index < round.matches.count - 1 {
+                            Divider()
+                        }
                     }
                 }
             }
         }
-        .padding(15)
-        .background(
-            round.isDynamic == true
-                ? GweiloTheme.accent.opacity(0.09)
-                : GweiloTheme.surface,
-            in: .rect(cornerRadius: 18)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(
-                    round.isDynamic == true
-                        ? GweiloTheme.accentBright.opacity(0.32)
-                        : GweiloTheme.hairline,
-                    lineWidth: 0.8
-                )
+        .overlay(alignment: .bottom) {
+            Divider()
         }
+        .padding(.bottom, 22)
         .accessibilityElement(children: .combine)
     }
 
@@ -1439,38 +1675,52 @@ private struct DynamicRoundExplanation: View {
     let roundNumber: Int
 
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "arrow.triangle.branch")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(GweiloTheme.accentBright)
-                .frame(width: 34, height: 34)
-                .background(
-                    GweiloTheme.accent.opacity(0.16),
-                    in: .rect(cornerRadius: 10)
-                )
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.subheadline.weight(.bold))
+                .multilineTextAlignment(.center)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.subheadline.weight(.bold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(detail)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
         }
+        .frame(maxWidth: 320)
+        .frame(maxWidth: .infinity)
     }
 
     private var title: String {
         roundNumber == 6
-            ? "Rezultat 5. runde bira parove"
-            : "Drugi deo završnice"
+            ? "Parovi se određuju nakon 5. runde"
+            : "Parovi se određuju nakon 6. runde"
     }
 
     private var detail: String {
         if roundNumber == 6 {
-            return "Pobednici dubla ostaju zajedno i igraju protiv singl para. Poraženi igraju međusobni singl."
+            return "Pobednički dubl ostaje zajedno protiv singl para. Poraženi igraju međusobni singl."
         }
-        return "Poraženi dubl tim igra protiv singl para, a pobednički tim igra međusobni singl."
+        return "Poraženi dubl igra protiv singl para. Pobednički tim igra međusobni singl."
+    }
+}
+
+private struct ScheduleMatchSlot: View {
+    let match: SessionScheduleMatch
+    let animationDelay: Double
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            ScheduleMatchCard(match: match)
+                .id(match)
+                .transition(.opacity)
+        }
+        .animation(
+            reduceMotion
+                ? nil
+                : .easeOut(duration: 0.18).delay(animationDelay),
+            value: match
+        )
     }
 }
 
@@ -1478,35 +1728,21 @@ private struct ScheduleMatchCard: View {
     let match: SessionScheduleMatch
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            Label(
-                match.type == .doubles ? "DUBL" : "SINGL",
-                systemImage: match.type == .doubles
-                    ? "person.2.fill"
-                    : "figure.table.tennis"
-            )
-            .font(.system(size: 10, weight: .black))
-            .tracking(1)
-            .foregroundStyle(
-                match.type == .doubles
-                    ? GweiloTheme.cyan
-                    : GweiloTheme.lime
-            )
+        HStack(spacing: 8) {
+            MatchSide(players: firstSide, alignment: .trailing)
 
-            HStack(spacing: 10) {
-                MatchSide(players: firstSide)
+            Text("VS")
+                .font(.caption2.weight(.black))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
 
-                Text("VS")
-                    .font(.caption2.weight(.black))
-                    .foregroundStyle(.secondary)
-
-                MatchSide(players: secondSide)
-            }
+            MatchSide(players: secondSide, alignment: .leading)
         }
-        .padding(11)
-        .background(
-            GweiloTheme.raisedSurface,
-            in: .rect(cornerRadius: 13)
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            "\(match.type == .doubles ? "Dubl" : "Singl"), "
+                + "\(sideName(firstSide)) protiv \(sideName(secondSide))"
         )
     }
 
@@ -1521,140 +1757,93 @@ private struct ScheduleMatchCard: View {
             ? Array(match.players.dropFirst(2).prefix(2))
             : Array(match.players.dropFirst(1).prefix(1))
     }
+
+    private func sideName(_ players: [SessionCreationPlayer]) -> String {
+        players.map(\.name).joined(separator: " i ")
+    }
 }
 
 private struct MatchSide: View {
     let players: [SessionCreationPlayer]
+    let alignment: HorizontalAlignment
 
     var body: some View {
         HStack(spacing: 7) {
-            HStack(spacing: -7) {
-                ForEach(players) { player in
-                    PlayerIdentityAvatar(
-                        name: player.name,
-                        initials: player.initials,
-                        avatarURL: player.avatarURL,
-                        size: 30
+            if alignment == .trailing {
+                playerNames
+                playerAvatars
+            } else {
+                playerAvatars
+                playerNames
+            }
+        }
+        .frame(
+            maxWidth: .infinity,
+            alignment: alignment == .trailing ? .trailing : .leading
+        )
+    }
+
+    private var playerNames: some View {
+        Text(players.map(\.name).joined(separator: " & "))
+            .font(.caption.weight(.semibold))
+            .multilineTextAlignment(
+                alignment == .trailing ? .trailing : .leading
+            )
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
+    }
+
+    private var playerAvatars: some View {
+        HStack(spacing: -7) {
+            ForEach(players) { player in
+                PlayerIdentityAvatar(
+                    name: player.name,
+                    initials: player.initials,
+                    avatarURL: player.avatarURL,
+                    size: 30
+                )
+                .overlay {
+                    Circle().stroke(
+                        GweiloTheme.background,
+                        lineWidth: 1.5
                     )
-                    .overlay {
-                        Circle().stroke(
-                            GweiloTheme.raisedSurface,
-                            lineWidth: 1.5
-                        )
-                    }
                 }
             }
-
-            Text(players.map(\.name).joined(separator: " + "))
-                .font(.caption.weight(.semibold))
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-}
-
-private struct ReviewMetric: View {
-    let value: String
-    let label: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(
-                    GweiloTheme.displayFont(
-                        size: 25,
-                        relativeTo: .title3
-                    )
-                )
-                .minimumScaleFactor(0.75)
-            Text(label)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            GweiloTheme.surface,
-            in: .rect(cornerRadius: 14)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(GweiloTheme.hairline, lineWidth: 0.8)
-        }
-    }
-}
-
-private struct SessionCreationEyebrow: View {
-    let number: String
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 9) {
-            Text(number)
-                .foregroundStyle(GweiloTheme.background)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(GweiloTheme.lime)
-            Text(title)
-                .tracking(1.6)
-                .foregroundStyle(GweiloTheme.lime)
-        }
-        .font(.caption2.weight(.black))
-    }
-}
-
-private struct SessionCreationNote: View {
-    let icon: String
-    let text: String
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 11) {
-            Image(systemName: icon)
-                .foregroundStyle(GweiloTheme.accentBright)
-            Text(text)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .padding(14)
-        .flatSurface(cornerRadius: 4)
     }
 }
 
 private struct SessionCreationFooter: View {
     let title: String
-    let detail: String
     let isWorking: Bool
     let isEnabled: Bool
     let action: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            Divider()
+        actionButton
+            .buttonStyle(
+                GweiloPrimaryButtonStyle(
+                    keepsColorWhenDisabled: true,
+                    height: 50
+                )
+            )
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+    }
 
-            Button(action: action) {
-                HStack {
-                    if isWorking {
-                        ProgressView()
-                            .tint(GweiloTheme.background)
-                    } else {
-                        Text(title.uppercased())
-                    }
-
-                    Spacer()
-
-                    Text(detail.uppercased())
-                        .font(.caption2.monospacedDigit().weight(.black))
-                        .opacity(0.7)
-
-                    Image(systemName: "arrow.right")
+    private var actionButton: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if isWorking {
+                    ProgressView()
+                        .tint(GweiloTheme.background)
+                } else {
+                    Text(title)
+                        .font(.headline.weight(.black))
                 }
             }
-            .buttonStyle(GweiloPrimaryButtonStyle())
-            .disabled(!isEnabled || isWorking)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
         }
-        .background(.ultraThinMaterial)
+        .disabled(!isEnabled || isWorking)
     }
 }

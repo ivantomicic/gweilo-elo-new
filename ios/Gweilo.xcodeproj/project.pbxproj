@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A10000000000000000000001 /* GweiloSessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010 /* GweiloSessionActivityAttributes.swift */; };
+		A10000000000000000000002 /* SessionLiveActivityManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* SessionLiveActivityManager.swift */; };
+		A10000000000000000000003 /* GweiloSessionActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010 /* GweiloSessionActivityAttributes.swift */; };
+		A10000000000000000000004 /* GweiloLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* GweiloLiveActivityBundle.swift */; };
+		A10000000000000000000005 /* GweiloSessionLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* GweiloSessionLiveActivity.swift */; };
+		A10000000000000000000006 /* GweiloLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* GweiloLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */; };
 		1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5228EA448D3385CA3C87F404 /* GweiloTheme.swift */; };
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
@@ -38,6 +44,7 @@
 		D10200000000000000000004 /* GweiloLoginHero.mov in Resources */ = {isa = PBXBuildFile; fileRef = D10200000000000000000003 /* GweiloLoginHero.mov */; };
 		D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B97913905094E27DCF42A43 /* GweiloApp.swift */; };
 		DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */; };
+		E72600000000000000000002 /* RankingsHeader.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E72600000000000000000001 /* RankingsHeader.mp4 */; };
 		E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24DACFB92DCB222E4F6075F /* HomeView.swift */; };
 		F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */; };
 		FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */; };
@@ -45,6 +52,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		A10000000000000000000020 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 740525867FEB88315EE1A3A1 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A10000000000000000000030;
+			remoteInfo = GweiloLiveActivity;
+		};
 		F08F4A6343A5D35909BB7FB3 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 740525867FEB88315EE1A3A1 /* Project object */;
@@ -54,7 +68,27 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		A10000000000000000000021 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A10000000000000000000006 /* GweiloLiveActivity.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
+		A10000000000000000000010 /* GweiloSessionActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloSessionActivityAttributes.swift; sourceTree = "<group>"; };
+		A10000000000000000000011 /* SessionLiveActivityManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionLiveActivityManager.swift; sourceTree = "<group>"; };
+		A10000000000000000000012 /* GweiloLiveActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloLiveActivityBundle.swift; sourceTree = "<group>"; };
+		A10000000000000000000013 /* GweiloSessionLiveActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloSessionLiveActivity.swift; sourceTree = "<group>"; };
+		A10000000000000000000014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A10000000000000000000015 /* GweiloLiveActivity.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = GweiloLiveActivity.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationManager.swift; sourceTree = "<group>"; };
 		11454FC6A9CA7A8DCD47CE4D /* GweiloTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = GweiloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailModelTests.swift; sourceTree = "<group>"; };
@@ -88,6 +122,7 @@
 		D57B36C393B99E8531574EB6 /* Gweilo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Gweilo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D70068E15F92AF56CD3CA6C2 /* MatchOutcomeBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchOutcomeBadge.swift; sourceTree = "<group>"; };
 		E0A27FBB6BA961B030145968 /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
+		E72600000000000000000001 /* RankingsHeader.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = RankingsHeader.mp4; sourceTree = "<group>"; };
 		E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModelsTests.swift; sourceTree = "<group>"; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -102,6 +137,7 @@
 			children = (
 				D57B36C393B99E8531574EB6 /* Gweilo.app */,
 				11454FC6A9CA7A8DCD47CE4D /* GweiloTests.xctest */,
+				A10000000000000000000015 /* GweiloLiveActivity.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -130,6 +166,7 @@
 				9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */,
 				7A9391F1239E602BBF63632B /* AppDataStore.swift */,
 				04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */,
+				A10000000000000000000011 /* SessionLiveActivityManager.swift */,
 				81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */,
 				E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */,
 			);
@@ -237,6 +274,7 @@
 			children = (
 				30CA3CDD32BDD4D85A8F68A9 /* Config */,
 				B6C78A4A6757C358BCCA941E /* Gweilo */,
+				A10000000000000000000017 /* GweiloLiveActivity */,
 				90CB05099E496F98E917229A /* GweiloTests */,
 				00F2F11908D50DB052D06866 /* Products */,
 			);
@@ -250,10 +288,29 @@
 				04A0144C9CF40B9ECAF30026 /* DesignSystem */,
 				85B2FBAFA91AAC7FCF1E1A96 /* Features */,
 				7EC89615656677B025797A37 /* Models */,
+				A10000000000000000000016 /* LiveActivities */,
 				D371E3EBA7E3922782D83E7F /* Resources */,
 				1E9891ABEC84B51223DB59B5 /* Services */,
 			);
 			path = Gweilo;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000016 /* LiveActivities */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000010 /* GweiloSessionActivityAttributes.swift */,
+			);
+			path = LiveActivities;
+			sourceTree = "<group>";
+		};
+		A10000000000000000000017 /* GweiloLiveActivity */ = {
+			isa = PBXGroup;
+			children = (
+				A10000000000000000000012 /* GweiloLiveActivityBundle.swift */,
+				A10000000000000000000013 /* GweiloSessionLiveActivity.swift */,
+				A10000000000000000000014 /* Info.plist */,
+			);
+			path = GweiloLiveActivity;
 			sourceTree = "<group>";
 		};
 		D371E3EBA7E3922782D83E7F /* Resources */ = {
@@ -266,6 +323,7 @@
 				C10100000000000000000007 /* MatchResultDraw.mp4 */,
 				C10100000000000000000005 /* MatchResultLoss.mp4 */,
 				C10100000000000000000003 /* MatchResultWin.mp4 */,
+				E72600000000000000000001 /* RankingsHeader.mp4 */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -287,10 +345,12 @@
 			buildPhases = (
 				40BEEA23F580F18C2331A9B3 /* Sources */,
 				775ED290DFD6028D20503CB0 /* Resources */,
+				A10000000000000000000021 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A10000000000000000000022 /* PBXTargetDependency */,
 			);
 			name = Gweilo;
 			packageProductDependencies = (
@@ -298,6 +358,24 @@
 			productName = Gweilo;
 			productReference = D57B36C393B99E8531574EB6 /* Gweilo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		A10000000000000000000030 /* GweiloLiveActivity */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A10000000000000000000040 /* Build configuration list for PBXNativeTarget "GweiloLiveActivity" */;
+			buildPhases = (
+				A10000000000000000000031 /* Sources */,
+				A10000000000000000000032 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GweiloLiveActivity;
+			packageProductDependencies = (
+			);
+			productName = GweiloLiveActivity;
+			productReference = A10000000000000000000015 /* GweiloLiveActivity.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 		9D1F11CCE208E190BC7E0CFF /* GweiloTests */ = {
 			isa = PBXNativeTarget;
@@ -338,6 +416,10 @@
 						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
+					A10000000000000000000030 = {
+						DevelopmentTeam = 5JKSYD4AUC;
+						ProvisioningStyle = Automatic;
+					};
 				};
 			};
 			buildConfigurationList = 94B98189CA652505EE3E1109 /* Build configuration list for PBXProject "Gweilo" */;
@@ -355,11 +437,19 @@
 			targets = (
 				1C09AB1BFC29BDD6DE201954 /* Gweilo */,
 				9D1F11CCE208E190BC7E0CFF /* GweiloTests */,
+				A10000000000000000000030 /* GweiloLiveActivity */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000032 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		775ED290DFD6028D20503CB0 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -371,12 +461,23 @@
 				C10100000000000000000008 /* MatchResultDraw.mp4 in Resources */,
 				C10100000000000000000006 /* MatchResultLoss.mp4 in Resources */,
 				C10100000000000000000004 /* MatchResultWin.mp4 in Resources */,
+				E72600000000000000000002 /* RankingsHeader.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000031 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A10000000000000000000003 /* GweiloSessionActivityAttributes.swift in Sources */,
+				A10000000000000000000004 /* GweiloLiveActivityBundle.swift in Sources */,
+				A10000000000000000000005 /* GweiloSessionLiveActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		3D65861666EB2268D5C31844 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -408,6 +509,8 @@
 				C04A0434CFBFF3FE50EDB5BF /* NotificationSettingsSection.swift in Sources */,
 				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
 				B4A481FD81E27E8A7AA4256D /* PushNotificationManager.swift in Sources */,
+				A10000000000000000000001 /* GweiloSessionActivityAttributes.swift in Sources */,
+				A10000000000000000000002 /* SessionLiveActivityManager.swift in Sources */,
 				5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */,
 				5999C1D880A0425F482E0121 /* RootView.swift in Sources */,
 				051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */,
@@ -422,6 +525,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		A10000000000000000000022 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A10000000000000000000030 /* GweiloLiveActivity */;
+			targetProxy = A10000000000000000000020 /* PBXContainerItemProxy */;
+		};
 		6CFD9566D9F50CDED10B3960 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 1C09AB1BFC29BDD6DE201954 /* Gweilo */;
@@ -430,6 +538,58 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		A10000000000000000000041 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5JKSYD4AUC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GweiloLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ivantomicic.gweilo.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A10000000000000000000042 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 5JKSYD4AUC;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = GweiloLiveActivity/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.ivantomicic.gweilo.LiveActivity;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 		0049FD6BBEC405FE54ED892E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = FFB5B7E10D18D5827690DD78 /* Base.xcconfig */;
@@ -644,6 +804,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		A10000000000000000000040 /* Build configuration list for PBXNativeTarget "GweiloLiveActivity" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000000000000000000041 /* Debug */,
+				A10000000000000000000042 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		5D6961C363C4DFDFB9104A96 /* Build configuration list for PBXNativeTarget "Gweilo" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

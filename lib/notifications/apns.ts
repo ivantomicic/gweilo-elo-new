@@ -21,6 +21,24 @@ export type APNsPayload = {
 	[key: string]: unknown;
 };
 
+export type APNsLiveActivityPayload = {
+	aps: {
+		timestamp: number;
+		event: "start" | "update" | "end";
+		"content-state": Record<string, unknown>;
+		"attributes-type"?: string;
+		attributes?: Record<string, unknown>;
+		"input-push-token"?: 1;
+		"stale-date"?: number;
+		"dismissal-date"?: number;
+		alert?: {
+			title: string;
+			body: string;
+			sound?: "default";
+		};
+	};
+};
+
 export type APNsResult = {
 	deviceId: string;
 	apnsId: string;
@@ -156,6 +174,9 @@ function sendOnConnection({
 	configuration,
 	token,
 	collapseId,
+	pushType,
+	topic,
+	priority,
 }: {
 	client: ClientHttp2Session;
 	device: APNsDevice;
@@ -163,6 +184,9 @@ function sendOnConnection({
 	configuration: APNsConfiguration;
 	token: string;
 	collapseId?: string;
+	pushType: "alert" | "liveactivity";
+	topic: string;
+	priority: "5" | "10";
 }) {
 	return new Promise<APNsResult>((resolve) => {
 		const apnsId = randomUUID();
@@ -170,9 +194,9 @@ function sendOnConnection({
 			":method": "POST",
 			":path": `/3/device/${device.token}`,
 			authorization: `bearer ${token}`,
-			"apns-topic": configuration.bundleId,
-			"apns-push-type": "alert",
-			"apns-priority": "10",
+			"apns-topic": topic,
+			"apns-push-type": pushType,
+			"apns-priority": priority,
 			"apns-id": apnsId,
 			...(collapseId ? { "apns-collapse-id": collapseId } : {}),
 		});
@@ -234,11 +258,17 @@ async function sendEnvironmentBatch({
 	environment,
 	payload,
 	collapseId,
+	pushType,
+	topicSuffix,
+	priority,
 }: {
 	devices: APNsDevice[];
 	environment: APNsEnvironment;
 	payload: Buffer;
 	collapseId?: string;
+	pushType: "alert" | "liveactivity";
+	topicSuffix?: string;
+	priority: "5" | "10";
 }): Promise<APNsResult[]> {
 	if (devices.length === 0) return [];
 
@@ -257,6 +287,7 @@ async function sendEnvironmentBatch({
 
 	const client = connect(endpoint(environment));
 	const token = providerToken(configuration);
+	const topic = `${configuration.bundleId}${topicSuffix ?? ""}`;
 	const connectionError = new Promise<never>((_, reject) => {
 		client.once("error", reject);
 	});
@@ -272,6 +303,9 @@ async function sendEnvironmentBatch({
 						configuration,
 						token,
 						collapseId,
+						pushType,
+						topic,
+						priority,
 					}),
 				),
 			),
@@ -319,12 +353,57 @@ export async function sendAPNsNotification({
 			environment: "development",
 			payload: encodedPayload,
 			collapseId,
+			pushType: "alert",
+			priority: "10",
 		}),
 		sendEnvironmentBatch({
 			devices: production,
 			environment: "production",
 			payload: encodedPayload,
 			collapseId,
+			pushType: "alert",
+			priority: "10",
+		}),
+	]);
+	return [...developmentResults, ...productionResults];
+}
+
+export async function sendAPNsLiveActivity({
+	devices,
+	payload,
+	priority = "10",
+}: {
+	devices: APNsDevice[];
+	payload: APNsLiveActivityPayload;
+	priority?: "5" | "10";
+}) {
+	const encodedPayload = Buffer.from(JSON.stringify(payload));
+	if (encodedPayload.byteLength > 4_096) {
+		throw new Error("Live Activity payload exceeds 4 KB");
+	}
+
+	const development = devices.filter(
+		(device) => device.environment === "development",
+	);
+	const production = devices.filter(
+		(device) => device.environment === "production",
+	);
+	const [developmentResults, productionResults] = await Promise.all([
+		sendEnvironmentBatch({
+			devices: development,
+			environment: "development",
+			payload: encodedPayload,
+			pushType: "liveactivity",
+			topicSuffix: ".push-type.liveactivity",
+			priority,
+		}),
+		sendEnvironmentBatch({
+			devices: production,
+			environment: "production",
+			payload: encodedPayload,
+			pushType: "liveactivity",
+			topicSuffix: ".push-type.liveactivity",
+			priority,
 		}),
 	]);
 	return [...developmentResults, ...productionResults];

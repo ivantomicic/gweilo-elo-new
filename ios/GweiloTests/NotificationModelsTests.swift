@@ -23,6 +23,7 @@ final class NotificationModelsTests: XCTestCase {
         )
 
         XCTAssertTrue(preferences.enabled)
+        XCTAssertTrue(preferences.liveActivitiesEnabled)
         XCTAssertFalse(preferences.roundsEnabled)
         XCTAssertFalse(preferences.pollsEnabled)
         XCTAssertTrue(preferences.announcementsEnabled)
@@ -37,6 +38,19 @@ final class NotificationModelsTests: XCTestCase {
         )
 
         XCTAssertEqual(object, ["roundsEnabled": false])
+    }
+
+    @MainActor
+    func testLiveActivityPatchOnlyEncodesChangedPreference() throws {
+        let patch = PushNotificationPreference.liveActivities.patch(
+            value: false
+        )
+        let data = try JSONEncoder().encode(patch)
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Bool]
+        )
+
+        XCTAssertEqual(object, ["liveActivitiesEnabled": false])
     }
 
     @MainActor

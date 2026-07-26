@@ -323,17 +323,7 @@ private struct TopThreeStandings: View {
     let players: [RankingEntry]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionHeading(title: "Current top 3")
-
-                Spacer()
-
-                Text("15 matches · active 28d")
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
+        Group {
             if players.isEmpty {
                 Text("No eligible singles rankings yet.")
                     .font(.subheadline)
@@ -350,7 +340,6 @@ private struct TopThreeStandings: View {
                         .buttonStyle(ResponsiveButtonStyle())
                     }
                 }
-                .padding(.top, 6)
             }
         }
     }
@@ -372,9 +361,9 @@ private struct PodiumPlayer: View {
 
     private var accent: Color {
         switch rank {
-        case 1: GweiloTheme.lime
-        case 2: GweiloTheme.cyan
-        default: GweiloTheme.accentBright
+        case 1: GweiloTheme.rankGold
+        case 2: GweiloTheme.rankSilver
+        default: GweiloTheme.rankBronze
         }
     }
 
@@ -391,26 +380,16 @@ private struct PodiumPlayer: View {
     }
 
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack(alignment: .bottomTrailing) {
-                PlayerIdentityAvatar(
-                    name: player.name,
-                    initials: player.initials,
-                    avatarURL: player.avatarURL,
-                    size: avatarSize
-                )
-                .overlay {
-                    Circle()
-                        .stroke(accent, lineWidth: rank == 1 ? 2.5 : 1.5)
-                }
-
-                Text("#\(rank)")
-                    .font(.caption2.monospacedDigit().weight(.black))
-                    .foregroundStyle(GweiloTheme.background)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(accent)
-                    .offset(x: 4, y: 3)
+        VStack(spacing: 5) {
+            PlayerIdentityAvatar(
+                name: player.name,
+                initials: player.initials,
+                avatarURL: player.avatarURL,
+                size: avatarSize
+            )
+            .overlay {
+                Circle()
+                    .stroke(GweiloTheme.bone.opacity(0.28), lineWidth: 1)
             }
 
             Text(player.name)
@@ -423,8 +402,8 @@ private struct PodiumPlayer: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            accent.opacity(rank == 1 ? 0.34 : 0.24),
-                            GweiloTheme.raisedSurface.opacity(0.55)
+                            GweiloTheme.raisedSurface.opacity(0.88),
+                            GweiloTheme.background.opacity(0.96)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -443,7 +422,7 @@ private struct PodiumPlayer: View {
                         )
                     )
                         .font(.caption.monospacedDigit().weight(.black))
-                        .foregroundStyle(rank == 1 ? accent : GweiloTheme.bone)
+                        .foregroundStyle(GweiloTheme.bone)
                         .padding(.top, 11)
                 }
         }

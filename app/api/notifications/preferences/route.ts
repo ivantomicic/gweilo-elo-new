@@ -9,6 +9,7 @@ import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 const updateSchema = z
 	.object({
 		enabled: z.boolean().optional(),
+		liveActivitiesEnabled: z.boolean().optional(),
 		sessionsEnabled: z.boolean().optional(),
 		roundsEnabled: z.boolean().optional(),
 		resultsEnabled: z.boolean().optional(),
@@ -19,6 +20,7 @@ const updateSchema = z
 
 type PreferenceRecord = {
 	enabled: boolean;
+	live_activities_enabled: boolean;
 	sessions_enabled: boolean;
 	rounds_enabled: boolean;
 	results_enabled: boolean;
@@ -32,6 +34,7 @@ function serializePreferences(
 	if (!record) return defaultNotificationPreferences;
 	return {
 		enabled: record.enabled,
+		liveActivitiesEnabled: record.live_activities_enabled,
 		sessionsEnabled: record.sessions_enabled,
 		roundsEnabled: record.rounds_enabled,
 		resultsEnabled: record.results_enabled,
@@ -49,7 +52,7 @@ export async function GET(request: NextRequest) {
 	const { data, error } = await createAdminClient()
 		.from("notification_preferences")
 		.select(
-			"enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
+			"enabled, live_activities_enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
 		)
 		.eq("user_id", auth.userId)
 		.maybeSingle();
@@ -85,7 +88,7 @@ export async function PATCH(request: NextRequest) {
 	const { data: current, error: currentError } = await admin
 		.from("notification_preferences")
 		.select(
-			"enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
+			"enabled, live_activities_enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
 		)
 		.eq("user_id", auth.userId)
 		.maybeSingle();
@@ -107,6 +110,7 @@ export async function PATCH(request: NextRequest) {
 			{
 				user_id: auth.userId,
 				enabled: next.enabled,
+				live_activities_enabled: next.liveActivitiesEnabled,
 				sessions_enabled: next.sessionsEnabled,
 				rounds_enabled: next.roundsEnabled,
 				results_enabled: next.resultsEnabled,
@@ -117,7 +121,7 @@ export async function PATCH(request: NextRequest) {
 			{ onConflict: "user_id" },
 		)
 		.select(
-			"enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
+			"enabled, live_activities_enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
 		)
 		.single();
 	if (error) {
@@ -132,4 +136,3 @@ export async function PATCH(request: NextRequest) {
 		preferences: serializePreferences(data as PreferenceRecord),
 	});
 }
-

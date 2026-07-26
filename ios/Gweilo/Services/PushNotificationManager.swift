@@ -179,6 +179,11 @@ final class PushNotificationManager {
         )
         await refreshAuthorizationStatus()
         await loadPreferences()
+        SessionLiveActivityManager.shared.configure(
+            configuration: configuration,
+            session: session,
+            enabled: preferences?.liveActivitiesEnabled ?? true
+        )
         if isSystemAuthorized {
             UIApplication.shared.registerForRemoteNotifications()
         }
@@ -193,11 +198,16 @@ final class PushNotificationManager {
             configuration: configuration,
             accessToken: session.accessToken
         )
+        SessionLiveActivityManager.shared.updateAccessToken(
+            configuration: configuration,
+            session: session
+        )
     }
 
     func clearConfiguration() {
         apiClient = nil
         preferences = nil
+        SessionLiveActivityManager.shared.clearConfiguration()
     }
 
     func requestAuthorization() async {
@@ -245,6 +255,9 @@ final class PushNotificationManager {
         enabled: Bool
     ) async {
         await updatePreferences(preference.patch(value: enabled))
+        if preference == .liveActivities {
+            await SessionLiveActivityManager.shared.setEnabled(enabled)
+        }
     }
 
     func sendTest() async {
@@ -296,6 +309,7 @@ final class PushNotificationManager {
         self.deviceToken = nil
         self.apiClient = nil
         preferences = nil
+        await SessionLiveActivityManager.shared.setEnabled(false)
     }
 
     func handleNotification(userInfo: [AnyHashable: Any]) {
@@ -313,6 +327,16 @@ final class PushNotificationManager {
         else {
             return
         }
+        shouldOpenSessions = false
+        pendingSessionID = sessionID
+    }
+
+    func handleDeepLink(_ url: URL) {
+        guard url.scheme == "gweilo", url.host == "session" else { return }
+        let value = url.pathComponents
+            .filter { $0 != "/" }
+            .first
+        guard let value, let sessionID = UUID(uuidString: value) else { return }
         shouldOpenSessions = false
         pendingSessionID = sessionID
     }

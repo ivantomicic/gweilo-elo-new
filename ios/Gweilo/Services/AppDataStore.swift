@@ -46,6 +46,8 @@ final class AppDataStore {
     private(set) var doublesTeamRankings: [RankingEntry] = []
     private(set) var topThreeSinglesPlayers: [RankingEntry] = []
     private(set) var rankingEligibility = RankingEligibility.fallback
+    private(set) var cachedAvailableSessionPlayers: [SessionCreationPlayer] = []
+    private(set) var hasLoadedAvailableSessionPlayers = false
     private(set) var clubActiveSessionID: UUID?
     private(set) var hasCheckedActiveSession = false
     private(set) var canManageSessions: Bool
@@ -98,6 +100,8 @@ final class AppDataStore {
         authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
         isAdmin = session.user.isAdmin
+        cachedAvailableSessionPlayers = []
+        hasLoadedAvailableSessionPlayers = false
         client = SupabaseDataClient(
             configuration: configuration,
             accessToken: session.accessToken
@@ -251,10 +255,25 @@ final class AppDataStore {
         return history
     }
 
-    func availableSessionPlayers() async throws -> [SessionCreationPlayer] {
+    func availableSessionPlayers(
+        forceRefresh: Bool = false
+    ) async throws -> [SessionCreationPlayer] {
+        if hasLoadedAvailableSessionPlayers, !forceRefresh {
+            return cachedAvailableSessionPlayers
+        }
+
         let players = try await apiClient.fetchAvailableSessionPlayers()
-        let eloByPlayerID = Dictionary(
-            uniqueKeysWithValues: singlesRankings.map { ($0.id, $0.elo) }
+        let preparedPlayers = prepareAvailableSessionPlayers(players)
+        cachedAvailableSessionPlayers = preparedPlayers
+        hasLoadedAvailableSessionPlayers = true
+        return preparedPlayers
+    }
+
+    private func prepareAvailableSessionPlayers(
+        _ players: [SessionCreationPlayer]
+    ) -> [SessionCreationPlayer] {
+        let rankingByPlayerID = Dictionary(
+            uniqueKeysWithValues: singlesRankings.map { ($0.id, $0) }
         )
         return players
             .map {
@@ -262,11 +281,17 @@ final class AppDataStore {
                     id: $0.id,
                     name: $0.name,
                     avatarURL: $0.avatarURL,
-                    elo: eloByPlayerID[$0.id]
+                    elo: rankingByPlayerID[$0.id]?.elo
                 )
             }
             .sorted {
-                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+                let leftMatches = rankingByPlayerID[$0.id]?.matches ?? 0
+                let rightMatches = rankingByPlayerID[$1.id]?.matches ?? 0
+                if leftMatches != rightMatches {
+                    return leftMatches > rightMatches
+                }
+                return $0.name.localizedCaseInsensitiveCompare($1.name)
+                    == .orderedAscending
             }
     }
 
@@ -322,6 +347,8 @@ final class AppDataStore {
         async let sessionsRequest = client.fetchSessions()
         async let rankingsRequest = apiClient.fetchRankings()
         async let activeSessionRequest = apiClient.fetchActiveSessionID()
+        async let sessionPlayersRequest =
+            apiClient.fetchAvailableSessionPlayers()
         var firstError: Error?
 
         do {
@@ -351,6 +378,16 @@ final class AppDataStore {
             hasCheckedActiveSession = true
         } catch {
             firstError = firstError ?? error
+        }
+
+        do {
+            let players = try await sessionPlayersRequest
+            guard generation == loadGeneration else { return }
+            cachedAvailableSessionPlayers =
+                prepareAvailableSessionPlayers(players)
+            hasLoadedAvailableSessionPlayers = true
+        } catch {
+            hasLoadedAvailableSessionPlayers = false
         }
 
         if generation == loadGeneration {

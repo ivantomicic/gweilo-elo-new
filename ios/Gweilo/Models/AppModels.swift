@@ -855,7 +855,12 @@ enum SessionMatchType: String, Codable, Hashable, Sendable {
     case singles
     case doubles
 
-    var label: String { rawValue.uppercased() }
+    var label: String {
+        switch self {
+        case .singles: "SINGL"
+        case .doubles: "DUBL"
+        }
+    }
 }
 
 struct SessionMatch: Identifiable, Hashable, Sendable {

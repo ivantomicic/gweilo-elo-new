@@ -24,6 +24,7 @@ type DeviceRecord = {
 type PreferenceRecord = {
 	user_id: string;
 	enabled: boolean;
+	live_activities_enabled: boolean;
 	sessions_enabled: boolean;
 	rounds_enabled: boolean;
 	results_enabled: boolean;
@@ -60,6 +61,7 @@ function preferencesFromRecord(
 	if (!record) return defaultNotificationPreferences;
 	return {
 		enabled: record.enabled,
+		liveActivitiesEnabled: record.live_activities_enabled,
 		sessionsEnabled: record.sessions_enabled,
 		roundsEnabled: record.rounds_enabled,
 		resultsEnabled: record.results_enabled,
@@ -111,7 +113,7 @@ async function loadEligibleDevices(
 			admin
 				.from("notification_preferences")
 				.select(
-					"user_id, enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
+					"user_id, enabled, live_activities_enabled, sessions_enabled, rounds_enabled, results_enabled, polls_enabled, announcements_enabled",
 				)
 				.in("user_id", userIds),
 			admin

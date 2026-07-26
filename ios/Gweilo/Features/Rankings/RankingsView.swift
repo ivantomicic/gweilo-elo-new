@@ -105,23 +105,45 @@ struct RankingsView: View {
 }
 
 private struct RankingsHeader: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
     let category: RankingCategory
     let selectCategory: (RankingCategory) -> Void
     @Namespace private var selectionIndicator
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("TRENUTNI ELO")
-                    .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
-                    .tracking(1.8)
-                    .foregroundStyle(GweiloTheme.lime)
+            HStack(alignment: .top, spacing: 8) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("TRENUTNI ELO")
+                        .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
+                        .tracking(1.8)
+                        .foregroundStyle(GweiloTheme.lime)
 
-                Text("RANG LISTA")
-                    .font(GweiloTheme.displayFont(size: 46, relativeTo: .largeTitle))
-                    .tracking(-0.5)
-                    .foregroundStyle(GweiloTheme.bone)
+                    Text("RANG LISTA")
+                        .font(GweiloTheme.displayFont(size: 46, relativeTo: .largeTitle))
+                        .tracking(-0.5)
+                        .foregroundStyle(GweiloTheme.bone)
+                }
+
+                Spacer(minLength: 0)
+
+                Color.clear
+                    .frame(width: 112, height: 104)
+                    .overlay(alignment: .topTrailing) {
+                        LoopingBundleVideo(
+                            resourceName: "RankingsHeader",
+                            isPlaying: scenePhase == .active && !reduceMotion
+                        )
+                        .frame(width: 148, height: 148)
+                        .blendMode(.screen)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                        .offset(x: 10, y: -42)
+                    }
             }
+            .frame(minHeight: 104, alignment: .top)
 
             HStack(spacing: 24) {
                 ForEach(RankingCategory.allCases) { option in
@@ -376,6 +398,22 @@ private struct RankedPlayerAvatar: View {
             size: size
         )
         .overlay(alignment: .topLeading) {
+            rankBadge
+                .offset(x: -4, y: -4)
+        }
+        .padding(.leading, 2)
+    }
+
+    @ViewBuilder
+    private var rankBadge: some View {
+        switch rank {
+        case 1:
+            placementBadge(named: "RankGold")
+        case 2:
+            placementBadge(named: "RankSilver")
+        case 3:
+            placementBadge(named: "RankBronze")
+        default:
             Text("\(rank)")
                 .font(
                     GweiloTheme.labelFont(
@@ -384,34 +422,25 @@ private struct RankedPlayerAvatar: View {
                     )
                     .monospacedDigit()
                 )
-                .foregroundStyle(badgeForeground)
+                .foregroundStyle(GweiloTheme.bone)
                 .padding(.horizontal, 4)
                 .frame(minWidth: 17, minHeight: 17)
-                .background(badgeBackground, in: .capsule)
+                .background(GweiloTheme.raisedSurface, in: .capsule)
                 .overlay {
                     Capsule()
-                        .stroke(GweiloTheme.background.opacity(0.88), lineWidth: 1.5)
+                        .stroke(
+                            GweiloTheme.background.opacity(0.88),
+                            lineWidth: 1.5
+                        )
                 }
-                .offset(x: -4, y: -4)
-        }
-        .padding(.leading, 2)
-    }
-
-    private var badgeBackground: Color {
-        switch rank {
-        case 1:
-            GweiloTheme.lime
-        case 2:
-            GweiloTheme.cyan
-        case 3:
-            GweiloTheme.accentBright
-        default:
-            GweiloTheme.raisedSurface
         }
     }
 
-    private var badgeForeground: Color {
-        rank <= 3 ? GweiloTheme.background : GweiloTheme.bone
+    private func placementBadge(named assetName: String) -> some View {
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 17, height: 17)
     }
 }
 
@@ -480,6 +509,7 @@ private struct RecentFormBar: View {
 
 struct PlayerProfileView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let player: RankingEntry
     let dataStore: AppDataStore
@@ -537,48 +567,54 @@ struct PlayerProfileView: View {
             ArenaBackground()
 
             if hasFinishedInitialLoad {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 30) {
-                        PlayerProfileHeader(
-                            player: player,
-                            rank: singlesRank,
-                            goBack: { dismiss() }
-                        )
-                        PlayerRecordStrip(player: player)
-
-                        if let history {
-                            EloHistoryChart(
-                                history: history,
-                                accessibilityTitle: "Kretanje singl Elo rejtinga"
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 30) {
+                            PlayerProfileHeader(
+                                player: player,
+                                rank: singlesRank,
+                                goBack: { dismiss() }
                             )
-                        } else if let errorMessage {
-                            DataErrorNotice(
-                                message: errorMessage,
-                                retry: {
-                                    Task { await loadHistory() }
+                            PlayerRecordStrip(player: player)
+
+                            if let history {
+                                EloHistoryChart(
+                                    history: history,
+                                    accessibilityTitle: "Kretanje singl Elo rejtinga"
+                                )
+                            } else if let errorMessage {
+                                DataErrorNotice(
+                                    message: errorMessage,
+                                    retry: {
+                                        Task { await loadHistory() }
+                                    }
+                                )
+                            }
+
+                            RecentEloResults(
+                                title: nil,
+                                emptyMessage: "Poslednji singl rezultati pojaviće se ovde.",
+                                results: recentResults,
+                                comparisonOpponentID: player.id == dataStore.currentUserID
+                                    ? nil
+                                    : dataStore.currentUserID,
+                                comparisonOpponentName: headToHead?.opponent.name,
+                                comparison: headToHead,
+                                isLoadingComparison: isLoadingComparison,
+                                comparisonErrorMessage: comparisonErrorMessage,
+                                retryComparison: ensureHeadToHeadLoaded,
+                                onSelectAgainstMe: ensureHeadToHeadLoaded,
+                                onScopeChange: {
+                                    keepMatchesVisible(using: scrollProxy)
                                 }
                             )
+                            .id(PlayerProfileScrollTarget.matches)
                         }
-
-                        RecentEloResults(
-                            title: nil,
-                            emptyMessage: "Poslednji singl rezultati pojaviće se ovde.",
-                            results: recentResults,
-                            comparisonOpponentID: player.id == dataStore.currentUserID
-                                ? nil
-                                : dataStore.currentUserID,
-                            comparisonOpponentName: headToHead?.opponent.name,
-                            comparison: headToHead,
-                            isLoadingComparison: isLoadingComparison,
-                            comparisonErrorMessage: comparisonErrorMessage,
-                            retryComparison: ensureHeadToHeadLoaded,
-                            onSelectAgainstMe: ensureHeadToHeadLoaded
-                        )
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 44)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 44)
+                    .scrollIndicators(.hidden)
                 }
-                .scrollIndicators(.hidden)
             } else {
                 GweiloLoadingView("Učitavam igrača…", size: 172)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -651,6 +687,29 @@ struct PlayerProfileView: View {
             await loadHeadToHead()
         }
     }
+
+    private func keepMatchesVisible(using scrollProxy: ScrollViewProxy) {
+        Task { @MainActor in
+            await Task.yield()
+            if reduceMotion {
+                scrollProxy.scrollTo(
+                    PlayerProfileScrollTarget.matches,
+                    anchor: .top
+                )
+            } else {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    scrollProxy.scrollTo(
+                        PlayerProfileScrollTarget.matches,
+                        anchor: .top
+                    )
+                }
+            }
+        }
+    }
+}
+
+private enum PlayerProfileScrollTarget: Hashable {
+    case matches
 }
 
 struct DoublesTeamProfileView: View {
@@ -1938,7 +1997,7 @@ private struct EloMatchScrubDetail: View {
                     .tracking(1)
                     .foregroundStyle(point.performanceBand.color)
 
-                Text("protiv \(point.opponent ?? "nepoznatog protivnika")")
+                Text("VS \(point.opponent ?? "nepoznatog protivnika")")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
 
@@ -2207,6 +2266,7 @@ private struct RecentEloResults: View {
     var comparisonErrorMessage: String? = nil
     var retryComparison: (() -> Void)? = nil
     var onSelectAgainstMe: (() -> Void)? = nil
+    var onScopeChange: (() -> Void)? = nil
 
     @State private var scope: RecentMatchScope = .all
     @State private var visibleCount = 5
@@ -2253,6 +2313,7 @@ private struct RecentEloResults: View {
                 )
                 .onChange(of: scope) {
                     visibleCount = 5
+                    onScopeChange?()
                     if scope == .againstMe {
                         onSelectAgainstMe?()
                     }
@@ -2265,9 +2326,6 @@ private struct RecentEloResults: View {
                     isLoading: isLoadingComparison,
                     errorMessage: comparisonErrorMessage,
                     retry: retryComparison
-                )
-                .transition(
-                    .move(edge: .top).combined(with: .opacity)
                 )
             }
 
@@ -2288,7 +2346,7 @@ private struct RecentEloResults: View {
 
                             VStack(alignment: .leading, spacing: 3) {
                                 Text(
-                                    "protiv "
+                                    "VS "
                                         + "\(result.opponent ?? "nepoznatog protivnika")"
                                 )
                                     .font(.body.weight(.semibold))
@@ -2320,8 +2378,6 @@ private struct RecentEloResults: View {
                         }
                     }
                 }
-                .id(scope)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
 
                 if visibleResults.count < scopedResults.count {
                     Button {
@@ -2342,7 +2398,6 @@ private struct RecentEloResults: View {
                 }
             }
         }
-        .animation(.smooth(duration: 0.24), value: scope)
     }
 
     private func formattedDelta(_ delta: Double?) -> String {
@@ -2584,6 +2639,7 @@ private struct RecentMatchScopePicker: View {
                 )
             }
         }
+        .animation(.smooth(duration: 0.24), value: selection)
         .sensoryFeedback(.selection, trigger: selection)
         .overlay(alignment: .bottom) {
             Rectangle()

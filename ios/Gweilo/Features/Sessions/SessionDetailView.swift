@@ -84,7 +84,7 @@ struct SessionDetailView: View {
                 .scrollIndicators(.hidden)
             }
         }
-        .navigationTitle("Session")
+        .navigationTitle("Sesija")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar {
@@ -102,7 +102,7 @@ struct SessionDetailView: View {
                             Image(systemName: "ellipsis")
                         }
                     }
-                    .accessibilityLabel("Session actions")
+                    .accessibilityLabel("Opcije sesije")
                 }
             }
         }
@@ -117,14 +117,14 @@ struct SessionDetailView: View {
             Button(managementButtonTitle, role: .destructive) {
                 Task { await manageActiveSession() }
             }
-            Button("Keep session", role: .cancel) {}
+            Button("Zadrži sesiju", role: .cancel) {}
         } message: {
             Text(managementConfirmationMessage)
         }
-        .alert("Couldn’t update session", isPresented: managementErrorBinding) {
+        .alert("Sesija nije ažurirana", isPresented: managementErrorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text(managementErrorMessage ?? "Please try again.")
+            Text(managementErrorMessage ?? "Pokušaj ponovo.")
         }
     }
 
@@ -141,18 +141,18 @@ struct SessionDetailView: View {
     }
 
     private var managementButtonTitle: String {
-        isCancelling ? "Cancel session" : "Force close session"
+        isCancelling ? "Otkaži sesiju" : "Završi sesiju"
     }
 
     private var managementConfirmationTitle: String {
-        isCancelling ? "Cancel this session?" : "Force close this session?"
+        isCancelling ? "Otkazati ovu sesiju?" : "Završiti ovu sesiju?"
     }
 
     private var managementConfirmationMessage: String {
         if isCancelling {
-            return "No scores have been submitted, so the accidental session will be removed."
+            return "Nijedan rezultat nije unet, pa će sesija biti uklonjena."
         }
-        return "The submitted results will be kept and the session will be completed immediately."
+        return "Uneti rezultati će biti sačuvani, a sesija odmah završena."
     }
 
     private func currentRound(in detail: SessionDetail) -> SessionRound? {
@@ -220,6 +220,7 @@ struct SessionDetailView: View {
             } ?? session
             let loadedDetail = try await dataStore.sessionDetail(for: currentSummary)
             detail = loadedDetail
+            await SessionLiveActivityManager.shared.sync(detail: loadedDetail)
 
             if loadedDetail.session.status == .completed {
                 expandedRounds = Set(loadedDetail.rounds.map(\.number))
@@ -250,7 +251,7 @@ private struct SessionHero: View {
                         )
                         .frame(width: 7, height: 7)
 
-                    Text(session.status == .active ? "LIVE NOW" : "COMPLETED")
+                    Text(session.status == .active ? "U TOKU" : "ZAVRŠENA")
                         .font(.caption2.weight(.bold))
                         .tracking(1.2)
                 }
@@ -262,7 +263,11 @@ private struct SessionHero: View {
 
                 Text(
                     session.createdAt.formatted(
-                        .dateTime.weekday(.wide).day().month(.wide)
+                        .dateTime
+                            .weekday(.wide)
+                            .day()
+                            .month(.wide)
+                            .locale(Locale(identifier: "sr_Latn_RS"))
                     )
                 )
                 .font(GweiloTheme.displayFont(size: 34, relativeTo: .title))
@@ -270,9 +275,6 @@ private struct SessionHero: View {
                 .tracking(-0.25)
                 .foregroundStyle(GweiloTheme.bone)
 
-                Text(session.createdAt.formatted(.dateTime.hour().minute()))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
             }
 
             if session.status == .active, let totalMatchCount {
@@ -288,9 +290,9 @@ private struct SessionHero: View {
                     )
 
                     HStack {
-                        Text("\(completedMatchCount) of \(totalMatchCount) matches")
+                        Text("\(completedMatchCount) od \(totalMatchCount) mečeva")
                         Spacer()
-                        Text("\(session.totalRounds) rounds")
+                        Text("\(session.totalRounds) rundi")
                     }
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
@@ -299,9 +301,9 @@ private struct SessionHero: View {
 
             if session.status == .active {
                 HStack(spacing: 0) {
-                    HeroMetric(value: "\(session.playerCount)", label: "PLAYERS")
-                    HeroMetric(value: "\(session.singlesMatches)", label: "SINGLES")
-                    HeroMetric(value: "\(session.doublesMatches)", label: "DOUBLES")
+                    HeroMetric(value: "\(session.playerCount)", label: "IGRAČA")
+                    HeroMetric(value: "\(session.singlesMatches)", label: "SINGLOVA")
+                    HeroMetric(value: "\(session.doublesMatches)", label: "DUBLOVA")
                 }
             }
         }
@@ -334,8 +336,8 @@ private struct ReadOnlyCurrentRound: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionLabel(
-                title: "Playing now",
-                value: "Round \(round.number)"
+                title: "Sada se igra",
+                value: "Runda \(round.number)"
             )
 
             ForEach(round.matches) { match in
@@ -377,8 +379,6 @@ private struct SessionPerformanceTable: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionLabel(title: "Učinak", value: "KRAJ")
-
             if availableCategories.isEmpty {
                 Text("Statistika još nije dostupna.")
                     .font(.subheadline)
@@ -872,7 +872,7 @@ private struct PlayerRoster: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionLabel(title: "Players", value: "\(participants.count)")
+            SectionLabel(title: "Igrači", value: "\(participants.count)")
 
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 18) {
@@ -935,13 +935,13 @@ private struct RoundTimeline: View {
         VStack(alignment: .leading, spacing: 14) {
             SectionLabel(
                 title: detail.session.status == .completed
-                    ? "Match results"
-                    : "Round history",
-                value: "\(rounds.count) ROUNDS"
+                    ? "Rezultati mečeva"
+                    : "Prethodne runde",
+                value: "\(rounds.count) RUNDI"
             )
 
             if rounds.isEmpty {
-                Text("Earlier rounds will appear here.")
+                Text("Prethodne runde će se pojaviti ovde.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .padding(.vertical, 8)
@@ -979,9 +979,21 @@ private struct RoundTimelineRow: View {
         let singles = round.matches.filter { $0.type == .singles }.count
         let doubles = round.matches.count - singles
         var parts: [String] = []
-        if singles > 0 { parts.append("\(singles) singles") }
-        if doubles > 0 { parts.append("\(doubles) doubles") }
+        if singles > 0 {
+            parts.append("\(singles) \(matchWord(singles, singular: "singl", plural: "singla"))")
+        }
+        if doubles > 0 {
+            parts.append("\(doubles) \(matchWord(doubles, singular: "dubl", plural: "dubla"))")
+        }
         return parts.joined(separator: " · ")
+    }
+
+    private func matchWord(
+        _ count: Int,
+        singular: String,
+        plural: String
+    ) -> String {
+        count == 1 ? singular : plural
     }
 
     var body: some View {
@@ -1002,7 +1014,7 @@ private struct RoundTimelineRow: View {
                         )
 
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Round \(round.number)")
+                        Text("Runda \(round.number)")
                             .font(.body.weight(.semibold))
                         Text(matchSummary)
                             .font(.caption)
@@ -1011,7 +1023,7 @@ private struct RoundTimelineRow: View {
 
                     Spacer()
 
-                    Text(isComplete ? "DONE" : "PENDING")
+                    Text(isComplete ? "ZAVRŠENO" : "NA ČEKANJU")
                         .font(.caption2.weight(.bold))
                         .tracking(0.6)
                         .foregroundStyle(isComplete ? .secondary : GweiloTheme.lime)
@@ -1026,9 +1038,9 @@ private struct RoundTimelineRow: View {
             }
             .buttonStyle(ResponsiveButtonStyle())
             .accessibilityLabel(
-                "Round \(round.number), \(matchSummary), \(isComplete ? "complete" : "pending")"
+                "Runda \(round.number), \(matchSummary), \(isComplete ? "završena" : "na čekanju")"
             )
-            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityValue(isExpanded ? "Prošireno" : "Skupljeno")
 
             if isExpanded {
                 VStack(spacing: 12) {
@@ -1089,7 +1101,7 @@ private struct ScoreboardMatch: View {
 
                 Spacer()
 
-                Text(match.isCompleted ? "FINAL" : "UP NEXT")
+                Text(match.isCompleted ? "REZULTAT" : "SLEDEĆI")
                     .font(.caption2.weight(.bold))
                     .tracking(0.7)
                     .foregroundStyle(
@@ -1216,7 +1228,7 @@ struct RestingLine: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: "pause.fill")
                     .font(.caption2)
-                Text("Resting")
+                Text("Odmaraju")
                     .font(.caption.weight(.bold))
                 Text(players.map(\.name).joined(separator: ", "))
                     .font(.caption)
@@ -1252,11 +1264,11 @@ private struct SessionDetailError: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("Couldn’t load session", systemImage: "wifi.exclamationmark")
+            Label("Sesija nije učitana", systemImage: "wifi.exclamationmark")
         } description: {
             Text(message)
         } actions: {
-            Button("Try again") {
+            Button("Pokušaj ponovo") {
                 Task { await retry() }
             }
             .buttonStyle(.borderedProminent)
@@ -1299,7 +1311,7 @@ struct SessionDetailPreviewScreen: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Session")
+            .navigationTitle("Sesija")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

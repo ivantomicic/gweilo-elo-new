@@ -92,6 +92,9 @@ struct RootView: View {
                 await pushNotifications.refreshAuthorizationStatus()
             }
         }
+        .onOpenURL { url in
+            pushNotifications.handleDeepLink(url)
+        }
     }
 
     private var isSessionDetailPreview: Bool {

@@ -28,6 +28,7 @@ export type NotificationMessage = {
 
 export type NotificationPreferences = {
 	enabled: boolean;
+	liveActivitiesEnabled: boolean;
 	sessionsEnabled: boolean;
 	roundsEnabled: boolean;
 	resultsEnabled: boolean;
@@ -37,6 +38,7 @@ export type NotificationPreferences = {
 
 export const defaultNotificationPreferences: NotificationPreferences = {
 	enabled: true,
+	liveActivitiesEnabled: true,
 	sessionsEnabled: true,
 	roundsEnabled: true,
 	resultsEnabled: true,

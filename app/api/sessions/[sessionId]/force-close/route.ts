@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
 import { captureCompletedSessionSnapshots } from "@/lib/elo/snapshots";
 import { notifySessionCompleted } from "@/lib/notifications/events";
+import { endSessionLiveActivitySafely } from "@/lib/live-activities/service";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -181,11 +182,14 @@ export async function POST(
 			);
 		}
 
-		await notifySessionCompleted({
-			sessionId,
-			createdBy: user.id,
-			forceClosed: true,
-		});
+		await Promise.all([
+			notifySessionCompleted({
+				sessionId,
+				createdBy: user.id,
+				forceClosed: true,
+			}),
+			endSessionLiveActivitySafely(sessionId),
+		]);
 
 		return NextResponse.json({
 			success: true,

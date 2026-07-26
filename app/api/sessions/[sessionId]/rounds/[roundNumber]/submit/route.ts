@@ -19,6 +19,10 @@ import {
 	notifyRoundReady,
 	notifySessionCompleted,
 } from "@/lib/notifications/events";
+import {
+	endSessionLiveActivitySafely,
+	updateSessionLiveActivitySafely,
+} from "@/lib/live-activities/service";
 import { getAuthToken } from "../../../../../_utils/auth";
 
 type MatchScore = {
@@ -359,17 +363,25 @@ export async function POST(
 
 		const isLastRound = roundNum >= maxRoundNumber;
 		const notifySuccessfulRound = () =>
-			isLastRound
-				? notifySessionCompleted({
-						sessionId,
-						createdBy: user.id,
-					})
-				: notifyRoundReady({
-						sessionId,
-						completedRound: roundNum,
-						nextRound: roundNum + 1,
-						createdBy: user.id,
-					});
+			Promise.all(
+				isLastRound
+					? [
+							notifySessionCompleted({
+								sessionId,
+								createdBy: user.id,
+							}),
+							endSessionLiveActivitySafely(sessionId),
+						]
+					: [
+							notifyRoundReady({
+								sessionId,
+								completedRound: roundNum,
+								nextRound: roundNum + 1,
+								createdBy: user.id,
+							}),
+							updateSessionLiveActivitySafely(sessionId),
+						],
+			);
 		const isTenRoundFivePlayerSession =
 			session.player_count === 5 && maxRoundNumber >= 10;
 		const submissionClaim = await claimRoundSubmission(sessionId, roundNum);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
+import { prepareSessionLiveActivityCancellation } from "@/lib/live-activities/service";
 
 type CancellationResult = {
 	state:
@@ -37,6 +38,12 @@ export async function POST(
 	}
 
 	const admin = createAdminClient();
+	const finishLiveActivity = await prepareSessionLiveActivityCancellation(
+		params.sessionId,
+	).catch((error) => {
+		console.error("[LIVE_ACTIVITY] Could not prepare cancellation:", error);
+		return null;
+	});
 	const { data, error } = await admin.rpc(
 		"cancel_active_session_atomic",
 		{
@@ -56,6 +63,9 @@ export async function POST(
 	const result = data as CancellationResult;
 	switch (result.state) {
 		case "cancelled":
+			await finishLiveActivity?.().catch((error) => {
+				console.error("[LIVE_ACTIVITY] Cancellation end failed:", error);
+			});
 			return NextResponse.json({
 				success: true,
 				cancelledSessionId: result.sessionId,
