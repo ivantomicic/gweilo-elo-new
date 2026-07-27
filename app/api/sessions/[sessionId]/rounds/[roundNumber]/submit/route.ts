@@ -16,6 +16,10 @@ import {
 import { loadAtomicRatingInputs } from "@/lib/elo/round-transaction-loader";
 import { normalizePlayerIDs } from "@/lib/sessions/player-id";
 import {
+	combineTwoHalfSinglesScore,
+	detectTwoHalfSinglesSession,
+} from "@/lib/sessions/two-half-singles";
+import {
 	notifyRoundReady,
 	notifySessionCompleted,
 } from "@/lib/notifications/events";
@@ -58,46 +62,6 @@ const isValidScore = (score: unknown): score is number => {
 		score >= 0
 	);
 };
-
-function getCombinedFivePlayerScore(
-	firstHalfMatch: SessionMatchRecord,
-	secondHalfMatch: SessionMatchRecord,
-	secondHalfScore: ScoreInput,
-): ScoreInput | null {
-	if (
-		firstHalfMatch.match_type !== "singles" ||
-		secondHalfMatch.match_type !== "singles" ||
-		!isValidScore(firstHalfMatch.team1_score) ||
-		!isValidScore(firstHalfMatch.team2_score)
-	) {
-		return null;
-	}
-
-	const firstHalfPlayers = firstHalfMatch.player_ids;
-	const secondHalfPlayers = secondHalfMatch.player_ids;
-
-	if (
-		firstHalfPlayers[0] === secondHalfPlayers[0] &&
-		firstHalfPlayers[1] === secondHalfPlayers[1]
-	) {
-		return {
-			team1Score: firstHalfMatch.team1_score + secondHalfScore.team1Score,
-			team2Score: firstHalfMatch.team2_score + secondHalfScore.team2Score,
-		};
-	}
-
-	if (
-		firstHalfPlayers[0] === secondHalfPlayers[1] &&
-		firstHalfPlayers[1] === secondHalfPlayers[0]
-	) {
-		return {
-			team1Score: firstHalfMatch.team2_score + secondHalfScore.team1Score,
-			team2Score: firstHalfMatch.team1_score + secondHalfScore.team2Score,
-		};
-	}
-
-	return null;
-}
 
 async function getMaxRoundNumber(
 	adminClient: AdminClient,
@@ -147,17 +111,17 @@ async function finalizeSessionMetadata(adminClient: AdminClient, sessionId: stri
  * POST /api/sessions/[sessionId]/rounds/[roundNumber]/submit
  *
  * Submit all match results for a round and update Elo ratings when applicable.
- * Ten-round 5-player sessions save the first five rounds without Elo. Each
- * second-half round combines with its matching first-half round and rates that
- * pairing once as a longer match.
+ * Supported two-half singles sessions save their first rotation without Elo.
+ * Each second-half round combines with its matching first-half round and rates
+ * that pairing once as a longer match.
  *
  * This endpoint:
  * - Validates all matches have scores
  * - Ensures all matches are still pending
  * - Persists scores
  * - Marks matches as completed
- * - Calculates and persists Elo changes immediately, except for the first five
- *   rounds of ten-round 5-player sessions
+ * - Calculates and persists Elo changes immediately, except during the first
+ *   rotation of a two-half singles session
  *
  * Request body:
  * {
@@ -382,8 +346,27 @@ export async function POST(
 							updateSessionLiveActivitySafely(sessionId),
 						],
 			);
-		const isTenRoundFivePlayerSession =
-			session.player_count === 5 && maxRoundNumber >= 10;
+		const { data: sessionMatchesForPairing, error: pairingMatchesError } =
+			await adminClient
+				.from("session_matches")
+				.select("*")
+				.eq("session_id", sessionId)
+				.order("round_number", { ascending: true })
+				.order("match_order", { ascending: true });
+		if (pairingMatchesError || !sessionMatchesForPairing) {
+			console.error(
+				"Error fetching session matches for aggregate scoring:",
+				pairingMatchesError,
+			);
+			return NextResponse.json(
+				{ error: "Failed to verify session scoring format" },
+				{ status: 500 },
+			);
+		}
+		const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
+			session.player_count,
+			sessionMatchesForPairing as SessionMatchRecord[],
+		);
 		const submissionClaim = await claimRoundSubmission(sessionId, roundNum);
 
 		if (submissionClaim.state === "completed") {
@@ -438,8 +421,8 @@ export async function POST(
 			return (data ?? response) as Record<string, unknown>;
 		};
 
-		if (isTenRoundFivePlayerSession) {
-			if (roundNum <= 5) {
+		if (twoHalfSinglesConfig) {
+			if (roundNum <= twoHalfSinglesConfig.halfRoundCount) {
 				const response = await commitAtomicSubmission({
 					applyRatings: false,
 					response: {
@@ -452,21 +435,9 @@ export async function POST(
 				return NextResponse.json(response);
 			}
 
-			const pairedFirstHalfRoundNumber = roundNum - 5;
-			const { data: allMatches, error: allMatchesError } = await adminClient
-				.from("session_matches")
-				.select("*")
-				.eq("session_id", sessionId)
-				.order("round_number", { ascending: true })
-				.order("match_order", { ascending: true });
-
-			if (allMatchesError || !allMatches) {
-				console.error("Error fetching session matches:", allMatchesError);
-				return NextResponse.json(
-					{ error: "Failed to fetch session matches" },
-					{ status: 500 },
-				);
-			}
+			const pairedFirstHalfRoundNumber =
+				roundNum - twoHalfSinglesConfig.halfRoundCount;
+			const allMatches = sessionMatchesForPairing;
 
 			const currentRoundMatchIds = matches.map((match) => match.id);
 			if (currentRoundMatchIds.length > 0) {
@@ -532,7 +503,7 @@ export async function POST(
 					);
 				}
 
-				const combinedScore = getCombinedFivePlayerScore(
+				const combinedScore = combineTwoHalfSinglesScore(
 					firstHalfMatch,
 					match,
 					secondHalfScore,

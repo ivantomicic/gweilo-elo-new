@@ -142,4 +142,23 @@ describe("session creation boundary", () => {
 			uppercasedPlayers.map((player) => player.id.toLowerCase()),
 		);
 	});
+
+	it("does not assign doubles teams to a six-player singles session", async () => {
+		const rounds = generateSchedule(players, {
+			sixPlayerFormat: "singles",
+		});
+		const payload = await buildAtomicSessionPayload({
+			players,
+			rounds,
+			resolveTeam: async () => {
+				throw new Error("A singles session should not resolve doubles teams");
+			},
+		});
+
+		assert.deepEqual(
+			payload.players.map((player) => player.team),
+			[null, null, null, null, null, null],
+		);
+		assert.ok(payload.matches.every((match) => match.matchType === "singles"));
+	});
 });

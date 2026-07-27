@@ -23,9 +23,11 @@ export type SessionRound = {
 
 export type SixPlayerTeamKey = "A" | "B" | "C";
 export type FourPlayerFormat = "singles" | "mixed";
+export type SixPlayerFormat = "singles" | "mixed";
 
 export type ScheduleOptions = {
 	fourPlayerFormat?: FourPlayerFormat;
+	sixPlayerFormat?: SixPlayerFormat;
 	sixPlayerRound5SinglesTeam?: SixPlayerTeamKey;
 };
 
@@ -114,7 +116,17 @@ function generateScheduleFor4Players(
 	];
 
 	if (format === "singles") {
-		return rounds;
+		const secondRotation = rounds.map((round) => ({
+			...round,
+			id: String(round.roundNumber + 3),
+			roundNumber: round.roundNumber + 3,
+			matches: round.matches.map((match) => ({
+				...match,
+				players: [...match.players],
+			})),
+		}));
+
+		return [...rounds, ...secondRotation];
 	}
 
 	return [
@@ -199,10 +211,73 @@ function generateScheduleFor5Players(players: SessionPlayer[]): SessionRound[] {
 
 function generateScheduleFor6Players(
 	players: SessionPlayer[],
+	format: SixPlayerFormat = "mixed",
 	round5SinglesTeam: SixPlayerTeamKey = "C",
 ): SessionRound[] {
 	if (players.length !== 6) return [];
 	const [A, B, C, D, E, F] = players;
+
+	if (format === "singles") {
+		const firstRotation: SessionRound[] = [
+			{
+				id: "1",
+				roundNumber: 1,
+				matches: [
+					{ type: "singles", players: [A, F] },
+					{ type: "singles", players: [B, E] },
+					{ type: "singles", players: [C, D] },
+				],
+			},
+			{
+				id: "2",
+				roundNumber: 2,
+				matches: [
+					{ type: "singles", players: [A, E] },
+					{ type: "singles", players: [F, D] },
+					{ type: "singles", players: [B, C] },
+				],
+			},
+			{
+				id: "3",
+				roundNumber: 3,
+				matches: [
+					{ type: "singles", players: [A, D] },
+					{ type: "singles", players: [E, C] },
+					{ type: "singles", players: [F, B] },
+				],
+			},
+			{
+				id: "4",
+				roundNumber: 4,
+				matches: [
+					{ type: "singles", players: [A, C] },
+					{ type: "singles", players: [D, B] },
+					{ type: "singles", players: [E, F] },
+				],
+			},
+			{
+				id: "5",
+				roundNumber: 5,
+				matches: [
+					{ type: "singles", players: [A, B] },
+					{ type: "singles", players: [C, F] },
+					{ type: "singles", players: [D, E] },
+				],
+			},
+		];
+		const secondRotation = firstRotation.map((round) => ({
+			...round,
+			id: String(round.roundNumber + 5),
+			roundNumber: round.roundNumber + 5,
+			matches: round.matches.map((match) => ({
+				...match,
+				players: [...match.players],
+			})),
+		}));
+
+		return [...firstRotation, ...secondRotation];
+	}
+
 	const teams: Record<SixPlayerTeamKey, [SessionPlayer, SessionPlayer]> = {
 		A: [A, B],
 		B: [C, D],
@@ -323,6 +398,7 @@ export function generateSchedule(
 		case 6:
 			return generateScheduleFor6Players(
 				players,
+				options?.sixPlayerFormat,
 				options?.sixPlayerRound5SinglesTeam,
 			);
 		default:

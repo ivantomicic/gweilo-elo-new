@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthToken } from "../../../_utils/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+	detectTwoHalfSinglesSession,
+	getEffectiveTwoHalfSinglesScore,
+} from "@/lib/sessions/two-half-singles";
 import { fetchPlayersWithRatings } from "@/lib/elo/fetch-ratings";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -129,7 +133,9 @@ export async function GET(
 		const { data: matches, error: matchesError } = matchIds.length > 0
 			? await adminClient
 					.from("session_matches")
-					.select("id, match_type, team1_score, team2_score, player_ids")
+					.select(
+						"id, session_id, round_number, match_order, match_type, team1_score, team2_score, player_ids",
+					)
 					.in("id", matchIds)
 			: { data: null, error: null };
 
@@ -145,6 +151,51 @@ export async function GET(
 		const matchDataMap = new Map(
 			(matches || []).map((m) => [m.id, m])
 		);
+		const sessionIds = Array.from(
+			new Set((matches || []).map((match) => match.session_id)),
+		);
+		const [sessionsResult, allSessionMatchesResult] =
+			sessionIds.length > 0
+				? await Promise.all([
+						adminClient
+							.from("sessions")
+							.select("id, player_count")
+							.in("id", sessionIds),
+						adminClient
+							.from("session_matches")
+							.select(
+								"id, session_id, round_number, match_order, match_type, team1_score, team2_score, player_ids",
+							)
+							.in("session_id", sessionIds),
+					])
+				: [
+						{ data: [], error: null },
+						{ data: [], error: null },
+					];
+
+		if (sessionsResult.error || allSessionMatchesResult.error) {
+			console.error(
+				"Error fetching aggregate head-to-head context:",
+				sessionsResult.error || allSessionMatchesResult.error,
+			);
+			return NextResponse.json(
+				{ error: "Failed to fetch head-to-head match context" },
+				{ status: 500 },
+			);
+		}
+
+		const playerCountBySession = new Map(
+			(sessionsResult.data || []).map((session) => [
+				session.id,
+				session.player_count,
+			]),
+		);
+		const matchesBySession = new Map<string, any[]>();
+		for (const match of allSessionMatchesResult.data || []) {
+			const sessionMatches = matchesBySession.get(match.session_id) ?? [];
+			sessionMatches.push(match);
+			matchesBySession.set(match.session_id, sessionMatches);
+		}
 
 		// Filter to only singles matches
 		const headToHeadMatches = (headToHeadHistory || []).filter(
@@ -172,8 +223,21 @@ export async function GET(
 			const matchData = matchDataMap.get(match.match_id);
 			if (!matchData) continue;
 
-			const team1Score = matchData.team1_score ?? 0;
-			const team2Score = matchData.team2_score ?? 0;
+			const sessionMatches =
+				matchesBySession.get(matchData.session_id) ?? [];
+			const aggregateConfig = detectTwoHalfSinglesSession(
+				playerCountBySession.get(matchData.session_id) ?? 0,
+				sessionMatches,
+			);
+			const effectiveScore = getEffectiveTwoHalfSinglesScore(
+				matchData,
+				sessionMatches,
+				aggregateConfig,
+			);
+			const team1Score =
+				effectiveScore?.team1Score ?? matchData.team1_score ?? 0;
+			const team2Score =
+				effectiveScore?.team2Score ?? matchData.team2_score ?? 0;
 			const playerIds = (matchData.player_ids as string[]) || [];
 
 			// For singles matches:
@@ -182,11 +246,10 @@ export async function GET(
 			// - team1_score is sets won by player_ids[0]
 			// - team2_score is sets won by player_ids[1]
 
-			if (match.player1_id === playerId) {
-				// Viewed player was player1_id (team1, player_ids[0])
-				if (match.player1_elo_delta > 0) {
+			if (playerIds[0] === playerId) {
+				if (team1Score > team2Score) {
 					player1Wins++;
-				} else if (match.player1_elo_delta < 0) {
+				} else if (team1Score < team2Score) {
 					player2Wins++;
 				} else {
 					draws++;
@@ -194,10 +257,9 @@ export async function GET(
 				player1SetsWon += team1Score;
 				player2SetsWon += team2Score;
 			} else {
-				// Viewed player was player2_id (team2, player_ids[1])
-				if (match.player2_elo_delta > 0) {
+				if (team2Score > team1Score) {
 					player1Wins++;
-				} else if (match.player2_elo_delta < 0) {
+				} else if (team2Score < team1Score) {
 					player2Wins++;
 				} else {
 					draws++;

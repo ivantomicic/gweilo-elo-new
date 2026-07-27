@@ -1,4 +1,8 @@
-import type { FourPlayerFormat, SessionRound } from "./schedule";
+import type {
+	FourPlayerFormat,
+	SessionRound,
+	SixPlayerFormat,
+} from "./schedule";
 import { normalizePlayerID, normalizePlayerIDs } from "./player-id";
 
 export type SessionCreationPlayer = {
@@ -12,6 +16,7 @@ export type SessionCreationBody = {
 	players?: SessionCreationPlayer[];
 	rounds?: SessionRound[];
 	fourPlayerFormat?: FourPlayerFormat;
+	sixPlayerFormat?: SixPlayerFormat;
 	createdAt?: unknown;
 };
 
@@ -120,6 +125,9 @@ export async function buildAtomicSessionPayload({
 	};
 
 	const matches: AtomicSessionMatch[] = [];
+	const hasDoubles = rounds.some((round) =>
+		round.matches.some((match) => match.type === "doubles"),
+	);
 	for (const round of rounds) {
 		for (const [matchOrder, match] of round.matches.entries()) {
 			const playerIDs = normalizePlayerIDs(
@@ -145,7 +153,7 @@ export async function buildAtomicSessionPayload({
 		players: players.map((player, index) => ({
 			id: normalizePlayerID(player.id),
 			team:
-				players.length === 6
+				players.length === 6 && hasDoubles
 					? (["A", "B", "C"] as const)[Math.floor(index / 2)]
 					: null,
 		})),

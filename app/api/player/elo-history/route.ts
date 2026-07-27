@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAuthToken } from "../../_utils/auth";
+import {
+	detectTwoHalfSinglesSession,
+	getEffectiveTwoHalfSinglesScore,
+	type TwoHalfSinglesMatch,
+} from "@/lib/sessions/two-half-singles";
 import { buildEloHistoryMatchPerspective } from "@/lib/elo/history";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -84,7 +89,7 @@ export async function GET(request: NextRequest) {
 			? await supabase
 					.from("session_matches")
 					.select(
-						"id, session_id, round_number, match_order, match_type, team1_score, team2_score",
+						"id, session_id, round_number, match_order, match_type, player_ids, team1_score, team2_score",
 					)
 					.in("id", matchIds)
 			: { data: null, error: null };
@@ -125,7 +130,7 @@ export async function GET(request: NextRequest) {
 		const { data: sessions, error: sessionsError } = sessionIds.length > 0
 			? await supabase
 					.from("sessions")
-					.select("id, created_at")
+					.select("id, created_at, player_count")
 					.in("id", sessionIds)
 			: { data: null, error: null };
 
@@ -136,6 +141,35 @@ export async function GET(request: NextRequest) {
 		// Create a map of session_id -> session date
 		const sessionDateMap = new Map(
 			(sessions || []).map((s) => [s.id, s.created_at])
+		);
+		const { data: allSessionMatches, error: allSessionMatchesError } =
+			sessionIds.length > 0
+				? await supabase
+						.from("session_matches")
+						.select(
+							"id, session_id, round_number, match_order, match_type, player_ids, team1_score, team2_score",
+						)
+						.in("session_id", sessionIds)
+				: { data: [], error: null };
+
+		if (allSessionMatchesError) {
+			console.error(
+				"Error fetching paired session matches:",
+				allSessionMatchesError,
+			);
+		}
+
+		const matchesBySession = new Map<
+			string,
+			Array<TwoHalfSinglesMatch & { session_id: string }>
+		>();
+		for (const match of allSessionMatches || []) {
+			const sessionMatches = matchesBySession.get(match.session_id) ?? [];
+			sessionMatches.push(match);
+			matchesBySession.set(match.session_id, sessionMatches);
+		}
+		const playerCountBySession = new Map(
+			(sessions || []).map((session) => [session.id, session.player_count]),
 		);
 
 		// Get current Elo rating for the player
@@ -210,10 +244,26 @@ export async function GET(request: NextRequest) {
 					// Get opponent name
 					const opponentId = isPlayer1 ? entry.player2_id : entry.player1_id;
 					const opponentName = opponentId ? usersMap.get(opponentId) || "Unknown" : "Unknown";
+					const sessionMatches = match?.session_id
+						? matchesBySession.get(match.session_id) || []
+						: [];
+					const aggregateConfig = match?.session_id
+						? detectTwoHalfSinglesSession(
+								playerCountBySession.get(match.session_id) ?? 0,
+								sessionMatches,
+							)
+						: null;
+					const effectiveScore = match
+						? getEffectiveTwoHalfSinglesScore<TwoHalfSinglesMatch>(
+								match as TwoHalfSinglesMatch,
+								sessionMatches,
+								aggregateConfig,
+							)
+						: null;
 					const matchResult = buildEloHistoryMatchPerspective(
 						isPlayer1,
-						match?.team1_score,
-						match?.team2_score,
+						effectiveScore?.team1Score ?? match?.team1_score,
+						effectiveScore?.team2Score ?? match?.team2_score,
 					);
 
 					dataPoints.push({

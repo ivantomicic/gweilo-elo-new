@@ -3,6 +3,10 @@ import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+	detectTwoHalfSinglesSession,
+	findPairedMatch,
+} from "@/lib/sessions/two-half-singles";
 import { runMatchEditRecalculation } from "./recalculation";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -160,27 +164,33 @@ export async function POST(
 			);
 		}
 
-		if (session.player_count === 5) {
+		if (
+			session.player_count === 4 ||
+			session.player_count === 5 ||
+			session.player_count === 6
+		) {
 			const { data: sessionMatches, error: sessionMatchesError } =
 				await adminClient
 					.from("session_matches")
-					.select("id, round_number, match_order")
+					.select(
+						"id, round_number, match_order, match_type, player_ids",
+					)
 					.eq("session_id", sessionId)
 					.order("round_number", { ascending: true });
 
 			if (sessionMatchesError) {
 				return NextResponse.json(
-					{ error: "Failed to verify 5-player session state" },
+					{ error: "Failed to verify aggregate session state" },
 					{ status: 500 },
 				);
 			}
 
-			const maxRoundNumber = (sessionMatches ?? []).reduce(
-				(max, match) => Math.max(max, match.round_number),
-				0,
+			const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
+				session.player_count,
+				(sessionMatches ?? []) as any[],
 			);
 
-			if (maxRoundNumber >= 10) {
+			if (twoHalfSinglesConfig) {
 				const matchBeingEdited = (sessionMatches ?? []).find(
 					(match) => match.id === matchId,
 				);
@@ -193,12 +203,12 @@ export async function POST(
 				}
 
 				const settlementMatch =
-					matchBeingEdited.round_number <= 5
-						? (sessionMatches ?? []).find(
-								(match) =>
-									match.round_number ===
-										matchBeingEdited.round_number + 5 &&
-									match.match_order === matchBeingEdited.match_order,
+					matchBeingEdited.round_number <=
+					twoHalfSinglesConfig.halfRoundCount
+						? findPairedMatch(
+								matchBeingEdited as any,
+								(sessionMatches ?? []) as any[],
+								twoHalfSinglesConfig,
 							)
 						: matchBeingEdited;
 				let hasSettlementHistory = false;
@@ -237,7 +247,7 @@ export async function POST(
 
 					if (updateError) {
 						console.error(
-							"Error updating deferred 5-player match score:",
+							"Error updating deferred aggregate match score:",
 							updateError,
 						);
 						return NextResponse.json(
@@ -256,7 +266,7 @@ export async function POST(
 				return NextResponse.json(
 					{
 						error:
-							"This paired 5-player result has already been rated. Edit an unsettled pair before submitting its second-half round.",
+							"This paired result has already been rated. Edit an unsettled pair before submitting its second-half round.",
 					},
 					{ status: 409 },
 				);

@@ -14,7 +14,11 @@ import { Icon } from "@/components/ui/icon";
 import { RoundCard } from "./_components/round-card";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
-import { generateSchedule } from "@/lib/sessions/schedule";
+import {
+	generateSchedule,
+	type FourPlayerFormat,
+	type SixPlayerFormat,
+} from "@/lib/sessions/schedule";
 
 type Player = {
 	id: string;
@@ -46,7 +50,6 @@ type ScheduleBuildResult = {
 };
 
 type SixPlayerTeamKey = "A" | "B" | "C";
-type FourPlayerFormat = "singles" | "mixed";
 
 const getSixPlayerCandidateTeams = (
 	players: Player[],
@@ -462,12 +465,31 @@ const buildRandomizedSchedule = (
 	selectedPlayers: Player[],
 	playerCount: number,
 	originalSchedule: Round[],
+	fourPlayerFormat: FourPlayerFormat,
+	sixPlayerFormat: SixPlayerFormat,
+	sixPlayerRound5SinglesTeam: SixPlayerTeamKey,
 ): ScheduleBuildResult => {
 	if (playerCount === 2) {
 		return {
 			shuffledPlayers: selectedPlayers,
 			rounds: originalSchedule,
 			isManuallyManagingRounds: false,
+		};
+	}
+
+	if (
+		(playerCount === 4 && fourPlayerFormat === "singles") ||
+		(playerCount === 6 && sixPlayerFormat === "singles")
+	) {
+		const shuffledPlayers = shufflePlayers(selectedPlayers);
+		return {
+			shuffledPlayers,
+			rounds: generateSchedule(shuffledPlayers, {
+				fourPlayerFormat,
+				sixPlayerFormat,
+				sixPlayerRound5SinglesTeam,
+			}),
+			isManuallyManagingRounds: true,
 		};
 	}
 
@@ -571,6 +593,8 @@ function SchedulePageContent() {
 	const playerCount = parseInt(searchParams.get("count") || "0", 10);
 	const fourPlayerFormat: FourPlayerFormat =
 		searchParams.get("format") === "singles" ? "singles" : "mixed";
+	const sixPlayerFormat: SixPlayerFormat =
+		searchParams.get("format") === "singles" ? "singles" : "mixed";
 
 	// Get selected players from sessionStorage
 	const [selectedPlayers, setSelectedPlayers] = useState<Player[]>(() => {
@@ -598,16 +622,19 @@ function SchedulePageContent() {
 	const [sixPlayerRound5SinglesTeam, setSixPlayerRound5SinglesTeam] =
 		useState<SixPlayerTeamKey>("C");
 	const [isLoadingSixPlayerRound5Team, setIsLoadingSixPlayerRound5Team] =
-		useState(playerCount === 6);
+		useState(playerCount === 6 && sixPlayerFormat === "mixed");
 
 	const selectedPlayerIdsKey = selectedPlayers.map((player) => player.id).join(",");
-	const scheduleSeedKey = `${selectedPlayerIdsKey}:${fourPlayerFormat}:${sixPlayerRound5SinglesTeam}`;
+	const scheduleSeedKey = `${selectedPlayerIdsKey}:${fourPlayerFormat}:${sixPlayerFormat}:${sixPlayerRound5SinglesTeam}`;
 	const initialScheduleState =
 		selectedPlayers.length === playerCount &&
-		(playerCount !== 6 || !isLoadingSixPlayerRound5Team)
+		(playerCount !== 6 ||
+			sixPlayerFormat === "singles" ||
+			!isLoadingSixPlayerRound5Team)
 			? (() => {
 					const baseSchedule = generateSchedule(selectedPlayers, {
 						fourPlayerFormat,
+						sixPlayerFormat,
 						sixPlayerRound5SinglesTeam,
 					});
 					return {
@@ -616,6 +643,9 @@ function SchedulePageContent() {
 							selectedPlayers,
 							playerCount,
 							baseSchedule,
+							fourPlayerFormat,
+							sixPlayerFormat,
+							sixPlayerRound5SinglesTeam,
 						),
 					};
 				})()
@@ -644,7 +674,11 @@ function SchedulePageContent() {
 	);
 
 	useEffect(() => {
-		if (playerCount !== 6 || selectedPlayers.length !== playerCount) {
+		if (
+			playerCount !== 6 ||
+			sixPlayerFormat === "singles" ||
+			selectedPlayers.length !== playerCount
+		) {
 			setIsLoadingSixPlayerRound5Team(false);
 			return;
 		}
@@ -715,23 +749,29 @@ function SchedulePageContent() {
 		return () => {
 			cancelled = true;
 		};
-	}, [playerCount, selectedPlayers]);
+	}, [playerCount, selectedPlayers, sixPlayerFormat]);
 
 	// Update shuffled players and original schedule when selected players change
 	useEffect(() => {
 		if (
 			selectedPlayers.length === playerCount &&
-			(playerCount !== 6 || !isLoadingSixPlayerRound5Team) &&
+			(playerCount !== 6 ||
+				sixPlayerFormat === "singles" ||
+				!isLoadingSixPlayerRound5Team) &&
 			scheduleSeedKey !== initializedScheduleSeedKey
 		) {
 			const baseSchedule = generateSchedule(selectedPlayers, {
 				fourPlayerFormat,
+				sixPlayerFormat,
 				sixPlayerRound5SinglesTeam,
 			});
 			const randomizedSchedule = buildRandomizedSchedule(
 				selectedPlayers,
 				playerCount,
 				baseSchedule,
+				fourPlayerFormat,
+				sixPlayerFormat,
+				sixPlayerRound5SinglesTeam,
 			);
 
 			setInitializedScheduleSeedKey(scheduleSeedKey);
@@ -749,6 +789,7 @@ function SchedulePageContent() {
 		initializedScheduleSeedKey,
 		isLoadingSixPlayerRound5Team,
 		fourPlayerFormat,
+		sixPlayerFormat,
 		sixPlayerRound5SinglesTeam,
 	]);
 
@@ -772,12 +813,22 @@ function SchedulePageContent() {
 		if (selectedPlayers.length !== playerCount) {
 			router.push(
 				`/start-session/players?count=${playerCount}${
-					playerCount === 4 ? `&format=${fourPlayerFormat}` : ""
+					playerCount === 4
+						? `&format=${fourPlayerFormat}`
+						: playerCount === 6
+							? `&format=${sixPlayerFormat}`
+							: ""
 				}`,
 			);
 			return;
 		}
-	}, [fourPlayerFormat, playerCount, selectedPlayers.length, router]);
+	}, [
+		fourPlayerFormat,
+		sixPlayerFormat,
+		playerCount,
+		selectedPlayers.length,
+		router,
+	]);
 
 	const [isShuffling, setIsShuffling] = useState(false);
 	const [scheduleKey, setScheduleKey] = useState(0);
@@ -794,6 +845,9 @@ function SchedulePageContent() {
 			selectedPlayers,
 			playerCount,
 			originalSchedule,
+			fourPlayerFormat,
+			sixPlayerFormat,
+			sixPlayerRound5SinglesTeam,
 		);
 		setShuffledPlayers(randomizedSchedule.shuffledPlayers);
 		setRounds(randomizedSchedule.rounds);
@@ -839,6 +893,8 @@ function SchedulePageContent() {
 					playerCount,
 					players: shuffledPlayers,
 					rounds: rounds,
+					fourPlayerFormat,
+					sixPlayerFormat,
 				}),
 			});
 
@@ -867,7 +923,9 @@ function SchedulePageContent() {
 		!playerCount ||
 		playerCount < 2 ||
 		playerCount > 6 ||
-		(playerCount === 6 && isLoadingSixPlayerRound5Team) ||
+		(playerCount === 6 &&
+			sixPlayerFormat === "mixed" &&
+			isLoadingSixPlayerRound5Team) ||
 		rounds.length === 0
 	) {
 		return null;
@@ -963,6 +1021,8 @@ function SchedulePageContent() {
 								`/start-session/players?count=${playerCount}${
 									playerCount === 4
 										? `&format=${fourPlayerFormat}`
+										: playerCount === 6
+											? `&format=${sixPlayerFormat}`
 										: ""
 								}`
 							);

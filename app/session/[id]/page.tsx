@@ -43,6 +43,7 @@ import {
 	normalizePlayerID,
 	normalizePlayerIDs,
 } from "@/lib/sessions/player-id";
+import { detectTwoHalfSinglesSession } from "@/lib/sessions/two-half-singles";
 import { t } from "@/lib/i18n";
 import {
 	CalculationTerminal,
@@ -239,19 +240,21 @@ function SessionPageContent() {
 		): TerminalLine[] => {
 			const lines: TerminalLine[] = [];
 			const players = sessionData?.players || [];
-			const maxRoundNumber = sessionData
-				? Math.max(
-						...Object.keys(sessionData.matchesByRound).map(Number),
+			const allSessionMatches = sessionData
+				? Object.values(sessionData.matchesByRound).flat()
+				: [];
+			const twoHalfSinglesConfig = sessionData
+				? detectTwoHalfSinglesSession(
+						sessionData.session.player_count,
+						allSessionMatches,
 					)
-				: roundNumber;
-			const isDeferredFivePlayerRound =
-				sessionData?.session.player_count === 5 &&
-				maxRoundNumber >= 10 &&
-				roundNumber <= 5;
-			const isPairedFivePlayerSecondHalfRound =
-				sessionData?.session.player_count === 5 &&
-				maxRoundNumber >= 10 &&
-				roundNumber >= 6;
+				: null;
+			const isDeferredTwoHalfRound =
+				Boolean(twoHalfSinglesConfig) &&
+				roundNumber <= twoHalfSinglesConfig!.halfRoundCount;
+			const isPairedSecondHalfRound =
+				Boolean(twoHalfSinglesConfig) &&
+				roundNumber > twoHalfSinglesConfig!.halfRoundCount;
 
 			// Get player by ID
 			const getPlayer = (playerId: string): Player | undefined => {
@@ -276,7 +279,7 @@ function SessionPageContent() {
 
 			// Intro
 			lines.push({
-				text: isDeferredFivePlayerRound
+				text: isDeferredTwoHalfRound
 					? t.terminal.initializingScorekeeper
 					: t.terminal.initializing,
 				type: "dim",
@@ -300,14 +303,16 @@ function SessionPageContent() {
 				const matchScore = matchScores[match.id];
 				let team1Score = matchScore?.team1 ?? 0;
 				let team2Score = matchScore?.team2 ?? 0;
-				const pairedFirstHalfRound = roundNumber - 5;
-				const firstHalfMatch = isPairedFivePlayerSecondHalfRound
+				const pairedFirstHalfRound =
+					roundNumber -
+					(twoHalfSinglesConfig?.halfRoundCount ?? 0);
+				const firstHalfMatch = isPairedSecondHalfRound
 					? sessionData?.matchesByRound[pairedFirstHalfRound]?.find(
 						(firstHalfCandidate) =>
 							firstHalfCandidate.match_order === match.match_order,
 					)
 					: undefined;
-				const hasCombinedFivePlayerScore =
+				const hasCombinedScore =
 					Boolean(firstHalfMatch) &&
 					firstHalfMatch?.match_type === "singles" &&
 					match.match_type === "singles" &&
@@ -317,7 +322,7 @@ function SessionPageContent() {
 					!isNaN(firstHalfMatch.team2_score);
 				let combinedWithFirstHalf = false;
 
-				if (hasCombinedFivePlayerScore && firstHalfMatch) {
+				if (hasCombinedScore && firstHalfMatch) {
 					if (
 						firstHalfMatch.player_ids[0] === match.player_ids[0] &&
 						firstHalfMatch.player_ids[1] === match.player_ids[1]
@@ -379,7 +384,7 @@ function SessionPageContent() {
 						type: "info",
 						delay: matchDelay,
 					});
-					if (isDeferredFivePlayerRound) {
+					if (isDeferredTwoHalfRound) {
 						lines.push({
 							text: t.terminal.recordingScore,
 							type: "dim",
@@ -471,7 +476,7 @@ function SessionPageContent() {
 						type: "info",
 						delay: matchDelay,
 					});
-					if (isDeferredFivePlayerRound) {
+					if (isDeferredTwoHalfRound) {
 						lines.push({
 							text: t.terminal.recordingScore,
 							type: "dim",
@@ -527,7 +532,7 @@ function SessionPageContent() {
 				delay: 180,
 			});
 			lines.push({
-				text: isDeferredFivePlayerRound
+				text: isDeferredTwoHalfRound
 					? t.terminal.deferredDone(roundNumber)
 					: t.terminal.done(roundNumber),
 				type: "success",
@@ -995,19 +1000,31 @@ function SessionPageContent() {
 			.map(Number)
 			.sort((a, b) => a - b);
 	}, [sessionData]);
-	const isFivePlayerPairedSession =
+	const twoHalfSinglesConfig = useMemo(
+		() =>
+			sessionData
+				? detectTwoHalfSinglesSession(
+						sessionData.session.player_count,
+						Object.values(sessionData.matchesByRound).flat(),
+					)
+				: null,
+		[sessionData],
+	);
+	const isTwoHalfSinglesSession =
 		sessionData?.session.status === "active" &&
-		sessionData.session.player_count === 5 &&
-		roundNumbers.length >= 10;
-	const isFivePlayerScoreOnlyEdit = useCallback(
+		Boolean(twoHalfSinglesConfig);
+	const isTwoHalfScoreOnlyEdit = useCallback(
 		(match: Match | null | undefined): boolean => {
-			if (!sessionData || !match || !isFivePlayerPairedSession) {
+			if (!sessionData || !match || !isTwoHalfSinglesSession) {
 				return false;
 			}
 
-			if (match.round_number <= 5) {
+			if (
+				match.round_number <=
+				(twoHalfSinglesConfig?.halfRoundCount ?? 0)
+			) {
 				const settlementMatch = sessionData.matchesByRound[
-					match.round_number + 5
+					match.round_number + twoHalfSinglesConfig!.halfRoundCount
 				]?.find(
 					(candidate) =>
 						candidate.match_order === match.match_order,
@@ -1018,21 +1035,20 @@ function SessionPageContent() {
 
 			return match.status !== "completed";
 		},
-		[sessionData, isFivePlayerPairedSession],
+		[sessionData, isTwoHalfSinglesSession, twoHalfSinglesConfig],
 	);
-	const isSettledFivePlayerFirstHalfMatch = useCallback(
+	const isSettledFirstHalfMatch = useCallback(
 		(match: Match): boolean => {
 			if (
 				!sessionData ||
-				sessionData.session.player_count !== 5 ||
-				roundNumbers.length < 10 ||
-				match.round_number > 5
+				!twoHalfSinglesConfig ||
+				match.round_number > twoHalfSinglesConfig.halfRoundCount
 			) {
 				return false;
 			}
 
 			const settlementMatch = sessionData.matchesByRound[
-				match.round_number + 5
+				match.round_number + twoHalfSinglesConfig.halfRoundCount
 			]?.find(
 				(candidate) =>
 					candidate.match_order === match.match_order &&
@@ -1041,7 +1057,7 @@ function SessionPageContent() {
 
 			return Boolean(settlementMatch);
 		},
-		[sessionData, roundNumbers.length],
+		[sessionData, twoHalfSinglesConfig],
 	);
 
 	// Get current round matches
@@ -1070,15 +1086,15 @@ function SessionPageContent() {
 		(match: Match): PairedFirstHalfScore | null => {
 			if (
 				!sessionData ||
-				sessionData.session.player_count !== 5 ||
-				roundNumbers.length < 10 ||
-				match.round_number < 6 ||
+				!twoHalfSinglesConfig ||
+				match.round_number <= twoHalfSinglesConfig.halfRoundCount ||
 				match.match_type !== "singles"
 			) {
 				return null;
 			}
 
-			const firstHalfRoundNumber = match.round_number - 5;
+			const firstHalfRoundNumber =
+				match.round_number - twoHalfSinglesConfig.halfRoundCount;
 			const firstHalfMatch = sessionData.matchesByRound[
 				firstHalfRoundNumber
 			]?.find(
@@ -1119,7 +1135,7 @@ function SessionPageContent() {
 
 			return null;
 		},
-		[sessionData, roundNumbers.length, isValidScore],
+		[sessionData, twoHalfSinglesConfig, isValidScore],
 	);
 	const renderPairedScoreReminder = useCallback(
 		(
@@ -2027,10 +2043,10 @@ function SessionPageContent() {
 				});
 			}
 
-			// Unsettled 5-player pair edits do not trigger a recalculation reload.
+			// Unsettled two-half pair edits do not trigger a recalculation reload.
 			if (
 				!scoresChanged ||
-				isFivePlayerScoreOnlyEdit(selectedMatchForVideo)
+				isTwoHalfScoreOnlyEdit(selectedMatchForVideo)
 			) {
 				handleCloseVideoDrawer();
 			}
@@ -2049,7 +2065,7 @@ function SessionPageContent() {
 		sessionData,
 		handleEditMatch,
 		handleCloseVideoDrawer,
-		isFivePlayerScoreOnlyEdit,
+		isTwoHalfScoreOnlyEdit,
 	]);
 
 	// Format session date for header title
@@ -2120,7 +2136,7 @@ function SessionPageContent() {
 			(sum, roundNum) =>
 				sum +
 				(sessionData.matchesByRound[roundNum] || []).filter(
-					(match) => !isSettledFivePlayerFirstHalfMatch(match),
+					(match) => !isSettledFirstHalfMatch(match),
 				).length,
 			0,
 		);
@@ -2312,7 +2328,7 @@ function SessionPageContent() {
 													)
 														return false;
 													if (
-														isSettledFivePlayerFirstHalfMatch(
+														isSettledFirstHalfMatch(
 															match,
 														)
 													) {
@@ -2915,7 +2931,7 @@ function SessionPageContent() {
 						}
 						onSave={handleEditMatch}
 						isSaving={isEditingMatch}
-						isEloDeferred={isFivePlayerScoreOnlyEdit(
+						isEloDeferred={isTwoHalfScoreOnlyEdit(
 							selectedMatchForEdit,
 						)}
 					/>
@@ -4472,7 +4488,7 @@ function SessionPageContent() {
 					}
 					onSave={handleEditMatch}
 					isSaving={isEditingMatch}
-					isEloDeferred={isFivePlayerScoreOnlyEdit(selectedMatchForEdit)}
+					isEloDeferred={isTwoHalfScoreOnlyEdit(selectedMatchForEdit)}
 				/>
 			)}
 

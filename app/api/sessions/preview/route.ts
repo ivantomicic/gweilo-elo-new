@@ -6,6 +6,7 @@ import {
 	getSixPlayerCandidateTeams,
 	type FourPlayerFormat,
 	type SessionPlayer,
+	type SixPlayerFormat,
 } from "@/lib/sessions/schedule";
 import {
 	getPreferredRound5SinglesTeam,
@@ -49,6 +50,7 @@ export async function POST(request: NextRequest) {
 		const body = (await request.json()) as {
 			players?: SessionPlayer[];
 			fourPlayerFormat?: FourPlayerFormat;
+			sixPlayerFormat?: SixPlayerFormat;
 		};
 		const players = body.players ?? [];
 
@@ -67,7 +69,10 @@ export async function POST(request: NextRequest) {
 		}
 
 		let sixPlayerRound5SinglesTeam;
-		const candidateTeams = getSixPlayerCandidateTeams(players);
+		const candidateTeams =
+			body.sixPlayerFormat === "singles"
+				? null
+				: getSixPlayerCandidateTeams(players);
 		if (candidateTeams) {
 			const recentPairs = await loadRecentRound5SinglesPairs(
 				supabase,
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest) {
 
 		const rounds = generateSchedule(players, {
 			fourPlayerFormat: body.fourPlayerFormat,
+			sixPlayerFormat: body.sixPlayerFormat,
 			sixPlayerRound5SinglesTeam,
 		});
 
@@ -89,6 +95,7 @@ export async function POST(request: NextRequest) {
 			players,
 			rounds,
 			fourPlayerFormat: body.fourPlayerFormat ?? "mixed",
+			sixPlayerFormat: body.sixPlayerFormat ?? "mixed",
 		});
 	} catch (error) {
 		console.error("Unexpected error in POST /api/sessions/preview:", error);

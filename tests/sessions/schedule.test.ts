@@ -43,8 +43,16 @@ describe("shared session schedule", () => {
 			fourPlayerFormat: "mixed",
 		});
 
-		assert.equal(singles.length, 3);
-		assert.equal(singles.flatMap((round) => round.matches).length, 6);
+		assert.equal(singles.length, 6);
+		assert.equal(singles.flatMap((round) => round.matches).length, 12);
+		const singlesPairCounts = singlesPairs(singles).reduce<Record<string, number>>(
+			(counts, pair) => ({ ...counts, [pair]: (counts[pair] ?? 0) + 1 }),
+			{},
+		);
+		assert.equal(Object.keys(singlesPairCounts).length, 6);
+		assert.ok(
+			Object.values(singlesPairCounts).every((count) => count === 2),
+		);
 		assert.equal(mixed.length, 6);
 		assert.equal(
 			mixed.flatMap((round) => round.matches).filter(
@@ -68,6 +76,7 @@ describe("shared session schedule", () => {
 
 	it("keeps six-player partners apart in the opening singles phase", () => {
 		const rounds = generateSchedule(players, {
+			sixPlayerFormat: "mixed",
 			sixPlayerRound5SinglesTeam: "B",
 		});
 		const openingPairs = singlesPairs(rounds.slice(0, 4));
@@ -80,5 +89,20 @@ describe("shared session schedule", () => {
 		assert.ok(!openingPairs.includes("CD"));
 		assert.ok(!openingPairs.includes("EF"));
 		assert.deepEqual(roundFiveSingles, ["CD"]);
+	});
+
+	it("gives every six-player singles pairing exactly two matches", () => {
+		const rounds = generateSchedule(players, {
+			sixPlayerFormat: "singles",
+		});
+		const pairCounts = singlesPairs(rounds).reduce<Record<string, number>>(
+			(counts, pair) => ({ ...counts, [pair]: (counts[pair] ?? 0) + 1 }),
+			{},
+		);
+
+		assert.equal(rounds.length, 10);
+		assert.ok(rounds.every((round) => round.matches.length === 3));
+		assert.equal(Object.keys(pairCounts).length, 15);
+		assert.ok(Object.values(pairCounts).every((count) => count === 2));
 	});
 });

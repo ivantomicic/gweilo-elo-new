@@ -103,7 +103,10 @@ export async function POST(request: NextRequest) {
 
 		if (!rounds) {
 			let sixPlayerRound5SinglesTeam;
-			const candidateTeams = getSixPlayerCandidateTeams(players);
+			const candidateTeams =
+				body.sixPlayerFormat === "singles"
+					? null
+					: getSixPlayerCandidateTeams(players);
 			if (candidateTeams) {
 				const recentPairs = await loadRecentRound5SinglesPairs(
 					adminClient,
@@ -116,6 +119,7 @@ export async function POST(request: NextRequest) {
 			}
 			rounds = generateSchedule(players, {
 				fourPlayerFormat: body.fourPlayerFormat,
+				sixPlayerFormat: body.sixPlayerFormat,
 				sixPlayerRound5SinglesTeam,
 			});
 		}

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { replayDoublesPlayerMatches } from "@/lib/elo/session-baseline";
+import {
+	combineTwoHalfSinglesScore,
+	detectTwoHalfSinglesSession,
+	findPairedMatch,
+	type TwoHalfSinglesConfig,
+} from "@/lib/sessions/two-half-singles";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -44,25 +50,21 @@ const isValidScore = (score: unknown): score is number => {
 	return typeof score === "number" && !isNaN(score);
 };
 
-function getCombinedFivePlayerScore(
+function getCombinedTwoHalfScore(
 	match: any,
 	allMatches: any[],
+	config: TwoHalfSinglesConfig,
 ): { team1Score: number; team2Score: number } | null {
 	if (
 		match.match_type !== "singles" ||
-		match.round_number < 6 ||
+		match.round_number <= config.halfRoundCount ||
 		!isValidScore(match.team1_score) ||
 		!isValidScore(match.team2_score)
 	) {
 		return null;
 	}
 
-	const firstHalfMatch = allMatches.find(
-		(candidate) =>
-			candidate.round_number === match.round_number - 5 &&
-			candidate.match_order === match.match_order &&
-			candidate.match_type === "singles",
-	);
+	const firstHalfMatch = findPairedMatch(match, allMatches, config);
 
 	if (
 		!firstHalfMatch ||
@@ -72,30 +74,10 @@ function getCombinedFivePlayerScore(
 		return null;
 	}
 
-	const firstHalfPlayers = (firstHalfMatch.player_ids as string[]) || [];
-	const secondHalfPlayers = (match.player_ids as string[]) || [];
-
-	if (
-		firstHalfPlayers[0] === secondHalfPlayers[0] &&
-		firstHalfPlayers[1] === secondHalfPlayers[1]
-	) {
-		return {
-			team1Score: firstHalfMatch.team1_score + match.team1_score,
-			team2Score: firstHalfMatch.team2_score + match.team2_score,
-		};
-	}
-
-	if (
-		firstHalfPlayers[0] === secondHalfPlayers[1] &&
-		firstHalfPlayers[1] === secondHalfPlayers[0]
-	) {
-		return {
-			team1Score: firstHalfMatch.team2_score + match.team1_score,
-			team2Score: firstHalfMatch.team1_score + match.team2_score,
-		};
-	}
-
-	return null;
+	return combineTwoHalfSinglesScore(firstHalfMatch, match, {
+		team1Score: match.team1_score,
+		team2Score: match.team2_score,
+	});
 }
 
 /**
@@ -350,12 +332,10 @@ export async function GET(
 			]),
 		);
 		const sessionMatches = sessionMatchesResult.data;
-		const maxRoundNumber = (sessionMatches || []).reduce(
-			(max, match) => Math.max(max, match.round_number),
-			0,
+		const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
+			session.player_count,
+			sessionMatches || [],
 		);
-		const isTenRoundFivePlayerSession =
-			session.player_count === 5 && maxRoundNumber >= 10;
 
 		const singlesMatches =
 			sessionMatches?.filter((m) => m.match_type === "singles") || [];
@@ -447,8 +427,12 @@ export async function GET(
 					const history = historyMap.get(match.id);
 					if (!history) continue;
 					const effectiveScore =
-						isTenRoundFivePlayerSession
-							? getCombinedFivePlayerScore(match, sortedSinglesMatches) ?? {
+						twoHalfSinglesConfig
+							? getCombinedTwoHalfScore(
+									match,
+									sortedSinglesMatches,
+									twoHalfSinglesConfig,
+								) ?? {
 									team1Score: match.team1_score,
 									team2Score: match.team2_score,
 								}
