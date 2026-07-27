@@ -147,7 +147,7 @@ function SelectPlayersPageContent() {
 		}
 	}, [playerCount, router]);
 
-	const isDoubles = playerCount === 6;
+	const isDoubles = playerCount === 6 && sessionFormat === "mixed";
 	const maxSelections = playerCount;
 
 	// Compute teams for doubles mode

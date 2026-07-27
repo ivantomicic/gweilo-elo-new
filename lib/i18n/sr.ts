@@ -519,23 +519,24 @@ export const sr = {
 		fourPlayerFormat: {
 			title: "Format termina",
 			singles: {
-				title: "Samo singles",
+				title: "Samo singlovi",
 				description: "Dva kruga; svaki par igra dva puta.",
 			},
 			mixed: {
-				title: "Singles + doubles",
-				description: "Singles rotacija, zatim doubles.",
+				title: "Singlovi + dublovi",
+				description: "Jedan krug singlova, zatim tri dubl meča.",
 			},
 		},
 		sixPlayerFormat: {
 			title: "Format termina",
 			singles: {
-				title: "Samo singles",
+				title: "Samo singlovi",
 				description: "Dva kruga; tri meča po rundi.",
 			},
 			mixed: {
-				title: "Timovi + doubles",
-				description: "Postojeći timski format sa dinamičkom završnicom.",
+				title: "Singlovi + dublovi",
+				description:
+					"Četiri runde singlova, zatim timska završnica sa dublovima.",
 			},
 		},
 		info: "Broj igrača određuje format meča i sistem rotacije za termin.",
