@@ -29,7 +29,7 @@ same Live Activity.
 Run this migration against the production project before deploying the web
 backend:
 
-`supabase/migrations/20260726_create_live_activity_system.sql`
+`supabase/migrations/20260727_create_live_activity_system.sql`
 
 Using the CLI:
 

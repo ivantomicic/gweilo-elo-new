@@ -1,0 +1,39 @@
+{
+  "" : {
+    "diagnostics" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivity-primary.dia",
+    "emit-module-dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivity-primary-emit-module.d",
+    "emit-module-diagnostics" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivity-primary-emit-module.dia",
+    "pch" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivity-primary-Bridging-header.pch",
+    "swift-dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivity-primary.swiftdeps"
+  },
+  "/Users/ivantomicic/Developer/Server/gweilo/ios/Gweilo/LiveActivities/GweiloSessionActivityAttributes.swift" : {
+    "const-values" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.swiftconstvalues",
+    "dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.d",
+    "diagnostics" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.dia",
+    "index-unit-output-path" : "/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.o",
+    "llvm-bc" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.bc",
+    "object" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.o",
+    "swift-dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes.swiftdeps",
+    "swiftmodule" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionActivityAttributes~partial.swiftmodule"
+  },
+  "/Users/ivantomicic/Developer/Server/gweilo/ios/GweiloLiveActivity/GweiloLiveActivityBundle.swift" : {
+    "const-values" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.swiftconstvalues",
+    "dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.d",
+    "diagnostics" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.dia",
+    "index-unit-output-path" : "/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.o",
+    "llvm-bc" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.bc",
+    "object" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.o",
+    "swift-dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle.swiftdeps",
+    "swiftmodule" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloLiveActivityBundle~partial.swiftmodule"
+  },
+  "/Users/ivantomicic/Developer/Server/gweilo/ios/GweiloLiveActivity/GweiloSessionLiveActivity.swift" : {
+    "const-values" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.swiftconstvalues",
+    "dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.d",
+    "diagnostics" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.dia",
+    "index-unit-output-path" : "/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.o",
+    "llvm-bc" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.bc",
+    "object" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.o",
+    "swift-dependencies" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity.swiftdeps",
+    "swiftmodule" : "/Users/ivantomicic/Developer/Server/gweilo/ios/build/Gweilo.build/Debug-iphoneos/GweiloLiveActivity.build/Objects-normal/arm64/GweiloSessionLiveActivity~partial.swiftmodule"
+  }
+}
