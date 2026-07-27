@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	defaultNotificationPreferences,
+	filterAudienceUserIds,
 	preferenceAllowsCategory,
 	type NotificationPreferences,
 } from "../../lib/notifications/types";
@@ -42,3 +43,12 @@ test("each category can be disabled independently", () => {
 	assert.equal(preferenceAllowsCategory(preferences, "polls"), false);
 });
 
+test("an initiating user can be excluded from a notification audience", () => {
+	assert.deepEqual(
+		filterAudienceUserIds(
+			["session-creator", "player-two", "player-two", "player-three"],
+			["session-creator"],
+		),
+		["player-two", "player-three"],
+	);
+});

@@ -10,8 +10,18 @@ export type NotificationCategory = (typeof notificationCategories)[number];
 
 export type NotificationAudience =
 	| { type: "all" }
-	| { type: "session"; sessionId: string }
+	| { type: "session"; sessionId: string; excludeUserIds?: string[] }
 	| { type: "users"; userIds: string[] };
+
+export function filterAudienceUserIds(
+	userIds: string[],
+	excludeUserIds: string[] = [],
+) {
+	const excludedUserIds = new Set(excludeUserIds);
+	return Array.from(new Set(userIds)).filter(
+		(userId) => !excludedUserIds.has(userId),
+	);
+}
 
 export type NotificationMessage = {
 	eventType: string;

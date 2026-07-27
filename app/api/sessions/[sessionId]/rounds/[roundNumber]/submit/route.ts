@@ -19,10 +19,7 @@ import {
 	combineTwoHalfSinglesScore,
 	detectTwoHalfSinglesSession,
 } from "@/lib/sessions/two-half-singles";
-import {
-	notifyRoundReady,
-	notifySessionCompleted,
-} from "@/lib/notifications/events";
+import { notifySessionCompleted } from "@/lib/notifications/events";
 import {
 	endSessionLiveActivitySafely,
 	updateSessionLiveActivitySafely,
@@ -62,6 +59,9 @@ const isValidScore = (score: unknown): score is number => {
 		score >= 0
 	);
 };
+
+const normalizeMatchId = (matchId: unknown) =>
+	typeof matchId === "string" ? matchId.toLowerCase() : "";
 
 async function getMaxRoundNumber(
 	adminClient: AdminClient,
@@ -139,6 +139,7 @@ export async function POST(
 	let submissionId: string | undefined;
 	let submissionClaimToken: string | undefined;
 	let submissionCompleted = false;
+	let submissionFailure: unknown = "Round submission did not complete";
 
 	try {
 		const token = getAuthToken(request);
@@ -284,7 +285,10 @@ export async function POST(
 
 		// Validate: All matches must have scores provided
 		const matchScoresMap = new Map(
-			matchScores.map((ms) => [ms.matchId, ms]),
+			matchScores.map((score) => [
+				normalizeMatchId(score.matchId),
+				score,
+			]),
 		);
 		const missingScores = matches.filter((m) => {
 			const score = matchScoresMap.get(m.id);
@@ -308,7 +312,7 @@ export async function POST(
 		// Validate: All provided match IDs must exist in this round
 		const matchIds = new Set(matches.map((m) => m.id));
 		const invalidMatches = matchScores.filter(
-			(ms) => !matchIds.has(ms.matchId),
+			(score) => !matchIds.has(normalizeMatchId(score.matchId)),
 		);
 		if (invalidMatches.length > 0) {
 			return NextResponse.json(
@@ -326,26 +330,21 @@ export async function POST(
 		}
 
 		const isLastRound = roundNum >= maxRoundNumber;
-		const notifySuccessfulRound = () =>
-			Promise.all(
-				isLastRound
-					? [
-							notifySessionCompleted({
-								sessionId,
-								createdBy: user.id,
-							}),
-							endSessionLiveActivitySafely(sessionId),
-						]
-					: [
-							notifyRoundReady({
-								sessionId,
-								completedRound: roundNum,
-								nextRound: roundNum + 1,
-								createdBy: user.id,
-							}),
-							updateSessionLiveActivitySafely(sessionId),
-						],
-			);
+		const excludeSubmittingUserIds =
+			request.headers.get("x-gweilo-client")?.toLowerCase() === "ios"
+				? [user.id]
+				: [];
+		const publishSuccessfulRound = () =>
+			isLastRound
+				? Promise.all([
+						notifySessionCompleted({
+							sessionId,
+							createdBy: user.id,
+							excludeUserIds: excludeSubmittingUserIds,
+						}),
+						endSessionLiveActivitySafely(sessionId),
+					])
+				: updateSessionLiveActivitySafely(sessionId);
 		const { data: sessionMatchesForPairing, error: pairingMatchesError } =
 			await adminClient
 				.from("session_matches")
@@ -431,7 +430,7 @@ export async function POST(
 						ratingsDeferred: true,
 					},
 				});
-				await notifySuccessfulRound();
+				await publishSuccessfulRound();
 				return NextResponse.json(response);
 			}
 
@@ -453,6 +452,9 @@ export async function POST(
 						"Error checking existing Elo history:",
 						historyLookupError,
 					);
+					submissionFailure = new Error(
+						`Failed to verify Elo history state: ${historyLookupError.message}`,
+					);
 					return NextResponse.json(
 						{ error: "Failed to verify Elo history state" },
 						{ status: 500 },
@@ -460,6 +462,9 @@ export async function POST(
 				}
 
 				if (existingHistory && existingHistory.length > 0) {
+					submissionFailure = new Error(
+						"Elo has already been calculated for this round.",
+					);
 					return NextResponse.json(
 						{
 							error:
@@ -484,6 +489,9 @@ export async function POST(
 				const firstHalfMatch = firstHalfMatchesByOrder.get(match.match_order);
 				const secondHalfScore = matchScoresMap.get(match.id);
 				if (!firstHalfMatch || !secondHalfScore) {
+					submissionFailure = new Error(
+						"Matching first-half score is required before Elo calculation can start.",
+					);
 					return NextResponse.json(
 						{
 							error:
@@ -494,6 +502,9 @@ export async function POST(
 				}
 
 				if (firstHalfMatch.status !== "completed") {
+					submissionFailure = new Error(
+						"Matching first-half round must be submitted before Elo calculation can start.",
+					);
 					return NextResponse.json(
 						{
 							error:
@@ -510,6 +521,9 @@ export async function POST(
 				);
 
 				if (!combinedScore) {
+					submissionFailure = new Error(
+						"Matching first-half and second-half players do not line up.",
+					);
 					return NextResponse.json(
 						{
 							error:
@@ -538,7 +552,7 @@ export async function POST(
 				await finalizeSessionMetadata(adminClient, sessionId);
 			}
 
-			await notifySuccessfulRound();
+			await publishSuccessfulRound();
 			return NextResponse.json(atomicResponse);
 		}
 
@@ -722,10 +736,11 @@ export async function POST(
 			await finalizeSessionMetadata(adminClient, sessionId);
 		}
 
-		await notifySuccessfulRound();
+		await publishSuccessfulRound();
 		// Success
 		return NextResponse.json(atomicResponse);
 	} catch (error) {
+		submissionFailure = error;
 		console.error(
 			"Unexpected error in POST /api/sessions/[sessionId]/rounds/[roundNumber]/submit:",
 			error,
@@ -740,7 +755,11 @@ export async function POST(
 		);
 	} finally {
 		if (submissionId && submissionClaimToken && !submissionCompleted) {
-			await failRoundSubmission(submissionId, submissionClaimToken, "Round submission did not complete");
+			await failRoundSubmission(
+				submissionId,
+				submissionClaimToken,
+				submissionFailure,
+			);
 		}
 	}
 }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { verifyUser } from "@/lib/supabase/admin";
+import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -25,23 +24,10 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-		const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-		if (!supabaseUrl || !supabaseAnonKey || !authorization) {
-			throw new Error("Missing authenticated Supabase configuration");
-		}
-
-		const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-			global: {
-				headers: {
-					Authorization: authorization,
-				},
-			},
-			auth: {
-				autoRefreshToken: false,
-				persistSession: false,
-			},
-		});
+		// The active session belongs to the whole club, not only its creator.
+		// Authentication above controls access; the server client deliberately
+		// bypasses creator-scoped RLS so every authenticated member sees it.
+		const supabase = createAdminClient();
 		const { data: session, error } = await supabase
 			.from("sessions")
 			.select("*")

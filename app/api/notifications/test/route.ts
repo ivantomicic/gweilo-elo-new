@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
 	const result = await dispatchNotificationSafely({
 		eventType: "test_notification",
 		category: "announcements",
-		title: "Gweilo notifications work",
-		body: "This iPhone is ready for session and Elo updates.",
+		title: "Gweilo obaveštenja rade",
+		body: "Ovaj iPhone je spreman za obaveštenja o sesijama i Elo promenama.",
 		audience: { type: "users", userIds: [auth.userId] },
 		data: { route: "home" },
 		createdBy: auth.userId,

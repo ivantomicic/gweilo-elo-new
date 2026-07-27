@@ -3,6 +3,122 @@ import XCTest
 
 final class NotificationModelsTests: XCTestCase {
     @MainActor
+    func testHomeSnapshotRoundTripsForTheSameUser() throws {
+        let suiteName = "HomeDashboardSnapshotTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(
+            UserDefaults(suiteName: suiteName)
+        )
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let userID = UUID()
+        let player = RankingEntry(
+            id: UUID(),
+            name: "Ivan",
+            avatarURL: URL(string: "https://example.com/ivan.png"),
+            elo: 1_741,
+            matches: 20,
+            wins: 12,
+            losses: 7,
+            draws: 1,
+            rankDays: 5,
+            recentForm: [4, -2, 11]
+        )
+        let snapshot = HomeDashboardSnapshot(
+            topThreeSinglesPlayers: [player, player, player],
+            currentUserLatestSessionDelta: 11,
+            currentUserFirstName: "Ivan",
+            savedAt: Date(timeIntervalSince1970: 123)
+        )
+        let store = HomeDashboardSnapshotStore(defaults: defaults)
+
+        store.save(snapshot, for: userID)
+
+        XCTAssertEqual(store.load(for: userID), snapshot)
+    }
+
+    @MainActor
+    func testHomeSnapshotsAreSeparatedByUser() throws {
+        let suiteName = "HomeDashboardSnapshotTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(
+            UserDefaults(suiteName: suiteName)
+        )
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let store = HomeDashboardSnapshotStore(defaults: defaults)
+        let snapshot = HomeDashboardSnapshot(
+            topThreeSinglesPlayers: [],
+            currentUserLatestSessionDelta: -7,
+            currentUserFirstName: "Ivan",
+            savedAt: .now
+        )
+
+        store.save(snapshot, for: UUID())
+
+        XCTAssertNil(store.load(for: UUID()))
+    }
+
+    @MainActor
+    func testAppDataStoreHydratesHomeBeforeNetworkLoad() throws {
+        let suiteName = "HomeDashboardSnapshotTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(
+            UserDefaults(suiteName: suiteName)
+        )
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let userID = UUID()
+        let players = (1...3).map { rank in
+            RankingEntry(
+                id: UUID(),
+                name: "Player \(rank)",
+                avatarURL: nil,
+                elo: 1_800 - rank,
+                matches: 20,
+                wins: 12,
+                losses: 7,
+                draws: 1,
+                rankDays: rank,
+                recentForm: []
+            )
+        }
+        let snapshotStore = HomeDashboardSnapshotStore(defaults: defaults)
+        snapshotStore.save(
+            HomeDashboardSnapshot(
+                topThreeSinglesPlayers: players,
+                currentUserLatestSessionDelta: 9,
+                currentUserFirstName: "Ivan",
+                savedAt: .now
+            ),
+            for: userID
+        )
+        let configuration = AppConfiguration(
+            supabaseURL: try XCTUnwrap(URL(string: "https://example.com")),
+            supabaseAnonKey: "test",
+            apiBaseURL: try XCTUnwrap(URL(string: "https://example.com"))
+        )
+        let session = AuthSession(
+            accessToken: "test",
+            refreshToken: "test",
+            expiresIn: 3_600,
+            expiresAt: nil,
+            user: AuthenticatedUser(
+                id: userID,
+                email: "ivan@example.com"
+            )
+        )
+
+        let dataStore = AppDataStore(
+            configuration: configuration,
+            session: session,
+            homeSnapshotStore: snapshotStore
+        )
+
+        XCTAssertTrue(dataStore.hasLoaded)
+        XCTAssertEqual(dataStore.topThreeSinglesPlayers, players)
+        XCTAssertEqual(dataStore.currentUserLatestSessionDelta, 9)
+        XCTAssertEqual(dataStore.currentUserFirstName, "Ivan")
+    }
+
+    @MainActor
     func testPreferencesDecodeFromBackendShape() throws {
         let data = Data(
             """

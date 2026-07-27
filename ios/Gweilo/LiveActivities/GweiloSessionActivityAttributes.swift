@@ -10,7 +10,13 @@ nonisolated struct GweiloSessionActivityAttributes: ActivityAttributes {
         let status: String
         let headline: String
         let matchups: [Matchup]
+        let playerNames: [String]?
+        let nextMatchups: [Matchup]?
         let latestResult: String?
+        let bestPlayerName: String?
+        let bestPlayerDelta: Int?
+        let worstPlayerName: String?
+        let worstPlayerDelta: Int?
     }
 
     nonisolated struct Matchup: Codable, Hashable, Sendable {

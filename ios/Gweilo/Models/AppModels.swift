@@ -58,7 +58,7 @@ struct RankingEligibility: Decodable, Hashable, Sendable {
     }
 }
 
-struct RankingEntry: Identifiable, Hashable, Sendable {
+struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     let name: String
     let avatarURL: URL?
@@ -523,14 +523,28 @@ struct SessionCreationDraft: Equatable, Sendable {
     let idempotencyKey = UUID()
     var playerCount = 4
     var fourPlayerFormat = FourPlayerSessionFormat.mixed
+    var sixPlayerFormat = FourPlayerSessionFormat.mixed
     private(set) var selectedPlayers: [SessionCreationPlayer] = []
 
     var canPreview: Bool {
         selectedPlayers.count == playerCount
     }
 
+    var selectedFormat: FourPlayerSessionFormat {
+        playerCount == 6 ? sixPlayerFormat : fourPlayerFormat
+    }
+
+    var usesDoublesTeams: Bool {
+        playerCount == 6 && sixPlayerFormat == .mixed
+    }
+
+    var keepsMixedScheduleOrder: Bool {
+        (playerCount == 4 && fourPlayerFormat == .mixed)
+            || usesDoublesTeams
+    }
+
     var doublesTeams: [[SessionCreationPlayer]] {
-        guard playerCount == 6 else { return [] }
+        guard usesDoublesTeams else { return [] }
         return stride(from: 0, to: 6, by: 2).map { startIndex in
             Array(selectedPlayers.dropFirst(startIndex).prefix(2))
         }

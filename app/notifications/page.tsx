@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import {
 	BellIcon,
 	CalendarDaysIcon,
-	ClipboardListIcon,
 	MegaphoneIcon,
 	TrophyIcon,
 } from "lucide-react";
@@ -33,32 +32,26 @@ type Preferences = {
 const preferenceRows = [
 	{
 		key: "sessionsEnabled",
-		title: "Sessions",
-		description: "Session starts, cancellations, and important changes.",
+		title: "Sesije",
+		description: "Obaveštenje kada nova sesija počne.",
 		icon: CalendarDaysIcon,
 	},
 	{
-		key: "roundsEnabled",
-		title: "Rounds",
-		description: "A new round is ready and your next match is available.",
-		icon: ClipboardListIcon,
-	},
-	{
 		key: "resultsEnabled",
-		title: "Results and Elo",
-		description: "A session finished and updated ratings are available.",
+		title: "Rezultati i Elo",
+		description: "Obaveštenje kada se sesija završi i Elo bude ažuriran.",
 		icon: TrophyIcon,
 	},
 	{
 		key: "pollsEnabled",
-		title: "Polls",
-		description: "A new club poll needs your answer.",
+		title: "Ankete",
+		description: "Obaveštenje kada je dostupna nova klupska anketa.",
 		icon: BellIcon,
 	},
 	{
 		key: "announcementsEnabled",
-		title: "Announcements",
-		description: "Occasional messages sent by a Gweilo admin.",
+		title: "Obaveštenja",
+		description: "Povremene poruke Gweilo administratora.",
 		icon: MegaphoneIcon,
 	},
 ] as const;
@@ -75,11 +68,11 @@ function NotificationPreferences() {
 			headers: { Authorization: `Bearer ${session.access_token}` },
 		})
 			.then(async (response) => {
-				if (!response.ok) throw new Error("Could not load preferences");
+				if (!response.ok) throw new Error("Podešavanja nisu učitana");
 				return response.json();
 			})
 			.then((body) => setPreferences(body.preferences as Preferences))
-			.catch(() => setMessage("Could not load notification preferences."));
+			.catch(() => setMessage("Podešavanja obaveštenja nisu učitana."));
 	}, [session?.access_token]);
 
 	const updatePreference = async (
@@ -102,12 +95,12 @@ function NotificationPreferences() {
 			});
 			const body = await response.json();
 			if (!response.ok) {
-				throw new Error(body.error || "Could not save preferences");
+				throw new Error(body.error || "Podešavanja nisu sačuvana");
 			}
 			setPreferences(body.preferences as Preferences);
 		} catch {
 			setPreferences(previous);
-			setMessage("Your change could not be saved.");
+			setMessage("Izmena nije sačuvana.");
 		} finally {
 			setSavingKey(null);
 		}
@@ -122,32 +115,32 @@ function NotificationPreferences() {
 		});
 		const body = await response.json();
 		if (!response.ok) {
-			setMessage(body.error || "The test notification could not be sent.");
+			setMessage(body.error || "Test obaveštenje nije poslato.");
 			return;
 		}
 		const status = body.result?.status as string | undefined;
 		setMessage(
 			status === "configuration_required"
-				? "The app is ready, but Apple APNs credentials still need to be connected."
+				? "Aplikacija je spremna, ali Apple APNs podaci još nisu povezani."
 				: status === "no_recipients"
-					? "No iPhone is registered for this account yet."
-					: "Test notification requested.",
+					? "Nijedan iPhone još nije povezan sa ovim nalogom."
+					: "Test obaveštenje je poslato.",
 		);
 	};
 
 	return (
-		<AppShell title="Notifications">
+		<AppShell title="Obaveštenja">
 			<div className="mx-auto w-full max-w-3xl space-y-6">
 				<div>
 					<p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">
-						Your attention, your rules
+						Tvoja pažnja, tvoja pravila
 					</p>
 					<h1 className="mt-2 font-heading text-4xl font-bold">
-						Notifications
+						Obaveštenja
 					</h1>
 					<p className="mt-2 text-muted-foreground">
-						These settings apply to every iPhone connected to your
-						Gweilo account.
+						Ova podešavanja važe za svaki iPhone povezan sa tvojim
+						Gweilo nalogom.
 					</p>
 				</div>
 
@@ -155,11 +148,10 @@ function NotificationPreferences() {
 					<CardHeader>
 						<CardTitle className="flex items-center gap-2">
 							<BellIcon className="size-5 text-primary" />
-							Push notifications
+							Push obaveštenja
 						</CardTitle>
 						<CardDescription>
-							Turn everything off, or choose exactly which updates
-							matter to you.
+							Isključi sve ili izaberi samo obaveštenja koja želiš.
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-1">
@@ -167,9 +159,9 @@ function NotificationPreferences() {
 							<>
 								<div className="flex items-center justify-between gap-4 border-b py-4">
 									<div>
-										<p className="font-semibold">Allow notifications</p>
+										<p className="font-semibold">Dozvoli obaveštenja</p>
 										<p className="text-sm text-muted-foreground">
-											Master switch for this Gweilo account.
+											Glavni prekidač za ovaj Gweilo nalog.
 										</p>
 									</div>
 									<Switch
@@ -178,7 +170,7 @@ function NotificationPreferences() {
 										onCheckedChange={(checked) =>
 											updatePreference("enabled", checked)
 										}
-										aria-label="Allow notifications"
+										aria-label="Dozvoli obaveštenja"
 									/>
 								</div>
 
@@ -211,7 +203,7 @@ function NotificationPreferences() {
 							</>
 						) : (
 							<p className="py-8 text-center text-muted-foreground">
-								Loading preferences…
+								Učitavam podešavanja…
 							</p>
 						)}
 					</CardContent>
@@ -223,7 +215,7 @@ function NotificationPreferences() {
 						disabled={!preferences?.enabled}
 						onClick={sendTest}
 					>
-						Send me a test
+						Pošalji mi test
 					</Button>
 					{message ? (
 						<p className="text-sm text-muted-foreground">{message}</p>

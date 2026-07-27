@@ -19,7 +19,13 @@ export type SessionLiveActivityState = {
 	status: SessionLiveActivityStatus;
 	headline: string;
 	matchups: SessionLiveActivityMatchup[];
+	playerNames: string[];
+	nextMatchups: SessionLiveActivityMatchup[];
 	latestResult: string | null;
+	bestPlayerName: string | null;
+	bestPlayerDelta: number | null;
+	worstPlayerName: string | null;
+	worstPlayerDelta: number | null;
 };
 
 export type SessionLiveActivityAttributes = {

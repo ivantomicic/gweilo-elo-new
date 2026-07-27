@@ -20,68 +20,78 @@ struct SessionDetailView: View {
             if detail == nil, isLoading {
                 GweiloFullScreenLoadingView("Učitavam termin…")
             } else {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 30) {
-                        if let detail {
-                            if shouldShowScorekeeper(for: detail),
-                               let currentRound = currentRound(in: detail) {
-                                ScoreEntryView(
-                                    round: currentRound,
-                                    detail: detail,
-                                    submit: { scores in
-                                        try await dataStore.submitRound(
-                                            sessionID: detail.session.id,
-                                            roundNumber: currentRound.number,
-                                            scores: scores
-                                        )
-                                    },
-                                    onSubmitted: {
-                                        await load()
-                                    }
-                                )
-                                .id(currentRound.id)
-                            } else {
-                                SessionHero(
-                                    session: detail.session,
-                                    totalMatchCount: detail.rounds.reduce(0) {
-                                        $0 + $1.matches.count
-                                    }
-                                )
-
-                                if let currentRound = currentRound(in: detail) {
-                                    ReadOnlyCurrentRound(
+                ScrollViewReader { scrollProxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 30) {
+                            if let detail {
+                                if shouldShowScorekeeper(for: detail),
+                                   let currentRound = currentRound(in: detail) {
+                                    ScoreEntryView(
                                         round: currentRound,
-                                        detail: detail
+                                        detail: detail,
+                                        submit: { scores in
+                                            try await dataStore.submitRound(
+                                                sessionID: detail.session.id,
+                                                roundNumber: currentRound.number,
+                                                scores: scores
+                                            )
+                                        },
+                                        onSubmitted: {
+                                            await load()
+                                        },
+                                        onFocusedMatchChanged: { matchID in
+                                            withAnimation(.smooth(duration: 0.24)) {
+                                                scrollProxy.scrollTo(
+                                                    matchID,
+                                                    anchor: .center
+                                                )
+                                            }
+                                        }
                                     )
-                                } else if detail.session.status == .completed {
-                                    SessionPerformanceTable(detail: detail)
-                                }
+                                    .id(currentRound.id)
+                                } else {
+                                    SessionHero(
+                                        session: detail.session,
+                                        totalMatchCount: detail.rounds.reduce(0) {
+                                            $0 + $1.matches.count
+                                        }
+                                    )
 
-                                if detail.session.status == .active {
-                                    PlayerRoster(participants: detail.participants)
-                                }
+                                    if let currentRound = currentRound(in: detail) {
+                                        ReadOnlyCurrentRound(
+                                            round: currentRound,
+                                            detail: detail
+                                        )
+                                    } else if detail.session.status == .completed {
+                                        SessionPerformanceTable(detail: detail)
+                                    }
 
-                                RoundTimeline(
-                                    detail: detail,
-                                    expandedRounds: expandedRounds,
-                                    toggleRound: toggleRound
+                                    if detail.session.status == .active {
+                                        PlayerRoster(participants: detail.participants)
+                                    }
+
+                                    RoundTimeline(
+                                        detail: detail,
+                                        expandedRounds: expandedRounds,
+                                        toggleRound: toggleRound
+                                    )
+                                }
+                            } else if let errorMessage {
+                                SessionDetailError(
+                                    message: errorMessage,
+                                    retry: load
                                 )
                             }
-                        } else if let errorMessage {
-                            SessionDetailError(
-                                message: errorMessage,
-                                retry: load
-                            )
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 48)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 48)
+                    .refreshable {
+                        await load()
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .scrollIndicators(.hidden)
                 }
-                .refreshable {
-                    await load()
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .scrollIndicators(.hidden)
             }
         }
         .navigationTitle("Sesija")
@@ -108,6 +118,11 @@ struct SessionDetailView: View {
         }
         .task(id: session.id) {
             await load()
+        }
+        .onChange(of: dataStore.sessions.map(\.id)) { _, sessionIDs in
+            if !sessionIDs.contains(session.id) {
+                dismiss()
+            }
         }
         .confirmationDialog(
             managementConfirmationTitle,

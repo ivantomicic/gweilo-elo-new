@@ -292,9 +292,88 @@ final class SessionDetailModelTests: XCTestCase {
             request.value(forHTTPHeaderField: "Authorization"),
             "Bearer member-access-token"
         )
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-Gweilo-Client"),
+            "ios"
+        )
         XCTAssertEqual(scores.count, 2)
-        XCTAssertEqual(scores[0]["matchId"] as? String, matches[0].id.uuidString)
+        XCTAssertEqual(
+            scores[0]["matchId"] as? String,
+            matches[0].id.uuidString.lowercased()
+        )
         XCTAssertEqual(scores[1]["team2Score"] as? Int, 11)
+    }
+
+    @MainActor
+    func testRoundSubmissionSurfacesDetailedServerFailure() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RoundSubmissionErrorURLProtocol.self]
+        let client = GweiloAPIClient(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "public-anon-key",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            accessToken: "member-access-token",
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.submitRound(
+                sessionID: UUID(),
+                roundNumber: 1,
+                scores: [
+                    RoundMatchScoreSubmission(
+                        matchId: UUID(),
+                        team1Score: 11,
+                        team2Score: 7
+                    )
+                ]
+            )
+            XCTFail("Expected the server failure to be surfaced.")
+        } catch let BackendAPIError.rejected(message) {
+            XCTAssertEqual(
+                message,
+                "Atomic ELO commit failed: ROUND_STATE_CONFLICT"
+            )
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    @MainActor
+    func testRoundSubmissionIdentifiesDeletedSession() async {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [RoundSubmissionErrorURLProtocol.self]
+        let client = GweiloAPIClient(
+            configuration: AppConfiguration(
+                supabaseURL: URL(string: "https://example.supabase.co")!,
+                supabaseAnonKey: "public-anon-key",
+                apiBaseURL: URL(string: "https://www.gweilo.lol")!
+            ),
+            accessToken: "member-access-token",
+            session: URLSession(configuration: configuration)
+        )
+
+        do {
+            _ = try await client.submitRound(
+                sessionID: UUID(),
+                roundNumber: 2,
+                scores: [
+                    RoundMatchScoreSubmission(
+                        matchId: UUID(),
+                        team1Score: 11,
+                        team2Score: 7
+                    )
+                ]
+            )
+            XCTFail("Expected the missing session to be surfaced.")
+        } catch let error as BackendAPIError {
+            XCTAssertTrue(error.isSessionNotFound)
+            XCTAssertEqual(error.localizedDescription, "Session not found")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     @MainActor
@@ -539,6 +618,20 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSixPlayerSinglesDraftDoesNotBuildDoublesTeams() {
+        var draft = SessionCreationDraft()
+        draft.setPlayerCount(6)
+        draft.sixPlayerFormat = .singles
+
+        makeCreationPlayers(count: 6).forEach { draft.toggle($0) }
+
+        XCTAssertTrue(draft.canPreview)
+        XCTAssertFalse(draft.usesDoublesTeams)
+        XCTAssertTrue(draft.doublesTeams.isEmpty)
+        XCTAssertEqual(draft.selectedFormat, .singles)
+    }
+
+    @MainActor
     func testSixPlayerRandomizerPreservesTeamsAndDynamicRounds() {
         let players = makeCreationPlayers(count: 6)
         let preview = makeSixPlayerSchedulePreview(players: players)
@@ -629,6 +722,22 @@ final class SessionDetailModelTests: XCTestCase {
             garaID.uuidString,
             ivanID.uuidString
         ])
+    }
+
+    @MainActor
+    func testSixPlayerPreviewRequestSendsSinglesFormat() throws {
+        let players = makeCreationPlayers(count: 6)
+        let request = try makeAPIClient().makeSessionPreviewRequest(
+            players: players,
+            format: .singles
+        )
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [String: Any]
+        )
+
+        XCTAssertEqual(json["sixPlayerFormat"] as? String, "singles")
+        XCTAssertEqual(json["fourPlayerFormat"] as? String, "singles")
     }
 
     @MainActor
@@ -861,6 +970,40 @@ final class SessionDetailModelTests: XCTestCase {
             rounds: []
         )
     }
+}
+
+private final class RoundSubmissionErrorURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        let isMissingSession = request.url?.path.contains("/rounds/2/") == true
+        let statusCode = isMissingSession ? 404 : 500
+        let body = isMissingSession
+            ? #"{"error":"Session not found"}"#
+            : #"{"error":"Internal server error","details":"Atomic ELO commit failed: ROUND_STATE_CONFLICT"}"#
+        let response = HTTPURLResponse(
+            url: request.url!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: ["Content-Type": "application/json"]
+        )!
+
+        client?.urlProtocol(
+            self,
+            didReceive: response,
+            cacheStoragePolicy: .notAllowed
+        )
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {}
 }
 
 private final class HeadToHeadResponseURLProtocol: URLProtocol {

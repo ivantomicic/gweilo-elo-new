@@ -1,6 +1,41 @@
 import Foundation
 import Observation
 
+struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
+    let topThreeSinglesPlayers: [RankingEntry]
+    let currentUserLatestSessionDelta: Double?
+    let currentUserFirstName: String
+    let savedAt: Date
+}
+
+struct HomeDashboardSnapshotStore {
+    private let defaults: UserDefaults
+    private let keyPrefix = "home-dashboard-snapshot-v1"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func load(for userID: UUID) -> HomeDashboardSnapshot? {
+        guard let data = defaults.data(forKey: key(for: userID)) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(
+            HomeDashboardSnapshot.self,
+            from: data
+        )
+    }
+
+    func save(_ snapshot: HomeDashboardSnapshot, for userID: UUID) {
+        guard let data = try? JSONEncoder().encode(snapshot) else { return }
+        defaults.set(data, forKey: key(for: userID))
+    }
+
+    private func key(for userID: UUID) -> String {
+        "\(keyPrefix)-\(userID.uuidString.lowercased())"
+    }
+}
+
 struct ExpiringCache<Key: Hashable, Value> {
     private struct Entry {
         let value: Value
@@ -59,6 +94,9 @@ final class AppDataStore {
     private var client: SupabaseDataClient
     private var apiClient: GweiloAPIClient
     private let configuration: AppConfiguration
+    private let homeSnapshotStore: HomeDashboardSnapshotStore
+    private var homeLatestSessionDelta: Double?
+    private var homeCurrentUserFirstName: String?
     @ObservationIgnored
     private var playerHistoryCache = ExpiringCache<UUID, PlayerEloHistory>(
         lifetime: profileCacheLifetime
@@ -80,8 +118,14 @@ final class AppDataStore {
     let currentUserID: UUID
     private(set) var authenticatedUserFallbackName: String
 
-    init(configuration: AppConfiguration, session: AuthSession) {
+    init(
+        configuration: AppConfiguration,
+        session: AuthSession,
+        homeSnapshotStore: HomeDashboardSnapshotStore =
+            HomeDashboardSnapshotStore()
+    ) {
         self.configuration = configuration
+        self.homeSnapshotStore = homeSnapshotStore
         currentUserID = session.user.id
         authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
@@ -94,6 +138,14 @@ final class AppDataStore {
             configuration: configuration,
             accessToken: session.accessToken
         )
+
+        if let snapshot = homeSnapshotStore.load(for: session.user.id) {
+            topThreeSinglesPlayers = snapshot.topThreeSinglesPlayers
+            homeLatestSessionDelta =
+                snapshot.currentUserLatestSessionDelta
+            homeCurrentUserFirstName = snapshot.currentUserFirstName
+            hasLoaded = true
+        }
     }
 
     func updateSession(_ session: AuthSession) {
@@ -117,7 +169,9 @@ final class AppDataStore {
     }
 
     var canStartNewSession: Bool {
-        canManageSessions && hasCheckedActiveSession && clubActiveSessionID == nil
+        canManageSessions
+            && activeSession == nil
+            && clubActiveSessionID == nil
     }
 
     var latestCompletedSession: SessionSummary? {
@@ -125,14 +179,11 @@ final class AppDataStore {
     }
 
     var currentUserLatestSessionDelta: Double? {
-        singlesRankings
-            .first { $0.id == currentUserID }?
-            .recentForm
-            .last
+        homeLatestSessionDelta
     }
 
     var currentUserFirstName: String {
-        let displayName =
+        let displayName = homeCurrentUserFirstName ??
             singlesRankings.first { $0.id == currentUserID }?.name ??
             doublesPlayerRankings.first { $0.id == currentUserID }?.name ??
             authenticatedUserFallbackName
@@ -174,14 +225,32 @@ final class AppDataStore {
         roundNumber: Int,
         scores: [RoundMatchScoreSubmission]
     ) async throws -> RoundSubmissionResult {
-        let result = try await apiClient.submitRound(
-            sessionID: sessionID,
-            roundNumber: roundNumber,
-            scores: scores
-        )
-        invalidateProfileCaches()
-        await load(forceRefresh: true)
-        return result
+        do {
+            let result = try await apiClient.submitRound(
+                sessionID: sessionID,
+                roundNumber: roundNumber,
+                scores: scores
+            )
+            invalidateProfileCaches()
+            await load(forceRefresh: true)
+            if sessions.contains(where: {
+                $0.id == sessionID && $0.status == .completed
+            }) {
+                clubActiveSessionID = nil
+                hasCheckedActiveSession = true
+            }
+            return result
+        } catch let error as BackendAPIError where error.isSessionNotFound {
+            sessions.removeAll { $0.id == sessionID }
+            if clubActiveSessionID == sessionID {
+                clubActiveSessionID = nil
+            }
+            await load(forceRefresh: true)
+            errorMessage = error.localizedDescription
+            throw error
+        } catch {
+            throw error
+        }
     }
 
     func cachedPlayerEloHistory(for playerID: UUID) -> PlayerEloHistory? {
@@ -366,7 +435,23 @@ final class AppDataStore {
             doublesPlayerRankings = rankings.doublesPlayers
             doublesTeamRankings = rankings.doublesTeams
             rankingEligibility = rankings.eligibility
-            topThreeSinglesPlayers = Array(rankings.singles.prefix(3))
+
+            let freshTopThree = Array(rankings.singles.prefix(3))
+            if freshTopThree.count == 3
+                || topThreeSinglesPlayers.isEmpty {
+                topThreeSinglesPlayers = freshTopThree
+            }
+
+            if let currentUser = rankings.singles.first(
+                where: { $0.id == currentUserID }
+            ) {
+                homeLatestSessionDelta = currentUser.recentForm.last
+                homeCurrentUserFirstName = currentUser.name
+                    .split(whereSeparator: \.isWhitespace)
+                    .first
+                    .map(String.init)
+            }
+            saveHomeSnapshotIfPossible()
         } catch {
             firstError = firstError ?? error
         }
@@ -401,6 +486,20 @@ final class AppDataStore {
         doublesProfileCache.removeAll()
         doublesHistoryCache.removeAll()
     }
+
+    private func saveHomeSnapshotIfPossible() {
+        guard topThreeSinglesPlayers.count == 3 else { return }
+        homeSnapshotStore.save(
+            HomeDashboardSnapshot(
+                topThreeSinglesPlayers: topThreeSinglesPlayers,
+                currentUserLatestSessionDelta: homeLatestSessionDelta,
+                currentUserFirstName:
+                    homeCurrentUserFirstName ?? currentUserFirstName,
+                savedAt: .now
+            ),
+            for: currentUserID
+        )
+    }
 }
 
 #if DEBUG
@@ -413,6 +512,16 @@ extension AppDataStore {
         singlesRankings = singles
         doublesPlayerRankings = doublesPlayers
         doublesTeamRankings = doublesTeams
+        topThreeSinglesPlayers = Array(singles.prefix(3))
+        if let currentUser = singles.first(
+            where: { $0.id == currentUserID }
+        ) {
+            homeLatestSessionDelta = currentUser.recentForm.last
+            homeCurrentUserFirstName = currentUser.name
+                .split(whereSeparator: \.isWhitespace)
+                .first
+                .map(String.init)
+        }
         hasLoaded = true
     }
 }

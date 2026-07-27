@@ -293,7 +293,12 @@ final class SessionLiveActivityManager {
             ?? detail.session.totalRounds
         let currentMatches = pending
             .filter { $0.roundNumber == round }
-            .prefix(2)
+        let nextRound = pending
+            .map(\.roundNumber)
+            .first { $0 > round }
+        let nextMatches = nextRound.map { nextRound in
+            pending.filter { $0.roundNumber == nextRound }
+        } ?? []
         let latest = completed.last
         let latestResult: String? = latest.flatMap { match in
             guard
@@ -323,7 +328,20 @@ final class SessionLiveActivityManager {
                     kind: match.type.label
                 )
             },
-            latestResult: latestResult
+            playerNames: detail.participants.map(\.name),
+            nextMatchups: nextMatches.map { match in
+                let names = detail.teamNames(for: match.playerIDs)
+                return GweiloSessionActivityAttributes.Matchup(
+                    left: names.0,
+                    right: names.1,
+                    kind: match.type.label
+                )
+            },
+            latestResult: latestResult,
+            bestPlayerName: detail.session.bestPlayer,
+            bestPlayerDelta: detail.session.bestDelta,
+            worstPlayerName: detail.session.worstPlayer,
+            worstPlayerDelta: detail.session.worstDelta
         )
     }
 

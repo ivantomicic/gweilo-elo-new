@@ -1,10 +1,40 @@
 import SwiftUI
+import Network
+import Observation
+
+@Observable
+@MainActor
+private final class ConnectivityMonitor {
+    private(set) var isConnected: Bool?
+
+    @ObservationIgnored
+    private let monitor = NWPathMonitor()
+    @ObservationIgnored
+    private let queue = DispatchQueue(
+        label: "com.ivantomicic.gweilo.connectivity"
+    )
+
+    init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            let isConnected = path.status == .satisfied
+            Task { @MainActor [weak self] in
+                self?.isConnected = isConnected
+            }
+        }
+        monitor.start(queue: queue)
+    }
+
+    deinit {
+        monitor.cancel()
+    }
+}
 
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var authStore = AuthStore()
     @State private var appDataStore: AppDataStore?
     @State private var pushNotifications = PushNotificationManager.shared
+    @State private var connectivity = ConnectivityMonitor()
 
     var body: some View {
         Group {
@@ -90,6 +120,13 @@ struct RootView: View {
             Task {
                 await authStore.refreshIfNeeded()
                 await pushNotifications.refreshAuthorizationStatus()
+                await appDataStore?.load()
+            }
+        }
+        .onChange(of: connectivity.isConnected) { wasConnected, isConnected in
+            guard wasConnected == false, isConnected == true else { return }
+            Task {
+                await appDataStore?.load(forceRefresh: true)
             }
         }
         .onOpenURL { url in
@@ -250,7 +287,12 @@ private struct MainTabView: View {
                 systemImage: "house.fill",
                 value: MainTabSelection.home
             ) {
-                HomeView(dataStore: dataStore)
+                HomeView(
+                    dataStore: dataStore,
+                    openRankings: {
+                        selectedTab = .rankings
+                    }
+                )
             }
 
             Tab(

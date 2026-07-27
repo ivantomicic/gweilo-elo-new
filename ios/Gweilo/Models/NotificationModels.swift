@@ -95,14 +95,22 @@ enum PushNotificationPreference: String, CaseIterable, Identifiable, Sendable {
 
     var id: Self { self }
 
+    static let visibleCases: [Self] = [
+        .liveActivities,
+        .sessions,
+        .results,
+        .polls,
+        .announcements
+    ]
+
     var title: String {
         switch self {
-        case .liveActivities: "Live Activities"
-        case .sessions: "Sessions"
-        case .rounds: "Rounds"
-        case .results: "Results and Elo"
-        case .polls: "Polls"
-        case .announcements: "Announcements"
+        case .liveActivities: "Live aktivnosti"
+        case .sessions: "Sesije"
+        case .rounds: "Runde"
+        case .results: "Rezultati i Elo"
+        case .polls: "Ankete"
+        case .announcements: "Obaveštenja"
         }
     }
 
@@ -111,15 +119,15 @@ enum PushNotificationPreference: String, CaseIterable, Identifiable, Sendable {
         case .liveActivities:
             "Prati aktivnu sesiju na zaključanom ekranu i Dynamic Island-u."
         case .sessions:
-            "Session starts, cancellations, and important changes."
+            "Obaveštenje kada nova sesija počne."
         case .rounds:
-            "A new round is ready and your next match is available."
+            "Obaveštenje kada je nova runda spremna."
         case .results:
-            "A session finished and updated ratings are available."
+            "Obaveštenje kada se sesija završi i Elo bude ažuriran."
         case .polls:
-            "A new club poll needs your answer."
+            "Obaveštenje kada je dostupna nova klupska anketa."
         case .announcements:
-            "Occasional messages sent by a Gweilo admin."
+            "Povremene poruke Gweilo administratora."
         }
     }
 

@@ -7,6 +7,7 @@ import {
 } from "./apns";
 import {
 	defaultNotificationPreferences,
+	filterAudienceUserIds,
 	preferenceAllowsCategory,
 	type NotificationAudience,
 	type NotificationCategory,
@@ -92,8 +93,9 @@ async function resolveAudience(
 				.select("player_id")
 				.eq("session_id", audience.sessionId);
 			if (error) throw error;
-			return Array.from(
-				new Set((data || []).map((player) => player.player_id)),
+			return filterAudienceUserIds(
+				(data || []).map((player) => player.player_id),
+				audience.excludeUserIds,
 			);
 		}
 		case "users":
@@ -148,7 +150,12 @@ function audiencePayload(audience: NotificationAudience) {
 		case "all":
 			return {};
 		case "session":
-			return { sessionId: audience.sessionId };
+			return {
+				sessionId: audience.sessionId,
+				...(audience.excludeUserIds?.length
+					? { excludeUserIds: audience.excludeUserIds }
+					: {}),
+			};
 		case "users":
 			return { userIds: audience.userIds };
 	}

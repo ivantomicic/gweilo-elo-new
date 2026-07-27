@@ -29,7 +29,19 @@ const state: SessionLiveActivityState = {
 			kind: "SINGL",
 		},
 	],
+	playerNames: ["Ivan", "Leo", "Gara", "Miladin"],
+	nextMatchups: [
+		{
+			left: "Ivan",
+			right: "Miladin",
+			kind: "SINGL",
+		},
+	],
 	latestResult: "Ivan 3–1 Gara",
+	bestPlayerName: null,
+	bestPlayerDelta: null,
+	worstPlayerName: null,
+	worstPlayerDelta: null,
 };
 
 test("start payload contains matching ActivityKit attributes and state", () => {
@@ -76,6 +88,10 @@ test("end payload dismisses after the requested grace period", () => {
 			...state,
 			status: "completed",
 			headline: "Sesija je završena",
+			bestPlayerName: "Ivan",
+			bestPlayerDelta: 24,
+			worstPlayerName: "Leo",
+			worstPlayerDelta: -18,
 		},
 		timestamp: 3_000,
 		dismissAfterSeconds: 120,
@@ -83,5 +99,7 @@ test("end payload dismisses after the requested grace period", () => {
 
 	assert.equal(payload.aps.event, "end");
 	assert.equal(payload.aps["content-state"].status, "completed");
+	assert.equal(payload.aps["content-state"].bestPlayerName, "Ivan");
+	assert.equal(payload.aps["content-state"].worstPlayerDelta, -18);
 	assert.equal(payload.aps["dismissal-date"], 3_120);
 });

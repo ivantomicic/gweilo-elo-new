@@ -45,6 +45,9 @@
 		D59F534CB27B7B52A1A7625B /* GweiloApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B97913905094E27DCF42A43 /* GweiloApp.swift */; };
 		DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */; };
 		E72600000000000000000002 /* RankingsHeader.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = E72600000000000000000001 /* RankingsHeader.mp4 */; };
+		F72600000000000000000002 /* SessionPlayerCountPlaceholder.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = F72600000000000000000001 /* SessionPlayerCountPlaceholder.mp4 */; };
+		B72700000000000000000002 /* SessionsHeader.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = B72700000000000000000001 /* SessionsHeader.mp4 */; };
+		C72700000000000000000002 /* PodiumGoldFrame.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = C72700000000000000000001 /* PodiumGoldFrame.mp4 */; };
 		E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24DACFB92DCB222E4F6075F /* HomeView.swift */; };
 		F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */; };
 		FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */; };
@@ -123,6 +126,9 @@
 		D70068E15F92AF56CD3CA6C2 /* MatchOutcomeBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchOutcomeBadge.swift; sourceTree = "<group>"; };
 		E0A27FBB6BA961B030145968 /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		E72600000000000000000001 /* RankingsHeader.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = RankingsHeader.mp4; sourceTree = "<group>"; };
+		F72600000000000000000001 /* SessionPlayerCountPlaceholder.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SessionPlayerCountPlaceholder.mp4; sourceTree = "<group>"; };
+		B72700000000000000000001 /* SessionsHeader.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SessionsHeader.mp4; sourceTree = "<group>"; };
+		C72700000000000000000001 /* PodiumGoldFrame.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = PodiumGoldFrame.mp4; sourceTree = "<group>"; };
 		E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModelsTests.swift; sourceTree = "<group>"; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -324,6 +330,9 @@
 				C10100000000000000000005 /* MatchResultLoss.mp4 */,
 				C10100000000000000000003 /* MatchResultWin.mp4 */,
 				E72600000000000000000001 /* RankingsHeader.mp4 */,
+				F72600000000000000000001 /* SessionPlayerCountPlaceholder.mp4 */,
+				B72700000000000000000001 /* SessionsHeader.mp4 */,
+				C72700000000000000000001 /* PodiumGoldFrame.mp4 */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -462,6 +471,9 @@
 				C10100000000000000000006 /* MatchResultLoss.mp4 in Resources */,
 				C10100000000000000000004 /* MatchResultWin.mp4 in Resources */,
 				E72600000000000000000002 /* RankingsHeader.mp4 in Resources */,
+				F72600000000000000000002 /* SessionPlayerCountPlaceholder.mp4 in Resources */,
+				B72700000000000000000002 /* SessionsHeader.mp4 in Resources */,
+				C72700000000000000000002 /* PodiumGoldFrame.mp4 in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

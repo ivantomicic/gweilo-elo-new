@@ -22,10 +22,13 @@ struct GweiloSessionLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    LiveStatusLabel(state: context.state, compact: true)
+                    Text("RUNDA")
+                        .font(.system(size: 9, weight: .black))
+                        .tracking(0.9)
+                        .foregroundStyle(LiveActivityStyle.muted)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    RoundCounter(state: context.state, compact: true)
+                    RoundValue(state: context.state, compact: true)
                 }
                 DynamicIslandExpandedRegion(.center) {
                     GweiloRallyMark(size: 31)
@@ -64,33 +67,31 @@ private struct LockScreenSessionView: View {
         ZStack {
             LiveActivityBackdrop()
 
-            VStack(spacing: 9) {
-                HStack {
-                    LiveStatusLabel(state: context.state)
-                    Spacer()
-                    RoundCounter(state: context.state)
-                }
-                .overlay {
-                    GweiloRallyMark(size: 38)
-                        .accessibilityHidden(true)
-                }
+            VStack(spacing: 5) {
+                if context.state.status == "active" {
+                    ProminentRoundHeader(state: context.state)
 
-                if let primaryMatchup = context.state.matchups.first {
-                    HeroMatchup(matchup: primaryMatchup)
+                    MatchupSummaryRow(
+                        label: "SADA",
+                        matchups: context.state.matchups,
+                        tint: LiveActivityStyle.lime,
+                        showsEveryMatch: true
+                    )
 
-                    if context.state.matchups.count > 1 {
-                        SecondaryMatchup(
-                            matchup: context.state.matchups[1]
-                        )
-                    }
+                    MatchupSummaryRow(
+                        label: "SLEDEĆI",
+                        matchups: context.state.nextMatchups ?? [],
+                        tint: LiveActivityStyle.purple,
+                        showsEveryMatch: false
+                    )
+
+                    ProgressSummary(state: context.state)
                 } else {
                     CompletedSessionHeadline(state: context.state)
                 }
-
-                ProgressSummary(state: context.state)
             }
-            .padding(.horizontal, 15)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
         }
         .accessibilityElement(children: .contain)
     }
@@ -101,90 +102,49 @@ private struct ExpandedIslandContent: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if let primaryMatchup = state.matchups.first {
-                HeroMatchup(matchup: primaryMatchup, compact: true)
+            if state.status == "active" {
+                MatchupSummaryRow(
+                    label: "SADA",
+                    matchups: state.matchups,
+                    tint: LiveActivityStyle.lime,
+                    showsEveryMatch: true,
+                    compact: true
+                )
+                MatchupSummaryRow(
+                    label: "SLEDEĆI",
+                    matchups: state.nextMatchups ?? [],
+                    tint: LiveActivityStyle.purple,
+                    showsEveryMatch: false,
+                    compact: true
+                )
+
+                ProgressSummary(state: state, compact: true)
             } else {
                 CompletedSessionHeadline(state: state, compact: true)
             }
-
-            ProgressSummary(state: state, compact: true)
         }
         .padding(.horizontal, 4)
     }
 }
 
-private struct LiveStatusLabel: View {
+private struct ProminentRoundHeader: View {
     let state: GweiloSessionActivityAttributes.ContentState
-    var compact = false
-
-    private var isCompleted: Bool {
-        state.status == "completed"
-    }
 
     var body: some View {
-        HStack(spacing: compact ? 4 : 6) {
-            Circle()
-                .fill(isCompleted
-                    ? LiveActivityStyle.purple
-                    : LiveActivityStyle.lime
-                )
-                .frame(
-                    width: compact ? 6 : 7,
-                    height: compact ? 6 : 7
-                )
-                .shadow(
-                    color: isCompleted
-                        ? LiveActivityStyle.purple.opacity(0.65)
-                        : LiveActivityStyle.lime.opacity(0.65),
-                    radius: 4
-                )
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: -2) {
+                Text("RUNDA")
+                    .font(.system(size: 9, weight: .black))
+                    .tracking(1.1)
+                    .foregroundStyle(LiveActivityStyle.lime)
 
-            Text(isCompleted ? "ZAVRŠENO" : "UŽIVO")
-                .font(
-                    .system(
-                        size: compact ? 9 : 10,
-                        weight: .black
-                    )
-                )
-                .tracking(compact ? 0.6 : 1)
-                .foregroundStyle(
-                    isCompleted
-                        ? LiveActivityStyle.bone
-                        : LiveActivityStyle.lime
-                )
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            isCompleted ? "Sesija je završena" : "Sesija je uživo"
-        )
-    }
-}
+                RoundValue(state: state)
+            }
 
-private struct RoundCounter: View {
-    let state: GweiloSessionActivityAttributes.ContentState
-    var compact = false
+            Spacer()
 
-    var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("RUNDA")
-                .font(
-                    .system(
-                        size: compact ? 8 : 9,
-                        weight: .bold
-                    )
-                )
-                .tracking(0.8)
-                .foregroundStyle(LiveActivityStyle.muted)
-
-            Text("\(state.currentRound)/\(state.totalRounds)")
-                .font(
-                    .system(
-                        size: compact ? 15 : 18,
-                        weight: .black
-                    )
-                )
-                .monospacedDigit()
-                .foregroundStyle(LiveActivityStyle.bone)
+            GweiloRallyMark(size: 34)
+                .accessibilityHidden(true)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
@@ -193,135 +153,85 @@ private struct RoundCounter: View {
     }
 }
 
-private struct HeroMatchup: View {
-    let matchup: GweiloSessionActivityAttributes.Matchup
+private struct RoundValue: View {
+    let state: GweiloSessionActivityAttributes.ContentState
     var compact = false
 
     var body: some View {
-        VStack(spacing: compact ? 4 : 5) {
-            Text(matchup.kind.uppercased())
-                .font(
-                    .system(
-                        size: compact ? 8 : 9,
-                        weight: .black
-                    )
-                )
-                .tracking(1.1)
-                .foregroundStyle(LiveActivityStyle.purple)
+        HStack(alignment: .lastTextBaseline, spacing: 3) {
+            Text("\(state.currentRound)")
+                .font(.system(size: compact ? 20 : 34, weight: .black))
+                .foregroundStyle(LiveActivityStyle.bone)
 
-            HStack(spacing: compact ? 8 : 11) {
-                TeamName(matchup.left, alignment: .trailing, compact: compact)
-
-                VersusMark(compact: compact)
-
-                TeamName(matchup.right, alignment: .leading, compact: compact)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(matchup.kind), \(matchup.left) protiv \(matchup.right)"
-        )
-    }
-}
-
-private struct TeamName: View {
-    let name: String
-    let alignment: Alignment
-    let compact: Bool
-
-    init(
-        _ name: String,
-        alignment: Alignment,
-        compact: Bool
-    ) {
-        self.name = name
-        self.alignment = alignment
-        self.compact = compact
-    }
-
-    var body: some View {
-        Text(name)
-            .font(
-                .system(
-                    size: compact ? 15 : 18,
-                    weight: .heavy
-                )
-            )
-            .foregroundStyle(LiveActivityStyle.bone)
-            .lineLimit(1)
-            .minimumScaleFactor(0.68)
-            .frame(maxWidth: .infinity, alignment: alignment)
-    }
-}
-
-private struct VersusMark: View {
-    var compact = false
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(LiveActivityStyle.purple.opacity(0.16))
-
-            Circle()
-                .stroke(LiveActivityStyle.purple.opacity(0.55), lineWidth: 1)
-
-            Text("VS")
-                .font(
-                    .system(
-                        size: compact ? 8 : 9,
-                        weight: .black
-                    )
-                )
-                .foregroundStyle(LiveActivityStyle.lime)
-        }
-        .frame(
-            width: compact ? 25 : 29,
-            height: compact ? 25 : 29
-        )
-        .shadow(
-            color: LiveActivityStyle.purple.opacity(0.24),
-            radius: 5
-        )
-    }
-}
-
-private struct SecondaryMatchup: View {
-    let matchup: GweiloSessionActivityAttributes.Matchup
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Text("MEČ 2")
-                .font(.system(size: 8, weight: .black))
-                .tracking(0.9)
+            Text("/ \(state.totalRounds)")
+                .font(.system(size: compact ? 10 : 12, weight: .bold))
                 .foregroundStyle(LiveActivityStyle.muted)
-
-            Text(matchup.left)
-                .lineLimit(1)
-            Text("VS")
-                .font(.system(size: 8, weight: .black))
-                .foregroundStyle(LiveActivityStyle.purple)
-            Text(matchup.right)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            Text(matchup.kind.uppercased())
-                .font(.system(size: 8, weight: .black))
-                .tracking(0.7)
-                .foregroundStyle(LiveActivityStyle.lime.opacity(0.82))
         }
-        .font(.caption2.weight(.semibold))
-        .foregroundStyle(LiveActivityStyle.bone.opacity(0.88))
-        .padding(.horizontal, 10)
-        .frame(height: 24)
-        .background(
-            LiveActivityStyle.subtle,
-            in: Capsule()
-        )
+        .monospacedDigit()
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Drugi meč: \(matchup.left) protiv \(matchup.right)"
+            "Runda \(state.currentRound) od \(state.totalRounds)"
         )
+    }
+}
+
+private struct MatchupSummaryRow: View {
+    let label: String
+    let matchups: [GweiloSessionActivityAttributes.Matchup]
+    let tint: Color
+    let showsEveryMatch: Bool
+    var compact = false
+
+    private var visibleMatchups: [GweiloSessionActivityAttributes.Matchup] {
+        showsEveryMatch ? matchups : Array(matchups.prefix(1))
+    }
+
+    private var hiddenCount: Int {
+        max(0, matchups.count - visibleMatchups.count)
+    }
+
+    private var summary: String {
+        guard !visibleMatchups.isEmpty else {
+            return "—"
+        }
+        let pairings = visibleMatchups
+            .map { "\($0.left) VS \($0.right)" }
+            .joined(separator: "  ·  ")
+        return hiddenCount > 0 ? "\(pairings)  +\(hiddenCount)" : pairings
+    }
+
+    var body: some View {
+        HStack(spacing: compact ? 7 : 9) {
+            Text(label)
+                .font(
+                    .system(
+                        size: compact ? 8 : 9,
+                        weight: .black
+                    )
+                )
+                .tracking(0.8)
+                .foregroundStyle(tint)
+                .frame(width: compact ? 48 : 57, alignment: .leading)
+
+            Text(summary)
+                .font(.system(size: compact ? 9 : 10, weight: .bold))
+                .foregroundStyle(
+                    visibleMatchups.isEmpty
+                        ? LiveActivityStyle.muted
+                        : LiveActivityStyle.bone
+                )
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, compact ? 7 : 9)
+        .frame(height: compact ? 20 : 22)
+        .background(
+            LiveActivityStyle.subtle.opacity(0.68),
+            in: .rect(cornerRadius: 6)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label): \(summary)")
     }
 }
 
@@ -330,30 +240,97 @@ private struct CompletedSessionHeadline: View {
     var compact = false
 
     var body: some View {
-        VStack(spacing: compact ? 3 : 5) {
-            Text("SESIJA JE ZAVRŠENA")
-                .font(
-                    .system(
-                        size: compact ? 15 : 18,
-                        weight: .heavy
-                    )
-                )
-                .foregroundStyle(LiveActivityStyle.bone)
-
-            if let latestResult = state.latestResult {
-                Text(latestResult)
+        VStack(spacing: compact ? 5 : 7) {
+            HStack {
+                Text("SESIJA JE ZAVRŠENA")
                     .font(
                         .system(
-                            size: compact ? 10 : 11,
-                            weight: .semibold
+                            size: compact ? 13 : 16,
+                            weight: .heavy
                         )
                     )
+                    .foregroundStyle(LiveActivityStyle.bone)
+
+                Spacer()
+
+                GweiloRallyMark(size: compact ? 22 : 28)
+                    .accessibilityHidden(true)
+            }
+
+            if
+                let bestPlayerName = state.bestPlayerName,
+                let bestPlayerDelta = state.bestPlayerDelta,
+                let worstPlayerName = state.worstPlayerName,
+                let worstPlayerDelta = state.worstPlayerDelta
+            {
+                HStack(spacing: compact ? 5 : 7) {
+                    PerformanceResult(
+                        label: "NAJVEĆI PLUS",
+                        name: bestPlayerName,
+                        delta: bestPlayerDelta,
+                        tint: LiveActivityStyle.lime,
+                        compact: compact
+                    )
+                    PerformanceResult(
+                        label: "NAJVEĆI MINUS",
+                        name: worstPlayerName,
+                        delta: worstPlayerDelta,
+                        tint: .red,
+                        compact: compact
+                    )
+                }
+            } else if let latestResult = state.latestResult {
+                Text(latestResult)
+                    .font(.system(size: compact ? 9 : 11, weight: .semibold))
                     .foregroundStyle(LiveActivityStyle.muted)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct PerformanceResult: View {
+    let label: String
+    let name: String
+    let delta: Int
+    let tint: Color
+    let compact: Bool
+
+    private var deltaLabel: String {
+        "\(delta > 0 ? "+" : "")\(delta) ELO"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 1 : 2) {
+            Text(label)
+                .font(.system(size: compact ? 7 : 8, weight: .black))
+                .tracking(0.6)
+                .foregroundStyle(tint)
+
+            HStack(spacing: 4) {
+                Text(name)
+                    .foregroundStyle(LiveActivityStyle.bone)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+
+                Spacer(minLength: 2)
+
+                Text(deltaLabel)
+                    .monospacedDigit()
+                    .foregroundStyle(tint)
+            }
+            .font(.system(size: compact ? 9 : 11, weight: .bold))
+        }
+        .padding(.horizontal, compact ? 6 : 8)
+        .frame(maxWidth: .infinity, minHeight: compact ? 34 : 40)
+        .background(
+            LiveActivityStyle.subtle.opacity(0.7),
+            in: .rect(cornerRadius: 7)
+        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(label), \(name), \(deltaLabel)")
     }
 }
 

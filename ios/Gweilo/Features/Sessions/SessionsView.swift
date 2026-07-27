@@ -26,9 +26,7 @@ struct SessionsView: View {
                 } else {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 26) {
-                            SessionsHeader(
-                                sessionCount: dataStore.sessions.count
-                            )
+                            SessionsHeader()
                             SessionsContent(dataStore: dataStore)
                         }
                         .padding(.horizontal, 20)
@@ -72,10 +70,11 @@ struct SessionsView: View {
 }
 
 private struct SessionsHeader: View {
-    let sessionCount: Int
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        HStack(alignment: .bottom) {
+        HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("ISTORIJA MEČEVA")
                     .font(
@@ -98,19 +97,23 @@ private struct SessionsHeader: View {
                     .tracking(0.2)
             }
 
-            Spacer()
+            Spacer(minLength: 0)
 
-            Text("\(sessionCount) \(SessionHistoryFormatter.sessionWord(sessionCount))")
-                .font(
-                    GweiloTheme.labelFont(
-                        size: 11,
-                        relativeTo: .caption
+            Color.clear
+                .frame(width: 112, height: 104)
+                .overlay(alignment: .topTrailing) {
+                    LoopingBundleVideo(
+                        resourceName: "SessionsHeader",
+                        isPlaying: scenePhase == .active && !reduceMotion
                     )
-                )
-                .tracking(1.3)
-                .foregroundStyle(.secondary)
-                .padding(.bottom, 7)
+                    .frame(width: 148, height: 148)
+                    .blendMode(.screen)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                    .offset(x: 10, y: -42)
+                }
         }
+        .frame(minHeight: 104, alignment: .top)
         .padding(.top, 18)
     }
 }
@@ -167,6 +170,15 @@ private struct SessionsContent: View {
             )
         } else {
             VStack(alignment: .leading, spacing: 30) {
+                if let errorMessage = dataStore.errorMessage {
+                    DataErrorNotice(
+                        message: errorMessage,
+                        retry: {
+                            Task { await dataStore.load(forceRefresh: true) }
+                        }
+                    )
+                }
+
                 if !activeSessions.isEmpty {
                     VStack(alignment: .leading, spacing: 12) {
                         SessionSectionHeader(
@@ -727,20 +739,18 @@ struct StartSessionView: View {
         do {
             if !showReview,
                let preview,
-               draft.playerCount == 4 || draft.playerCount == 6 {
+               draft.keepsMixedScheduleOrder {
                 self.preview = SessionScheduleRandomizer
                     .preservingFixedTeams(in: preview)
             } else {
-                let keepsTeamOrder =
-                    draft.playerCount == 4 || draft.playerCount == 6
-                let requestedPlayers = keepsTeamOrder
+                let requestedPlayers = draft.keepsMixedScheduleOrder
                     ? draft.selectedPlayers
                     : draft.selectedPlayers.shuffled()
                 let serverPreview = try await dataStore.previewSession(
                     players: requestedPlayers,
-                    format: draft.fourPlayerFormat
+                    format: draft.selectedFormat
                 )
-                preview = keepsTeamOrder
+                preview = draft.keepsMixedScheduleOrder
                     ? SessionScheduleRandomizer.preservingFixedTeams(
                         in: serverPreview
                     )
@@ -844,7 +854,8 @@ private struct SessionSetupStep: View {
                 )
 
                 if let selectedPlayerCount {
-                    if selectedPlayerCount == 4 {
+                    if selectedPlayerCount == 4
+                        || selectedPlayerCount == 6 {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("FORMAT")
                                 .font(.caption.weight(.black))
@@ -853,7 +864,7 @@ private struct SessionSetupStep: View {
 
                             Picker(
                                 "Format",
-                                selection: $draft.fourPlayerFormat
+                                selection: selectedFormat
                             ) {
                                 ForEach(FourPlayerSessionFormat.allCases) {
                                     format in
@@ -880,7 +891,7 @@ private struct SessionSetupStep: View {
                             selectPlayer: selectPlayer
                         )
 
-                        if selectedPlayerCount == 6 {
+                        if draft.usesDoublesTeams {
                             SessionDoublesTeamBuilder(
                                 draft: $draft,
                                 namespace: playerTransition,
@@ -918,6 +929,23 @@ private struct SessionSetupStep: View {
         withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
             draft.toggle(player)
         }
+    }
+
+    private var selectedFormat: Binding<FourPlayerSessionFormat> {
+        Binding(
+            get: {
+                selectedPlayerCount == 6
+                    ? draft.sixPlayerFormat
+                    : draft.fourPlayerFormat
+            },
+            set: { format in
+                if selectedPlayerCount == 6 {
+                    draft.sixPlayerFormat = format
+                } else {
+                    draft.fourPlayerFormat = format
+                }
+            }
+        )
     }
 }
 
@@ -989,22 +1017,18 @@ private struct SessionPlayerCountPicker: View {
 }
 
 private struct SessionPlayerCountPlaceholder: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "figure.table.tennis")
-                .font(.system(size: 34, weight: .light))
-                .foregroundStyle(GweiloTheme.accentBright)
-
-            Text("Koliko vas igra?")
-                .font(.headline.weight(.bold))
-
-            Text("Izaberi broj igrača da postaviš sto.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-        }
+        LoopingBundleVideo(
+            resourceName: "SessionPlayerCountPlaceholder",
+            isPlaying: scenePhase == .active && !reduceMotion
+        )
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 240)
-        .accessibilityElement(children: .combine)
+        .aspectRatio(1, contentMode: .fit)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
@@ -1412,7 +1436,7 @@ private struct SessionReviewStep: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
                 if let preview {
-                    if draft.playerCount == 6 {
+                    if draft.usesDoublesTeams {
                         SessionReviewTeams(
                             teams: draft.doublesTeams
                         )
@@ -1464,7 +1488,7 @@ private struct SessionReviewStep: View {
                 .disabled(isRandomizing)
                 .accessibilityLabel(randomizeTitle)
                 .accessibilityHint(
-                    draft.playerCount == 6
+                    draft.usesDoublesTeams
                         ? "Menja singl parove, ali čuva izabrane dubl timove"
                         : "Pravi drugačiji raspored mečeva"
                 )
@@ -1474,7 +1498,7 @@ private struct SessionReviewStep: View {
     }
 
     private var randomizeTitle: String {
-        draft.playerCount == 4 || draft.playerCount == 6
+        draft.keepsMixedScheduleOrder
             ? "Promeni singl raspored"
             : "Promeni raspored"
     }
@@ -1482,12 +1506,20 @@ private struct SessionReviewStep: View {
     private func phaseHeader(
         before round: SessionScheduleRound
     ) -> (title: String, detail: String?)? {
-        switch (draft.playerCount, round.roundNumber) {
-        case (6, 5):
+        switch (
+            draft.playerCount,
+            draft.selectedFormat,
+            round.roundNumber
+        ) {
+        case (6, .mixed, 5):
             ("ZAVRŠNICA", nil)
-        case (4, 1):
+        case (6, .singles, 1), (4, .singles, 1):
+            ("PRVI DEO", nil)
+        case (6, .singles, 6), (4, .singles, 4):
+            ("DRUGI DEO", nil)
+        case (4, .mixed, 1):
             ("SINGLOVI", "svako igra protiv svakoga")
-        case (4, 4):
+        case (4, .mixed, 4):
             ("DUBLOVI", "svako igra sa svakim partnerom")
         default:
             nil

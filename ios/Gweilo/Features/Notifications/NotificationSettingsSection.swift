@@ -7,7 +7,7 @@ struct NotificationSettingsSection: View {
 
     var body: some View {
         Section {
-            LabeledContent("iOS permission") {
+            LabeledContent("iOS dozvola") {
                 Text(manager.authorizationLabel)
                     .foregroundStyle(
                         manager.isSystemAuthorized
@@ -20,13 +20,13 @@ struct NotificationSettingsSection: View {
 
             if let preferences = manager.preferences {
                 Toggle(
-                    "Allow Gweilo notifications",
+                    "Dozvoli Gweilo obaveštenja",
                     isOn: masterBinding(preferences: preferences)
                 )
                 .tint(GweiloTheme.lime)
                 .disabled(manager.isSavingPreference)
 
-                ForEach(PushNotificationPreference.allCases) { preference in
+                ForEach(PushNotificationPreference.visibleCases) { preference in
                     Toggle(
                         isOn: binding(
                             for: preference,
@@ -51,8 +51,8 @@ struct NotificationSettingsSection: View {
                 } label: {
                     Label(
                         manager.isSendingTest
-                            ? "Sending test…"
-                            : "Send test notification",
+                            ? "Šaljem test…"
+                            : "Pošalji test obaveštenje",
                         systemImage: "paperplane"
                     )
                 }
@@ -64,11 +64,11 @@ struct NotificationSettingsSection: View {
             } else if manager.isLoadingPreferences {
                 HStack {
                     ProgressView()
-                    Text("Loading preferences…")
+                    Text("Učitavam podešavanja…")
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Button("Reload preferences", systemImage: "arrow.clockwise") {
+                Button("Učitaj ponovo", systemImage: "arrow.clockwise") {
                     Task { await manager.loadPreferences() }
                 }
             }
@@ -80,10 +80,10 @@ struct NotificationSettingsSection: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         } header: {
-            Text("NOTIFICATIONS")
+            Text("OBAVEŠTENJA")
         } footer: {
             Text(
-                "Your choices apply to every iPhone connected to this Gweilo account. iOS permission must also be enabled on each device."
+                "Podešavanja važe za svaki iPhone povezan sa ovim Gweilo nalogom. iOS dozvola mora biti uključena na svakom uređaju."
             )
         }
     }
@@ -92,11 +92,11 @@ struct NotificationSettingsSection: View {
     private var permissionAction: some View {
         switch manager.authorizationStatus {
         case .notDetermined:
-            Button("Enable notifications", systemImage: "bell.badge") {
+            Button("Uključi obaveštenja", systemImage: "bell.badge") {
                 Task { await manager.requestAuthorization() }
             }
         case .denied:
-            Button("Open iOS Settings", systemImage: "gear") {
+            Button("Otvori iOS podešavanja", systemImage: "gear") {
                 guard let settingsURL = URL(
                     string: UIApplication.openSettingsURLString
                 ) else {
@@ -139,4 +139,3 @@ struct NotificationSettingsSection: View {
         )
     }
 }
-

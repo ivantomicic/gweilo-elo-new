@@ -160,12 +160,12 @@ final class PushNotificationManager {
 
     var authorizationLabel: String {
         switch authorizationStatus {
-        case .notDetermined: "Not enabled"
-        case .denied: "Blocked in iOS Settings"
-        case .authorized: "Enabled"
-        case .provisional: "Delivered quietly"
-        case .ephemeral: "Temporarily enabled"
-        @unknown default: "Unknown"
+        case .notDetermined: "Nije uključeno"
+        case .denied: "Blokirano u iOS podešavanjima"
+        case .authorized: "Uključeno"
+        case .provisional: "Tiha isporuka"
+        case .ephemeral: "Privremeno uključeno"
+        @unknown default: "Nepoznato"
         }
     }
 
@@ -219,12 +219,12 @@ final class PushNotificationManager {
             await refreshAuthorizationStatus()
             if granted {
                 UIApplication.shared.registerForRemoteNotifications()
-                statusMessage = "Notifications are enabled."
+                statusMessage = "Obaveštenja su uključena."
             } else {
-                statusMessage = "Notifications were not enabled."
+                statusMessage = "Obaveštenja nisu uključena."
             }
         } catch {
-            statusMessage = "iOS could not enable notifications."
+            statusMessage = "iOS nije uspeo da uključi obaveštenja."
         }
     }
 
@@ -270,12 +270,12 @@ final class PushNotificationManager {
             switch response.result.status {
             case "configuration_required":
                 statusMessage =
-                    "The app is ready, but Apple APNs credentials still need to be connected."
+                    "Aplikacija je spremna, ali Apple APNs podaci još nisu povezani."
             case "no_recipients":
                 statusMessage =
-                    "This iPhone has not finished registering with Apple yet."
+                    "Ovaj iPhone još nije završio registraciju kod Apple-a."
             default:
-                statusMessage = "Test notification requested."
+                statusMessage = "Test obaveštenje je poslato."
             }
         } catch {
             statusMessage = error.localizedDescription
@@ -288,7 +288,7 @@ final class PushNotificationManager {
     }
 
     func didFailToRegisterForRemoteNotifications(error: Error) {
-        statusMessage = "Apple registration failed: \(error.localizedDescription)"
+        statusMessage = "Apple registracija nije uspela: \(error.localizedDescription)"
     }
 
     func unregisterCurrentDevice() async {

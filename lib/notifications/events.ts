@@ -12,9 +12,13 @@ export function notifySessionStarted({
 	return dispatchNotificationSafely({
 		eventType: "session_started",
 		category: "sessions",
-		title: "Session started",
-		body: `${playerCount} players are ready. Open Gweilo to see Round 1.`,
-		audience: { type: "session", sessionId },
+		title: "Sesija je počela",
+		body: `${playerCount} igrača je spremno. Otvori Gweilo i pogledaj prvu rundu.`,
+		audience: {
+			type: "session",
+			sessionId,
+			excludeUserIds: [createdBy],
+		},
 		data: {
 			sessionId,
 			route: "session",
@@ -25,51 +29,25 @@ export function notifySessionStarted({
 	});
 }
 
-export function notifyRoundReady({
-	sessionId,
-	completedRound,
-	nextRound,
-	createdBy,
-}: {
-	sessionId: string;
-	completedRound: number;
-	nextRound: number;
-	createdBy: string;
-}) {
-	return dispatchNotificationSafely({
-		eventType: "round_ready",
-		category: "rounds",
-		title: `Round ${nextRound} is ready`,
-		body: `Round ${completedRound} was saved. Open Gweilo for the next matches.`,
-		audience: { type: "session", sessionId },
-		data: {
-			sessionId,
-			roundNumber: nextRound,
-			route: "session",
-		},
-		dedupeKey: `session:${sessionId}:round:${nextRound}:ready`,
-		collapseId: `session-${sessionId}`,
-		createdBy,
-	});
-}
-
 export function notifySessionCompleted({
 	sessionId,
 	createdBy,
 	forceClosed = false,
+	excludeUserIds = [],
 }: {
 	sessionId: string;
 	createdBy: string;
 	forceClosed?: boolean;
+	excludeUserIds?: string[];
 }) {
 	return dispatchNotificationSafely({
 		eventType: "session_completed",
 		category: "results",
-		title: "Session completed",
+		title: "Sesija je završena",
 		body: forceClosed
-			? "The session was closed. Open Gweilo to review the recorded results."
-			: "All rounds are complete. Your results and updated Elo are ready.",
-		audience: { type: "session", sessionId },
+			? "Sesija je zatvorena. Otvori Gweilo i pogledaj rezultate."
+			: "Sve runde su završene. Pogledaj rezultate i novi Elo.",
+		audience: { type: "session", sessionId, excludeUserIds },
 		data: {
 			sessionId,
 			route: "session",
@@ -92,7 +70,7 @@ export function notifyPollCreated({
 	return dispatchNotificationSafely({
 		eventType: "poll_created",
 		category: "polls",
-		title: "New Gweilo poll",
+		title: "Nova Gweilo anketa",
 		body: question,
 		audience: { type: "all" },
 		data: {

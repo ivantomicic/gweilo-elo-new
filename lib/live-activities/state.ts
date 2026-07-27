@@ -8,6 +8,10 @@ type SessionRow = {
 	id: string;
 	status: "active" | "completed";
 	player_count: number;
+	best_player_display_name: string | null;
+	best_player_delta: number | string | null;
+	worst_player_display_name: string | null;
+	worst_player_delta: number | string | null;
 };
 
 type MatchRow = {
@@ -32,6 +36,12 @@ function sideNames(
 		.join(" & ");
 }
 
+function roundedDelta(value: number | string | null) {
+	if (value === null) return null;
+	const delta = Number(value);
+	return Number.isFinite(delta) ? Math.round(delta) : null;
+}
+
 export async function buildSessionLiveActivitySnapshot(
 	admin: SupabaseClient,
 	sessionID: string,
@@ -43,7 +53,9 @@ export async function buildSessionLiveActivitySnapshot(
 		await Promise.all([
 			admin
 				.from("sessions")
-				.select("id, status, player_count")
+				.select(
+					"id, status, player_count, best_player_display_name, best_player_delta, worst_player_display_name, worst_player_delta",
+				)
 				.eq("id", sessionID)
 				.single(),
 			admin
@@ -93,8 +105,14 @@ export async function buildSessionLiveActivitySnapshot(
 			? totalRounds
 			: (pending[0]?.round_number ?? Math.min(totalRounds, 1));
 	const currentMatches = pending
-		.filter((match) => match.round_number === currentRound)
-		.slice(0, 2);
+		.filter((match) => match.round_number === currentRound);
+	const nextRound = pending.find(
+		(match) => match.round_number > currentRound,
+	)?.round_number;
+	const nextMatches =
+		nextRound === undefined
+			? []
+			: pending.filter((match) => match.round_number === nextRound);
 	const latest = completed.at(-1);
 	const latestIDs = latest?.player_ids ?? [];
 	const latestResult =
@@ -128,7 +146,21 @@ export async function buildSessionLiveActivitySnapshot(
 					kind: match.match_type === "doubles" ? "DUBL" : "SINGL",
 				};
 			}),
+			playerNames: playerIDs.map((id) => names.get(id) ?? "Igrač"),
+			nextMatchups: nextMatches.map((match) => {
+				const ids = match.player_ids ?? [];
+				const sideSize = match.match_type === "doubles" ? 2 : 1;
+				return {
+					left: sideNames(ids, names, 0, sideSize),
+					right: sideNames(ids, names, sideSize, sideSize),
+					kind: match.match_type === "doubles" ? "DUBL" : "SINGL",
+				};
+			}),
 			latestResult,
+			bestPlayerName: sessionRow.best_player_display_name,
+			bestPlayerDelta: roundedDelta(sessionRow.best_player_delta),
+			worstPlayerName: sessionRow.worst_player_display_name,
+			worstPlayerDelta: roundedDelta(sessionRow.worst_player_delta),
 		},
 	};
 }

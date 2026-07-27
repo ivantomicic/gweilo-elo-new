@@ -198,6 +198,7 @@ export async function prepareSessionLiveActivityCancellation(sessionID: string) 
 			status: "cancelled",
 			headline: "Sesija je otkazana",
 			matchups: [],
+			nextMatchups: [],
 		};
 		await dispatch(
 			admin,

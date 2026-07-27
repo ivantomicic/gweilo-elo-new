@@ -11,6 +11,7 @@ struct ScoreEntryView: View {
     let detail: SessionDetail
     let submit: ([RoundMatchScoreSubmission]) async throws -> RoundSubmissionResult
     let onSubmitted: () async -> Void
+    let onFocusedMatchChanged: (UUID) -> Void
 
     @State private var draft = RoundScoreDraft(matches: [])
     @State private var showsSubmitConfirmation = false
@@ -22,21 +23,21 @@ struct ScoreEntryView: View {
         round: SessionRound,
         detail: SessionDetail,
         submit: @escaping ([RoundMatchScoreSubmission]) async throws -> RoundSubmissionResult,
-        onSubmitted: @escaping () async -> Void = {}
+        onSubmitted: @escaping () async -> Void = {},
+        onFocusedMatchChanged: @escaping (UUID) -> Void = { _ in }
     ) {
         self.round = round
         self.detail = detail
         self.submit = submit
         self.onSubmitted = onSubmitted
+        self.onFocusedMatchChanged = onFocusedMatchChanged
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             RoundHeader(
                 round: round,
-                detail: detail,
-                isSubmitting: isSubmitting,
-                reset: reset
+                detail: detail
             )
 
             ForEach(round.matches) { match in
@@ -50,6 +51,7 @@ struct ScoreEntryView: View {
                     focusedScore: $focusedScore
                 )
                 .disabled(isSubmitting)
+                .id(match.id)
             }
 
             RestingLine(players: round.restingPlayers)
@@ -78,36 +80,76 @@ struct ScoreEntryView: View {
             errorMessage = nil
             focusedScore = nil
         }
+        .onChange(of: focusedScore?.matchID) { _, matchID in
+            guard let matchID else { return }
+            onFocusedMatchChanged(matchID)
+        }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
-                Button("Done") {
+                Button("Gotovo") {
                     focusedScore = nil
                 }
             }
         }
-        .confirmationDialog(
-            "Save Round \(round.number)?",
-            isPresented: $showsSubmitConfirmation,
-            titleVisibility: .visible
+        .alert(
+            "Sačuvati rundu \(round.number)?",
+            isPresented: $showsSubmitConfirmation
         ) {
-            Button("Save all \(round.matches.count) matches") {
+            Button("Sačuvaj") {
                 Task { await submitRound() }
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Odustani", role: .cancel) {}
         } message: {
-            Text("Every result is saved together. The server applies Elo exactly once.")
+            Text("Svi rezultati biće sačuvani odjednom.")
         }
     }
 
     private func scoreBinding(for matchID: UUID, team: Int) -> Binding<Int?> {
-        Binding(
+        let field = ScoreField(matchID: matchID, team: team)
+
+        return Binding(
             get: { draft.score(for: matchID, team: team) },
-            set: {
-                draft.setScore($0, for: matchID, team: team)
+            set: { newScore in
+                let previousScore = draft.score(for: matchID, team: team)
+                draft.setScore(newScore, for: matchID, team: team)
                 errorMessage = nil
+
+                guard previousScore == nil, newScore != nil else { return }
+                advanceFocus(after: field)
             }
         )
+    }
+
+    private func advanceFocus(after completedField: ScoreField) {
+        Task { @MainActor in
+            await Task.yield()
+            guard focusedScore == completedField else { return }
+            focusedScore = nextEmptyField(after: completedField)
+        }
+    }
+
+    private func nextEmptyField(after completedField: ScoreField) -> ScoreField? {
+        let fields = round.matches.flatMap { match in
+            [
+                ScoreField(matchID: match.id, team: 1),
+                ScoreField(matchID: match.id, team: 2)
+            ]
+        }
+        guard let completedIndex = fields.firstIndex(of: completedField) else {
+            return fields.first(where: isEmpty)
+        }
+
+        let followingFields = fields.dropFirst(completedIndex + 1)
+        if let nextField = followingFields.first(where: isEmpty) {
+            return nextField
+        }
+
+        return fields.prefix(completedIndex).first(where: isEmpty)
+    }
+
+    private func isEmpty(_ field: ScoreField) -> Bool {
+        draft.score(for: field.matchID, team: field.team) == nil
     }
 
     private func requestSubmit() {
@@ -124,7 +166,7 @@ struct ScoreEntryView: View {
             !isSubmitting,
             let scores = draft.submissions(for: round.matches)
         else {
-            errorMessage = "Enter both scores for every match."
+            errorMessage = "Unesi oba rezultata za svaki meč."
             return
         }
 
@@ -146,13 +188,6 @@ struct ScoreEntryView: View {
         }
     }
 
-    private func reset() {
-        draft.reset()
-        errorMessage = nil
-        if hapticsEnabled {
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        }
-    }
 }
 
 private struct ScoreField: Hashable {
@@ -163,15 +198,13 @@ private struct ScoreField: Hashable {
 private struct RoundHeader: View {
     let round: SessionRound
     let detail: SessionDetail
-    let isSubmitting: Bool
-    let reset: () -> Void
 
     private var matchSummary: String {
         let singles = round.matches.filter { $0.type == .singles }.count
         let doubles = round.matches.count - singles
         return [
-            doubles > 0 ? "\(doubles) doubles" : nil,
-            singles > 0 ? "\(singles) singles" : nil
+            doubles > 0 ? "\(doubles) \(doubles == 1 ? "dubl" : "dubla")" : nil,
+            singles > 0 ? "\(singles) \(singles == 1 ? "singl" : "singla")" : nil
         ]
         .compactMap { $0 }
         .joined(separator: " · ")
@@ -179,40 +212,9 @@ private struct RoundHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(GweiloTheme.lime)
-                            .frame(width: 7, height: 7)
-
-                        Text("LIVE")
-                            .font(GweiloTheme.labelFont(size: 10, relativeTo: .caption2))
-                            .tracking(1.4)
-                            .foregroundStyle(GweiloTheme.lime)
-                    }
-
-                    Text("Round \(round.number)")
-                        .font(GweiloTheme.displayFont(size: 31, relativeTo: .title2))
-                        .foregroundStyle(GweiloTheme.bone)
-                }
-
-                Spacer()
-
-                Button(action: reset) {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.subheadline.weight(.semibold))
-                        .frame(width: 40, height: 40)
-                        .background(
-                            GweiloTheme.raisedSurface,
-                            in: .rect(cornerRadius: 10)
-                        )
-                }
-                .buttonStyle(ResponsiveButtonStyle())
-                .foregroundStyle(GweiloTheme.accentBright)
-                .disabled(isSubmitting)
-                .accessibilityLabel("Reset round scores")
-            }
+            Text("Runda \(round.number)")
+                .font(GweiloTheme.displayFont(size: 31, relativeTo: .title2))
+                .foregroundStyle(GweiloTheme.bone)
 
             RoundProgress(
                 currentRound: round.number,
@@ -226,7 +228,7 @@ private struct RoundHeader: View {
 
                 Spacer()
 
-                Text("\(round.number) of \(detail.session.totalRounds)")
+                Text("\(round.number) od \(detail.session.totalRounds)")
                     .font(.caption.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -252,7 +254,7 @@ private struct RoundProgress: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Round \(currentRound) of \(totalRounds)")
+        .accessibilityLabel("Runda \(currentRound) od \(totalRounds)")
     }
 }
 
@@ -308,7 +310,6 @@ private struct MatchScoreEditor: View {
                 name: names.0,
                 participants: teamOneParticipants,
                 prediction: match.eloPrediction?.team1,
-                ratingLabel: match.type == .doubles ? "Team" : "Elo",
                 score: $teamOneScore,
                 focus: teamOneFocus,
                 focusedScore: focusedScore
@@ -320,7 +321,6 @@ private struct MatchScoreEditor: View {
                 name: names.1,
                 participants: teamTwoParticipants,
                 prediction: match.eloPrediction?.team2,
-                ratingLabel: match.type == .doubles ? "Team" : "Elo",
                 score: $teamTwoScore,
                 focus: teamTwoFocus,
                 focusedScore: focusedScore
@@ -339,7 +339,6 @@ private struct MatchSide: View {
     let name: String
     let participants: [SessionParticipant]
     let prediction: EloSidePrediction?
-    let ratingLabel: String
     @Binding var score: Int?
     let focus: ScoreField
     let focusedScore: FocusState<ScoreField?>.Binding
@@ -351,16 +350,22 @@ private struct MatchSide: View {
             ScoreEntryAvatarStack(participants: participants)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(name)
-                    .font(.headline)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.78)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(name)
+                        .font(.headline)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+
+                    if let prediction {
+                        Text("\(Int(prediction.rating.rounded())) Elo")
+                            .font(.caption.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
 
                 if let prediction {
-                    EloPredictionStrip(
-                        prediction: prediction,
-                        ratingLabel: ratingLabel
-                    )
+                    EloPredictionStrip(prediction: prediction)
                 }
             }
 
@@ -394,23 +399,16 @@ private struct MatchSide: View {
 
 private struct EloPredictionStrip: View {
     let prediction: EloSidePrediction
-    let ratingLabel: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("\(ratingLabel) \(Int(prediction.rating.rounded()))")
-                .font(.caption2.monospacedDigit().weight(.semibold))
-                .foregroundStyle(GweiloTheme.muted)
-
-            HStack(spacing: 7) {
-                PredictionDelta(label: "W", value: prediction.win, color: GweiloTheme.lime)
-                PredictionDelta(label: "D", value: prediction.draw, color: GweiloTheme.amber)
-                PredictionDelta(label: "L", value: prediction.loss, color: GweiloTheme.coral)
-            }
+        HStack(spacing: 7) {
+            PredictionDelta(label: "W", value: prediction.win, color: GweiloTheme.lime)
+            PredictionDelta(label: "D", value: prediction.draw, color: GweiloTheme.amber)
+            PredictionDelta(label: "L", value: prediction.loss, color: GweiloTheme.coral)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(ratingLabel) \(Int(prediction.rating.rounded())). "
+            "Elo \(Int(prediction.rating.rounded())). "
                 + "Win \(formatted(prediction.win)), "
                 + "draw \(formatted(prediction.draw)), "
                 + "loss \(formatted(prediction.loss)) Elo"
@@ -501,12 +499,12 @@ private struct SubmitRoundBar: View {
                 if isSubmitting {
                     ProgressView()
                         .tint(GweiloTheme.background)
-                    Text("Saving…")
+                    Text("Čuvam…")
                 } else {
                     Text(
                         isReady
-                            ? (isFinalRound ? "Finish session" : "Save & next round")
-                            : "Enter every score"
+                            ? (isFinalRound ? "Završi sesiju" : "Sačuvaj i nastavi")
+                            : "Unesi sve rezultate"
                     )
                     Spacer()
                     Image(systemName: isFinalRound ? "checkmark" : "arrow.right")
@@ -517,8 +515,8 @@ private struct SubmitRoundBar: View {
         .disabled(!isReady || isSubmitting)
         .accessibilityHint(
             isReady
-                ? "Saves every match and advances to the next round"
-                : "Enter both scores for every match first"
+                ? "Čuva sve mečeve i prelazi na sledeću rundu"
+                : "Prvo unesi oba rezultata za svaki meč"
         )
     }
 }

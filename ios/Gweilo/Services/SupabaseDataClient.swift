@@ -548,12 +548,29 @@ enum LiveDataError: LocalizedError {
 }
 
 private struct RoundSubmissionRequest: Encodable {
-    let matchScores: [RoundMatchScoreSubmission]
+    private struct MatchScore: Encodable {
+        let matchId: String
+        let team1Score: Int
+        let team2Score: Int
+    }
+
+    private let matchScores: [MatchScore]
+
+    init(matchScores: [RoundMatchScoreSubmission]) {
+        self.matchScores = matchScores.map { score in
+            MatchScore(
+                matchId: score.matchId.uuidString.lowercased(),
+                team1Score: score.team1Score,
+                team2Score: score.team2Score
+            )
+        }
+    }
 }
 
 private struct APIErrorResponse: Decodable {
     let error: String?
     let detail: String?
+    let details: String?
 }
 
 private struct AdminUsersResponse: Decodable {
@@ -577,6 +594,7 @@ private struct SessionCreationRequest: Encodable {
     let players: [SessionPlayerPayload]
     let rounds: [SessionScheduleRound]?
     let fourPlayerFormat: FourPlayerSessionFormat
+    let sixPlayerFormat: FourPlayerSessionFormat?
 }
 
 private struct ActiveSessionResponse: Decodable {
@@ -783,12 +801,22 @@ struct RoundSubmissionResult: Decodable, Sendable {
 enum BackendAPIError: LocalizedError {
     case invalidResponse
     case rejected(String)
+    case sessionNotFound(String)
+
+    var isSessionNotFound: Bool {
+        if case .sessionNotFound = self {
+            return true
+        }
+        return false
+    }
 
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
             "The Gweilo server returned an invalid response."
         case let .rejected(message):
+            message
+        case let .sessionNotFound(message):
             message
         }
     }
@@ -819,8 +847,24 @@ struct GweiloAPIClient: Sendable {
             let fallback = httpResponse.statusCode == 401
                 ? "Your login expired. Reopen the app and try again."
                 : "The round could not be submitted."
+            let message =
+                if httpResponse.statusCode >= 500 {
+                    errorResponse?.details ??
+                    errorResponse?.detail ??
+                    errorResponse?.error ??
+                    fallback
+                } else {
+                    errorResponse?.error ??
+                    errorResponse?.detail ??
+                    errorResponse?.details ??
+                    fallback
+                }
+            if httpResponse.statusCode == 404,
+               errorResponse?.error == "Session not found" {
+                throw BackendAPIError.sessionNotFound(message)
+            }
             throw BackendAPIError.rejected(
-                errorResponse?.error ?? errorResponse?.detail ?? fallback
+                message
             )
         }
 
@@ -839,6 +883,7 @@ struct GweiloAPIClient: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("ios", forHTTPHeaderField: "X-Gweilo-Client")
         request.httpBody = try JSONEncoder().encode(
             RoundSubmissionRequest(matchScores: scores)
         )
@@ -1062,7 +1107,7 @@ struct GweiloAPIClient: Sendable {
             path: "api/sessions",
             players: preview.players,
             rounds: preview.rounds,
-            format: draft.fourPlayerFormat
+            format: draft.selectedFormat
         )
         request.setValue(
             draft.idempotencyKey.uuidString.lowercased(),
@@ -1243,7 +1288,8 @@ struct GweiloAPIClient: Sendable {
                     )
                 },
                 rounds: rounds,
-                fourPlayerFormat: format
+                fourPlayerFormat: format,
+                sixPlayerFormat: players.count == 6 ? format : nil
             )
         )
         return request

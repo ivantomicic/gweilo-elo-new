@@ -5,6 +5,8 @@ struct PlayerIdentityAvatar: View {
     let initials: String
     let avatarURL: URL?
     let size: CGFloat
+    var showsBorder = true
+    var softlyFadesAtEdge = false
 
     var body: some View {
         AsyncImage(url: avatarURL, transaction: Transaction(animation: nil)) { phase in
@@ -25,20 +27,41 @@ struct PlayerIdentityAvatar: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(.circle)
-        .overlay {
-            Circle()
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            GweiloTheme.accent.opacity(0.65),
-                            GweiloTheme.hairline
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.9
+        .mask {
+            if softlyFadesAtEdge {
+                RadialGradient(
+                    stops: [
+                        .init(color: .white, location: 0),
+                        .init(color: .white, location: 0.76),
+                        .init(
+                            color: .white.opacity(0.9),
+                            location: 0.86
+                        ),
+                        .init(color: .clear, location: 1)
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: size / 2
                 )
+            } else {
+                Circle()
+            }
+        }
+        .overlay {
+            if showsBorder {
+                Circle()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                GweiloTheme.accent.opacity(0.65),
+                                GweiloTheme.hairline
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 0.9
+                    )
+            }
         }
         .accessibilityLabel(name)
     }
