@@ -6,6 +6,7 @@ import { Box } from "@/components/ui/box";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
+import { formatRoundedEloChange } from "@/components/ui/stats-table-cells";
 import { t } from "@/lib/i18n";
 
 type BestWorstPlayer = {
@@ -146,11 +147,9 @@ export function SessionCard({
 												t.sessions.unknown}
 										</span>
 										<span className="text-emerald-400 font-semibold ml-1">
-											(+
-											{Math.round(
-												Number(
-													bestWorst.best_player_delta
-												)
+											(
+											{formatRoundedEloChange(
+												Number(bestWorst.best_player_delta),
 											)}
 											)
 										</span>
@@ -168,10 +167,8 @@ export function SessionCard({
 										</span>
 										<span className="text-red-400 font-semibold ml-1">
 											(
-											{Math.round(
-												Number(
-													bestWorst.worst_player_delta
-												)
+											{formatRoundedEloChange(
+												Number(bestWorst.worst_player_delta),
 											)}
 											)
 										</span>

@@ -3,7 +3,7 @@ import { revalidateTag } from "next/cache";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
-import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
+import { refreshSessionBestWorstPlayer } from "@/lib/elo/best-worst-player";
 import {
 	claimRoundSubmission,
 	failRoundSubmission,
@@ -85,19 +85,7 @@ async function getMaxRoundNumber(
 
 async function finalizeSessionMetadata(adminClient: AdminClient, sessionId: string) {
 	try {
-		const bestWorst = await calculateBestWorstPlayer(sessionId);
-		const { error } = await adminClient
-			.from("sessions")
-			.update({
-				best_player_id: bestWorst.best_player_id,
-				best_player_display_name: bestWorst.best_player_display_name,
-				best_player_delta: bestWorst.best_player_delta,
-				worst_player_id: bestWorst.worst_player_id,
-				worst_player_display_name: bestWorst.worst_player_display_name,
-				worst_player_delta: bestWorst.worst_player_delta,
-			})
-			.eq("id", sessionId);
-		if (error) console.error("Error updating completed-session metadata:", error);
+		await refreshSessionBestWorstPlayer(sessionId, adminClient);
 	} catch (error) {
 		// Core completion and snapshots are already committed atomically. These
 		// display-only fields must not turn a successful settlement into a 500.

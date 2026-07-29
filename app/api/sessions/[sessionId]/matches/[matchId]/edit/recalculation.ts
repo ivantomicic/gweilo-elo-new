@@ -18,6 +18,7 @@ import {
 	type MatchResult,
 } from "@/lib/elo/calculation";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
 
 type RunMatchEditRecalculationParams = {
 	adminClient: ReturnType<typeof createAdminClient>;
@@ -2375,15 +2376,23 @@ export async function runMatchEditRecalculation({
 			}
 		}
 
-		// Step 8: Release lock
-		await adminClient
+		const bestWorst = await calculateBestWorstPlayer(sessionId, adminClient);
+
+		// Step 8: Release lock and refresh list metadata from committed history
+		const { error: sessionUpdateError } = await adminClient
 			.from("sessions")
 			.update({
 				recalc_status: "done",
 				recalc_finished_at: new Date().toISOString(),
 				recalc_token: null,
+				...bestWorst,
 			})
 			.eq("id", sessionId);
+		if (sessionUpdateError) {
+			throw new Error(
+				`Failed to refresh session metadata: ${sessionUpdateError.message}`,
+			);
+		}
 
 		return NextResponse.json({
 			success: true,

@@ -3,7 +3,10 @@ import { revalidateTag } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
+import {
+	calculateBestWorstPlayer,
+	refreshSessionBestWorstPlayer,
+} from "@/lib/elo/best-worst-player";
 import { captureCompletedSessionSnapshots } from "@/lib/elo/snapshots";
 import { notifySessionCompleted } from "@/lib/notifications/events";
 import { endSessionLiveActivitySafely } from "@/lib/live-activities/service";
@@ -109,6 +112,7 @@ export async function POST(
 
 		// If already completed, return success (idempotent)
 		if (session.status === "completed") {
+			await refreshSessionBestWorstPlayer(sessionId, adminClient);
 			const [
 				{ data: latestCompletedSession },
 				{ count: nonCompletedSessionCount },
@@ -148,7 +152,7 @@ export async function POST(
 		}
 
 		// Calculate best/worst player and mark session as completed
-		const bestWorst = await calculateBestWorstPlayer(sessionId);
+		const bestWorst = await calculateBestWorstPlayer(sessionId, adminClient);
 
 		const { error: updateError } = await adminClient
 			.from("sessions")

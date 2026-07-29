@@ -5,6 +5,7 @@ import {
 	createEloSnapshots,
 } from "@/lib/elo/snapshots";
 import { updateDoublesRatings, updateSinglesRatings } from "@/lib/elo/updates";
+import { refreshSessionBestWorstPlayer } from "@/lib/elo/best-worst-player";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -334,6 +335,7 @@ export async function rebuildAllEloData({
 		}
 
 		await captureCompletedSessionSnapshots(session.id, adminClient);
+		await refreshSessionBestWorstPlayer(session.id, adminClient);
 	}
 
 	const [

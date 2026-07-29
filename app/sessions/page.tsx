@@ -41,7 +41,7 @@ type Session = {
 };
 
 const PAGE_SIZE = 5;
-const SESSIONS_CACHE_VERSION = 1;
+const SESSIONS_CACHE_VERSION = 2;
 const SESSIONS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 type SessionsCache = {
@@ -228,8 +228,7 @@ function SessionsPageContent() {
 						doubles: 0,
 					};
 					
-					// Map best/worst player data from database columns (if available)
-					// Fallback to null if not in database (will calculate dynamically)
+					// Map cached best/worst player data from the session row.
 					const bestWorstPlayer =
 						session.best_player_id ||
 						session.worst_player_id
@@ -243,7 +242,7 @@ function SessionsPageContent() {
 											: null) ||
 										session.best_player_display_name ||
 										null,
-									best_player_delta: session.best_player_delta || null,
+									best_player_delta: session.best_player_delta ?? null,
 									worst_player_id: session.worst_player_id || null,
 									worst_player_display_name:
 										(session.worst_player_id
@@ -253,8 +252,8 @@ function SessionsPageContent() {
 											: null) ||
 										session.worst_player_display_name ||
 										null,
-									worst_player_delta: session.worst_player_delta || null,
-							  }
+									worst_player_delta: session.worst_player_delta ?? null,
+								}
 							: null;
 
 					return {
