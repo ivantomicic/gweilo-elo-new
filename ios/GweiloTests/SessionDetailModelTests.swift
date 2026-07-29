@@ -87,6 +87,58 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(EloPerformanceBand(delta: nil), .steady)
     }
 
+    func testCalculatorUsesTheSameDynamicKFactorThresholdsAsTheWebApp() {
+        XCTAssertEqual(EloCalculator.kFactor(matchesPlayed: 0), 40)
+        XCTAssertEqual(EloCalculator.kFactor(matchesPlayed: 9), 40)
+        XCTAssertEqual(EloCalculator.kFactor(matchesPlayed: 10), 32)
+        XCTAssertEqual(EloCalculator.kFactor(matchesPlayed: 39), 32)
+        XCTAssertEqual(EloCalculator.kFactor(matchesPlayed: 40), 24)
+    }
+
+    func testCalculatorProducesExpectedEqualRatingOutcomes() {
+        XCTAssertEqual(
+            EloCalculator.delta(
+                playerElo: 1_500,
+                opponentElo: 1_500,
+                result: .win,
+                matchesPlayed: 0
+            ),
+            20,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            EloCalculator.delta(
+                playerElo: 1_500,
+                opponentElo: 1_500,
+                result: .draw,
+                matchesPlayed: 10
+            ),
+            0,
+            accuracy: 0.000_001
+        )
+        XCTAssertEqual(
+            EloCalculator.delta(
+                playerElo: 1_500,
+                opponentElo: 1_500,
+                result: .loss,
+                matchesPlayed: 40
+            ),
+            -12,
+            accuracy: 0.000_001
+        )
+    }
+
+    func testCalculatorPreservesDecimalPrecision() {
+        let delta = EloCalculator.delta(
+            playerElo: 1_717.51,
+            opponentElo: 1_626.17,
+            result: .win,
+            matchesPlayed: 219
+        )
+
+        XCTAssertEqual(delta, 8.915_954_374, accuracy: 0.000_001)
+    }
+
     @MainActor
     func testExpiringCacheReturnsStaleValueOnlyAsCachedContent() {
         let playerID = UUID()

@@ -121,7 +121,7 @@ private struct RankingsHeader: View {
                         .tracking(1.8)
                         .foregroundStyle(GweiloTheme.lime)
 
-                    Text("RANG LISTA")
+                    Text("STATISTIKA")
                         .font(GweiloTheme.displayFont(size: 46, relativeTo: .largeTitle))
                         .tracking(-0.5)
                         .foregroundStyle(GweiloTheme.bone)
@@ -186,7 +186,7 @@ private struct RankingsHeader: View {
             }
             .sensoryFeedback(.selection, trigger: category)
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Kategorija rangiranja")
+            .accessibilityLabel("Kategorija statistike")
             .overlay(alignment: .bottom) {
                 Rectangle()
                     .fill(GweiloTheme.hairline)
@@ -224,13 +224,13 @@ private struct RankingsContent: View {
 
     var body: some View {
         if isLoading, entries.isEmpty {
-            GweiloLoadingView("Učitavanje rang-liste…")
+            GweiloLoadingView("Učitavanje statistike…")
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 60)
         } else if let errorMessage, entries.isEmpty {
             ContentUnavailableView {
                 Label(
-                    "Nije moguće učitati rang-listu",
+                    "Nije moguće učitati statistiku",
                     systemImage: "wifi.exclamationmark"
                 )
             } description: {

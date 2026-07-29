@@ -94,7 +94,7 @@ struct SessionDetailView: View {
                 }
             }
         }
-        .navigationTitle("Sesija")
+        .navigationTitle("Termin")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar {
@@ -112,7 +112,7 @@ struct SessionDetailView: View {
                             Image(systemName: "ellipsis")
                         }
                     }
-                    .accessibilityLabel("Opcije sesije")
+                    .accessibilityLabel("Opcije termina")
                 }
             }
         }
@@ -132,11 +132,11 @@ struct SessionDetailView: View {
             Button(managementButtonTitle, role: .destructive) {
                 Task { await manageActiveSession() }
             }
-            Button("Zadrži sesiju", role: .cancel) {}
+            Button("Zadrži termin", role: .cancel) {}
         } message: {
             Text(managementConfirmationMessage)
         }
-        .alert("Sesija nije ažurirana", isPresented: managementErrorBinding) {
+        .alert("Termin nije ažuriran", isPresented: managementErrorBinding) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(managementErrorMessage ?? "Pokušaj ponovo.")
@@ -156,18 +156,18 @@ struct SessionDetailView: View {
     }
 
     private var managementButtonTitle: String {
-        isCancelling ? "Otkaži sesiju" : "Završi sesiju"
+        isCancelling ? "Otkaži termin" : "Završi termin"
     }
 
     private var managementConfirmationTitle: String {
-        isCancelling ? "Otkazati ovu sesiju?" : "Završiti ovu sesiju?"
+        isCancelling ? "Otkazati ovaj termin?" : "Završiti ovaj termin?"
     }
 
     private var managementConfirmationMessage: String {
         if isCancelling {
-            return "Nijedan rezultat nije unet, pa će sesija biti uklonjena."
+            return "Nijedan rezultat nije unet, pa će termin biti uklonjen."
         }
-        return "Uneti rezultati će biti sačuvani, a sesija odmah završena."
+        return "Uneti rezultati će biti sačuvani, a termin odmah završen."
     }
 
     private func currentRound(in detail: SessionDetail) -> SessionRound? {
@@ -553,7 +553,7 @@ private struct PerformanceTableHeader: View {
         HStack(spacing: 8) {
             Text(category == .doublesTeams ? "TIM" : "IGRAČ")
             Spacer()
-            Text("UČINAK")
+            Text("FORMA")
                 .frame(width: 56, alignment: .center)
             Text("ELO")
                 .frame(width: 60, alignment: .trailing)
@@ -605,7 +605,7 @@ private struct PerformanceTableRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            SessionRecordBar(
+            SessionFormBar(
                 matches: performance.matchesPlayed,
                 wins: performance.wins,
                 draws: performance.draws,
@@ -664,7 +664,7 @@ private struct TeamPerformanceTableRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            SessionRecordBar(
+            SessionFormBar(
                 matches: performance.matchesPlayed,
                 wins: performance.wins,
                 draws: performance.draws,
@@ -834,51 +834,64 @@ private struct SessionEloResult: View {
     }
 }
 
-private struct SessionRecordBar: View {
+private struct SessionFormBar: View {
     let matches: Int
     let wins: Int
     let draws: Int
     let losses: Int
 
-    private var total: CGFloat {
-        CGFloat(max(matches, 1))
+    private var colors: [Color] {
+        let recordedResults = wins + draws + losses
+        let unrecordedMatches = max(0, matches - recordedResults)
+
+        return Array(repeating: GweiloTheme.lime, count: wins)
+            + Array(repeating: GweiloTheme.amber, count: draws)
+            + Array(repeating: GweiloTheme.coral, count: losses)
+            + Array(repeating: GweiloTheme.surface, count: unrecordedMatches)
     }
 
-    var body: some View {
-        GeometryReader { proxy in
-            let spacing = CGFloat(1)
-            let availableWidth = max(0, proxy.size.width - (spacing * 2))
+    private var gradient: LinearGradient {
+        let resultColors = colors.isEmpty ? [GweiloTheme.surface] : colors
+        var stops = [
+            Gradient.Stop(color: resultColors[0], location: 0)
+        ]
 
-            HStack(spacing: spacing) {
-                recordSegment(
-                    count: wins,
-                    color: GweiloTheme.lime,
-                    availableWidth: availableWidth
+        if resultColors.count > 1 {
+            for index in 0..<(resultColors.count - 1) {
+                let boundary = Double(index + 1) / Double(resultColors.count)
+                stops.append(
+                    Gradient.Stop(
+                        color: resultColors[index],
+                        location: max(0, boundary - 0.1)
+                    )
                 )
-                recordSegment(
-                    count: draws,
-                    color: GweiloTheme.amber,
-                    availableWidth: availableWidth
-                )
-                recordSegment(
-                    count: losses,
-                    color: GweiloTheme.coral,
-                    availableWidth: availableWidth
+                stops.append(
+                    Gradient.Stop(
+                        color: resultColors[index + 1],
+                        location: min(1, boundary + 0.1)
+                    )
                 )
             }
         }
-        .clipShape(.capsule)
-        .accessibilityHidden(true)
+
+        stops.append(
+            Gradient.Stop(
+                color: resultColors[resultColors.count - 1],
+                location: 1
+            )
+        )
+
+        return LinearGradient(
+            gradient: Gradient(stops: stops),
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 
-    private func recordSegment(
-        count: Int,
-        color: Color,
-        availableWidth: CGFloat
-    ) -> some View {
-        Capsule()
-            .fill(count > 0 ? color : GweiloTheme.surface)
-            .frame(width: availableWidth * CGFloat(count) / total)
+    var body: some View {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+            .fill(gradient)
+            .accessibilityHidden(true)
     }
 }
 
@@ -1279,7 +1292,7 @@ private struct SessionDetailError: View {
 
     var body: some View {
         ContentUnavailableView {
-            Label("Sesija nije učitana", systemImage: "wifi.exclamationmark")
+            Label("Termin nije učitan", systemImage: "wifi.exclamationmark")
         } description: {
             Text(message)
         } actions: {
@@ -1326,7 +1339,7 @@ struct SessionDetailPreviewScreen: View {
                 }
                 .scrollIndicators(.hidden)
             }
-            .navigationTitle("Sesija")
+            .navigationTitle("Termin")
             .navigationBarTitleDisplayMode(.inline)
         }
     }

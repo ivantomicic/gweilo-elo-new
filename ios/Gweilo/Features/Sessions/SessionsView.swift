@@ -86,7 +86,7 @@ private struct SessionsHeader: View {
                     .tracking(2)
                     .foregroundStyle(GweiloTheme.lime)
 
-                Text("Sesije")
+                Text("Termini")
                     .font(
                         GweiloTheme.displayFont(
                             size: 46,
@@ -153,7 +153,7 @@ private struct SessionsContent: View {
         if let errorMessage = dataStore.errorMessage,
            dataStore.sessions.isEmpty {
             ContentUnavailableView {
-                Label("Sesije nisu učitane", systemImage: "wifi.exclamationmark")
+                Label("Termini nisu učitani", systemImage: "wifi.exclamationmark")
             } description: {
                 Text(errorMessage)
             } actions: {
@@ -164,9 +164,9 @@ private struct SessionsContent: View {
             }
         } else if dataStore.sessions.isEmpty {
             ContentUnavailableView(
-                "Još nema sesija",
+                "Još nema termina",
                 systemImage: "sportscourt",
-                description: Text("Dodirni + da pokreneš prvu sesiju.")
+                description: Text("Dodirni + da pokreneš prvi termin.")
             )
         } else {
             VStack(alignment: .leading, spacing: 30) {
@@ -185,7 +185,7 @@ private struct SessionsContent: View {
                             title: "U TOKU",
                             detail: activeSessions.count == 1
                                 ? "AKTIVNA SESIJA"
-                                : "\(activeSessions.count) AKTIVNE"
+                                : "\(activeSessions.count) AKTIVNI"
                         )
 
                         ForEach(activeSessions) { session in
@@ -336,7 +336,7 @@ private struct ActiveSessionRecord: View {
                 }
 
                 HStack {
-                    Label("Nastavi sesiju", systemImage: "play.fill")
+                    Label("Nastavi termin", systemImage: "play.fill")
                         .font(.subheadline.weight(.bold))
                         .foregroundStyle(GweiloTheme.lime)
 
@@ -360,7 +360,7 @@ private struct ActiveSessionRecord: View {
         }
         .buttonStyle(ResponsiveButtonStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Otvara aktivnu sesiju")
+        .accessibilityHint("Otvara aktivni termin")
     }
 }
 
@@ -432,7 +432,7 @@ private struct SessionRecord: View {
         }
         .buttonStyle(ResponsiveButtonStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Otvara detalje sesije")
+        .accessibilityHint("Otvara detalje termina")
     }
 
     private func ranking(named name: String?) -> RankingEntry? {
@@ -542,7 +542,7 @@ private enum SessionHistoryFormatter {
     }
 
     static func sessionWord(_ value: Int) -> String {
-        pluralized(value, one: "sesija", few: "sesije", many: "sesija")
+        pluralized(value, one: "termin", few: "termina", many: "termina")
     }
 
     private static func singlesWord(_ value: Int) -> String {
@@ -578,7 +578,7 @@ struct StartSessionView: View {
 
         var title: String {
             switch self {
-            case .setup: "Nova sesija"
+            case .setup: "Novi termin"
             case .review: "Raspored"
             }
         }
@@ -692,7 +692,7 @@ struct StartSessionView: View {
     private var footerTitle: String {
         switch step {
         case .setup: "Napravi raspored"
-        case .review: "Pokreni sesiju"
+        case .review: "Pokreni termin"
         }
     }
 

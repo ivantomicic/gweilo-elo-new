@@ -644,6 +644,26 @@ private struct TopThreePlayersResponse: Decodable {
     let data: [TopThreePlayerResponse]
 }
 
+private struct CalculatorPlayerResponse: Decodable {
+    let id: UUID
+    let name: String
+    let avatar: String?
+    let elo: Double
+    let matchesPlayed: Int
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case avatar
+        case elo
+        case matchesPlayed
+    }
+}
+
+private struct CalculatorPlayersResponse: Decodable {
+    let players: [CalculatorPlayerResponse]
+}
+
 private struct StatisticsPlayerResponse: Decodable {
     let playerID: UUID
     let displayName: String
@@ -907,10 +927,26 @@ struct GweiloAPIClient: Sendable {
         return response.data.map(\.playerID)
     }
 
+    func fetchCalculatorPlayers() async throws -> [EloCalculatorPlayer] {
+        let response: CalculatorPlayersResponse = try await perform(
+            makeCalculatorPlayersRequest(),
+            fallbackMessage: "Ne mogu da učitam igrače za kalkulator."
+        )
+        return response.players.map {
+            EloCalculatorPlayer(
+                id: $0.id,
+                name: $0.name,
+                avatarURL: $0.avatar.flatMap(URL.init(string:)),
+                elo: $0.elo,
+                matchesPlayed: $0.matchesPlayed
+            )
+        }
+    }
+
     func fetchRankings() async throws -> RankingsSnapshot {
         let response: StatisticsResponse = try await perform(
             makeStatisticsRequest(),
-            fallbackMessage: "Could not load the current rankings."
+            fallbackMessage: "Nije moguće učitati trenutnu statistiku."
         )
         let eligibility = response.eligibility ?? .fallback
 
@@ -1039,14 +1075,14 @@ struct GweiloAPIClient: Sendable {
         )
         return try await perform(
             request,
-            fallbackMessage: "Could not create this session."
+            fallbackMessage: "Nije moguće napraviti termin."
         )
     }
 
     func fetchActiveSessionID() async throws -> UUID? {
         let response: ActiveSessionResponse = try await perform(
             makeAuthenticatedRequest(path: "api/sessions/active"),
-            fallbackMessage: "Could not check the active session."
+            fallbackMessage: "Nije moguće proveriti aktivni termin."
         )
         return response.session?.id
     }
@@ -1058,7 +1094,7 @@ struct GweiloAPIClient: Sendable {
         request.httpMethod = "POST"
         let _: CancelSessionResponse = try await perform(
             request,
-            fallbackMessage: "Could not cancel this session."
+            fallbackMessage: "Nije moguće otkazati termin."
         )
     }
 
@@ -1069,7 +1105,7 @@ struct GweiloAPIClient: Sendable {
         request.httpMethod = "POST"
         let _: ForceCloseSessionResponse = try await perform(
             request,
-            fallbackMessage: "Could not force-close this session."
+            fallbackMessage: "Nije moguće završiti termin."
         )
     }
 
@@ -1153,6 +1189,10 @@ struct GweiloAPIClient: Sendable {
 
     func makeTopThreeSinglesRequest() -> URLRequest {
         makeAuthenticatedRequest(path: "api/statistics/top3")
+    }
+
+    func makeCalculatorPlayersRequest() -> URLRequest {
+        makeAuthenticatedRequest(path: "api/calculator/players")
     }
 
     func makeStatisticsRequest() -> URLRequest {

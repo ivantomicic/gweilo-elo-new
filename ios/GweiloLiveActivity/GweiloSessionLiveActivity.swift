@@ -377,7 +377,7 @@ private struct ProgressSummary: View {
                 .foregroundStyle(LiveActivityStyle.muted)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Napredak sesije")
+        .accessibilityLabel("Napredak termina")
         .accessibilityValue(
             "\(state.completedMatches) od \(state.totalMatches) mečeva"
         )
@@ -513,6 +513,6 @@ private struct MinimalActivityMark: View {
                     radius: 3
                 )
         }
-        .accessibilityLabel("Gweilo sesija je uživo")
+        .accessibilityLabel("Gweilo termin je uživo")
     }
 }

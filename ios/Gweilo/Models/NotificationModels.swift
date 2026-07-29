@@ -106,7 +106,7 @@ enum PushNotificationPreference: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .liveActivities: "Live aktivnosti"
-        case .sessions: "Sesije"
+        case .sessions: "Termini"
         case .rounds: "Runde"
         case .results: "Rezultati i Elo"
         case .polls: "Ankete"
@@ -117,13 +117,13 @@ enum PushNotificationPreference: String, CaseIterable, Identifiable, Sendable {
     var detail: String {
         switch self {
         case .liveActivities:
-            "Prati aktivnu sesiju na zaključanom ekranu i Dynamic Island-u."
+            "Prati aktivni termin na zaključanom ekranu i Dynamic Island-u."
         case .sessions:
-            "Obaveštenje kada nova sesija počne."
+            "Obaveštenje kada novi termin počne."
         case .rounds:
             "Obaveštenje kada je nova runda spremna."
         case .results:
-            "Obaveštenje kada se sesija završi i Elo bude ažuriran."
+            "Obaveštenje kada se termin završi i Elo bude ažuriran."
         case .polls:
             "Obaveštenje kada je dostupna nova klupska anketa."
         case .announcements:

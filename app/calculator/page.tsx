@@ -1,13 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { StateBlock } from "@/components/ui/state-block";
 import { t } from "@/lib/i18n";
-import { BasePlayerSection } from "@/app/calculator/_components/base-player-section";
 import { OpponentPickerSection } from "@/app/calculator/_components/opponent-picker-section";
 import { SelectedOpponentsSection } from "@/app/calculator/_components/selected-opponents-section";
 import { useCalculatorData } from "@/app/calculator/_hooks/use-calculator-data";
@@ -15,7 +13,6 @@ import { useHorizontalScrollIndicators } from "@/app/calculator/_hooks/use-horiz
 
 function CalculatorPageContent() {
 	const {
-		players,
 		currentPlayer,
 		availableOpponents,
 		selectedOpponents,
@@ -23,14 +20,12 @@ function CalculatorPageContent() {
 		predictedResults,
 		loading,
 		error,
-		selectPlayer,
 		toggleOpponent,
 		removeOpponent,
 		setPredictionForOpponent,
 		getOpponentDelta,
 		totalProjectedDelta,
 	} = useCalculatorData();
-	const [isBasePlayerPickerOpen, setIsBasePlayerPickerOpen] = useState(false);
 
 	const {
 		scrollRef,
@@ -60,25 +55,11 @@ function CalculatorPageContent() {
 				<SurfaceCard>
 					<StateBlock
 						variant="empty"
-						title="Nema dostupnih igrača za kalkulator."
+						title="Vaš igrački profil nije dostupan za kalkulator."
 					/>
 				</SurfaceCard>
 			) : (
 				<Stack direction="column" spacing={6}>
-					<BasePlayerSection
-						currentPlayer={currentPlayer}
-						availablePlayers={players.filter(
-							(player) => player.id !== currentPlayer.id,
-						)}
-						isPickerOpen={isBasePlayerPickerOpen}
-						onTogglePicker={() =>
-							setIsBasePlayerPickerOpen((previous) => !previous)
-						}
-						onSelectPlayer={(playerId) => {
-							selectPlayer(playerId);
-							setIsBasePlayerPickerOpen(false);
-						}}
-					/>
 					<OpponentPickerSection
 						availableOpponents={availableOpponents}
 						selectedCount={selectedOpponentIds.length}

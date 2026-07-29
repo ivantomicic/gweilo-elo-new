@@ -99,8 +99,8 @@ struct FlatSurfaceModifier: ViewModifier {
     }
 }
 
-struct AdaptiveSurfaceModifier: ViewModifier {
-    let cornerRadius: CGFloat
+struct AdaptiveSurfaceModifier<SurfaceShape: Shape>: ViewModifier {
+    let shape: SurfaceShape
     let interactive: Bool
 
     @ViewBuilder
@@ -109,19 +109,35 @@ struct AdaptiveSurfaceModifier: ViewModifier {
             content
                 .glassEffect(
                     interactive ? .regular.interactive() : .regular,
-                    in: .rect(cornerRadius: cornerRadius)
+                    in: shape
                 )
         } else {
             content
                 .background(
                     GweiloTheme.raisedSurface,
-                    in: .rect(cornerRadius: cornerRadius)
+                    in: shape
                 )
                 .overlay {
-                    RoundedRectangle(cornerRadius: cornerRadius)
+                    shape
                         .stroke(GweiloTheme.hairline)
                 }
         }
+    }
+}
+
+struct FloatingTabBarAccessoryModifier<Accessory: View>: ViewModifier {
+    let isPresented: Bool
+    let accessory: Accessory
+
+    func body(content: Content) -> some View {
+        content
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if isPresented {
+                    accessory
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 8)
+                }
+            }
     }
 }
 
@@ -234,8 +250,32 @@ extension View {
     ) -> some View {
         modifier(
             AdaptiveSurfaceModifier(
-                cornerRadius: cornerRadius,
+                shape: RoundedRectangle(cornerRadius: cornerRadius),
                 interactive: interactive
+            )
+        )
+    }
+
+    func adaptiveSurface<SurfaceShape: Shape>(
+        in shape: SurfaceShape,
+        interactive: Bool = false
+    ) -> some View {
+        modifier(
+            AdaptiveSurfaceModifier(
+                shape: shape,
+                interactive: interactive
+            )
+        )
+    }
+
+    func floatingTabBarAccessory<Accessory: View>(
+        isPresented: Bool = true,
+        @ViewBuilder accessory: () -> Accessory
+    ) -> some View {
+        modifier(
+            FloatingTabBarAccessoryModifier(
+                isPresented: isPresented,
+                accessory: accessory()
             )
         )
     }

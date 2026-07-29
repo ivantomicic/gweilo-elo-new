@@ -93,7 +93,26 @@ private struct RefreshTokenRequest: Encodable {
     }
 }
 
-private struct SupabaseErrorResponse: Decodable {
+private struct UserUpdateRequest: Encodable {
+    var email: String?
+    var password: String?
+    var data: [String: String]?
+
+    private enum CodingKeys: String, CodingKey {
+        case email
+        case password
+        case data
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(email, forKey: .email)
+        try container.encodeIfPresent(password, forKey: .password)
+        try container.encodeIfPresent(data, forKey: .data)
+    }
+}
+
+struct SupabaseErrorResponse: Decodable {
     let message: String?
     let errorDescription: String?
 
@@ -205,6 +224,35 @@ struct SupabaseAuthClient: Sendable {
         )
 
         return try await perform(request)
+    }
+
+    func updateUser(
+        accessToken: String,
+        email: String? = nil,
+        password: String? = nil,
+        metadata: [String: String]? = nil
+    ) async throws -> AuthenticatedUser {
+        let endpoint = configuration.supabaseURL.appending(path: "auth/v1/user")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "PUT"
+        request.setValue(configuration.supabaseAnonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            UserUpdateRequest(email: email, password: password, data: metadata)
+        )
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw AuthenticationError.invalidResponse
+        }
+        guard (200..<300).contains(httpResponse.statusCode) else {
+            let response = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            throw AuthenticationError.rejected(
+                response?.message ?? response?.errorDescription ?? "Account update failed."
+            )
+        }
+        return try JSONDecoder().decode(AuthenticatedUser.self, from: data)
     }
 
     private func perform(_ request: URLRequest) async throws -> AuthSession {

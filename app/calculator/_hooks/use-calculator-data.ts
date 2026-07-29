@@ -8,7 +8,6 @@ import type {
 } from "@/app/calculator/_lib/types";
 
 type UseCalculatorDataResult = {
-	players: PlayerWithRating[];
 	currentPlayer: PlayerWithRating | null;
 	availableOpponents: PlayerWithRating[];
 	selectedOpponents: PlayerWithRating[];
@@ -16,7 +15,6 @@ type UseCalculatorDataResult = {
 	predictedResults: PredictedResults;
 	loading: boolean;
 	error: string | null;
-	selectPlayer: (playerId: string) => void;
 	toggleOpponent: (opponentId: string) => void;
 	removeOpponent: (opponentId: string) => void;
 	setPredictionForOpponent: (opponentId: string, result: MatchResult) => void;
@@ -32,7 +30,6 @@ export function useCalculatorData(): UseCalculatorDataResult {
 	const accessToken = session?.access_token;
 	const userId = session?.user.id;
 	const [players, setPlayers] = useState<PlayerWithRating[]>([]);
-	const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 	const [selectedOpponentIds, setSelectedOpponentIds] = useState<string[]>(
 		[],
 	);
@@ -72,24 +69,8 @@ export function useCalculatorData(): UseCalculatorDataResult {
 					.sort((a, b) => b.elo - a.elo);
 
 				setPlayers(mergedPlayers);
-				setSelectedPlayerId((previous) => {
-					if (
-						previous &&
-						mergedPlayers.some((player) => player.id === previous)
-					) {
-						return previous;
-					}
-
-					if (
-						mergedPlayers.some(
-							(player) => player.id === userId,
-						)
-					) {
-						return userId ?? null;
-					}
-
-					return mergedPlayers[0]?.id ?? null;
-				});
+				setSelectedOpponentIds([]);
+				setPredictedResults({});
 			} catch (fetchError) {
 				console.error("Calculator fetch error:", fetchError);
 				setError("Greška pri učitavanju podataka.");
@@ -102,13 +83,13 @@ export function useCalculatorData(): UseCalculatorDataResult {
 	}, [accessToken, userId]);
 
 	const currentPlayer = useMemo(
-		() => players.find((player) => player.id === selectedPlayerId) || null,
-		[players, selectedPlayerId],
+		() => players.find((player) => player.id === userId) || null,
+		[players, userId],
 	);
 
 	const opponents = useMemo(
-		() => players.filter((player) => player.id !== selectedPlayerId),
-		[players, selectedPlayerId],
+		() => players.filter((player) => player.id !== userId),
+		[players, userId],
 	);
 
 	const availableOpponents = useMemo(
@@ -123,12 +104,6 @@ export function useCalculatorData(): UseCalculatorDataResult {
 		const selectedSet = new Set(selectedOpponentIds);
 		return opponents.filter((player) => selectedSet.has(player.id));
 	}, [opponents, selectedOpponentIds]);
-
-	const selectPlayer = useCallback((playerId: string) => {
-		setSelectedPlayerId(playerId);
-		setSelectedOpponentIds([]);
-		setPredictedResults({});
-	}, []);
 
 	const toggleOpponent = useCallback((opponentId: string) => {
 		setSelectedOpponentIds((previous) => {
@@ -198,7 +173,6 @@ export function useCalculatorData(): UseCalculatorDataResult {
 	]);
 
 	return {
-		players,
 		currentPlayer,
 		availableOpponents,
 		selectedOpponents,
@@ -206,7 +180,6 @@ export function useCalculatorData(): UseCalculatorDataResult {
 		predictedResults,
 		loading,
 		error,
-		selectPlayer,
 		toggleOpponent,
 		removeOpponent,
 		setPredictionForOpponent,

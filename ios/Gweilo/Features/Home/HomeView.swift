@@ -33,8 +33,7 @@ struct HomeView: View {
                         HomeLiveSession(
                             session: dataStore.activeSession,
                             canManageSession: dataStore.canManageSessions,
-                            canStartSession: dataStore.canManageSessions,
-                            startSession: { showsStartSession = true }
+                            canStartSession: dataStore.canManageSessions
                         )
                         HomeRankingSection(
                             players: topSinglesPlayers,
@@ -61,6 +60,12 @@ struct HomeView: View {
                     await dataStore.load()
                 }
                 .scrollIndicators(.hidden)
+                .floatingTabBarAccessory(
+                    isPresented: dataStore.activeSession == nil
+                        && dataStore.canManageSessions
+                ) {
+                    HomeStartSessionButton(action: startSession)
+                }
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
             .navigationDestination(for: SessionSummary.self) { session in
@@ -92,6 +97,10 @@ struct HomeView: View {
                 navigationPath.append(pendingCreatedSession)
             }
         }
+    }
+
+    private func startSession() {
+        showsStartSession = true
     }
 }
 
@@ -212,8 +221,8 @@ private struct LastSessionMascot: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             deltaText.map {
-                "\(outcome.label), \($0) Elo in the latest session"
-            } ?? "No recent session performance"
+                "\(outcome.label), \($0) Elo na poslednjem terminu"
+            } ?? "Nema učinka sa poslednjeg termina"
         )
     }
 }
@@ -222,7 +231,6 @@ private struct HomeLiveSession: View {
     let session: SessionSummary?
     let canManageSession: Bool
     let canStartSession: Bool
-    let startSession: () -> Void
 
     var body: some View {
         Group {
@@ -234,11 +242,10 @@ private struct HomeLiveSession: View {
                     )
                 }
                 .buttonStyle(ResponsiveButtonStyle())
-                .accessibilityHint("Otvara aktivnu sesiju")
+                .accessibilityHint("Otvara aktivni termin")
             } else {
                 EmptySessionFeature(
-                    canStartSession: canStartSession,
-                    startSession: startSession
+                    canStartSession: canStartSession
                 )
             }
         }
@@ -249,12 +256,11 @@ private struct HomeLiveSession: View {
 
 private struct EmptySessionFeature: View {
     let canStartSession: Bool
-    let startSession: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 5) {
-                Text("NEMA AKTIVNE SESIJE")
+                Text("NEMA AKTIVNOG TERMINA")
                     .font(
                         GweiloTheme.labelFont(
                             size: 11,
@@ -276,20 +282,45 @@ private struct EmptySessionFeature: View {
                 Text(
                     canStartSession
                         ? "Izaberi igrače, proveri raspored i kreni."
-                        : "Aktivna sesija će se pojaviti ovde čim počne."
+                        : "Aktivni termin će se pojaviti ovde čim počne."
                 )
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             }
-
-            if canStartSession {
-                Button("Pokreni novu sesiju", action: startSession)
-                    .buttonStyle(GweiloPrimaryButtonStyle(height: 52))
-                    .accessibilityHint("Otvara izbor igrača i raspored")
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.vertical, 4)
+    }
+}
+
+private struct HomeStartSessionButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.title3)
+                    .foregroundStyle(GweiloTheme.lime)
+
+                Text("Pokreni novi termin")
+                    .font(.headline.weight(.black))
+                    .foregroundStyle(GweiloTheme.bone)
+
+                Spacer(minLength: 8)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.subheadline.weight(.black))
+                    .foregroundStyle(GweiloTheme.lime)
+            }
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(ResponsiveButtonStyle())
+        .adaptiveSurface(in: Capsule(), interactive: true)
+        .accessibilityHint("Otvara izbor igrača i raspored")
     }
 }
 
@@ -309,7 +340,7 @@ private struct LiveSessionFeature: View {
                         .fill(GweiloTheme.lime)
                         .frame(width: 7, height: 7)
 
-                    Text("SESIJA U TOKU")
+                    Text("TERMIN U TOKU")
                 }
                     .font(
                         GweiloTheme.labelFont(
@@ -348,7 +379,7 @@ private struct LiveSessionFeature: View {
             }
 
             HStack {
-                Text(canManageSession ? "Unesi rezultate" : "Prati sesiju")
+                Text(canManageSession ? "Unesi rezultate" : "Prati termin")
                     .font(.subheadline.weight(.bold))
 
                 Spacer()
@@ -388,7 +419,7 @@ private struct HomeRankingSection: View {
         VStack(alignment: .leading, spacing: 15) {
             HomeSectionHeader(
                 title: "Vrh liste",
-                actionTitle: "Cela rang lista",
+                actionTitle: "Cela statistika",
                 action: openRankings
             )
 
@@ -424,7 +455,7 @@ private struct TopThreeStandings: View {
     var body: some View {
         Group {
             if players.isEmpty {
-                Text("No eligible singles rankings yet.")
+                Text("Još nema kvalifikovanih igrača u singl statistici.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
@@ -603,8 +634,7 @@ struct TopThreePreviewScreen: View {
                     VStack(alignment: .leading, spacing: 30) {
                         HomeHeader(playerName: "Ivan", lastSessionDelta: 12)
                         EmptySessionFeature(
-                            canStartSession: true,
-                            startSession: {}
+                            canStartSession: true
                         )
                         HomeRankingSection(
                             players: players,
@@ -624,7 +654,7 @@ private struct LatestSessionResult: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Poslednja sesija")
+            SectionHeading(title: "Poslednji termin")
 
             NavigationLink(value: session) {
                 HStack(alignment: .center, spacing: 14) {
@@ -656,7 +686,7 @@ private struct LatestSessionResult: View {
                 .contentShape(.rect)
             }
             .buttonStyle(ResponsiveButtonStyle())
-            .accessibilityHint("Otvara poslednju završenu sesiju")
+            .accessibilityHint("Otvara poslednji završeni termin")
         }
     }
 

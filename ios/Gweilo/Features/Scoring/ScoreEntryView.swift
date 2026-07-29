@@ -16,6 +16,7 @@ struct ScoreEntryView: View {
     @State private var draft = RoundScoreDraft(matches: [])
     @State private var showsSubmitConfirmation = false
     @State private var isSubmitting = false
+    @State private var submissionSucceeded = false
     @State private var errorMessage: String?
     @FocusState private var focusedScore: ScoreField?
 
@@ -56,6 +57,14 @@ struct ScoreEntryView: View {
 
             RestingLine(players: round.restingPlayers)
 
+            if isSubmitting {
+                RoundSavingStatus(
+                    roundNumber: round.number,
+                    submissionSucceeded: submissionSucceeded
+                )
+                .transition(.opacity.combined(with: .move(edge: .bottom)))
+            }
+
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle.fill")
                     .font(.footnote)
@@ -78,6 +87,7 @@ struct ScoreEntryView: View {
         .task(id: round.id) {
             draft = RoundScoreDraft(matches: round.matches)
             errorMessage = nil
+            submissionSucceeded = false
             focusedScore = nil
         }
         .onChange(of: focusedScore?.matchID) { _, matchID in
@@ -170,15 +180,24 @@ struct ScoreEntryView: View {
             return
         }
 
-        isSubmitting = true
+        withAnimation(.snappy(duration: 0.24)) {
+            isSubmitting = true
+        }
+        submissionSucceeded = false
         errorMessage = nil
-        defer { isSubmitting = false }
+        defer {
+            withAnimation(.snappy(duration: 0.2)) {
+                isSubmitting = false
+            }
+        }
 
         do {
             _ = try await submit(scores)
+            submissionSucceeded = true
             if hapticsEnabled {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
+            try? await Task.sleep(for: .milliseconds(450))
             await onSubmitted()
         } catch {
             if hapticsEnabled {
@@ -188,6 +207,76 @@ struct ScoreEntryView: View {
         }
     }
 
+}
+
+private struct RoundSavingStatus: View {
+    let roundNumber: Int
+    let submissionSucceeded: Bool
+
+    @State private var isSyncing = false
+
+    private var title: String {
+        submissionSucceeded ? "Runda je sačuvana" : "Čuvam rundu \(roundNumber)"
+    }
+
+    private var detail: String {
+        if submissionSucceeded {
+            return "Rezultati i stanje termina su ažurirani."
+        }
+        return isSyncing
+            ? "Ažuriram rezultate i sledeću rundu…"
+            : "Proveravam rezultate…"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill((submissionSucceeded ? GweiloTheme.lime : GweiloTheme.accentBright).opacity(0.16))
+                    .frame(width: 38, height: 38)
+
+                if submissionSucceeded {
+                    Image(systemName: "checkmark")
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(GweiloTheme.lime)
+                        .transition(.scale.combined(with: .opacity))
+                } else {
+                    ProgressView()
+                        .tint(GweiloTheme.accentBright)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(GweiloTheme.bone)
+
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .contentTransition(.opacity)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .background(GweiloTheme.raisedSurface, in: .rect(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(GweiloTheme.hairline, lineWidth: 0.8)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(title). \(detail)")
+        .task {
+            guard !submissionSucceeded else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isSyncing = true
+            }
+        }
+        .animation(Animation.snappy(duration: 0.24), value: submissionSucceeded)
+    }
 }
 
 private struct ScoreField: Hashable {
@@ -503,7 +592,7 @@ private struct SubmitRoundBar: View {
                 } else {
                     Text(
                         isReady
-                            ? (isFinalRound ? "Završi sesiju" : "Sačuvaj i nastavi")
+                            ? (isFinalRound ? "Završi termin" : "Sačuvaj i nastavi")
                             : "Unesi sve rezultate"
                     )
                     Spacer()

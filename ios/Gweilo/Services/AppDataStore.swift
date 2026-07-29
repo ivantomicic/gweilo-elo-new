@@ -83,6 +83,8 @@ final class AppDataStore {
     private(set) var rankingEligibility = RankingEligibility.fallback
     private(set) var cachedAvailableSessionPlayers: [SessionCreationPlayer] = []
     private(set) var hasLoadedAvailableSessionPlayers = false
+    private(set) var cachedCalculatorPlayers: [EloCalculatorPlayer] = []
+    private(set) var hasLoadedCalculatorPlayers = false
     private(set) var clubActiveSessionID: UUID?
     private(set) var hasCheckedActiveSession = false
     private(set) var canManageSessions: Bool
@@ -154,6 +156,8 @@ final class AppDataStore {
         isAdmin = session.user.isAdmin
         cachedAvailableSessionPlayers = []
         hasLoadedAvailableSessionPlayers = false
+        cachedCalculatorPlayers = []
+        hasLoadedCalculatorPlayers = false
         client = SupabaseDataClient(
             configuration: configuration,
             accessToken: session.accessToken
@@ -336,6 +340,25 @@ final class AppDataStore {
         cachedAvailableSessionPlayers = preparedPlayers
         hasLoadedAvailableSessionPlayers = true
         return preparedPlayers
+    }
+
+    func calculatorPlayers(
+        forceRefresh: Bool = false
+    ) async throws -> [EloCalculatorPlayer] {
+        if hasLoadedCalculatorPlayers, !forceRefresh {
+            return cachedCalculatorPlayers
+        }
+
+        let players = try await apiClient.fetchCalculatorPlayers()
+        cachedCalculatorPlayers = players.sorted {
+            if $0.elo != $1.elo {
+                return $0.elo > $1.elo
+            }
+            return $0.name.localizedCaseInsensitiveCompare($1.name)
+                == .orderedAscending
+        }
+        hasLoadedCalculatorPlayers = true
+        return cachedCalculatorPlayers
     }
 
     private func prepareAvailableSessionPlayers(

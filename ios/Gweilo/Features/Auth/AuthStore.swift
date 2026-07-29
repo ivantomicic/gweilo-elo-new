@@ -204,4 +204,35 @@ final class AuthStore {
         session = nil
         errorMessage = nil
     }
+
+    func reauthenticate(currentPassword: String) async throws -> AuthSession {
+        guard
+            let configuration,
+            let email = session?.user.email,
+            !currentPassword.isEmpty
+        else {
+            throw AuthenticationError.rejected("Enter your current password.")
+        }
+
+        let refreshedSession = try await SupabaseAuthClient(configuration: configuration)
+            .signIn(email: email, password: currentPassword)
+        try vault.save(refreshedSession)
+        session = refreshedSession
+        return refreshedSession
+    }
+
+    func updateAuthenticatedUser(_ user: AuthenticatedUser) throws {
+        guard let currentSession = session else {
+            throw AuthenticationError.rejected("Please sign in again.")
+        }
+        let updatedSession = AuthSession(
+            accessToken: currentSession.accessToken,
+            refreshToken: currentSession.refreshToken,
+            expiresIn: currentSession.expiresIn,
+            expiresAt: currentSession.expiresAt,
+            user: user
+        )
+        try vault.save(updatedSession)
+        session = updatedSession
+    }
 }

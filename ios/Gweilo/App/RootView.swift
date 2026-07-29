@@ -296,7 +296,7 @@ private struct MainTabView: View {
             }
 
             Tab(
-                "Sessions",
+                "Termini",
                 systemImage: "figure.table.tennis",
                 value: MainTabSelection.sessions
             ) {
@@ -310,7 +310,7 @@ private struct MainTabView: View {
             }
 
             Tab(
-                "Rankings",
+                "Statistika",
                 systemImage: "trophy.fill",
                 value: MainTabSelection.rankings
             ) {
@@ -331,6 +331,7 @@ private struct MainTabView: View {
                     },
                     dataStore: dataStore,
                     pushNotifications: pushNotifications,
+                    authStore: authStore,
                     signOut: authStore.signOut
                 )
             }
@@ -359,6 +360,7 @@ private struct AccountView: View {
     let player: RankingEntry?
     let dataStore: AppDataStore
     let pushNotifications: PushNotificationManager
+    let authStore: AuthStore
     let signOut: () -> Void
     @State private var showsSignOutConfirmation = false
 
@@ -386,16 +388,39 @@ private struct AccountView: View {
                                 Label("My player profile", systemImage: "person.text.rectangle")
                             }
                         }
+
+                        NavigationLink {
+                            AccountSettingsView(
+                                authStore: authStore,
+                                initialProfile: player.map {
+                                    AccountProfile(
+                                        displayName: $0.name,
+                                        avatarURL: $0.avatarURL
+                                    )
+                                },
+                                refreshAppData: {
+                                    await dataStore.load(forceRefresh: true)
+                                }
+                            )
+                        } label: {
+                            Label("Account settings", systemImage: "person.crop.circle")
+                        }
                     }
 
                     Section("CLUB") {
                         NavigationLink {
+                            EloCalculatorView(dataStore: dataStore)
+                        } label: {
+                            Label(
+                                "Elo kalkulator",
+                                systemImage: "plus.forwardslash.minus"
+                            )
+                        }
+
+                        NavigationLink {
                             RulesView(eligibility: dataStore.rankingEligibility)
                         } label: {
                             Label("Rules", systemImage: "book.closed")
-                        }
-                        Link(destination: URL(string: "https://www.gweilo.lol")!) {
-                            Label("Open gweilo.lol", systemImage: "safari")
                         }
                     }
 
@@ -617,7 +642,7 @@ private struct RulesHero: View {
                 .tracking(0.2)
 
             Text(
-                "These rules decide who appears in Rankings and the Top 3. Falling outside them hides a player or team—it never erases results or Elo."
+                "These rules decide who appears in Statistika and the Top 3. Falling outside them hides a player or team—it never erases results or Elo."
             )
             .font(.subheadline)
             .foregroundStyle(.secondary)

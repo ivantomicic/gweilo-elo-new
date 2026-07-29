@@ -14,6 +14,8 @@
 		A10000000000000000000005 /* GweiloSessionLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* GweiloSessionLiveActivity.swift */; };
 		A10000000000000000000006 /* GweiloLiveActivity.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* GweiloLiveActivity.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */; };
+		A72700000000000000000002 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72700000000000000000001 /* AccountSettingsView.swift */; };
+		A72700000000000000000004 /* AccountSettingsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72700000000000000000003 /* AccountSettingsClient.swift */; };
 		1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5228EA448D3385CA3C87F404 /* GweiloTheme.swift */; };
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
@@ -48,6 +50,7 @@
 		F72600000000000000000002 /* SessionPlayerCountPlaceholder.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = F72600000000000000000001 /* SessionPlayerCountPlaceholder.mp4 */; };
 		B72700000000000000000002 /* SessionsHeader.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = B72700000000000000000001 /* SessionsHeader.mp4 */; };
 		C72700000000000000000002 /* PodiumGoldFrame.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = C72700000000000000000001 /* PodiumGoldFrame.mp4 */; };
+		D72700000000000000000002 /* EloCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D72700000000000000000001 /* EloCalculatorView.swift */; };
 		E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F24DACFB92DCB222E4F6075F /* HomeView.swift */; };
 		F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */; };
 		FD5424828BDCE30603A82246 /* ComingSoonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */; };
@@ -97,6 +100,8 @@
 		17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionDetailModelTests.swift; sourceTree = "<group>"; };
 		1F08B516E8FE92225D86385D /* NotificationSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsSection.swift; sourceTree = "<group>"; };
 		268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreEntryView.swift; sourceTree = "<group>"; };
+		A72700000000000000000001 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
+		A72700000000000000000003 /* AccountSettingsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsClient.swift; sourceTree = "<group>"; };
 		27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScoreboardTests.swift; sourceTree = "<group>"; };
 		3FDFE13A0BFF7369FF6622CD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		48E67F5AF76CD8E21D79EC84 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
@@ -129,6 +134,7 @@
 		F72600000000000000000001 /* SessionPlayerCountPlaceholder.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SessionPlayerCountPlaceholder.mp4; sourceTree = "<group>"; };
 		B72700000000000000000001 /* SessionsHeader.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = SessionsHeader.mp4; sourceTree = "<group>"; };
 		C72700000000000000000001 /* PodiumGoldFrame.mp4 */ = {isa = PBXFileReference; lastKnownFileType = file; path = PodiumGoldFrame.mp4; sourceTree = "<group>"; };
+		D72700000000000000000001 /* EloCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EloCalculatorView.swift; sourceTree = "<group>"; };
 		E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModelsTests.swift; sourceTree = "<group>"; };
 		E9920CC2135CF7EC29679886 /* SupabaseDataClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseDataClient.swift; sourceTree = "<group>"; };
 		F24DACFB92DCB222E4F6075F /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -170,6 +176,7 @@
 			isa = PBXGroup;
 			children = (
 				9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */,
+				A72700000000000000000003 /* AccountSettingsClient.swift */,
 				7A9391F1239E602BBF63632B /* AppDataStore.swift */,
 				04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */,
 				A10000000000000000000011 /* SessionLiveActivityManager.swift */,
@@ -212,6 +219,7 @@
 			isa = PBXGroup;
 			children = (
 				F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */,
+				A72700000000000000000001 /* AccountSettingsView.swift */,
 				564CF19864AC0C89C4958D12 /* SignInView.swift */,
 			);
 			path = Auth;
@@ -239,6 +247,7 @@
 			isa = PBXGroup;
 			children = (
 				5D160016085DB3D1CAB6F3A6 /* Auth */,
+				D72700000000000000000003 /* Calculator */,
 				EAEFCFAF5D05D1815F508F17 /* Home */,
 				A2CE0EDCD37CA307050411D0 /* Notifications */,
 				95828CD6C3CA673EAB1C3DEB /* Rankings */,
@@ -265,6 +274,14 @@
 				7B184252000811E5ACACA38B /* RankingsView.swift */,
 			);
 			path = Rankings;
+			sourceTree = "<group>";
+		};
+		D72700000000000000000003 /* Calculator */ = {
+			isa = PBXGroup;
+			children = (
+				D72700000000000000000001 /* EloCalculatorView.swift */,
+			);
+			path = Calculator;
 			sourceTree = "<group>";
 		};
 		A2CE0EDCD37CA307050411D0 /* Notifications */ = {
@@ -519,6 +536,7 @@
 				FDD5CB33EA3792E1AB6CB315 /* MatchOutcomeBadge.swift in Sources */,
 				92F1BDB8E8BFF855BA726198 /* NotificationModels.swift in Sources */,
 				C04A0434CFBFF3FE50EDB5BF /* NotificationSettingsSection.swift in Sources */,
+				D72700000000000000000002 /* EloCalculatorView.swift in Sources */,
 				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
 				B4A481FD81E27E8A7AA4256D /* PushNotificationManager.swift in Sources */,
 				A10000000000000000000001 /* GweiloSessionActivityAttributes.swift in Sources */,
@@ -526,6 +544,8 @@
 				5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */,
 				5999C1D880A0425F482E0121 /* RootView.swift in Sources */,
 				051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */,
+				A72700000000000000000002 /* AccountSettingsView.swift in Sources */,
+				A72700000000000000000004 /* AccountSettingsClient.swift in Sources */,
 				88C3C819902499ADBD167ED1 /* SessionDetailView.swift in Sources */,
 				A294C92BBDF34A6406639988 /* SessionsView.swift in Sources */,
 				67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */,

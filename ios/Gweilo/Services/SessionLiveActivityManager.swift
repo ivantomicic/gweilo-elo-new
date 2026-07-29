@@ -318,7 +318,7 @@ final class SessionLiveActivityManager {
             totalMatches: matches.count,
             status: detail.session.status.rawValue,
             headline: detail.session.status == .completed
-                ? "Sesija je završena"
+                ? "Termin je završen"
                 : "Runda \(round) je spremna",
             matchups: currentMatches.map { match in
                 let names = detail.teamNames(for: match.playerIDs)

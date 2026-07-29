@@ -519,6 +519,87 @@ struct SessionCreationPlayer: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
+enum EloCalculatorResult: String, CaseIterable, Hashable, Sendable {
+    case win
+    case draw
+    case loss
+
+    var label: String {
+        switch self {
+        case .win: "Pobeda"
+        case .draw: "Nerešeno"
+        case .loss: "Poraz"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .win: "P"
+        case .draw: "N"
+        case .loss: "I"
+        }
+    }
+
+    nonisolated var actualScore: Double {
+        switch self {
+        case .win: 1
+        case .draw: 0.5
+        case .loss: 0
+        }
+    }
+}
+
+struct EloCalculatorPlayer: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let name: String
+    let avatarURL: URL?
+    let elo: Double
+    let matchesPlayed: Int
+
+    var initials: String {
+        name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+}
+
+enum EloCalculator {
+    nonisolated static func kFactor(matchesPlayed: Int) -> Double {
+        if matchesPlayed < 10 {
+            40
+        } else if matchesPlayed < 40 {
+            32
+        } else {
+            24
+        }
+    }
+
+    nonisolated static func expectedScore(
+        playerElo: Double,
+        opponentElo: Double
+    ) -> Double {
+        1 / (1 + pow(10, (opponentElo - playerElo) / 400))
+    }
+
+    nonisolated static func delta(
+        playerElo: Double,
+        opponentElo: Double,
+        result: EloCalculatorResult,
+        matchesPlayed: Int
+    ) -> Double {
+        let expected = expectedScore(
+            playerElo: playerElo,
+            opponentElo: opponentElo
+        )
+        return kFactor(matchesPlayed: matchesPlayed)
+            * (result.actualScore - expected)
+    }
+}
+
 struct SessionCreationDraft: Equatable, Sendable {
     let idempotencyKey = UUID()
     var playerCount = 4
