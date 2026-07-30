@@ -30,6 +30,300 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testHalfSessionResultsCollapsePairsAndAlignReversedPlayers() throws {
+        let fixture = makeHalfSessionRounds()
+
+        let matches = try XCTUnwrap(
+            SessionHalfResultGrouper.groupedMatches(
+                playerCount: 4,
+                rounds: fixture.rounds
+            )
+        )
+
+        XCTAssertEqual(matches.count, 6)
+        XCTAssertEqual(Set(matches.map(\.id)), Set(fixture.secondHalfIDs))
+
+        let reversedMatch = try XCTUnwrap(
+            matches.first { $0.id == fixture.secondHalfIDs[0] }
+        )
+        XCTAssertEqual(reversedMatch.playerIDs, [garaID, ivanID])
+        XCTAssertEqual(reversedMatch.teamOneScore, 3)
+        XCTAssertEqual(reversedMatch.teamTwoScore, 6)
+    }
+
+    @MainActor
+    func testHalfSessionResultsKeepUnsettledPairAsSeparateMatches() throws {
+        let fixture = makeHalfSessionRounds(firstSettlementCompleted: false)
+
+        let matches = try XCTUnwrap(
+            SessionHalfResultGrouper.groupedMatches(
+                playerCount: 4,
+                rounds: fixture.rounds
+            )
+        )
+
+        XCTAssertEqual(matches.count, 7)
+        XCTAssertTrue(matches.contains { $0.id == fixture.firstHalfIDs[0] })
+        XCTAssertTrue(matches.contains { $0.id == fixture.secondHalfIDs[0] })
+    }
+
+    @MainActor
+    func testHalfSessionResultsRequireTheMirroredAllSinglesShape() {
+        let fixture = makeHalfSessionRounds()
+        var malformedRounds = fixture.rounds
+        malformedRounds.removeLast()
+
+        XCTAssertNil(
+            SessionHalfResultGrouper.groupedMatches(
+                playerCount: 4,
+                rounds: malformedRounds
+            )
+        )
+    }
+
+    @MainActor
+    func testPlayerMatchFilterKeepsSelectedSinglesPlayerFirst() throws {
+        let matchID = UUID()
+        let match = SessionMatch(
+            id: matchID,
+            roundNumber: 2,
+            type: .singles,
+            order: 0,
+            playerIDs: [ivanID, garaID],
+            isCompleted: true,
+            teamOneScore: 11,
+            teamTwoScore: 7,
+            eloPrediction: MatchEloPrediction(
+                matchId: matchID,
+                ratingType: "singles",
+                team1: EloSidePrediction(
+                    rating: 1_550,
+                    win: 8,
+                    draw: -4,
+                    loss: -16
+                ),
+                team2: EloSidePrediction(
+                    rating: 1_480,
+                    win: 16,
+                    draw: 4,
+                    loss: -8
+                )
+            )
+        )
+
+        let filtered = SessionPlayerMatchFilter.matches(
+            for: garaID,
+            in: [match]
+        )
+        XCTAssertEqual(filtered.count, 1)
+        let result = try XCTUnwrap(filtered.first)
+
+        XCTAssertEqual(result.playerIDs, [garaID, ivanID])
+        XCTAssertEqual(result.teamOneScore, 7)
+        XCTAssertEqual(result.teamTwoScore, 11)
+        XCTAssertEqual(result.eloPrediction?.team1.rating, 1_480)
+        XCTAssertEqual(result.eloPrediction?.team2.rating, 1_550)
+    }
+
+    @MainActor
+    func testPlayerMatchFilterMovesSelectedDoublesTeamAndPlayerFirst() throws {
+        let match = SessionMatch(
+            id: UUID(),
+            roundNumber: 3,
+            type: .doubles,
+            order: 1,
+            playerIDs: [ivanID, garaID, leoID, miladinID],
+            isCompleted: true,
+            teamOneScore: 2,
+            teamTwoScore: 3
+        )
+
+        let filtered = SessionPlayerMatchFilter.matches(
+            for: miladinID,
+            in: [match]
+        )
+        XCTAssertEqual(filtered.count, 1)
+        let result = try XCTUnwrap(filtered.first)
+
+        XCTAssertEqual(
+            result.playerIDs,
+            [miladinID, leoID, ivanID, garaID]
+        )
+        XCTAssertEqual(result.teamOneScore, 3)
+        XCTAssertEqual(result.teamTwoScore, 2)
+
+        let profileResult = makeDetail().playerProfileResult(
+            for: result,
+            selectedPlayerID: miladinID,
+            eloAfter: 1_542,
+            eloDelta: 12
+        )
+        XCTAssertEqual(profileResult.opponent, "Ivan + Gara")
+        XCTAssertEqual(profileResult.scoreFor, 3)
+        XCTAssertEqual(profileResult.scoreAgainst, 2)
+        XCTAssertEqual(profileResult.outcome, .win)
+        XCTAssertEqual(profileResult.elo, 1_542)
+        XCTAssertEqual(profileResult.delta, 12)
+    }
+
+    @MainActor
+    func testPlayerMatchFilterPreservesHalfSessionGrouping() throws {
+        let fixture = makeHalfSessionRounds()
+        let displayedMatches = SessionCompletedMatchPresenter.matches(
+            playerCount: 4,
+            rounds: fixture.rounds
+        )
+
+        let filtered = SessionPlayerMatchFilter.matches(
+            for: ivanID,
+            in: displayedMatches
+        )
+
+        XCTAssertEqual(displayedMatches.count, 6)
+        XCTAssertEqual(filtered.count, 3)
+        XCTAssertTrue(filtered.allSatisfy { $0.playerIDs.first == ivanID })
+        XCTAssertTrue(
+            filtered.allSatisfy {
+                fixture.secondHalfIDs.contains($0.id)
+            }
+        )
+    }
+
+    @MainActor
+    func testPlayerProfileResultsUseCommittedEloSnapshotsPerRatingType() throws {
+        let singlesOneID = UUID()
+        let doublesID = UUID()
+        let singlesTwoID = UUID()
+        let rounds = [
+            SessionRound(
+                number: 1,
+                matches: [
+                    SessionMatch(
+                        id: singlesOneID,
+                        roundNumber: 1,
+                        type: .singles,
+                        order: 0,
+                        playerIDs: [ivanID, garaID],
+                        isCompleted: true,
+                        teamOneScore: 11,
+                        teamTwoScore: 8
+                    ),
+                    SessionMatch(
+                        id: doublesID,
+                        roundNumber: 1,
+                        type: .doubles,
+                        order: 1,
+                        playerIDs: [ivanID, garaID, leoID, miladinID],
+                        isCompleted: true,
+                        teamOneScore: 2,
+                        teamTwoScore: 3
+                    )
+                ],
+                restingPlayers: []
+            ),
+            SessionRound(
+                number: 2,
+                matches: [
+                    SessionMatch(
+                        id: singlesTwoID,
+                        roundNumber: 2,
+                        type: .singles,
+                        order: 0,
+                        playerIDs: [garaID, ivanID],
+                        isCompleted: true,
+                        teamOneScore: 11,
+                        teamTwoScore: 7
+                    )
+                ],
+                restingPlayers: []
+            )
+        ]
+        let detail = makeDetail(
+            singlesPerformance: [
+                makePerformance(
+                    playerID: ivanID,
+                    eloBefore: 1_500,
+                    eloAfter: 1_507
+                )
+            ],
+            doublesPerformance: [
+                makePerformance(
+                    playerID: ivanID,
+                    eloBefore: 1_600,
+                    eloAfter: 1_592
+                )
+            ],
+            rounds: rounds,
+            snapshots: [
+                SessionPlayerEloSnapshot(
+                    matchID: singlesOneID,
+                    playerID: ivanID,
+                    elo: 1_512
+                ),
+                SessionPlayerEloSnapshot(
+                    matchID: doublesID,
+                    playerID: ivanID,
+                    elo: 1_592
+                ),
+                SessionPlayerEloSnapshot(
+                    matchID: singlesTwoID,
+                    playerID: ivanID,
+                    elo: 1_507
+                )
+            ]
+        )
+
+        let results = detail.playerProfileResults(
+            for: rounds.flatMap(\.matches),
+            selectedPlayerID: ivanID
+        )
+
+        XCTAssertEqual(try XCTUnwrap(results[singlesOneID]).delta, 12)
+        XCTAssertEqual(try XCTUnwrap(results[doublesID]).delta, -8)
+        XCTAssertEqual(try XCTUnwrap(results[singlesTwoID]).delta, -5)
+        XCTAssertEqual(try XCTUnwrap(results[singlesTwoID]).elo, 1_507)
+    }
+
+    @MainActor
+    func testGroupedHalfResultUsesSettlementMatchCommittedDelta() throws {
+        let fixture = makeHalfSessionRounds()
+        let displayedMatches = SessionCompletedMatchPresenter.matches(
+            playerCount: 4,
+            rounds: fixture.rounds
+        )
+        let settlement = try XCTUnwrap(
+            displayedMatches.first { $0.id == fixture.secondHalfIDs[0] }
+        )
+        let detail = makeDetail(
+            singlesPerformance: [
+                makePerformance(
+                    playerID: ivanID,
+                    eloBefore: 1_500,
+                    eloAfter: 1_514
+                )
+            ],
+            rounds: fixture.rounds,
+            snapshots: [
+                SessionPlayerEloSnapshot(
+                    matchID: settlement.id,
+                    playerID: ivanID,
+                    elo: 1_514
+                )
+            ]
+        )
+
+        let result = try XCTUnwrap(
+            detail.playerProfileResults(
+                for: [settlement],
+                selectedPlayerID: ivanID
+            )[settlement.id]
+        )
+
+        XCTAssertEqual(result.delta, 14)
+        XCTAssertEqual(result.elo, 1_514)
+    }
+
+    @MainActor
     func testRoundDraftRequiresEveryScoreIncludingExplicitZero() {
         let matches = makeMatches()
         var draft = RoundScoreDraft(matches: matches)
@@ -982,6 +1276,78 @@ final class SessionDetailModelTests: XCTestCase {
             .joined(separator: ":")
     }
 
+    private func makeHalfSessionRounds(
+        firstSettlementCompleted: Bool = true
+    ) -> (
+        rounds: [SessionRound],
+        firstHalfIDs: [UUID],
+        secondHalfIDs: [UUID]
+    ) {
+        let pairings = [
+            [ivanID, garaID],
+            [leoID, miladinID],
+            [ivanID, leoID],
+            [garaID, miladinID],
+            [ivanID, miladinID],
+            [garaID, leoID]
+        ]
+        let firstHalfIDs = pairings.map { _ in UUID() }
+        let secondHalfIDs = pairings.map { _ in UUID() }
+
+        let firstHalfRounds = (0..<3).map { roundIndex in
+            SessionRound(
+                number: roundIndex + 1,
+                matches: (0..<2).map { matchOrder in
+                    let index = roundIndex * 2 + matchOrder
+                    return SessionMatch(
+                        id: firstHalfIDs[index],
+                        roundNumber: roundIndex + 1,
+                        type: .singles,
+                        order: matchOrder,
+                        playerIDs: pairings[index],
+                        isCompleted: true,
+                        teamOneScore: 3,
+                        teamTwoScore: 1
+                    )
+                },
+                restingPlayers: []
+            )
+        }
+
+        let secondHalfRounds = (0..<3).map { roundIndex in
+            SessionRound(
+                number: roundIndex + 4,
+                matches: (0..<2).map { matchOrder in
+                    let index = roundIndex * 2 + matchOrder
+                    let isFirstSettlement = index == 0
+                    return SessionMatch(
+                        id: secondHalfIDs[index],
+                        roundNumber: roundIndex + 4,
+                        type: .singles,
+                        order: matchOrder,
+                        playerIDs: isFirstSettlement
+                            ? Array(pairings[index].reversed())
+                            : pairings[index],
+                        isCompleted: isFirstSettlement
+                            ? firstSettlementCompleted
+                            : true,
+                        teamOneScore: isFirstSettlement
+                            && !firstSettlementCompleted ? nil : 2,
+                        teamTwoScore: isFirstSettlement
+                            && !firstSettlementCompleted ? nil : 3
+                    )
+                },
+                restingPlayers: []
+            )
+        }
+
+        return (
+            firstHalfRounds + secondHalfRounds,
+            firstHalfIDs,
+            secondHalfIDs
+        )
+    }
+
     private func makeAPIClient() -> GweiloAPIClient {
         GweiloAPIClient(
             configuration: AppConfiguration(
@@ -994,7 +1360,12 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
-    private func makeDetail() -> SessionDetail {
+    private func makeDetail(
+        singlesPerformance: [SessionPlayerPerformance] = [],
+        doublesPerformance: [SessionPlayerPerformance] = [],
+        rounds: [SessionRound] = [],
+        snapshots: [SessionPlayerEloSnapshot] = []
+    ) -> SessionDetail {
         SessionDetail(
             session: SessionSummary(
                 id: UUID(),
@@ -1016,10 +1387,28 @@ final class SessionDetailModelTests: XCTestCase {
                 SessionParticipant(id: leoID, name: "Leo", avatarURL: nil, team: nil),
                 SessionParticipant(id: miladinID, name: "Miladin", avatarURL: nil, team: nil)
             ],
-            singlesPerformance: [],
-            doublesPlayerPerformance: [],
+            singlesPerformance: singlesPerformance,
+            doublesPlayerPerformance: doublesPerformance,
             doublesTeamPerformance: [],
-            rounds: []
+            rounds: rounds,
+            playerEloSnapshots: snapshots
+        )
+    }
+
+    private func makePerformance(
+        playerID: UUID,
+        eloBefore: Double,
+        eloAfter: Double
+    ) -> SessionPlayerPerformance {
+        SessionPlayerPerformance(
+            playerID: playerID,
+            matchesPlayed: 1,
+            wins: 1,
+            losses: 0,
+            draws: 0,
+            eloBefore: eloBefore,
+            eloAfter: eloAfter,
+            eloChange: eloAfter - eloBefore
         )
     }
 }

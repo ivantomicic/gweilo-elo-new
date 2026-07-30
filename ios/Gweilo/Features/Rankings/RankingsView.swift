@@ -407,12 +407,8 @@ private struct RankedPlayerAvatar: View {
     @ViewBuilder
     private var rankBadge: some View {
         switch rank {
-        case 1:
-            placementBadge(named: "RankGold")
-        case 2:
-            placementBadge(named: "RankSilver")
-        case 3:
-            placementBadge(named: "RankBronze")
+        case 1...3:
+            RankPlacementBadge(rank: rank)
         default:
             Text("\(rank)")
                 .font(
@@ -434,13 +430,6 @@ private struct RankedPlayerAvatar: View {
                         )
                 }
         }
-    }
-
-    private func placementBadge(named assetName: String) -> some View {
-        Image(assetName)
-            .resizable()
-            .scaledToFit()
-            .frame(width: 17, height: 17)
     }
 }
 
@@ -2341,37 +2330,7 @@ private struct RecentEloResults: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(visibleResults) { result in
-                        HStack(spacing: 12) {
-                            RecentMatchOutcomeBadge(result: result)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(
-                                    "VS "
-                                        + "\(result.opponent ?? "nepoznatog protivnika")"
-                                )
-                                    .font(.body.weight(.semibold))
-                                Text(
-                                    result.date.formatted(
-                                        .dateTime
-                                            .day()
-                                            .month(.abbreviated)
-                                            .year()
-                                            .locale(
-                                                Locale(identifier: "sr_Latn_RS")
-                                            )
-                                    )
-                                )
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
-
-                            Spacer()
-
-                            RecentMatchMetric(result: result)
-                        }
-                        .padding(.vertical, 12)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel(accessibilityLabel(for: result))
+                        PlayerProfileMatchResultRow(result: result)
 
                         if result.id != visibleResults.last?.id {
                             Divider()
@@ -2400,38 +2359,6 @@ private struct RecentEloResults: View {
         }
     }
 
-    private func formattedDelta(_ delta: Double?) -> String {
-        guard let delta else { return "—" }
-        let value = Int(delta.rounded())
-        return value > 0 ? "+\(value)" : "\(value)"
-    }
-
-    private func formattedScore(for result: PlayerEloHistoryPoint) -> String {
-        result.formattedScore ?? "rezultat nije dostupan"
-    }
-
-    private func localizedOutcome(_ outcome: MatchOutcome?) -> String {
-        switch outcome {
-        case .win:
-            "Pobeda"
-        case .draw:
-            "Nerešeno"
-        case .loss:
-            "Poraz"
-        case nil:
-            "Rezultat nije dostupan"
-        }
-    }
-
-    private func accessibilityLabel(
-        for result: PlayerEloHistoryPoint
-    ) -> String {
-        let outcome = localizedOutcome(result.outcome)
-        let opponent = result.opponent ?? "nepoznatog protivnika"
-        let score = formattedScore(for: result)
-        return "\(outcome) protiv \(opponent), rezultat \(score), "
-            + "\(formattedDelta(result.delta)) Elo"
-    }
 }
 
 private struct CompactHeadToHeadSummary: View {
@@ -2645,6 +2572,70 @@ private struct RecentMatchScopePicker: View {
             Rectangle()
                 .fill(GweiloTheme.hairline)
                 .frame(height: 1)
+        }
+    }
+}
+
+struct PlayerProfileMatchResultRow: View {
+    let result: PlayerEloHistoryPoint
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RecentMatchOutcomeBadge(result: result)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(
+                    "VS "
+                        + "\(result.opponent ?? "nepoznatog protivnika")"
+                )
+                .font(.body.weight(.semibold))
+
+                Text(
+                    result.date.formatted(
+                        .dateTime
+                            .day()
+                            .month(.abbreviated)
+                            .year()
+                            .locale(Locale(identifier: "sr_Latn_RS"))
+                    )
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            RecentMatchMetric(result: result)
+        }
+        .padding(.vertical, 12)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        let outcome = localizedOutcome(result.outcome)
+        let opponent = result.opponent ?? "nepoznatog protivnika"
+        let score = result.formattedScore ?? "rezultat nije dostupan"
+        return "\(outcome) protiv \(opponent), rezultat \(score), "
+            + "\(formattedDelta) Elo"
+    }
+
+    private var formattedDelta: String {
+        guard let delta = result.delta else { return "—" }
+        let value = Int(delta.rounded())
+        return value > 0 ? "+\(value)" : "\(value)"
+    }
+
+    private func localizedOutcome(_ outcome: MatchOutcome?) -> String {
+        switch outcome {
+        case .win:
+            "Pobeda"
+        case .draw:
+            "Nerešeno"
+        case .loss:
+            "Poraz"
+        case nil:
+            "Rezultat nije dostupan"
         }
     }
 }

@@ -68,6 +68,18 @@ private struct SessionDetailMatchRecord: Decodable, Sendable {
     }
 }
 
+private struct SessionPlayerEloSnapshotRecord: Decodable, Sendable {
+    let matchID: UUID
+    let playerID: UUID
+    let elo: Double
+
+    private enum CodingKeys: String, CodingKey {
+        case matchID = "match_id"
+        case playerID = "player_id"
+        case elo
+    }
+}
+
 private struct ProfileRecord: Decodable, Sendable {
     let id: UUID
     let displayName: String?
@@ -214,8 +226,10 @@ struct SupabaseDataClient: Sendable {
             sessionPlayers.map(\.playerID)
                 + matchRecords.flatMap(\.playerIDs)
         )
+        let matchIDs = matchRecords.map(\.id)
 
         let profiles: [ProfileRecord]
+        let snapshotRecords: [SessionPlayerEloSnapshotRecord]
         if participantIDs.isEmpty {
             profiles = []
         } else {
@@ -227,6 +241,18 @@ struct SupabaseDataClient: Sendable {
                     .init(name: "id", value: "in.(\(ids))")
                 ]
             )
+        }
+        if matchIDs.isEmpty {
+            snapshotRecords = []
+        } else {
+            let ids = matchIDs.map(\.uuidString).joined(separator: ",")
+            snapshotRecords = (try? await get(
+                table: "elo_snapshots",
+                queryItems: [
+                    .init(name: "select", value: "match_id,player_id,elo"),
+                    .init(name: "match_id", value: "in.(\(ids))")
+                ]
+            )) ?? []
         }
 
         let names = Dictionary(
@@ -326,7 +352,14 @@ struct SupabaseDataClient: Sendable {
             singlesPerformance: singlesPerformance,
             doublesPlayerPerformance: doublesPlayerPerformance,
             doublesTeamPerformance: doublesTeamPerformance,
-            rounds: rounds
+            rounds: rounds,
+            playerEloSnapshots: snapshotRecords.map {
+                SessionPlayerEloSnapshot(
+                    matchID: $0.matchID,
+                    playerID: $0.playerID,
+                    elo: $0.elo
+                )
+            }
         )
     }
 
