@@ -1095,6 +1095,12 @@ struct SessionRound: Identifiable, Hashable, Sendable {
     let restingPlayers: [SessionParticipant]
 }
 
+struct SessionPlayerEloSnapshot: Hashable, Sendable {
+    let matchID: UUID
+    let playerID: UUID
+    let elo: Double
+}
+
 struct SessionDetail: Hashable, Sendable {
     let session: SessionSummary
     let participants: [SessionParticipant]
@@ -1102,6 +1108,25 @@ struct SessionDetail: Hashable, Sendable {
     let doublesPlayerPerformance: [SessionPlayerPerformance]
     let doublesTeamPerformance: [SessionTeamPerformance]
     let rounds: [SessionRound]
+    let playerEloSnapshots: [SessionPlayerEloSnapshot]
+
+    init(
+        session: SessionSummary,
+        participants: [SessionParticipant],
+        singlesPerformance: [SessionPlayerPerformance],
+        doublesPlayerPerformance: [SessionPlayerPerformance],
+        doublesTeamPerformance: [SessionTeamPerformance],
+        rounds: [SessionRound],
+        playerEloSnapshots: [SessionPlayerEloSnapshot] = []
+    ) {
+        self.session = session
+        self.participants = participants
+        self.singlesPerformance = singlesPerformance
+        self.doublesPlayerPerformance = doublesPlayerPerformance
+        self.doublesTeamPerformance = doublesTeamPerformance
+        self.rounds = rounds
+        self.playerEloSnapshots = playerEloSnapshots
+    }
 
     func participant(for playerID: UUID) -> SessionParticipant? {
         participants.first { $0.id == playerID }
@@ -1122,6 +1147,384 @@ struct SessionDetail: Hashable, Sendable {
         return (
             playerIDs.first.map(name(for:)) ?? "Unknown player",
             playerIDs.dropFirst().first.map(name(for:)) ?? "Unknown player"
+        )
+    }
+
+    func playerProfileResult(
+        for match: SessionMatch,
+        selectedPlayerID: UUID,
+        eloAfter: Double?,
+        eloDelta: Double?
+    ) -> PlayerEloHistoryPoint {
+        let sideSize = match.type == .doubles ? 2 : 1
+        let teamOneIDs = Array(match.playerIDs.prefix(sideSize))
+        let teamTwoIDs = Array(
+            match.playerIDs.dropFirst(sideSize).prefix(sideSize)
+        )
+        let selectedIsOnTeamTwo = teamTwoIDs.contains(selectedPlayerID)
+            && !teamOneIDs.contains(selectedPlayerID)
+        let opponentIDs = selectedIsOnTeamTwo ? teamOneIDs : teamTwoIDs
+        let playerScore = selectedIsOnTeamTwo
+            ? match.teamTwoScore
+            : match.teamOneScore
+        let opponentScore = selectedIsOnTeamTwo
+            ? match.teamOneScore
+            : match.teamTwoScore
+        let opponent = opponentIDs
+            .map(name(for:))
+            .joined(separator: " + ")
+
+        let outcome: MatchOutcome?
+        if let playerScore, let opponentScore {
+            if playerScore > opponentScore {
+                outcome = .win
+            } else if playerScore < opponentScore {
+                outcome = .loss
+            } else {
+                outcome = .draw
+            }
+        } else {
+            outcome = nil
+        }
+
+        return PlayerEloHistoryPoint(
+            match: match.roundNumber * 100 + match.order,
+            elo: eloAfter ?? 0,
+            date: session.createdAt,
+            opponent: opponent.isEmpty ? nil : opponent,
+            opponentID: opponentIDs.count == 1 ? opponentIDs.first : nil,
+            delta: eloDelta,
+            outcome: outcome,
+            scoreFor: playerScore,
+            scoreAgainst: opponentScore
+        )
+    }
+
+    func playerProfileResults(
+        for displayedMatches: [SessionMatch],
+        selectedPlayerID: UUID
+    ) -> [UUID: PlayerEloHistoryPoint] {
+        let snapshotEloByMatchID = Dictionary(
+            uniqueKeysWithValues: playerEloSnapshots
+                .filter { $0.playerID == selectedPlayerID }
+                .map { ($0.matchID, $0.elo) }
+        )
+        let deltasByMatchID = committedEloDeltas(
+            selectedPlayerID: selectedPlayerID,
+            snapshotEloByMatchID: snapshotEloByMatchID
+        )
+
+        return Dictionary(
+            uniqueKeysWithValues: displayedMatches.map { match in
+                let fallbackElo = performance(
+                    for: selectedPlayerID,
+                    type: match.type
+                )?.eloAfter
+                return (
+                    match.id,
+                    playerProfileResult(
+                        for: match,
+                        selectedPlayerID: selectedPlayerID,
+                        eloAfter: snapshotEloByMatchID[match.id] ?? fallbackElo,
+                        eloDelta: deltasByMatchID[match.id]
+                    )
+                )
+            }
+        )
+    }
+
+    private func committedEloDeltas(
+        selectedPlayerID: UUID,
+        snapshotEloByMatchID: [UUID: Double]
+    ) -> [UUID: Double] {
+        var runningElo: [SessionMatchType: Double] = [:]
+        if let singles = performance(
+            for: selectedPlayerID,
+            type: .singles
+        ) {
+            runningElo[.singles] = singles.eloBefore
+        }
+        if let doubles = performance(
+            for: selectedPlayerID,
+            type: .doubles
+        ) {
+            runningElo[.doubles] = doubles.eloBefore
+        }
+
+        var deltasByMatchID: [UUID: Double] = [:]
+        for match in rounds
+            .sorted(by: { $0.number < $1.number })
+            .flatMap({ round in
+                round.matches.sorted { $0.order < $1.order }
+            })
+        where match.playerIDs.contains(selectedPlayerID) {
+            guard let eloAfter = snapshotEloByMatchID[match.id] else {
+                continue
+            }
+            if let eloBefore = runningElo[match.type] {
+                deltasByMatchID[match.id] = eloAfter - eloBefore
+            }
+            runningElo[match.type] = eloAfter
+        }
+        return deltasByMatchID
+    }
+
+    private func performance(
+        for playerID: UUID,
+        type: SessionMatchType
+    ) -> SessionPlayerPerformance? {
+        let performances = type == .singles
+            ? singlesPerformance
+            : doublesPlayerPerformance
+        return performances.first { $0.playerID == playerID }
+    }
+}
+
+enum SessionHalfResultGrouper {
+    private struct Configuration {
+        let halfRoundCount: Int
+        let matchesPerRound: Int
+    }
+
+    static func groupedMatches(
+        playerCount: Int,
+        rounds: [SessionRound]
+    ) -> [SessionMatch]? {
+        guard let configuration = configuration(for: playerCount) else {
+            return nil
+        }
+
+        let expectedRoundCount = configuration.halfRoundCount * 2
+        let roundsByNumber = Dictionary(grouping: rounds, by: \.number)
+        guard roundsByNumber.count == expectedRoundCount,
+              Set(roundsByNumber.keys) == Set(1...expectedRoundCount)
+        else {
+            return nil
+        }
+
+        for roundNumber in 1...expectedRoundCount {
+            guard let round = roundsByNumber[roundNumber]?.only,
+                  round.matches.count == configuration.matchesPerRound,
+                  round.matches.allSatisfy({
+                      $0.type == .singles && $0.playerIDs.count == 2
+                  })
+            else {
+                return nil
+            }
+        }
+
+        for firstRoundNumber in 1...configuration.halfRoundCount {
+            guard
+                let firstRound = roundsByNumber[firstRoundNumber]?.only,
+                let secondRound = roundsByNumber[
+                    firstRoundNumber + configuration.halfRoundCount
+                ]?.only
+            else {
+                return nil
+            }
+
+            for firstMatch in firstRound.matches {
+                guard let secondMatch = secondRound.matches.first(where: {
+                    $0.order == firstMatch.order
+                        && pairKey($0.playerIDs) == pairKey(firstMatch.playerIDs)
+                }) else {
+                    return nil
+                }
+            }
+        }
+
+        return rounds
+            .sorted { $0.number < $1.number }
+            .flatMap { round in
+                round.matches
+                    .sorted { $0.order < $1.order }
+                    .compactMap { match in
+                        displayMatch(
+                            match,
+                            roundsByNumber: roundsByNumber,
+                            configuration: configuration
+                        )
+                    }
+            }
+    }
+
+    private static func configuration(
+        for playerCount: Int
+    ) -> Configuration? {
+        switch playerCount {
+        case 4:
+            Configuration(halfRoundCount: 3, matchesPerRound: 2)
+        case 5:
+            Configuration(halfRoundCount: 5, matchesPerRound: 2)
+        case 6:
+            Configuration(halfRoundCount: 5, matchesPerRound: 3)
+        default:
+            nil
+        }
+    }
+
+    private static func displayMatch(
+        _ match: SessionMatch,
+        roundsByNumber: [Int: [SessionRound]],
+        configuration: Configuration
+    ) -> SessionMatch? {
+        if match.roundNumber <= configuration.halfRoundCount {
+            let settlementRoundNumber =
+                match.roundNumber + configuration.halfRoundCount
+            let settlementMatch = roundsByNumber[settlementRoundNumber]?
+                .only?
+                .matches
+                .first {
+                    $0.order == match.order && $0.isCompleted
+                }
+            return settlementMatch == nil ? match : nil
+        }
+
+        let firstRoundNumber =
+            match.roundNumber - configuration.halfRoundCount
+        guard let firstMatch = roundsByNumber[firstRoundNumber]?
+            .only?
+            .matches
+            .first(where: { $0.order == match.order })
+        else {
+            return match
+        }
+
+        return match.combiningScore(from: firstMatch)
+    }
+
+    private static func pairKey(_ playerIDs: [UUID]) -> String? {
+        guard playerIDs.count == 2 else { return nil }
+        return playerIDs
+            .map { $0.uuidString.lowercased() }
+            .sorted()
+            .joined(separator: ":")
+    }
+}
+
+enum SessionPlayerMatchFilter {
+    static func matches(
+        for playerID: UUID,
+        in matches: [SessionMatch]
+    ) -> [SessionMatch] {
+        matches.compactMap { match in
+            orient(match, selectedPlayerID: playerID)
+        }
+    }
+
+    private static func orient(
+        _ match: SessionMatch,
+        selectedPlayerID: UUID
+    ) -> SessionMatch? {
+        let sideSize = match.type == .doubles ? 2 : 1
+        guard match.playerIDs.count == sideSize * 2 else { return nil }
+
+        let teamOne = Array(match.playerIDs.prefix(sideSize))
+        let teamTwo = Array(match.playerIDs.dropFirst(sideSize).prefix(sideSize))
+        let selectedIsOnTeamOne = teamOne.contains(selectedPlayerID)
+        let selectedIsOnTeamTwo = teamTwo.contains(selectedPlayerID)
+        guard selectedIsOnTeamOne || selectedIsOnTeamTwo else { return nil }
+
+        let selectedTeam = selectedIsOnTeamOne ? teamOne : teamTwo
+        let opponentTeam = selectedIsOnTeamOne ? teamTwo : teamOne
+        let orderedSelectedTeam = [
+            selectedPlayerID
+        ] + selectedTeam.filter { $0 != selectedPlayerID }
+        let shouldSwapSides = selectedIsOnTeamTwo
+
+        return SessionMatch(
+            id: match.id,
+            roundNumber: match.roundNumber,
+            type: match.type,
+            order: match.order,
+            playerIDs: orderedSelectedTeam + opponentTeam,
+            isCompleted: match.isCompleted,
+            teamOneScore: shouldSwapSides
+                ? match.teamTwoScore
+                : match.teamOneScore,
+            teamTwoScore: shouldSwapSides
+                ? match.teamOneScore
+                : match.teamTwoScore,
+            eloPrediction: match.eloPrediction.map {
+                shouldSwapSides ? $0.swappingSides() : $0
+            }
+        )
+    }
+}
+
+enum SessionCompletedMatchPresenter {
+    static func matches(
+        playerCount: Int,
+        rounds: [SessionRound]
+    ) -> [SessionMatch] {
+        if let groupedMatches = SessionHalfResultGrouper.groupedMatches(
+            playerCount: playerCount,
+            rounds: rounds
+        ) {
+            return groupedMatches
+        }
+
+        return rounds
+            .sorted { $0.number < $1.number }
+            .flatMap { round in
+                round.matches.sorted { $0.order < $1.order }
+            }
+    }
+}
+
+private extension Array {
+    var only: Element? {
+        count == 1 ? first : nil
+    }
+}
+
+private extension MatchEloPrediction {
+    func swappingSides() -> MatchEloPrediction {
+        MatchEloPrediction(
+            matchId: matchId,
+            ratingType: ratingType,
+            team1: team2,
+            team2: team1
+        )
+    }
+}
+
+private extension SessionMatch {
+    func combiningScore(from firstHalf: SessionMatch) -> SessionMatch {
+        guard
+            let firstTeamOne = firstHalf.teamOneScore,
+            let firstTeamTwo = firstHalf.teamTwoScore,
+            let secondTeamOne = teamOneScore,
+            let secondTeamTwo = teamTwoScore
+        else {
+            return self
+        }
+
+        let combinedScores: (Int, Int)
+        if firstHalf.playerIDs == playerIDs {
+            combinedScores = (
+                firstTeamOne + secondTeamOne,
+                firstTeamTwo + secondTeamTwo
+            )
+        } else if firstHalf.playerIDs == Array(playerIDs.reversed()) {
+            combinedScores = (
+                firstTeamTwo + secondTeamOne,
+                firstTeamOne + secondTeamTwo
+            )
+        } else {
+            return self
+        }
+
+        return SessionMatch(
+            id: id,
+            roundNumber: roundNumber,
+            type: type,
+            order: order,
+            playerIDs: playerIDs,
+            isCompleted: isCompleted,
+            teamOneScore: combinedScores.0,
+            teamTwoScore: combinedScores.1,
+            eloPrediction: eloPrediction
         )
     }
 }

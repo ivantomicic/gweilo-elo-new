@@ -52,6 +52,31 @@ enum GweiloTheme {
     }
 }
 
+struct RankPlacementBadge: View {
+    let rank: Int
+
+    @ViewBuilder
+    var body: some View {
+        switch rank {
+        case 1:
+            placementBadge(named: "RankGold")
+        case 2:
+            placementBadge(named: "RankSilver")
+        case 3:
+            placementBadge(named: "RankBronze")
+        default:
+            EmptyView()
+        }
+    }
+
+    private func placementBadge(named assetName: String) -> some View {
+        Image(assetName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 17, height: 17)
+    }
+}
+
 struct ArenaBackground: View {
     var body: some View {
         ZStack {

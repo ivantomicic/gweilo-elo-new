@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SessionDetailView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let session: SessionSummary
     let dataStore: AppDataStore
 
@@ -12,6 +13,7 @@ struct SessionDetailView: View {
     @State private var showsManagementConfirmation = false
     @State private var errorMessage: String?
     @State private var managementErrorMessage: String?
+    @State private var selectedPlayerID: UUID?
 
     var body: some View {
         ZStack {
@@ -63,18 +65,70 @@ struct SessionDetailView: View {
                                             detail: detail
                                         )
                                     } else if detail.session.status == .completed {
-                                        SessionPerformanceTable(detail: detail)
+                                        SessionPerformanceTable(
+                                            detail: detail,
+                                            selectedPlayerID: Binding(
+                                                get: { selectedPlayerID },
+                                                set: { playerID in
+                                                    updateSelectedPlayer(playerID)
+                                                }
+                                            )
+                                        )
                                     }
 
                                     if detail.session.status == .active {
                                         PlayerRoster(participants: detail.participants)
                                     }
 
-                                    RoundTimeline(
-                                        detail: detail,
-                                        expandedRounds: expandedRounds,
-                                        toggleRound: toggleRound
-                                    )
+                                    if detail.session.status == .completed,
+                                       let selectedPlayerID,
+                                       let participant = detail.participant(
+                                        for: selectedPlayerID
+                                       ) {
+                                        PlayerSessionMatchResults(
+                                            participant: participant,
+                                            matches: SessionPlayerMatchFilter.matches(
+                                                for: selectedPlayerID,
+                                                in: SessionCompletedMatchPresenter.matches(
+                                                    playerCount: detail.session.playerCount,
+                                                    rounds: detail.rounds
+                                                )
+                                            ),
+                                            singlesPerformance: detail
+                                                .singlesPerformance
+                                                .first {
+                                                    $0.playerID == selectedPlayerID
+                                                },
+                                            doublesPerformance: detail
+                                                .doublesPlayerPerformance
+                                                .first {
+                                                    $0.playerID == selectedPlayerID
+                                                },
+                                            detail: detail,
+                                            clearSelection: {
+                                                updateSelectedPlayer(nil)
+                                            }
+                                        )
+                                        .transition(playerFilterTransition)
+                                    } else if detail.session.status == .completed,
+                                       let matches = SessionHalfResultGrouper
+                                        .groupedMatches(
+                                            playerCount: detail.session.playerCount,
+                                            rounds: detail.rounds
+                                        ) {
+                                        HalfSessionMatchResults(
+                                            matches: matches,
+                                            detail: detail
+                                        )
+                                        .transition(playerFilterTransition)
+                                    } else {
+                                        RoundTimeline(
+                                            detail: detail,
+                                            expandedRounds: expandedRounds,
+                                            toggleRound: toggleRound
+                                        )
+                                        .transition(playerFilterTransition)
+                                    }
                                 }
                             } else if let errorMessage {
                                 SessionDetailError(
@@ -192,6 +246,23 @@ struct SessionDetailView: View {
 
     private func shouldShowScorekeeper(for detail: SessionDetail) -> Bool {
         dataStore.canManageSessions && detail.session.status == .active
+    }
+
+    private var playerFilterAnimation: Animation? {
+        reduceMotion
+            ? nil
+            : .snappy(duration: 0.22, extraBounce: 0)
+    }
+
+    private var playerFilterTransition: AnyTransition {
+        .opacity.combined(with: .offset(y: 8))
+    }
+
+    private func updateSelectedPlayer(_ playerID: UUID?) {
+        guard selectedPlayerID != playerID else { return }
+        withAnimation(playerFilterAnimation) {
+            selectedPlayerID = playerID
+        }
     }
 
     private func manageActiveSession() async {
@@ -370,6 +441,7 @@ private struct ReadOnlyCurrentRound: View {
 
 private struct SessionPerformanceTable: View {
     let detail: SessionDetail
+    @Binding var selectedPlayerID: UUID?
     @State private var selection: SessionPerformanceCategory = .singles
     @Namespace private var selectionIndicator
 
@@ -441,7 +513,13 @@ private struct SessionPerformanceTable: View {
             PerformanceTableRow(
                 rank: index + 1,
                 participant: detail.participant(for: performance.playerID),
-                performance: performance
+                performance: performance,
+                isSelected: selectedPlayerID == performance.playerID,
+                action: {
+                    selectedPlayerID = selectedPlayerID == performance.playerID
+                        ? nil
+                        : performance.playerID
+                }
             )
 
             if performance.id != performances.last?.id {
@@ -569,6 +647,8 @@ private struct PerformanceTableRow: View {
     let rank: Int
     let participant: SessionParticipant?
     let performance: SessionPlayerPerformance
+    let isSelected: Bool
+    let action: () -> Void
 
     private var eloChangeText: String {
         let rounded = Int(performance.eloChange.rounded())
@@ -582,50 +662,61 @@ private struct PerformanceTableRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 8) {
-            SessionRankedPlayerAvatar(
-                rank: rank,
-                name: participant?.name ?? "Nepoznat igrač",
-                initials: participant?.initials ?? "?",
-                avatarURL: participant?.avatarURL
-            )
-            .accessibilityHidden(true)
+        Button(action: action) {
+            HStack(spacing: 8) {
+                SessionRankedPlayerAvatar(
+                    rank: rank,
+                    name: participant?.name ?? "Nepoznat igrač",
+                    initials: participant?.initials ?? "?",
+                    avatarURL: participant?.avatarURL,
+                    isSelected: isSelected
+                )
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(participant?.name ?? "Nepoznat igrač")
-                    .font(.body.weight(.semibold))
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(participant?.name ?? "Nepoznat igrač")
+                        .font(.body.weight(.semibold))
+                        .lineLimit(1)
 
-                SessionRecordSummary(
+                    SessionRecordSummary(
+                        matches: performance.matchesPlayed,
+                        wins: performance.wins,
+                        draws: performance.draws,
+                        losses: performance.losses
+                    )
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                SessionFormBar(
                     matches: performance.matchesPlayed,
                     wins: performance.wins,
                     draws: performance.draws,
                     losses: performance.losses
                 )
+                .frame(width: 56, height: 8)
+
+                SessionEloResult(
+                    eloAfter: performance.eloAfter,
+                    changeText: eloChangeText,
+                    changeColor: eloColor
+                )
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            SessionFormBar(
-                matches: performance.matchesPlayed,
-                wins: performance.wins,
-                draws: performance.draws,
-                losses: performance.losses
-            )
-            .frame(width: 56, height: 8)
-
-            SessionEloResult(
-                eloAfter: performance.eloAfter,
-                changeText: eloChangeText,
-                changeColor: eloColor
-            )
+            .padding(.vertical, 13)
+            .contentShape(.rect)
         }
-        .padding(.vertical, 13)
+        .buttonStyle(ResponsiveButtonStyle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "\(participant?.name ?? "Nepoznat igrač"), mesto \(rank), "
                 + "\(performance.wins) pobeda, \(performance.draws) nerešenih, "
                 + "\(performance.losses) poraza, \(eloChangeText) Elo"
         )
+        .accessibilityHint(
+            isSelected
+                ? "Dodirnite da prikažete sve mečeve"
+                : "Dodirnite da prikažete samo mečeve ovog igrača"
+        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -689,10 +780,13 @@ private struct TeamPerformanceTableRow: View {
 }
 
 private struct SessionRankedPlayerAvatar: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let rank: Int
     let name: String
     let initials: String
     let avatarURL: URL?
+    let isSelected: Bool
 
     var body: some View {
         PlayerIdentityAvatar(
@@ -701,6 +795,39 @@ private struct SessionRankedPlayerAvatar: View {
             avatarURL: avatarURL,
             size: 38
         )
+        .background {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            GweiloTheme.cyan,
+                            GweiloTheme.lime
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .blur(radius: 6)
+                .scaleEffect(1.14)
+                .opacity(isSelected ? 0.42 : 0)
+        }
+        .overlay {
+            Circle()
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            GweiloTheme.cyan,
+                            GweiloTheme.lime.opacity(0.82)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.4
+                )
+                .padding(-1.5)
+                .opacity(isSelected ? 1 : 0)
+        }
+        .scaleEffect(isSelected && !reduceMotion ? 1.04 : 1)
         .overlay(alignment: .topLeading) {
             SessionRankBadge(rank: rank)
                 .offset(x: -4, y: -4)
@@ -753,34 +880,28 @@ private struct SessionRankedTeamAvatar: View {
 private struct SessionRankBadge: View {
     let rank: Int
 
+    @ViewBuilder
     var body: some View {
-        Text("\(rank)")
-            .font(
-                GweiloTheme.labelFont(size: 10, relativeTo: .caption2)
-                    .monospacedDigit()
-            )
-            .foregroundStyle(
-                rank <= 3 ? GweiloTheme.background : GweiloTheme.bone
-            )
-            .padding(.horizontal, 4)
-            .frame(minWidth: 17, minHeight: 17)
-            .background(badgeBackground, in: .capsule)
-            .overlay {
-                Capsule()
-                    .stroke(GweiloTheme.background.opacity(0.88), lineWidth: 1.5)
-            }
-    }
-
-    private var badgeBackground: Color {
         switch rank {
-        case 1:
-            GweiloTheme.lime
-        case 2:
-            GweiloTheme.cyan
-        case 3:
-            GweiloTheme.accentBright
+        case 1...3:
+            RankPlacementBadge(rank: rank)
         default:
-            GweiloTheme.raisedSurface
+            Text("\(rank)")
+                .font(
+                    GweiloTheme.labelFont(size: 10, relativeTo: .caption2)
+                        .monospacedDigit()
+                )
+                .foregroundStyle(GweiloTheme.bone)
+                .padding(.horizontal, 4)
+                .frame(minWidth: 17, minHeight: 17)
+                .background(GweiloTheme.raisedSurface, in: .capsule)
+                .overlay {
+                    Capsule()
+                        .stroke(
+                            GweiloTheme.background.opacity(0.88),
+                            lineWidth: 1.5
+                        )
+                }
         }
     }
 }
@@ -990,6 +1111,174 @@ private struct RoundTimeline: View {
                 }
             }
         }
+    }
+}
+
+private struct HalfSessionMatchResults: View {
+    let matches: [SessionMatch]
+    let detail: SessionDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionLabel(
+                title: "Rezultati mečeva",
+                value: "\(matches.count) MEČEVA"
+            )
+
+            LazyVStack(spacing: 10) {
+                ForEach(matches) { match in
+                    ScoreboardMatch(
+                        match: match,
+                        detail: detail,
+                        emphasis: false
+                    )
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Konačni rezultati mečeva")
+    }
+}
+
+private struct PlayerSessionMatchResults: View {
+    let participant: SessionParticipant
+    let matches: [SessionMatch]
+    let singlesPerformance: SessionPlayerPerformance?
+    let doublesPerformance: SessionPlayerPerformance?
+    let detail: SessionDetail
+    let clearSelection: () -> Void
+    private let profileResultsByMatchID: [UUID: PlayerEloHistoryPoint]
+
+    init(
+        participant: SessionParticipant,
+        matches: [SessionMatch],
+        singlesPerformance: SessionPlayerPerformance?,
+        doublesPerformance: SessionPlayerPerformance?,
+        detail: SessionDetail,
+        clearSelection: @escaping () -> Void
+    ) {
+        self.participant = participant
+        self.matches = matches
+        self.singlesPerformance = singlesPerformance
+        self.doublesPerformance = doublesPerformance
+        self.detail = detail
+        self.clearSelection = clearSelection
+        profileResultsByMatchID = detail.playerProfileResults(
+            for: matches,
+            selectedPlayerID: participant.id
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            SectionLabel(
+                title: "Mečevi igrača",
+                value: "\(matches.count) MEČEVA"
+            )
+
+            SelectedSessionPlayerHeader(
+                participant: participant,
+                singlesPerformance: singlesPerformance,
+                doublesPerformance: doublesPerformance,
+                clearSelection: clearSelection
+            )
+
+            if matches.isEmpty {
+                Text("Nema mečeva za izabranog igrača.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.vertical, 8)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(matches) { match in
+                        PlayerProfileMatchResultRow(
+                            result: profileResult(for: match)
+                        )
+
+                        if match.id != matches.last?.id {
+                            Divider()
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Mečevi igrača \(participant.name)")
+    }
+
+    private func profileResult(
+        for match: SessionMatch
+    ) -> PlayerEloHistoryPoint {
+        profileResultsByMatchID[match.id]
+            ?? detail.playerProfileResult(
+                for: match,
+                selectedPlayerID: participant.id,
+                eloAfter: nil,
+                eloDelta: nil
+            )
+    }
+}
+
+private struct SelectedSessionPlayerHeader: View {
+    let participant: SessionParticipant
+    let singlesPerformance: SessionPlayerPerformance?
+    let doublesPerformance: SessionPlayerPerformance?
+    let clearSelection: () -> Void
+
+    @ScaledMetric(relativeTo: .body) private var avatarSize: CGFloat = 44
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PlayerIdentityAvatar(
+                name: participant.name,
+                initials: participant.initials,
+                avatarURL: participant.avatarURL,
+                size: avatarSize
+            )
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(participant.name)
+                    .font(.body.weight(.semibold))
+                    .lineLimit(1)
+
+                Text(summaryText)
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button("Svi", systemImage: "xmark") {
+                clearSelection()
+            }
+            .font(.caption.weight(.semibold))
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityHint("Uklanja filter igrača")
+        }
+        .padding(.vertical, 2)
+    }
+
+    private var summaryText: String {
+        let summaries = [
+            singlesPerformance.map { summary(for: $0, label: "Singl") },
+            doublesPerformance.map { summary(for: $0, label: "Dubl") }
+        ]
+        .compactMap { $0 }
+        return summaries.isEmpty
+            ? "ELO nije dostupan"
+            : summaries.joined(separator: " · ")
+    }
+
+    private func summary(
+        for performance: SessionPlayerPerformance,
+        label: String
+    ) -> String {
+        let value = Int(performance.eloChange.rounded())
+        let change = value > 0 ? "+\(value)" : "\(value)"
+        return "\(label) \(Int(performance.eloAfter.rounded())) (\(change))"
     }
 }
 
