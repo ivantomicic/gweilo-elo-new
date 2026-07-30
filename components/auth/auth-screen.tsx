@@ -27,7 +27,11 @@ import { supabase } from "@/lib/supabase/client";
  */
 type AuthState = "idle" | "loading" | "success" | "error";
 
-export function AuthScreen() {
+type AuthScreenProps = {
+	redirectPath?: string;
+};
+
+export function AuthScreen({ redirectPath = "/" }: AuthScreenProps = {}) {
 	const [isLogin, setIsLogin] = useState(true);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -118,10 +122,18 @@ export function AuthScreen() {
 		setIsLoading(true);
 
 		try {
+			const callbackUrl = new URL(
+				"/auth/callback",
+				window.location.origin,
+			);
+			if (redirectPath !== "/") {
+				callbackUrl.searchParams.set("next", redirectPath);
+			}
+
 			const { error: oauthError } = await supabase.auth.signInWithOAuth({
 				provider: "google",
 				options: {
-					redirectTo: `${window.location.origin}/auth/callback`,
+					redirectTo: callbackUrl.toString(),
 				},
 			});
 
@@ -131,7 +143,7 @@ export function AuthScreen() {
 				setIsLoading(false);
 			}
 			// On success, user will be redirected to OAuth provider
-			// then back to callback route, which redirects to root
+			// then back to callback route, which restores the requested page
 		} catch (err) {
 			setAuthState("error");
 			setError(t.auth.error.oauthError);

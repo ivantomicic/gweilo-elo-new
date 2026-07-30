@@ -1,6 +1,7 @@
 import { createMcpHandler } from "@modelcontextprotocol/server";
 import { NextRequest, NextResponse } from "next/server";
 import { createGweiloMcpServer } from "@/lib/mcp/server";
+import { getMcpBearerChallenge, MCP_OAUTH_SCOPES } from "@/lib/mcp/oauth";
 import { verifyUser } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
@@ -33,14 +34,16 @@ function getBearerToken(request: NextRequest) {
 	return token || null;
 }
 
-function unauthorized() {
+function unauthorized(request: NextRequest) {
 	return NextResponse.json(
 		{ error: "A valid Supabase access token is required." },
 		{
 			status: 401,
 			headers: {
 				"Cache-Control": "no-store",
-				"WWW-Authenticate": 'Bearer realm="Gweilo MCP"',
+				"WWW-Authenticate": getMcpBearerChallenge(
+					request.nextUrl.origin,
+				),
 			},
 		},
 	);
@@ -49,19 +52,19 @@ function unauthorized() {
 async function handleMcpRequest(request: NextRequest) {
 	const token = getBearerToken(request);
 	if (!token) {
-		return unauthorized();
+		return unauthorized(request);
 	}
 
 	const authenticatedUser = await verifyUser(`Bearer ${token}`);
 	if (!authenticatedUser) {
-		return unauthorized();
+		return unauthorized(request);
 	}
 
 	const response = await handler.fetch(request, {
 		authInfo: {
 			token,
 			clientId: authenticatedUser.userId,
-			scopes: ["gweilo:read"],
+			scopes: [...MCP_OAUTH_SCOPES],
 			extra: { userId: authenticatedUser.userId },
 		},
 	});

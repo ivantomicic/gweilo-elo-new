@@ -184,6 +184,10 @@ export function MobileNav() {
 		return null;
 	}
 
+	if (pathname.startsWith("/oauth/")) {
+		return null;
+	}
+
 	const hasActiveInMore =
 		moreNavItems.some((item) => pathname === item.url) ||
 		pathname === settingsItem.url ||

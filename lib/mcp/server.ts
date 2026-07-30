@@ -6,12 +6,17 @@ import {
 	getOwnRecentMatches,
 	McpTableTennisError,
 } from "@/lib/mcp/table-tennis";
+import { MCP_TOOL_SECURITY_SCHEMES } from "@/lib/mcp/oauth";
 
 const readOnlyAnnotations = {
 	readOnlyHint: true,
 	destructiveHint: false,
 	idempotentHint: true,
 	openWorldHint: false,
+};
+
+const oauthToolMetadata = {
+	securitySchemes: MCP_TOOL_SECURITY_SCHEMES,
 };
 
 function toolResult(data: unknown) {
@@ -68,6 +73,7 @@ export function createGweiloMcpServer(userId: string) {
 					.describe("Number of recent matches to return (1-20)."),
 			}),
 			annotations: readOnlyAnnotations,
+			_meta: oauthToolMetadata,
 		},
 		async ({ limit }) => {
 			try {
@@ -94,6 +100,7 @@ export function createGweiloMcpServer(userId: string) {
 					.describe("Number of recent outcomes to include (1-10)."),
 			}),
 			annotations: readOnlyAnnotations,
+			_meta: oauthToolMetadata,
 		},
 		async ({ recent_limit: recentLimit }) => {
 			try {
@@ -126,6 +133,7 @@ export function createGweiloMcpServer(userId: string) {
 					.describe("Number of recent meetings to return (1-20)."),
 			}),
 			annotations: readOnlyAnnotations,
+			_meta: oauthToolMetadata,
 		},
 		async ({
 			opponent_id: opponentId,

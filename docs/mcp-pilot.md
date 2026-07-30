@@ -16,6 +16,9 @@ Vercel deployment. It accepts both current MCP requests and the stateless
 - Every request requires a current Supabase access token in
   `Authorization: Bearer <token>`.
 - The token is verified server-side with Supabase before MCP dispatch.
+- OAuth clients discover Supabase Auth through
+  `/.well-known/oauth-protected-resource`. ChatGPT uses authorization code
+  with PKCE and never receives the Supabase service-role key.
 - The authenticated Supabase user ID is the player ID. Tools do not accept a
   different player ID, so a caller cannot request another player's summary.
 - `head_to_head` only returns an opponent profile after finding a completed
@@ -35,11 +38,46 @@ The route reuses the app's existing deployment variables:
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
 SUPABASE_SERVICE_ROLE_KEY
 ```
 
+The public Supabase values are already used by the Gweilo web sign-in. The
+service-role key remains server-only.
+
 The official MCP server package requires Node.js 20 or later. Configure the
 Vercel project to use Node.js 20+ if it is not already doing so.
+
+## ChatGPT OAuth setup
+
+Deploy this version before enabling the OAuth server so the consent page is
+available.
+
+In the Supabase dashboard:
+
+1. Open **Authentication → OAuth Server** and enable OAuth 2.1.
+2. Set the authorization path to `/oauth/consent`. With the production Site
+   URL, Supabase will send users to
+   `https://www.gweilo.lol/oauth/consent`.
+3. Enable **Dynamic Client Registration** so ChatGPT can register itself.
+4. Confirm the project Site URL is `https://www.gweilo.lol` and the existing
+   Gweilo sign-in callback remains allowed.
+
+Do not create a static access token or OAuth client secret in the browser.
+ChatGPT discovers the Supabase authorization server from the public MCP
+endpoint and uses the consent flow.
+
+In ChatGPT:
+
+1. Open **Settings → Security and login** and enable **Developer mode**.
+2. Open the Plugins page, choose **Create**, and enter
+   `https://www.gweilo.lol/api/mcp` as the MCP server URL.
+3. Complete the Gweilo sign-in and approve the read-only connection.
+4. Install the personal plugin. Start a **Work** chat and select Gweilo with
+   `@Gweilo`.
+
+The exact ChatGPT labels can evolve, but the server URL must include
+`/api/mcp`. No bearer token should be pasted into ChatGPT.
 
 ## Local test
 
@@ -107,10 +145,10 @@ Vercel project to use Node.js 20+ if it is not already doing so.
 Use an `opponent.id` from `recent_matches` as the `opponent_id` argument to
 `head_to_head`.
 
-An MCP client should be configured with the deployed
-`https://<deployment>/api/mcp` URL and the same Supabase bearer token header.
-Because user access tokens expire, this pilot is best suited to a small test
-with a client that can refresh or easily replace the token.
+For command-line testing, an MCP client can still use the deployed
+`https://<deployment>/api/mcp` URL and a short-lived Supabase bearer token.
+OAuth-capable clients should use discovery instead, so they can obtain and
+refresh tokens through Supabase Auth.
 
 ## Deployment
 
@@ -120,5 +158,5 @@ and that the runtime is Node.js 20 or newer. Then run the handshake and
 `recent_matches` smoke tests against the deployed `/api/mcp` URL with a test
 user's access token.
 
-This is intentionally singles-only. Expanding it to doubles, OAuth discovery,
-or long-lived MCP sessions should be a separate reviewed change.
+This is intentionally singles-only. Expanding it to doubles, write operations,
+or broader player lookup should be a separate reviewed change.

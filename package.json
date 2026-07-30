@@ -12,7 +12,7 @@
 		"test:sessions": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/sessions/*.test.ts lib/sessions/*.ts && node --test .test-build/tests/sessions/*.test.js",
 		"test:notifications": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/notifications/*.test.ts lib/notifications/types.ts && node --test .test-build/tests/notifications/*.test.js",
 		"test:live-activities": "tsc --module commonjs --moduleResolution node --target es2022 --esModuleInterop --skipLibCheck --outDir .test-build tests/live-activities/*.test.ts lib/live-activities/payload.ts lib/live-activities/types.ts lib/notifications/apns.ts && node --test .test-build/tests/live-activities/*.test.js",
-		"test:mcp": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/mcp/*.test.ts lib/mcp/table-tennis-stats.ts && node --test .test-build/tests/mcp/*.test.js",
+		"test:mcp": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/mcp/*.test.ts lib/mcp/table-tennis-stats.ts lib/mcp/oauth.ts lib/auth/safe-next-path.ts && node --test .test-build/tests/mcp/*.test.js",
 		"test:statistics": "tsc --module commonjs --moduleResolution node --target es2020 --esModuleInterop --skipLibCheck --outDir .test-build tests/statistics/*.test.ts lib/statistics/eligibility.ts lib/statistics/min-matches.ts && node --test .test-build/tests/statistics/*.test.js"
 	},
 	"dependencies": {
