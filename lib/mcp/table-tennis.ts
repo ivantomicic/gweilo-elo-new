@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+	serializeJsonbPlayerIdsContainment,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
 	type ScopedSinglesMatch,
@@ -125,7 +126,10 @@ async function loadRecentMatchRows(
 		.select("player_ids, team1_score, team2_score, created_at")
 		.eq("match_type", "singles")
 		.eq("status", "completed")
-		.contains("player_ids", [userId])
+		.contains(
+			"player_ids",
+			serializeJsonbPlayerIdsContainment([userId]),
+		)
 		.not("team1_score", "is", null)
 		.not("team2_score", "is", null)
 		.order("created_at", { ascending: false })
@@ -151,7 +155,10 @@ async function loadHeadToHeadRows(
 			.select("player_ids, team1_score, team2_score, created_at")
 			.eq("match_type", "singles")
 			.eq("status", "completed")
-			.contains("player_ids", [userId, opponentId])
+			.contains(
+				"player_ids",
+				serializeJsonbPlayerIdsContainment([userId, opponentId]),
+			)
 			.not("team1_score", "is", null)
 			.not("team2_score", "is", null)
 			.order("created_at", { ascending: false })

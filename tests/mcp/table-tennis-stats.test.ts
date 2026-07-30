@@ -1,12 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+	serializeJsonbPlayerIdsContainment,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
 } from "../../lib/mcp/table-tennis-stats";
 
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const OPPONENT_ID = "22222222-2222-4222-8222-222222222222";
+
+test("serializes player IDs as JSONB containment input", () => {
+	const playerIds = [USER_ID, OPPONENT_ID];
+	const serialized = serializeJsonbPlayerIdsContainment(playerIds);
+
+	assert.equal(serialized, `["${USER_ID}","${OPPONENT_ID}"]`);
+	assert.deepEqual(JSON.parse(serialized), playerIds);
+});
 
 test("formats a match from the authenticated player's perspective", () => {
 	const match = toScopedSinglesMatch(

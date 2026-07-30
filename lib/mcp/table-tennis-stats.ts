@@ -18,6 +18,10 @@ export type SinglesMatchRecord = {
 	created_at: string | null;
 };
 
+export function serializeJsonbPlayerIdsContainment(playerIds: string[]) {
+	return JSON.stringify(playerIds);
+}
+
 export function toScopedSinglesMatch(
 	match: SinglesMatchRecord,
 	userId: string,
