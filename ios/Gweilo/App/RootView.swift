@@ -424,6 +424,40 @@ private struct AccountView: View {
                         }
                     }
 
+                    if
+                        dataStore.isAdmin,
+                        let configuration = authStore.configuration,
+                        let session = authStore.session
+                    {
+                        Section("ADMIN") {
+                            NavigationLink {
+                                AdminUsersView(
+                                    configuration: configuration,
+                                    accessToken: session.accessToken,
+                                    currentUserID: session.user.id
+                                )
+                            } label: {
+                                Label(
+                                    "User management",
+                                    systemImage: "person.2.badge.gearshape"
+                                )
+                            }
+
+                            NavigationLink {
+                                AdminActivityView(
+                                    configuration: configuration,
+                                    accessToken: session.accessToken,
+                                    currentUserID: session.user.id
+                                )
+                            } label: {
+                                Label(
+                                    "Activity",
+                                    systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90"
+                                )
+                            }
+                        }
+                    }
+
                     Section("APP") {
                         NavigationLink {
                             SettingsView(

@@ -16,6 +16,10 @@
 		051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */; };
 		A72700000000000000000002 /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72700000000000000000001 /* AccountSettingsView.swift */; };
 		A72700000000000000000004 /* AccountSettingsClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A72700000000000000000003 /* AccountSettingsClient.swift */; };
+		A73100000000000000000001 /* AdminUsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73100000000000000000002 /* AdminUsersView.swift */; };
+		A73100000000000000000003 /* AdminUsersClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73100000000000000000004 /* AdminUsersClient.swift */; };
+		A73100000000000000000006 /* AdminActivityView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73100000000000000000007 /* AdminActivityView.swift */; };
+		A73100000000000000000008 /* AdminActivityClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A73100000000000000000009 /* AdminActivityClient.swift */; };
 		1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5228EA448D3385CA3C87F404 /* GweiloTheme.swift */; };
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
@@ -102,6 +106,10 @@
 		268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoreEntryView.swift; sourceTree = "<group>"; };
 		A72700000000000000000001 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		A72700000000000000000003 /* AccountSettingsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsClient.swift; sourceTree = "<group>"; };
+		A73100000000000000000002 /* AdminUsersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminUsersView.swift; sourceTree = "<group>"; };
+		A73100000000000000000004 /* AdminUsersClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminUsersClient.swift; sourceTree = "<group>"; };
+		A73100000000000000000007 /* AdminActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminActivityView.swift; sourceTree = "<group>"; };
+		A73100000000000000000009 /* AdminActivityClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminActivityClient.swift; sourceTree = "<group>"; };
 		27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScoreboardTests.swift; sourceTree = "<group>"; };
 		3FDFE13A0BFF7369FF6622CD /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		48E67F5AF76CD8E21D79EC84 /* AppModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModels.swift; sourceTree = "<group>"; };
@@ -176,6 +184,8 @@
 			isa = PBXGroup;
 			children = (
 				9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */,
+				A73100000000000000000009 /* AdminActivityClient.swift */,
+				A73100000000000000000004 /* AdminUsersClient.swift */,
 				A72700000000000000000003 /* AccountSettingsClient.swift */,
 				7A9391F1239E602BBF63632B /* AppDataStore.swift */,
 				04AE9254F7E14FC7FA678C1E /* PushNotificationManager.swift */,
@@ -233,6 +243,15 @@
 			path = Scoring;
 			sourceTree = "<group>";
 		};
+		A73100000000000000000005 /* Admin */ = {
+			isa = PBXGroup;
+			children = (
+				A73100000000000000000007 /* AdminActivityView.swift */,
+				A73100000000000000000002 /* AdminUsersView.swift */,
+			);
+			path = Admin;
+			sourceTree = "<group>";
+		};
 		7EC89615656677B025797A37 /* Models */ = {
 			isa = PBXGroup;
 			children = (
@@ -246,6 +265,7 @@
 		85B2FBAFA91AAC7FCF1E1A96 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				A73100000000000000000005 /* Admin */,
 				5D160016085DB3D1CAB6F3A6 /* Auth */,
 				D72700000000000000000003 /* Calculator */,
 				EAEFCFAF5D05D1815F508F17 /* Home */,
@@ -546,6 +566,10 @@
 				051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */,
 				A72700000000000000000002 /* AccountSettingsView.swift in Sources */,
 				A72700000000000000000004 /* AccountSettingsClient.swift in Sources */,
+				A73100000000000000000001 /* AdminUsersView.swift in Sources */,
+				A73100000000000000000003 /* AdminUsersClient.swift in Sources */,
+				A73100000000000000000006 /* AdminActivityView.swift in Sources */,
+				A73100000000000000000008 /* AdminActivityClient.swift in Sources */,
 				88C3C819902499ADBD167ED1 /* SessionDetailView.swift in Sources */,
 				A294C92BBDF34A6406639988 /* SessionsView.swift in Sources */,
 				67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */,

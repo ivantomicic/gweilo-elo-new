@@ -41,6 +41,13 @@ struct ScoreEntryView: View {
                 detail: detail
             )
 
+            if let nextRound {
+                NextRoundPreview(
+                    round: nextRound,
+                    detail: detail
+                )
+            }
+
             ForEach(round.matches) { match in
                 MatchScoreEditor(
                     match: match,
@@ -113,6 +120,12 @@ struct ScoreEntryView: View {
         } message: {
             Text("Svi rezultati biće sačuvani odjednom.")
         }
+    }
+
+    private var nextRound: SessionRound? {
+        detail.rounds
+            .filter { $0.number > round.number }
+            .min { $0.number < $1.number }
     }
 
     private func scoreBinding(for matchID: UUID, team: Int) -> Binding<Int?> {
@@ -207,6 +220,113 @@ struct ScoreEntryView: View {
         }
     }
 
+}
+
+private struct NextRoundPreview: View {
+    let round: SessionRound
+    let detail: SessionDetail
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                Image(systemName: "forward.fill")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(GweiloTheme.lime)
+
+                Text("SLEDEĆA")
+                    .font(
+                        GweiloTheme.labelFont(
+                            size: 11,
+                            relativeTo: .caption2
+                        )
+                    )
+                    .tracking(1.1)
+                    .foregroundStyle(GweiloTheme.lime)
+
+                Spacer()
+
+                Text("RUNDA \(round.number)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    ForEach(round.matches) { match in
+                        NextRoundMatchup(match: match, detail: detail)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(round.matches) { match in
+                        NextRoundMatchup(match: match, detail: detail)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(
+            GweiloTheme.raisedSurface,
+            in: .rect(cornerRadius: 12)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(GweiloTheme.lime.opacity(0.24), lineWidth: 0.8)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Sledeća, runda \(round.number)")
+    }
+}
+
+private struct NextRoundMatchup: View {
+    let match: SessionMatch
+    let detail: SessionDetail
+
+    private var teamOne: String {
+        shortTeamName(ids: teamOneIDs)
+    }
+
+    private var teamTwo: String {
+        shortTeamName(ids: teamTwoIDs)
+    }
+
+    private var teamOneIDs: [UUID] {
+        match.type == .doubles
+            ? Array(match.playerIDs.prefix(2))
+            : Array(match.playerIDs.prefix(1))
+    }
+
+    private var teamTwoIDs: [UUID] {
+        match.type == .doubles
+            ? Array(match.playerIDs.dropFirst(2).prefix(2))
+            : Array(match.playerIDs.dropFirst().prefix(1))
+    }
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(teamOne)
+                .lineLimit(1)
+
+            Text("VS")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(GweiloTheme.muted)
+
+            Text(teamTwo)
+                .lineLimit(1)
+        }
+        .font(.caption.weight(.medium))
+        .foregroundStyle(GweiloTheme.bone)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(teamOne) protiv \(teamTwo)")
+    }
+
+    private func shortTeamName(ids: [UUID]) -> String {
+        ids.map { id in
+            let name = detail.participant(for: id)?.name ?? "?"
+            return name.split(separator: " ").first.map(String.init) ?? name
+        }
+        .joined(separator: " & ")
+    }
 }
 
 private struct RoundSavingStatus: View {
