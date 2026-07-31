@@ -1,6 +1,6 @@
 # Gweilo read-only MCP pilot
 
-This pilot exposes nine backend-only MCP tools at `/api/mcp`:
+This pilot exposes ten backend-only MCP tools at `/api/mcp`:
 
 - `recent_matches`: the authenticated player's recent completed singles matches,
   including the committed Elo before, after, and change for each match
@@ -17,6 +17,9 @@ This pilot exposes nine backend-only MCP tools at `/api/mcp`:
   last meeting, and current result streak
 - `general_statistics`: aggregate completed-singles rankings over a rolling
   period, sortable by match results, sets, activity, or committed Elo change
+- `player_opponent_breakdown`: an all-time opponent-by-opponent singles summary
+  for a named player, with explicit lists of who defeated that player in
+  matches and who won sets against them
 - `elo_rules`: the exact starting rating, formula, result scores, K-factors,
   precision, and leaderboard eligibility rules
 - `elo_projection`: hypothetical Elo after a win, draw, or loss against a named
@@ -52,6 +55,11 @@ Vercel deployment. It accepts both current MCP requests and the stateless
   but never IDs, contact details, avatars, or authentication data.
 - `my_elo_trend` and `my_rivalries` are strictly scoped to matches containing
   the verified user ID.
+- `player_opponent_breakdown` is a deliberately broader aggregate view for
+  questions about another player's results. It resolves a display name, then
+  returns opponent display names and match/set/Elo totals only. It does not
+  return profile IDs, contact details, avatars, authentication data, or raw
+  match rows and dates.
 - `general_statistics` is the deliberately broader aggregate tool. It returns
   player display names, completed-singles totals, and committed Elo aggregates
   only. It does not return player IDs, contact details, avatars, authentication
@@ -229,6 +237,15 @@ per-match `elo_before`, `elo_after`, and `elo_change` values when available.
 Use `my_rivalries` for “Who is my biggest rival?”, “Which rivalry is closest?”,
 or “Against whom did I gain the most Elo?”. It can sort by total meetings,
 closest win-loss record, positive Elo earned, or signed net Elo movement.
+
+Use `player_opponent_breakdown` for another named player's opponent results.
+For example, “Who beat Milan in matches, and who won sets against him?” maps to
+`player_name: "Milan"`. One response contains `opponents_who_won_matches`,
+sorted by match wins over the selected player, and `opponents_who_won_sets`,
+sorted by sets won against that player. It also returns a complete per-opponent
+aggregate list up to the requested limit. A unique first or last name works;
+ambiguous names produce a structured `AMBIGUOUS_PLAYER` error asking for the
+full display name.
 
 Use `elo_rules` for explanations of the actual rating formula and K-factor
 bands. Use `elo_projection` for questions such as “How much Elo would I gain if

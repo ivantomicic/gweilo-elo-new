@@ -3,7 +3,9 @@ import test from "node:test";
 import {
 	aggregateGeneralSinglesStatistics,
 	aggregateRivalries,
+	buildPlayerOpponentBreakdown,
 	resolveOpponentMatchesByName,
+	resolvePlayerProfilesByName,
 	serializeJsonbPlayerIdsContainment,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
@@ -227,6 +229,39 @@ test("does not resolve players absent from the authenticated player's matches", 
 		resolveOpponentMatchesByName(opponentMatches, "Nikola"),
 		{ status: "not_found" },
 	);
+});
+
+test("resolves a selected player name without matching it inside another name", () => {
+	const players = [
+		{ id: USER_ID, display_name: "Milan" },
+		{ id: OPPONENT_ID, display_name: "Miladin" },
+	];
+
+	assert.deepEqual(resolvePlayerProfilesByName(players, "milan"), {
+		status: "matched",
+		player: { id: USER_ID, display_name: "Milan" },
+	});
+	assert.deepEqual(resolvePlayerProfilesByName(players, "Mila"), {
+		status: "not_found",
+	});
+});
+
+test("reports ambiguous selected-player names", () => {
+	const resolution = resolvePlayerProfilesByName(
+		[
+			{ id: USER_ID, display_name: "Milan Petrović" },
+			{ id: OPPONENT_ID, display_name: "Milan Jović" },
+		],
+		"Milan",
+	);
+
+	assert.equal(resolution.status, "ambiguous");
+	if (resolution.status === "ambiguous") {
+		assert.deepEqual(
+			resolution.candidates.map((candidate) => candidate.display_name),
+			["Milan Petrović", "Milan Jović"],
+		);
+	}
 });
 
 test("ranks period statistics by win rate for best-performance questions", () => {
@@ -467,4 +502,32 @@ test("can rank the closest rivalry before a more one-sided record", () => {
 	assert.equal(result.total_opponents, 2);
 	assert.equal(result.rivalries.length, 1);
 	assert.equal(result.rivalries[0].opponent.display_name, "Andrej Jovanović");
+});
+
+test("separates opponents who won matches from opponents who won sets", () => {
+	const result = buildPlayerOpponentBreakdown(opponentMatches, 10);
+
+	assert.deepEqual(result.player_totals, {
+		matches_played: 3,
+		wins: 2,
+		losses: 1,
+		draws: 0,
+		win_rate_percent: 66.7,
+		sets_won: 7,
+		sets_lost: 4,
+		set_difference: 3,
+	});
+	assert.equal(result.total_opponents, 2);
+	assert.equal(result.opponents_who_won_matches.length, 1);
+	assert.equal(
+		result.opponents_who_won_matches[0].opponent.display_name,
+		"Andrej Jovanović",
+	);
+	assert.equal(result.opponents_who_won_matches[0].opponent_match_wins, 1);
+	assert.equal(result.opponents_who_won_sets.length, 1);
+	assert.equal(
+		result.opponents_who_won_sets[0].opponent.display_name,
+		"Andrej Jovanović",
+	);
+	assert.equal(result.opponents_who_won_sets[0].opponent_sets_won, 4);
 });
