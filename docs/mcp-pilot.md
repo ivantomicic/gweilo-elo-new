@@ -1,14 +1,31 @@
 # Gweilo read-only MCP pilot
 
-This pilot exposes four backend-only MCP tools at `/api/mcp`:
+This pilot exposes nine backend-only MCP tools at `/api/mcp`:
 
-- `recent_matches`: the authenticated player's recent completed singles matches
+- `recent_matches`: the authenticated player's recent completed singles matches,
+  including the committed Elo before, after, and change for each match
 - `player_performance`: that player's all-time singles wins, losses, draws,
-  win rate, and recent form
+  sets, win rate, current Elo/rank, eligibility, recent form, and recent Elo
+  movement
+- `current_leaderboard`: the official current Elo leaderboard, its eligibility
+  rules, and the authenticated player's own rank or eligibility status
 - `head_to_head`: that player's singles record against a selected opponent,
   resolved by name or by an ID returned from `recent_matches`
+- `my_elo_trend`: that player's Elo movement, high/low, and match-by-match
+  committed Elo history over a rolling period
+- `my_rivalries`: recurring-opponent summaries with record, sets, Elo movement,
+  last meeting, and current result streak
 - `general_statistics`: aggregate completed-singles rankings over a rolling
   period, sortable by match results, sets, activity, or committed Elo change
+- `elo_rules`: the exact starting rating, formula, result scores, K-factors,
+  precision, and leaderboard eligibility rules
+- `elo_projection`: hypothetical Elo after a win, draw, or loss against a named
+  past opponent, using both players' current ratings and K-factors
+
+Every successful tool has a declared MCP output schema. Errors are also
+machine-readable and use `{ "error": { "code", "message" } }`, which lets a
+client distinguish invalid or ambiguous opponents, missing data, and temporary
+backend failures.
 
 The endpoint uses stateless Streamable HTTP so it fits the existing Next.js /
 Vercel deployment. It accepts both current MCP requests and the stateless
@@ -28,6 +45,13 @@ Vercel deployment. It accepts both current MCP requests and the stateless
   player's completed singles history. It does not provide arbitrary profile
   search. If a first name matches multiple past opponents, it asks for a full
   name.
+- `elo_projection` uses the same past-opponent boundary, so it cannot be used
+  to enumerate arbitrary profiles or ratings.
+- `current_leaderboard` is a deliberate public-within-the-app aggregate view.
+  It exposes display names, current singles ratings, ranks, records, and sets,
+  but never IDs, contact details, avatars, or authentication data.
+- `my_elo_trend` and `my_rivalries` are strictly scoped to matches containing
+  the verified user ID.
 - `general_statistics` is the deliberately broader aggregate tool. It returns
   player display names, completed-singles totals, and committed Elo aggregates
   only. It does not return player IDs, contact details, avatars, authentication
@@ -186,6 +210,32 @@ figures are summed from `match_elo_history`; the MCP server does not recalculate
 past Elo. Use `sort_by: "sets_won"` when the requested ordering is total sets
 won.
 
+Use `current_leaderboard` for questions about the current official table, such
+as “Who is number one?”, “What is my current Elo?”, or “Why am I unranked?”.
+The leaderboard applies the app's existing minimum-match and recent-activity
+rules and reads the latest completed-session rating snapshot, matching the web
+app rather than leaking changes from an in-progress session. The response's
+`rating_as_of` timestamp identifies that snapshot; it is `null` only when the
+server must fall back to the live ratings table. This is different from
+`general_statistics`, which ranks activity inside a selected rolling time
+window.
+
+Use `my_elo_trend` for “How much Elo did I gain this month?”, “What was my
+highest Elo?”, or “Show my Elo changes match by match.” The result indicates
+whether committed Elo history covers every match, so ChatGPT should not invent
+missing values. `recent_matches` and `head_to_head` also include committed
+per-match `elo_before`, `elo_after`, and `elo_change` values when available.
+
+Use `my_rivalries` for “Who is my biggest rival?”, “Which rivalry is closest?”,
+or “Against whom did I gain the most Elo?”. It can sort by total meetings,
+closest win-loss record, positive Elo earned, or signed net Elo movement.
+
+Use `elo_rules` for explanations of the actual rating formula and K-factor
+bands. Use `elo_projection` for questions such as “How much Elo would I gain if
+I beat Andrej?”. Projection is intentionally limited to a named opponent from
+the authenticated player's own match history and clearly labels its result as
+hypothetical.
+
 For command-line testing, an MCP client can still use the deployed
 `https://<deployment>/api/mcp` URL and a short-lived Supabase bearer token.
 OAuth-capable clients should use discovery instead, so they can obtain and
@@ -194,10 +244,14 @@ refresh tokens through Supabase Auth.
 ## Deployment
 
 Deploy through the existing Vercel workflow. No Supabase migration is needed.
-Confirm the two required environment variables exist in the target environment
+Confirm the three required environment variables exist in the target environment
 and that the runtime is Node.js 20 or newer. Then run the handshake and
 `recent_matches` smoke tests against the deployed `/api/mcp` URL with a test
 user's access token.
+
+After deploying a changed tool list or schema, reconnect or refresh the Gweilo
+plugin in ChatGPT so it fetches the latest `tools/list` response. No Supabase
+migration or new environment variable is required for these tools.
 
 This is intentionally singles-only. Expanding it to doubles, write operations,
 raw global match data, or arbitrary profile lookup should be a separate
