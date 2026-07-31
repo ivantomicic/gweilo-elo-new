@@ -14,12 +14,6 @@ export type RankDurationResult = {
 	days: number;
 };
 
-export type RankPlacementTotal = {
-	rank: number;
-	days: number;
-	sessions: number;
-};
-
 type CompletedSessionRecord = {
 	id: string;
 	completed_at: string | null;
@@ -312,73 +306,4 @@ export async function computeCurrentRankDurations({
 	}
 
 	return durations;
-}
-
-export async function computePlayerRankPlacementTotals({
-	playerId,
-	entityType = "player_singles",
-	minMatches = null,
-	now = new Date(),
-}: {
-	playerId: string;
-	entityType?: RankDurationEntityType;
-	minMatches?: number | null;
-	now?: Date;
-}): Promise<RankPlacementTotal[]> {
-	const adminClient = createAdminClient();
-	const sessions = await getRankDurationSessions(adminClient);
-	const ascendingSessions = [...sessions].sort((a, b) => {
-		return (getCompletedAtMs(a) ?? 0) - (getCompletedAtMs(b) ?? 0);
-	});
-
-	if (ascendingSessions.length === 0) {
-		return [];
-	}
-
-	const snapshotRows = await getRankDurationSnapshotRows({
-		adminClient,
-		entityType,
-	});
-	const rankingsBySession = buildSessionRankings({
-		sessions: ascendingSessions,
-		snapshotRows,
-		currentEntityIds: null,
-		minMatches,
-	});
-	const placementTotals = new Map<
-		number,
-		{
-			durationMs: number;
-			sessions: number;
-		}
-	>();
-	const nowMs = now.getTime();
-
-	for (let index = 0; index < ascendingSessions.length; index++) {
-		const session = ascendingSessions[index];
-		const startMs = getCompletedAtMs(session);
-		const nextSession = ascendingSessions[index + 1] || null;
-		const endMs = nextSession ? getCompletedAtMs(nextSession) : nowMs;
-		const rank = rankingsBySession.get(session.id)?.get(playerId);
-
-		if (startMs === null || endMs === null || endMs < startMs || !rank) {
-			continue;
-		}
-
-		const currentTotal = placementTotals.get(rank) || {
-			durationMs: 0,
-			sessions: 0,
-		};
-		currentTotal.durationMs += endMs - startMs;
-		currentTotal.sessions += 1;
-		placementTotals.set(rank, currentTotal);
-	}
-
-	return Array.from(placementTotals.entries())
-		.map(([rank, total]) => ({
-			rank,
-			days: Math.max(1, Math.floor(total.durationMs / DAY_MS)),
-			sessions: total.sessions,
-		}))
-		.sort((a, b) => a.rank - b.rank);
 }

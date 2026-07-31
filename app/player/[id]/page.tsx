@@ -7,7 +7,6 @@ import { AppShell } from "@/components/app-shell";
 import { StateBlock } from "@/components/ui/state-block";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { PlayerComparison } from "@/components/player/player-comparison";
-import { RankPlacementCard } from "@/components/player/rank-placement-card";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 
@@ -96,7 +95,6 @@ function PlayerPageContent() {
 							currentUserId={currentUserId}
 						/>
 					)}
-					<RankPlacementCard playerId={playerId} />
 					<PerformanceTrend
 						playerId={playerId}
 						primaryPlayerName={playerData.display_name}
