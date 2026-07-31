@@ -12,6 +12,7 @@ export type ScopedSinglesMatch = {
 };
 
 export type SinglesMatchRecord = {
+	id?: string;
 	player_ids: string[];
 	team1_score: number;
 	team2_score: number;
@@ -41,18 +42,38 @@ export type GeneralStatisticsSort =
 	| "draws"
 	| "losses"
 	| "matches_played"
-	| "set_difference";
+	| "sets_won"
+	| "sets_lost"
+	| "set_difference"
+	| "elo_points_gained"
+	| "elo_points_lost"
+	| "net_elo_change";
 
-type PeriodPlayerStats = {
-	display_name: string;
+export type PeriodEloChange = {
+	eloPointsGained: number;
+	eloPointsLost: number;
+	netEloChange: number;
+	matchIds: ReadonlySet<string>;
+};
+
+type PeriodMatchStats = {
 	matches_played: number;
 	wins: number;
 	losses: number;
 	draws: number;
-	win_rate_percent: number;
 	sets_won: number;
 	sets_lost: number;
 	set_difference: number;
+};
+
+type PeriodPlayerStats = PeriodMatchStats & {
+	display_name: string;
+	win_rate_percent: number;
+	elo_points_gained: number;
+	elo_points_lost: number;
+	net_elo_change: number;
+	elo_matches_counted: number;
+	elo_history_complete: boolean;
 };
 
 export function serializeJsonbPlayerIdsContainment(playerIds: string[]) {
@@ -221,14 +242,12 @@ function comparePeriodStats(
 export function aggregateGeneralSinglesStatistics(options: {
 	matches: SinglesMatchRecord[];
 	profiles: ReadonlyMap<string, string>;
+	eloChanges: ReadonlyMap<string, PeriodEloChange>;
 	sortBy: GeneralStatisticsSort;
 	minimumMatches: number;
 	limit: number;
 }) {
-	const statsByPlayer = new Map<
-		string,
-		Omit<PeriodPlayerStats, "display_name" | "win_rate_percent">
-	>();
+	const statsByPlayer = new Map<string, PeriodMatchStats>();
 
 	for (const match of options.matches) {
 		if (match.player_ids.length !== 2) continue;
@@ -271,6 +290,17 @@ export function aggregateGeneralSinglesStatistics(options: {
 							(stats.wins / stats.matches_played) * 1000,
 						) / 10
 					: 0,
+			elo_points_gained:
+				options.eloChanges.get(playerId)?.eloPointsGained ?? 0,
+			elo_points_lost:
+				options.eloChanges.get(playerId)?.eloPointsLost ?? 0,
+			net_elo_change:
+				options.eloChanges.get(playerId)?.netEloChange ?? 0,
+			elo_matches_counted:
+				options.eloChanges.get(playerId)?.matchIds.size ?? 0,
+			elo_history_complete:
+				(options.eloChanges.get(playerId)?.matchIds.size ?? 0) ===
+				stats.matches_played,
 		}))
 		.sort((left, right) =>
 			comparePeriodStats(left, right, options.sortBy),

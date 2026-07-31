@@ -55,7 +55,7 @@ export function createGweiloMcpServer(userId: string) {
 				tools: {},
 			},
 			instructions:
-				"Read-only Gweilo singles statistics. Personal tools are scoped to the authenticated player. For questions about how that player performed against a named opponent, call head_to_head with opponent_name. For aggregate questions such as who performed best or had the most draws during a period, call general_statistics. Use win_rate with minimum_matches 3 for 'best performance'. Use draws, wins, losses, or matches_played with minimum_matches 1 for count-based superlatives.",
+				"Read-only Gweilo singles statistics. Personal tools are scoped to the authenticated player. For questions about how that player performed against a named opponent, call head_to_head with opponent_name. For aggregate questions, call general_statistics. Use win_rate with minimum_matches 3 for 'best performance'. Use draws, wins, losses, or matches_played with minimum_matches 1 for count-based superlatives. Use elo_points_gained for total positive Elo earned and net_elo_change for signed Elo movement over the selected period.",
 		},
 	);
 
@@ -120,7 +120,7 @@ export function createGweiloMcpServer(userId: string) {
 		{
 			title: "General Singles Statistics",
 			description:
-				"Rank Gweilo players using aggregate completed-singles statistics over a rolling period. Use sort_by win_rate and minimum_matches 3 for questions like 'Who performed best last month?'. Use minimum_matches 1 with draws for 'Who had the most draws?', wins for most wins, or matches_played for most active. Returns display names and aggregates only, never contact or authentication data.",
+				"Rank Gweilo players using aggregate completed-singles statistics and committed Elo changes over a rolling period. Use win_rate for best performance, sets_won for most sets won, elo_points_gained for most positive Elo earned, net_elo_change for overall Elo movement, draws for most draws, wins for most wins, or matches_played for most active. Returns display names and aggregates only, never contact or authentication data.",
 			inputSchema: z.object({
 				days: z
 					.number()
@@ -138,11 +138,16 @@ export function createGweiloMcpServer(userId: string) {
 						"draws",
 						"losses",
 						"matches_played",
+						"sets_won",
+						"sets_lost",
 						"set_difference",
+						"elo_points_gained",
+						"elo_points_lost",
+						"net_elo_change",
 					])
 					.default("win_rate")
 					.describe(
-						"Statistic used to rank players. win_rate represents best performance.",
+						"Statistic used to rank players. Elo metrics come from committed match history, not recalculation.",
 					),
 				minimum_matches: z
 					.number()

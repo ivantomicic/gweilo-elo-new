@@ -230,6 +230,7 @@ test("ranks period statistics by win rate for best-performance questions", () =>
 			[OPPONENT_ID, "Andrej"],
 			[SECOND_OPPONENT_ID, "Marko"],
 		]),
+		eloChanges: new Map(),
 		sortBy: "win_rate",
 		minimumMatches: 2,
 		limit: 10,
@@ -251,6 +252,11 @@ test("ranks period statistics by win rate for best-performance questions", () =>
 		sets_won: 5,
 		sets_lost: 3,
 		set_difference: 2,
+		elo_points_gained: 0,
+		elo_points_lost: 0,
+		net_elo_change: 0,
+		elo_matches_counted: 0,
+		elo_history_complete: false,
 	});
 });
 
@@ -288,6 +294,7 @@ test("ranks period statistics by draws and applies limits", () => {
 			[SECOND_OPPONENT_ID, "Marko"],
 			[THIRD_OPPONENT_ID, "Nikola"],
 		]),
+		eloChanges: new Map(),
 		sortBy: "draws",
 		minimumMatches: 1,
 		limit: 2,
@@ -297,4 +304,74 @@ test("ranks period statistics by draws and applies limits", () => {
 	assert.equal(result.players.length, 2);
 	assert.equal(result.players[0].display_name, "Andrej");
 	assert.equal(result.players[0].draws, 3);
+});
+
+test("returns and ranks authoritative Elo changes for the period", () => {
+	const firstMatchId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+	const secondMatchId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+	const result = aggregateGeneralSinglesStatistics({
+		matches: [
+			{
+				id: firstMatchId,
+				player_ids: [USER_ID, OPPONENT_ID],
+				team1_score: 3,
+				team2_score: 1,
+				created_at: null,
+			},
+			{
+				id: secondMatchId,
+				player_ids: [USER_ID, SECOND_OPPONENT_ID],
+				team1_score: 1,
+				team2_score: 3,
+				created_at: null,
+			},
+		],
+		profiles: new Map([
+			[USER_ID, "Ivan"],
+			[OPPONENT_ID, "Andrej"],
+			[SECOND_OPPONENT_ID, "Marko"],
+		]),
+		eloChanges: new Map([
+			[
+				USER_ID,
+				{
+					eloPointsGained: 12.5,
+					eloPointsLost: 5.25,
+					netEloChange: 7.25,
+					matchIds: new Set([firstMatchId, secondMatchId]),
+				},
+			],
+			[
+				OPPONENT_ID,
+				{
+					eloPointsGained: 0,
+					eloPointsLost: 10,
+					netEloChange: -10,
+					matchIds: new Set([firstMatchId]),
+				},
+			],
+			[
+				SECOND_OPPONENT_ID,
+				{
+					eloPointsGained: 6,
+					eloPointsLost: 0,
+					netEloChange: 6,
+					matchIds: new Set([secondMatchId]),
+				},
+			],
+		]),
+		sortBy: "net_elo_change",
+		minimumMatches: 1,
+		limit: 10,
+	});
+
+	assert.deepEqual(
+		result.players.map((player) => player.display_name),
+		["Ivan", "Marko", "Andrej"],
+	);
+	assert.equal(result.players[0].elo_points_gained, 12.5);
+	assert.equal(result.players[0].elo_points_lost, 5.25);
+	assert.equal(result.players[0].net_elo_change, 7.25);
+	assert.equal(result.players[0].elo_matches_counted, 2);
+	assert.equal(result.players[0].elo_history_complete, true);
 });
