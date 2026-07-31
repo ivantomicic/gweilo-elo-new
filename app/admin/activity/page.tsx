@@ -172,7 +172,6 @@ const buildFlowStep = (
 };
 
 const SYSTEM_EVENT_NAMES = new Set(["app_loaded", "user_logged_in"]);
-const VISIBLE_FLOW_STEPS = 6;
 
 const getInitials = (name: string): string =>
 	name
@@ -202,17 +201,7 @@ const haveSameItems = (a: string[], b: string[]): boolean => {
 	return sortedA.every((item, index) => item === sortedB[index]);
 };
 
-function ActivityJourney({
-	sessionId,
-	steps,
-}: {
-	sessionId: string;
-	steps: string[];
-}) {
-	const [expanded, setExpanded] = useState(false);
-	const visibleSteps = expanded ? steps : steps.slice(0, VISIBLE_FLOW_STEPS);
-	const hiddenStepCount = steps.length - VISIBLE_FLOW_STEPS;
-
+function ActivityJourney({ steps }: { steps: string[] }) {
 	if (steps.length === 0) {
 		return (
 			<p className="text-xs text-muted-foreground">
@@ -222,42 +211,27 @@ function ActivityJourney({
 	}
 
 	return (
-		<div className="space-y-2">
-			<ol
-				aria-label="Page journey"
-				className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
-			>
-				{visibleSteps.map((step, stepIndex) => (
-					<li
-						key={`${sessionId}-flow-${stepIndex}`}
-						className="inline-flex min-w-0 items-center gap-1.5"
-					>
-						<span className="font-medium text-foreground/90">
-							{step}
-						</span>
-						{stepIndex < visibleSteps.length - 1 ? (
-							<Icon
-								icon="solar:alt-arrow-right-linear"
-								className="size-3 shrink-0 text-muted-foreground/70"
-							/>
-						) : null}
-					</li>
-				))}
-			</ol>
-
-			{hiddenStepCount > 0 ? (
-				<button
-					type="button"
-					aria-expanded={expanded}
-					onClick={() => setExpanded((current) => !current)}
-					className="inline-flex min-h-8 items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-[0.97]"
+		<ol
+			aria-label="Page journey"
+			className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
+		>
+			{steps.map((step, stepIndex) => (
+				<li
+					key={`${step}-${stepIndex}`}
+					className="inline-flex min-w-0 items-center gap-1.5"
 				>
-					{expanded
-						? "Show less"
-						: `Show ${hiddenStepCount} more`}
-				</button>
-			) : null}
-		</div>
+					<span className="font-medium text-foreground/90">
+						{step}
+					</span>
+					{stepIndex < steps.length - 1 ? (
+						<Icon
+							icon="solar:alt-arrow-right-linear"
+							className="size-3 shrink-0 text-muted-foreground/70"
+						/>
+					) : null}
+				</li>
+			))}
+		</ol>
 	);
 }
 
@@ -1122,7 +1096,6 @@ function AdminActivityPageContent() {
 
 															<div className="mt-3 rounded-lg bg-muted/35 px-3 py-2.5">
 																<ActivityJourney
-																	sessionId={session.id}
 																	steps={session.flow}
 																/>
 															</div>
