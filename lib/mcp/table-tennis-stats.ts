@@ -45,6 +45,16 @@ export type OpponentNameResolution =
 			status: "not_found";
 	  };
 
+export type PlayerProfile = {
+	id: string;
+	display_name: string;
+};
+
+export type PlayerNameResolution =
+	| { status: "matched"; player: PlayerProfile }
+	| { status: "ambiguous"; candidates: PlayerProfile[] }
+	| { status: "not_found" };
+
 export type GeneralStatisticsSort =
 	| "win_rate"
 	| "wins"
@@ -110,6 +120,47 @@ function isNameAtWordBoundary(displayName: string, query: string) {
 		displayName.endsWith(` ${query}`) ||
 		displayName.includes(` ${query} `)
 	);
+}
+
+export function resolvePlayerProfilesByName(
+	players: PlayerProfile[],
+	playerName: string,
+): PlayerNameResolution {
+	const query = normalizeOpponentName(playerName);
+	if (!query) return { status: "not_found" };
+
+	const normalizedPlayers = players.map((player) => ({
+		...player,
+		normalizedName: normalizeOpponentName(player.display_name),
+	}));
+	const exactMatches = normalizedPlayers.filter(
+		(player) => player.normalizedName === query,
+	);
+	const candidates =
+		exactMatches.length > 0
+			? exactMatches
+			: normalizedPlayers.filter((player) =>
+					isNameAtWordBoundary(player.normalizedName, query),
+				);
+
+	if (candidates.length === 0) return { status: "not_found" };
+	if (candidates.length > 1) {
+		return {
+			status: "ambiguous",
+			candidates: candidates.map(({ id, display_name }) => ({
+				id,
+				display_name,
+			})),
+		};
+	}
+
+	return {
+		status: "matched",
+		player: {
+			id: candidates[0].id,
+			display_name: candidates[0].display_name,
+		},
+	};
 }
 
 export function resolveOpponentMatchesByName(
@@ -408,5 +459,70 @@ export function aggregateRivalries(options: {
 	return {
 		total_opponents: rivalries.length,
 		rivalries: rivalries.slice(0, options.limit),
+	};
+}
+
+export function buildPlayerOpponentBreakdown(
+	matches: ScopedSinglesMatch[],
+	limit: number,
+) {
+	const summary = summarizeScopedMatches(matches);
+	const { rivalries, total_opponents: totalOpponents } = aggregateRivalries({
+		matches,
+		sortBy: "total_matches",
+		limit: matches.length,
+	});
+	const opponents = rivalries.map((rivalry) => ({
+		opponent: rivalry.opponent,
+		matches_played: rivalry.total_matches,
+		player_match_wins: rivalry.wins,
+		opponent_match_wins: rivalry.losses,
+		draws: rivalry.draws,
+		player_win_rate_percent: rivalry.win_rate_percent,
+		player_sets_won: rivalry.sets_won,
+		opponent_sets_won: rivalry.sets_lost,
+		set_difference: rivalry.set_difference,
+		player_elo_change: rivalry.net_elo_change,
+		elo_matches_counted: rivalry.elo_matches_counted,
+		elo_history_complete: rivalry.elo_history_complete,
+		last_played_at: rivalry.last_played_at,
+	}));
+	const byName = (
+		left: (typeof opponents)[number],
+		right: (typeof opponents)[number],
+	) => left.opponent.display_name.localeCompare(right.opponent.display_name);
+
+	return {
+		player_totals: {
+			matches_played: summary.total_matches,
+			wins: summary.wins,
+			losses: summary.losses,
+			draws: summary.draws,
+			win_rate_percent: summary.win_rate_percent,
+			sets_won: summary.sets_won,
+			sets_lost: summary.sets_lost,
+			set_difference: summary.set_difference,
+		},
+		total_opponents: totalOpponents,
+		returned_opponents: Math.min(opponents.length, limit),
+		opponents: opponents.slice(0, limit),
+		opponents_who_won_matches: opponents
+			.filter((opponent) => opponent.opponent_match_wins > 0)
+			.sort(
+				(left, right) =>
+					right.opponent_match_wins - left.opponent_match_wins ||
+					right.opponent_sets_won - left.opponent_sets_won ||
+					byName(left, right),
+			)
+			.slice(0, limit),
+		opponents_who_won_sets: opponents
+			.filter((opponent) => opponent.opponent_sets_won > 0)
+			.sort(
+				(left, right) =>
+					right.opponent_sets_won - left.opponent_sets_won ||
+					right.opponent_match_wins - left.opponent_match_wins ||
+					byName(left, right),
+			)
+			.slice(0, limit),
 	};
 }

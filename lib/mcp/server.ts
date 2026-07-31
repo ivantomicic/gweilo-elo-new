@@ -10,6 +10,7 @@ import {
 	getOwnPerformanceSummary,
 	getOwnRecentMatches,
 	getOwnRivalries,
+	getPlayerOpponentBreakdown,
 	getSinglesEloRules,
 	McpTableTennisError,
 } from "@/lib/mcp/table-tennis";
@@ -172,6 +173,31 @@ const headToHeadOutputSchema = z.object({
 	set_difference: z.number(),
 	recent_matches: z.array(matchSchema),
 });
+const playerOpponentRowSchema = z.object({
+	opponent: playerNameSchema,
+	matches_played: z.number().int(),
+	player_match_wins: z.number().int(),
+	opponent_match_wins: z.number().int(),
+	draws: z.number().int(),
+	player_win_rate_percent: z.number(),
+	player_sets_won: z.number(),
+	opponent_sets_won: z.number(),
+	set_difference: z.number(),
+	player_elo_change: z.number(),
+	elo_matches_counted: z.number().int(),
+	elo_history_complete: z.boolean(),
+	last_played_at: z.string().nullable(),
+});
+const playerOpponentBreakdownOutputSchema = z.object({
+	mode: z.literal("singles"),
+	player: playerNameSchema,
+	player_totals: aggregateStatsSchema,
+	total_opponents: z.number().int(),
+	returned_opponents: z.number().int(),
+	opponents: z.array(playerOpponentRowSchema),
+	opponents_who_won_matches: z.array(playerOpponentRowSchema),
+	opponents_who_won_sets: z.array(playerOpponentRowSchema),
+});
 const eloTrendOutputSchema = z.object({
 	mode: z.literal("singles"),
 	player: playerNameSchema,
@@ -286,14 +312,14 @@ export function createGweiloMcpServer(userId: string) {
 	const server = new McpServer(
 		{
 			name: "gweilo-table-tennis",
-			version: "0.2.0",
+			version: "0.3.0",
 		},
 		{
 			capabilities: {
 				tools: {},
 			},
 			instructions:
-				"Read-only Gweilo singles statistics. Personal tools are scoped to the authenticated player. Use recent_matches for individual results, player_performance for the player's current summary, current_leaderboard for the official current Elo table, and my_elo_trend for rating movement over time. For questions about how the player performed against a named opponent, call head_to_head with opponent_name. Use my_rivalries for recurring-opponent comparisons. For aggregate period questions, call general_statistics: use win_rate with minimum_matches 3 for 'best performance', count metrics with minimum_matches 1 for count-based superlatives, elo_points_gained for positive Elo earned, and net_elo_change for signed movement. Use elo_rules to explain the rating system and elo_projection for hypothetical win/draw/loss changes against a named past opponent.",
+				"Read-only Gweilo singles statistics. Personal tools are scoped to the authenticated player. Use recent_matches for individual results, player_performance for the player's current summary, current_leaderboard for the official current Elo table, and my_elo_trend for rating movement over time. For questions about how the authenticated player performed against a named opponent, call head_to_head. To ask who defeated any named player in matches or who won sets against that player, call player_opponent_breakdown. Use my_rivalries for the authenticated player's recurring-opponent comparisons. For aggregate period questions, call general_statistics: use win_rate with minimum_matches 3 for 'best performance', count metrics with minimum_matches 1 for count-based superlatives, elo_points_gained for positive Elo earned, and net_elo_change for signed movement. Use elo_rules to explain the rating system and elo_projection for hypothetical win/draw/loss changes against a named past opponent.",
 		},
 	);
 
@@ -475,6 +501,46 @@ export function createGweiloMcpServer(userId: string) {
 			try {
 				return toolResult(
 					await getOwnEloTrend(userId, { days, limit }),
+				);
+			} catch (error) {
+				return toolError(error);
+			}
+		},
+	);
+
+	server.registerTool(
+		"player_opponent_breakdown",
+		{
+			title: "Player Opponent Breakdown",
+			description:
+				"For any named Gweilo player, return an all-time completed-singles breakdown by opponent. Explicitly lists who defeated the selected player in matches and who won sets against them, with counts, head-to-head sets, and Elo movement. Use this for questions such as 'Who beat Milan?' or 'Who took sets from him?'. Returns display names and table-tennis aggregates only.",
+			inputSchema: z.object({
+				player_name: z
+					.string()
+					.trim()
+					.min(1)
+					.max(100)
+					.describe(
+						"The selected player's full or otherwise unambiguous display name.",
+					),
+				limit: z
+					.number()
+					.int()
+					.min(1)
+					.max(50)
+					.default(20)
+					.describe(
+						"Maximum opponents returned in each breakdown list (1-50).",
+					),
+			}),
+			outputSchema: playerOpponentBreakdownOutputSchema,
+			annotations: readOnlyAnnotations,
+			_meta: oauthToolMetadata,
+		},
+		async ({ player_name: playerName, limit }) => {
+			try {
+				return toolResult(
+					await getPlayerOpponentBreakdown(playerName, limit),
 				);
 			} catch (error) {
 				return toolError(error);

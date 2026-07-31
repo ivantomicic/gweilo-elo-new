@@ -9,8 +9,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
 	aggregateGeneralSinglesStatistics,
 	aggregateRivalries,
+	buildPlayerOpponentBreakdown,
 	serializeJsonbPlayerIdsContainment,
 	resolveOpponentMatchesByName,
+	resolvePlayerProfilesByName,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
 	type GeneralStatisticsSort,
@@ -76,6 +78,7 @@ export class McpTableTennisError extends Error {
 		message: string,
 		public readonly code:
 			| "NOT_FOUND"
+			| "AMBIGUOUS_PLAYER"
 			| "AMBIGUOUS_OPPONENT"
 			| "INVALID_OPPONENT"
 			| "DATA_UNAVAILABLE" = "DATA_UNAVAILABLE",
@@ -157,6 +160,64 @@ async function getProfilesMap(
 			profile.display_name || "Unknown player",
 		]),
 	);
+}
+
+async function resolveSinglesPlayerByName(
+	adminClient: SupabaseClient,
+	playerName: string,
+) {
+	const [profilesResult, ratingsResult] = await Promise.all([
+		adminClient
+			.from("profiles")
+			.select("id, display_name")
+			.not("display_name", "is", null),
+		adminClient
+			.from("player_ratings")
+			.select("player_id")
+			.gt("matches_played", 0),
+	]);
+
+	if (profilesResult.error || ratingsResult.error) {
+		throw new McpTableTennisError(
+			"Player-name lookup is temporarily unavailable.",
+		);
+	}
+	const playersWithMatches = new Set(
+		(ratingsResult.data || []).map((rating) => rating.player_id as string),
+	);
+
+	const resolution = resolvePlayerProfilesByName(
+		((profilesResult.data || []) as ProfileRecord[])
+			.filter(
+				(profile): profile is ProfileRecord & { display_name: string } =>
+					Boolean(profile.display_name) &&
+					playersWithMatches.has(profile.id),
+			)
+			.map((profile) => ({
+				id: profile.id,
+				display_name: profile.display_name,
+			})),
+		playerName,
+	);
+
+	if (resolution.status === "not_found") {
+		throw new McpTableTennisError(
+			`No player was found matching "${playerName}".`,
+			"NOT_FOUND",
+		);
+	}
+
+	if (resolution.status === "ambiguous") {
+		const names = resolution.candidates
+			.map((candidate) => candidate.display_name)
+			.join(", ");
+		throw new McpTableTennisError(
+			`More than one player matches "${playerName}": ${names}. Ask again using the full name.`,
+			"AMBIGUOUS_PLAYER",
+		);
+	}
+
+	return resolution.player;
 }
 
 function ratingValue(value: number | string | null | undefined, fallback = 0) {
@@ -382,9 +443,9 @@ async function loadHeadToHeadRows(
 	);
 }
 
-async function loadOwnMatchHistoryRows(
+async function loadPlayerMatchHistoryRows(
 	adminClient: SupabaseClient,
-	userId: string,
+	playerId: string,
 ) {
 	const rows: DatabaseMatchRecord[] = [];
 
@@ -396,7 +457,7 @@ async function loadOwnMatchHistoryRows(
 			.eq("status", "completed")
 			.contains(
 				"player_ids",
-				serializeJsonbPlayerIdsContainment([userId]),
+				serializeJsonbPlayerIdsContainment([playerId]),
 			)
 			.not("team1_score", "is", null)
 			.not("team2_score", "is", null)
@@ -405,7 +466,7 @@ async function loadOwnMatchHistoryRows(
 
 		if (error) {
 			throw new McpTableTennisError(
-				"Head-to-head data is temporarily unavailable.",
+				"Player match history is temporarily unavailable.",
 			);
 		}
 
@@ -788,7 +849,7 @@ export async function getOwnHeadToHeadByName(
 	recentLimit: number,
 ) {
 	const adminClient = createAdminClient();
-	const rows = await loadOwnMatchHistoryRows(adminClient, userId);
+	const rows = await loadPlayerMatchHistoryRows(adminClient, userId);
 	const matches = await formatMatchesForUser(adminClient, userId, rows);
 	const resolution = resolveOpponentMatchesByName(matches, opponentName);
 
@@ -865,6 +926,29 @@ export async function getGeneralSinglesStatistics(options: {
 		minimum_matches: options.minimumMatches,
 		returned_players: aggregate.players.length,
 		...aggregate,
+	};
+}
+
+export async function getPlayerOpponentBreakdown(
+	playerName: string,
+	limit: number,
+) {
+	const adminClient = createAdminClient();
+	const player = await resolveSinglesPlayerByName(adminClient, playerName);
+	const rows = await loadPlayerMatchHistoryRows(adminClient, player.id);
+	const matches = await formatMatchesForUser(adminClient, player.id, rows);
+
+	if (matches.length === 0) {
+		throw new McpTableTennisError(
+			`No completed singles matches were found for ${player.display_name}.`,
+			"NOT_FOUND",
+		);
+	}
+
+	return {
+		mode: "singles" as const,
+		player: { display_name: player.display_name },
+		...buildPlayerOpponentBreakdown(matches, limit),
 	};
 }
 
@@ -958,7 +1042,7 @@ export async function getOwnRivalries(
 	options: { sortBy: RivalrySort; limit: number },
 ) {
 	const adminClient = createAdminClient();
-	const rows = await loadOwnMatchHistoryRows(adminClient, userId);
+	const rows = await loadPlayerMatchHistoryRows(adminClient, userId);
 	const matches = await formatMatchesForUser(adminClient, userId, rows);
 	const aggregate = aggregateRivalries({
 		matches,
@@ -1013,7 +1097,7 @@ export async function getOwnEloProjection(
 	opponentName: string,
 ) {
 	const adminClient = createAdminClient();
-	const rows = await loadOwnMatchHistoryRows(adminClient, userId);
+	const rows = await loadPlayerMatchHistoryRows(adminClient, userId);
 	const matches = await formatMatchesForUser(adminClient, userId, rows);
 	const resolution = resolveOpponentMatchesByName(matches, opponentName);
 
