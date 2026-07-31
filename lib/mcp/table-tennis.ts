@@ -1,15 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+	aggregateGeneralSinglesStatistics,
 	serializeJsonbPlayerIdsContainment,
+	resolveOpponentMatchesByName,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
+	type GeneralStatisticsSort,
 	type ScopedSinglesMatch,
 	type SinglesMatchRecord,
 } from "@/lib/mcp/table-tennis-stats";
 
 const MATCH_PAGE_SIZE = 500;
 const MAX_HEAD_TO_HEAD_MATCHES = 5000;
+const MAX_PERIOD_MATCHES = 5000;
 
 type ProfileRecord = {
 	id: string;
@@ -35,6 +39,7 @@ export class McpTableTennisError extends Error {
 		message: string,
 		public readonly code:
 			| "NOT_FOUND"
+			| "AMBIGUOUS_OPPONENT"
 			| "INVALID_OPPONENT"
 			| "DATA_UNAVAILABLE" = "DATA_UNAVAILABLE",
 	) {
@@ -182,6 +187,83 @@ async function loadHeadToHeadRows(
 	);
 }
 
+async function loadOwnMatchHistoryRows(
+	adminClient: SupabaseClient,
+	userId: string,
+) {
+	const rows: DatabaseMatchRecord[] = [];
+
+	for (let from = 0; from < MAX_HEAD_TO_HEAD_MATCHES; from += MATCH_PAGE_SIZE) {
+		const { data, error } = await adminClient
+			.from("session_matches")
+			.select("player_ids, team1_score, team2_score, created_at")
+			.eq("match_type", "singles")
+			.eq("status", "completed")
+			.contains(
+				"player_ids",
+				serializeJsonbPlayerIdsContainment([userId]),
+			)
+			.not("team1_score", "is", null)
+			.not("team2_score", "is", null)
+			.order("created_at", { ascending: false })
+			.range(from, from + MATCH_PAGE_SIZE - 1);
+
+		if (error) {
+			throw new McpTableTennisError(
+				"Head-to-head data is temporarily unavailable.",
+			);
+		}
+
+		const page = (data || []) as DatabaseMatchRecord[];
+		rows.push(...page);
+		if (page.length < MATCH_PAGE_SIZE) {
+			return rows;
+		}
+	}
+
+	throw new McpTableTennisError(
+		"Match history is too large for this pilot endpoint.",
+	);
+}
+
+async function loadPeriodMatchRows(
+	adminClient: SupabaseClient,
+	periodStart: string,
+	periodEnd: string,
+) {
+	const rows: DatabaseMatchRecord[] = [];
+
+	for (let from = 0; from < MAX_PERIOD_MATCHES; from += MATCH_PAGE_SIZE) {
+		const { data, error } = await adminClient
+			.from("session_matches")
+			.select("player_ids, team1_score, team2_score, created_at")
+			.eq("match_type", "singles")
+			.eq("status", "completed")
+			.gte("created_at", periodStart)
+			.lte("created_at", periodEnd)
+			.not("team1_score", "is", null)
+			.not("team2_score", "is", null)
+			.order("created_at", { ascending: false })
+			.range(from, from + MATCH_PAGE_SIZE - 1);
+
+		if (error) {
+			throw new McpTableTennisError(
+				"General statistics are temporarily unavailable.",
+			);
+		}
+
+		const page = (data || []) as DatabaseMatchRecord[];
+		rows.push(...page);
+		if (page.length < MATCH_PAGE_SIZE) {
+			return rows;
+		}
+	}
+
+	throw new McpTableTennisError(
+		"Too many matches were found for this statistics period.",
+	);
+}
+
 async function formatMatchesForUser(
 	adminClient: SupabaseClient,
 	userId: string,
@@ -274,6 +356,18 @@ export async function getOwnPerformanceSummary(
 	};
 }
 
+function formatHeadToHeadResult(
+	opponentMatches: ScopedSinglesMatch[],
+	recentLimit: number,
+) {
+	return {
+		mode: "singles" as const,
+		opponent: opponentMatches[0].opponent,
+		...summarizeScopedMatches(opponentMatches),
+		recent_matches: opponentMatches.slice(0, recentLimit),
+	};
+}
+
 export async function getOwnHeadToHead(
 	userId: string,
 	opponentId: string,
@@ -310,10 +404,83 @@ export async function getOwnHeadToHead(
 		);
 	}
 
+	return formatHeadToHeadResult(opponentMatches, recentLimit);
+}
+
+export async function getOwnHeadToHeadByName(
+	userId: string,
+	opponentName: string,
+	recentLimit: number,
+) {
+	const adminClient = createAdminClient();
+	const rows = await loadOwnMatchHistoryRows(adminClient, userId);
+	const matches = await formatMatchesForUser(adminClient, userId, rows);
+	const resolution = resolveOpponentMatchesByName(matches, opponentName);
+
+	// Name resolution is intentionally limited to profiles reached through the
+	// authenticated player's own completed singles matches.
+	if (resolution.status === "not_found") {
+		throw new McpTableTennisError(
+			`No completed singles matches were found against an opponent matching "${opponentName}".`,
+			"NOT_FOUND",
+		);
+	}
+
+	if (resolution.status === "ambiguous") {
+		const names = resolution.candidates
+			.map((candidate) => candidate.display_name)
+			.join(", ");
+		throw new McpTableTennisError(
+			`More than one opponent matches "${opponentName}": ${names}. Ask again using the full name.`,
+			"AMBIGUOUS_OPPONENT",
+		);
+	}
+
+	return formatHeadToHeadResult(resolution.matches, recentLimit);
+}
+
+export async function getGeneralSinglesStatistics(options: {
+	days: number;
+	sortBy: GeneralStatisticsSort;
+	minimumMatches: number;
+	limit: number;
+}) {
+	const adminClient = createAdminClient();
+	const periodEnd = new Date();
+	const periodStart = new Date(
+		periodEnd.getTime() - options.days * 24 * 60 * 60 * 1000,
+	);
+	const rows = await loadPeriodMatchRows(
+		adminClient,
+		periodStart.toISOString(),
+		periodEnd.toISOString(),
+	);
+	const matches = rows
+		.map(normalizeDatabaseMatch)
+		.filter((match): match is SinglesMatchRecord => match !== null);
+	const playerIds = Array.from(
+		new Set(matches.flatMap((match) => match.player_ids)),
+	);
+	const profiles = await getProfilesMap(adminClient, playerIds);
+	const aggregate = aggregateGeneralSinglesStatistics({
+		matches,
+		profiles,
+		sortBy: options.sortBy,
+		minimumMatches: options.minimumMatches,
+		limit: options.limit,
+	});
+
 	return {
 		mode: "singles" as const,
-		opponent: opponentMatches[0].opponent,
-		...summarizeScopedMatches(opponentMatches),
-		recent_matches: opponentMatches.slice(0, recentLimit),
+		period: {
+			type: "rolling_days" as const,
+			days: options.days,
+			from: periodStart.toISOString(),
+			to: periodEnd.toISOString(),
+		},
+		sort_by: options.sortBy,
+		minimum_matches: options.minimumMatches,
+		returned_players: aggregate.players.length,
+		...aggregate,
 	};
 }
