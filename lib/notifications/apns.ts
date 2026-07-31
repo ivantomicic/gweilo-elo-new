@@ -167,6 +167,53 @@ function shouldInvalidateToken(status: number, reason?: string) {
 	);
 }
 
+export function isRetryableAPNsTransportFailure(
+	result: Pick<APNsResult, "status" | "reason" | "succeeded">,
+) {
+	if (result.succeeded || result.status !== 0) return false;
+	const reason = result.reason?.toLowerCase() || "";
+	return [
+		"refused_stream",
+		"session closed",
+		"stream closed",
+		"goaway",
+		"econnreset",
+		"socket hang up",
+		"request timed out",
+	].some((fragment) => reason.includes(fragment));
+}
+
+function openConnection(environment: APNsEnvironment) {
+	return new Promise<ClientHttp2Session>((resolve, reject) => {
+		const client = connect(endpoint(environment));
+		const timeout = setTimeout(() => {
+			client.destroy();
+			reject(new Error("APNs connection timed out"));
+		}, 12_000);
+
+		const cleanup = () => {
+			clearTimeout(timeout);
+			client.off("connect", handleConnect);
+			client.off("error", handleError);
+		};
+		const handleConnect = () => {
+			cleanup();
+			// Stream-level errors are returned by sendOnConnection. Keep a
+			// session listener so a late HTTP/2 error cannot crash the process.
+			client.on("error", () => undefined);
+			resolve(client);
+		};
+		const handleError = (error: Error) => {
+			cleanup();
+			client.destroy();
+			reject(error);
+		};
+
+		client.once("connect", handleConnect);
+		client.once("error", handleError);
+	});
+}
+
 function sendOnConnection({
 	client,
 	device,
@@ -253,6 +300,58 @@ function sendOnConnection({
 	});
 }
 
+async function retryTransportFailure({
+	device,
+	environment,
+	payload,
+	configuration,
+	token,
+	collapseId,
+	pushType,
+	topic,
+	priority,
+}: {
+	device: APNsDevice;
+	environment: APNsEnvironment;
+	payload: Buffer;
+	configuration: APNsConfiguration;
+	token: string;
+	collapseId?: string;
+	pushType: "alert" | "liveactivity";
+	topic: string;
+	priority: "5" | "10";
+}) {
+	let client: ClientHttp2Session | null = null;
+	try {
+		client = await openConnection(environment);
+		return await sendOnConnection({
+			client,
+			device,
+			payload,
+			configuration,
+			token,
+			collapseId,
+			pushType,
+			topic,
+			priority,
+		});
+	} catch (error) {
+		return {
+			deviceId: device.id,
+			apnsId: randomUUID(),
+			status: 0,
+			reason:
+				error instanceof Error
+					? error.message
+					: "APNs connection failed",
+			succeeded: false,
+			shouldInvalidateToken: false,
+		} satisfies APNsResult;
+	} finally {
+		client?.close();
+	}
+}
+
 async function sendEnvironmentBatch({
 	devices,
 	environment,
@@ -285,36 +384,51 @@ async function sendEnvironmentBatch({
 		}));
 	}
 
-	const client = connect(endpoint(environment));
 	const token = providerToken(configuration);
 	const topic = `${configuration.bundleId}${topicSuffix ?? ""}`;
-	const connectionError = new Promise<never>((_, reject) => {
-		client.once("error", reject);
-	});
+	let client: ClientHttp2Session | null = null;
+	let results: APNsResult[];
 
 	try {
-		return await Promise.race([
-			Promise.all(
-				devices.map((device) =>
-					sendOnConnection({
-						client,
-						device,
-						payload,
-						configuration,
-						token,
-						collapseId,
-						pushType,
-						topic,
-						priority,
-					}),
-				),
-			),
-			connectionError,
-		]);
+		client = await openConnection(environment);
+
+		// A new token-authenticated APNs connection initially permits only one
+		// stream. Establish authentication with the first request before
+		// submitting the remaining devices concurrently.
+		const firstResult = await sendOnConnection({
+			client,
+			device: devices[0],
+			payload,
+			configuration,
+			token,
+			collapseId,
+			pushType,
+			topic,
+			priority,
+		});
+		const remainingResults =
+			devices.length > 1
+				? await Promise.all(
+						devices.slice(1).map((device) =>
+							sendOnConnection({
+								client: client!,
+								device,
+								payload,
+								configuration,
+								token,
+								collapseId,
+								pushType,
+								topic,
+								priority,
+							}),
+						),
+					)
+				: [];
+		results = [firstResult, ...remainingResults];
 	} catch (error) {
 		const reason =
 			error instanceof Error ? error.message : "APNs connection failed";
-		return devices.map((device) => ({
+		results = devices.map((device) => ({
 			deviceId: device.id,
 			apnsId: randomUUID(),
 			status: 0,
@@ -323,8 +437,36 @@ async function sendEnvironmentBatch({
 			shouldInvalidateToken: false,
 		}));
 	} finally {
-		client.close();
+		client?.close();
 	}
+
+	const retryableDeviceIds = new Set(
+		results
+			.filter(isRetryableAPNsTransportFailure)
+			.map((result) => result.deviceId),
+	);
+	if (retryableDeviceIds.size === 0) return results;
+
+	const retryResults = new Map<string, APNsResult>();
+	for (const device of devices) {
+		if (!retryableDeviceIds.has(device.id)) continue;
+		const result = await retryTransportFailure({
+			device,
+			environment,
+			payload,
+			configuration,
+			token,
+			collapseId,
+			pushType,
+			topic,
+			priority,
+		});
+		retryResults.set(device.id, result);
+	}
+
+	return results.map(
+		(result) => retryResults.get(result.deviceId) || result,
+	);
 }
 
 export async function sendAPNsNotification({

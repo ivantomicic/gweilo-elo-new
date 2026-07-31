@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isAPNsConfigured } from "../../lib/notifications/apns";
+import {
+	isAPNsConfigured,
+	isRetryableAPNsTransportFailure,
+} from "../../lib/notifications/apns";
 
 const managedVariables = [
 	"APNS_TEAM_ID",
@@ -56,4 +59,40 @@ test("keeps legacy keys as a shared fallback", () => {
 		assert.equal(isAPNsConfigured("development"), true);
 		assert.equal(isAPNsConfigured("production"), true);
 	});
+});
+
+test("retries transient HTTP/2 transport failures", () => {
+	for (const reason of [
+		"Stream closed with error code NGHTTP2_REFUSED_STREAM",
+		"Session closed with error code 1",
+		"APNs request timed out",
+		"read ECONNRESET",
+	]) {
+		assert.equal(
+			isRetryableAPNsTransportFailure({
+				status: 0,
+				reason,
+				succeeded: false,
+			}),
+			true,
+		);
+	}
+});
+
+test("does not retry APNs response errors or successful sends", () => {
+	assert.equal(
+		isRetryableAPNsTransportFailure({
+			status: 400,
+			reason: "BadDeviceToken",
+			succeeded: false,
+		}),
+		false,
+	);
+	assert.equal(
+		isRetryableAPNsTransportFailure({
+			status: 200,
+			succeeded: true,
+		}),
+		false,
+	);
 });
