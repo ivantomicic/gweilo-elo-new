@@ -6,10 +6,15 @@ import {
 } from "@/lib/rivalries/service";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 const NO_STORE_HEADERS = {
 	"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+	"CDN-Cache-Control": "no-store",
+	"Vercel-CDN-Cache-Control": "no-store",
 	Pragma: "no-cache",
+	Vary: "Authorization",
 };
 
 export async function GET(request: NextRequest) {

@@ -10,6 +10,8 @@ import type { MissionSnapshot } from "@/lib/rivalries/types";
 import { renderMissionCopy } from "@/lib/rivalries/copy";
 import { t } from "@/lib/i18n";
 
+const MISSION_REFRESH_INTERVAL_MS = 30_000;
+
 function getNumberMetric(
 	metrics: Record<string, number | string | boolean | null>,
 	key: string,
@@ -148,6 +150,8 @@ export function RivalryMissionsWidget() {
 
 	useEffect(() => {
 		let isMounted = true;
+		let requestSequence = 0;
+		let activeController: AbortController | null = null;
 
 		const fetchSnapshot = async (options?: {
 			showLoading?: boolean;
@@ -155,6 +159,10 @@ export function RivalryMissionsWidget() {
 		}) => {
 			const showLoading = options?.showLoading ?? true;
 			const suppressError = options?.suppressError ?? false;
+			const requestId = ++requestSequence;
+			activeController?.abort();
+			const controller = new AbortController();
+			activeController = controller;
 
 			try {
 				if (isMounted && showLoading) {
@@ -172,8 +180,10 @@ export function RivalryMissionsWidget() {
 
 				const response = await fetch(`/api/missions?ts=${Date.now()}`, {
 					cache: "no-store",
+					signal: controller.signal,
 					headers: {
 						Authorization: `Bearer ${accessToken}`,
+						"Cache-Control": "no-cache",
 					},
 				});
 
@@ -182,17 +192,18 @@ export function RivalryMissionsWidget() {
 				}
 
 				const data = await response.json();
-				if (isMounted) {
+				if (isMounted && requestId === requestSequence) {
 					setSnapshot(data.snapshot || null);
 					setError(null);
 				}
 			} catch (fetchError) {
+				if (controller.signal.aborted) return;
 				console.error("Error loading missions:", fetchError);
-				if (isMounted && !suppressError) {
+				if (isMounted && requestId === requestSequence && !suppressError) {
 					setError(t.missions.error.fetchFailed);
 				}
 			} finally {
-				if (isMounted && showLoading) {
+				if (isMounted && requestId === requestSequence && showLoading) {
 					setLoading(false);
 				}
 			}
@@ -210,12 +221,29 @@ export function RivalryMissionsWidget() {
 			}
 		};
 
+		const refreshWithoutLoadingState = () => {
+			if (document.visibilityState === "visible") {
+				fetchSnapshot({ showLoading: false, suppressError: true });
+			}
+		};
+
+		const refreshInterval = window.setInterval(
+			refreshWithoutLoadingState,
+			MISSION_REFRESH_INTERVAL_MS,
+		);
+
 		window.addEventListener("focus", handleWindowFocus);
+		window.addEventListener("online", refreshWithoutLoadingState);
+		window.addEventListener("pageshow", refreshWithoutLoadingState);
 		document.addEventListener("visibilitychange", handleVisibilityChange);
 
 		return () => {
 			isMounted = false;
+			activeController?.abort();
+			window.clearInterval(refreshInterval);
 			window.removeEventListener("focus", handleWindowFocus);
+			window.removeEventListener("online", refreshWithoutLoadingState);
+			window.removeEventListener("pageshow", refreshWithoutLoadingState);
 			document.removeEventListener("visibilitychange", handleVisibilityChange);
 		};
 	}, [accessToken, userId]);
