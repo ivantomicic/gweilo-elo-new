@@ -9,6 +9,15 @@ export type ScopedSinglesMatch = {
 	result: MatchOutcome;
 	sets_for: number;
 	sets_against: number;
+	elo_before: number | null;
+	elo_after: number | null;
+	elo_change: number | null;
+};
+
+export type PlayerMatchElo = {
+	before: number | null;
+	after: number | null;
+	change: number | null;
 };
 
 export type SinglesMatchRecord = {
@@ -47,6 +56,12 @@ export type GeneralStatisticsSort =
 	| "set_difference"
 	| "elo_points_gained"
 	| "elo_points_lost"
+	| "net_elo_change";
+
+export type RivalrySort =
+	| "total_matches"
+	| "closest_record"
+	| "elo_points_gained"
 	| "net_elo_change";
 
 export type PeriodEloChange = {
@@ -158,6 +173,7 @@ export function toScopedSinglesMatch(
 	match: SinglesMatchRecord,
 	userId: string,
 	opponentName: string,
+	elo: PlayerMatchElo = { before: null, after: null, change: null },
 ): ScopedSinglesMatch | null {
 	if (match.player_ids.length !== 2) {
 		return null;
@@ -188,6 +204,9 @@ export function toScopedSinglesMatch(
 					: "draw",
 		sets_for: setsFor,
 		sets_against: setsAgainst,
+		elo_before: elo.before,
+		elo_after: elo.after,
+		elo_change: elo.change,
 	};
 }
 
@@ -311,5 +330,83 @@ export function aggregateGeneralSinglesStatistics(options: {
 		players: eligiblePlayers
 			.slice(0, options.limit)
 			.map((player, index) => ({ rank: index + 1, ...player })),
+	};
+}
+
+export function aggregateRivalries(options: {
+	matches: ScopedSinglesMatch[];
+	sortBy: RivalrySort;
+	limit: number;
+}) {
+	const matchesByOpponent = new Map<string, ScopedSinglesMatch[]>();
+	for (const match of options.matches) {
+		const opponentMatches = matchesByOpponent.get(match.opponent.id) || [];
+		opponentMatches.push(match);
+		matchesByOpponent.set(match.opponent.id, opponentMatches);
+	}
+
+	const rivalries = Array.from(matchesByOpponent.values()).map((matches) => {
+		const summary = summarizeScopedMatches(matches);
+		const eloChanges = matches
+			.map((match) => match.elo_change)
+			.filter((change): change is number => change !== null);
+		const latestResult = matches[0]?.result ?? null;
+		let streakMatches = 0;
+		for (const match of matches) {
+			if (match.result !== latestResult) break;
+			streakMatches += 1;
+		}
+
+		return {
+			opponent: {
+				display_name: matches[0].opponent.display_name,
+			},
+			...summary,
+			elo_points_gained: Math.round(
+				eloChanges
+					.filter((change) => change > 0)
+					.reduce((total, change) => total + change, 0) * 100,
+			) / 100,
+			elo_points_lost: Math.round(
+				eloChanges
+					.filter((change) => change < 0)
+					.reduce((total, change) => total + Math.abs(change), 0) *
+					100,
+			) / 100,
+			net_elo_change: Math.round(
+				eloChanges.reduce((total, change) => total + change, 0) * 100,
+			) / 100,
+			elo_matches_counted: eloChanges.length,
+			elo_history_complete: eloChanges.length === matches.length,
+			last_played_at: matches[0]?.played_at ?? null,
+			current_streak:
+				latestResult && streakMatches > 0
+					? { result: latestResult, matches: streakMatches }
+					: null,
+		};
+	});
+
+	rivalries.sort((left, right) => {
+		if (options.sortBy === "closest_record") {
+			return (
+				Math.abs(left.wins - left.losses) -
+					Math.abs(right.wins - right.losses) ||
+				right.total_matches - left.total_matches ||
+				left.opponent.display_name.localeCompare(
+					right.opponent.display_name,
+				)
+			);
+		}
+
+		return (
+			right[options.sortBy] - left[options.sortBy] ||
+			right.total_matches - left.total_matches ||
+			left.opponent.display_name.localeCompare(right.opponent.display_name)
+		);
+	});
+
+	return {
+		total_opponents: rivalries.length,
+		rivalries: rivalries.slice(0, options.limit),
 	};
 }

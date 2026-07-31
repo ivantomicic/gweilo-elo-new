@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	aggregateGeneralSinglesStatistics,
+	aggregateRivalries,
 	resolveOpponentMatchesByName,
 	serializeJsonbPlayerIdsContainment,
 	summarizeScopedMatches,
@@ -24,6 +25,9 @@ const opponentMatches: ScopedSinglesMatch[] = [
 		result: "win",
 		sets_for: 3,
 		sets_against: 1,
+		elo_before: null,
+		elo_after: null,
+		elo_change: null,
 	},
 	{
 		played_at: "2026-07-20T12:00:00.000Z",
@@ -34,6 +38,9 @@ const opponentMatches: ScopedSinglesMatch[] = [
 		result: "loss",
 		sets_for: 1,
 		sets_against: 3,
+		elo_before: null,
+		elo_after: null,
+		elo_change: null,
 	},
 	{
 		played_at: "2026-07-10T12:00:00.000Z",
@@ -44,6 +51,9 @@ const opponentMatches: ScopedSinglesMatch[] = [
 		result: "win",
 		sets_for: 3,
 		sets_against: 0,
+		elo_before: null,
+		elo_after: null,
+		elo_change: null,
 	},
 ];
 
@@ -65,6 +75,7 @@ test("formats a match from the authenticated player's perspective", () => {
 		},
 		USER_ID,
 		"Opponent",
+		{ before: 1450, after: 1462.5, change: 12.5 },
 	);
 
 	assert.deepEqual(match, {
@@ -76,6 +87,9 @@ test("formats a match from the authenticated player's perspective", () => {
 		result: "win",
 		sets_for: 3,
 		sets_against: 1,
+		elo_before: 1450,
+		elo_after: 1462.5,
+		elo_change: 12.5,
 	});
 });
 
@@ -106,6 +120,9 @@ test("summarizes wins, losses, draws, and sets", () => {
 			result: "win",
 			sets_for: 3,
 			sets_against: 1,
+			elo_before: null,
+			elo_after: null,
+			elo_change: null,
 		},
 		{
 			played_at: null,
@@ -113,6 +130,9 @@ test("summarizes wins, losses, draws, and sets", () => {
 			result: "loss",
 			sets_for: 2,
 			sets_against: 3,
+			elo_before: null,
+			elo_after: null,
+			elo_change: null,
 		},
 		{
 			played_at: null,
@@ -120,6 +140,9 @@ test("summarizes wins, losses, draws, and sets", () => {
 			result: "draw",
 			sets_for: 2,
 			sets_against: 2,
+			elo_before: null,
+			elo_after: null,
+			elo_change: null,
 		},
 	]);
 
@@ -180,6 +203,9 @@ test("reports ambiguous opponents and requires a fuller name", () => {
 				result: "draw",
 				sets_for: 2,
 				sets_against: 2,
+				elo_before: null,
+				elo_after: null,
+				elo_change: null,
 			},
 		],
 		"Andrej",
@@ -374,4 +400,71 @@ test("returns and ranks authoritative Elo changes for the period", () => {
 	assert.equal(result.players[0].net_elo_change, 7.25);
 	assert.equal(result.players[0].elo_matches_counted, 2);
 	assert.equal(result.players[0].elo_history_complete, true);
+});
+
+test("summarizes rivalries with Elo and the current result streak", () => {
+	const result = aggregateRivalries({
+		matches: [
+			{
+				...opponentMatches[0],
+				elo_before: 1500,
+				elo_after: 1512.5,
+				elo_change: 12.5,
+			},
+			{
+				...opponentMatches[1],
+				result: "win",
+				elo_before: 1488,
+				elo_after: 1500,
+				elo_change: 12,
+			},
+			{
+				...opponentMatches[2],
+				elo_before: 1512.5,
+				elo_after: 1505.25,
+				elo_change: -7.25,
+			},
+		],
+		sortBy: "total_matches",
+		limit: 10,
+	});
+
+	assert.equal(result.total_opponents, 2);
+	assert.equal(result.rivalries[0].opponent.display_name, "Andrej Jovanović");
+	assert.equal(result.rivalries[0].total_matches, 2);
+	assert.deepEqual(result.rivalries[0].current_streak, {
+		result: "win",
+		matches: 2,
+	});
+	assert.equal(result.rivalries[0].elo_points_gained, 24.5);
+	assert.equal(result.rivalries[0].elo_points_lost, 0);
+	assert.equal(result.rivalries[0].net_elo_change, 24.5);
+	assert.equal(result.rivalries[0].elo_history_complete, true);
+});
+
+test("can rank the closest rivalry before a more one-sided record", () => {
+	const result = aggregateRivalries({
+		matches: [
+			...opponentMatches,
+			{
+				played_at: "2026-07-05T12:00:00.000Z",
+				opponent: {
+					id: SECOND_OPPONENT_ID,
+					display_name: "Marko Andrejić",
+				},
+				result: "win",
+				sets_for: 3,
+				sets_against: 1,
+				elo_before: null,
+				elo_after: null,
+				elo_change: null,
+			},
+		],
+		sortBy: "closest_record",
+		limit: 1,
+	});
+
+	assert.equal(result.total_opponents, 2);
+	assert.equal(result.rivalries.length, 1);
+	assert.equal(result.rivalries[0].opponent.display_name, "Andrej Jovanović");
 });
