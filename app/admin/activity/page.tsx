@@ -32,12 +32,6 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/vendor/shadcn/dropdown-menu";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/vendor/shadcn/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { supabase } from "@/lib/supabase/client";
@@ -168,12 +162,6 @@ const buildFlowStep = (
 	event: AnalyticsEvent,
 	sessionLabelMap: Record<string, string>,
 ): string => {
-	if (event.event_name === "app_loaded") {
-		return "App Loaded";
-	}
-	if (event.event_name === "user_logged_in") {
-		return "Logged In";
-	}
 	if (event.event_name === "page_viewed" && event.page) {
 		return getReadablePathLabel(event.page, sessionLabelMap);
 	}
@@ -182,6 +170,9 @@ const buildFlowStep = (
 	}
 	return event.event_name;
 };
+
+const SYSTEM_EVENT_NAMES = new Set(["app_loaded", "user_logged_in"]);
+const VISIBLE_FLOW_STEPS = 6;
 
 const getInitials = (name: string): string =>
 	name
@@ -210,6 +201,65 @@ const haveSameItems = (a: string[], b: string[]): boolean => {
 	const sortedB = [...b].sort();
 	return sortedA.every((item, index) => item === sortedB[index]);
 };
+
+function ActivityJourney({
+	sessionId,
+	steps,
+}: {
+	sessionId: string;
+	steps: string[];
+}) {
+	const [expanded, setExpanded] = useState(false);
+	const visibleSteps = expanded ? steps : steps.slice(0, VISIBLE_FLOW_STEPS);
+	const hiddenStepCount = steps.length - VISIBLE_FLOW_STEPS;
+
+	if (steps.length === 0) {
+		return (
+			<p className="text-xs text-muted-foreground">
+				No page navigation recorded.
+			</p>
+		);
+	}
+
+	return (
+		<div className="space-y-2">
+			<ol
+				aria-label="Page journey"
+				className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs"
+			>
+				{visibleSteps.map((step, stepIndex) => (
+					<li
+						key={`${sessionId}-flow-${stepIndex}`}
+						className="inline-flex min-w-0 items-center gap-1.5"
+					>
+						<span className="font-medium text-foreground/90">
+							{step}
+						</span>
+						{stepIndex < visibleSteps.length - 1 ? (
+							<Icon
+								icon="solar:alt-arrow-right-linear"
+								className="size-3 shrink-0 text-muted-foreground/70"
+							/>
+						) : null}
+					</li>
+				))}
+			</ol>
+
+			{hiddenStepCount > 0 ? (
+				<button
+					type="button"
+					aria-expanded={expanded}
+					onClick={() => setExpanded((current) => !current)}
+					className="inline-flex min-h-8 items-center rounded-md px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground active:scale-[0.97]"
+				>
+					{expanded
+						? "Show less"
+						: `Show ${hiddenStepCount} more`}
+				</button>
+			) : null}
+		</div>
+	);
+}
 
 function AdminActivityPageContent() {
 	const [events, setEvents] = useState<AnalyticsEvent[]>([]);
@@ -756,19 +806,34 @@ function AdminActivityPageContent() {
 		return `${hours}:${minutes}:${seconds}`;
 	};
 
+	const formatShortTime = (dateString: string): string => {
+		const date = new Date(dateString);
+		const hours = String(date.getHours()).padStart(2, "0");
+		const minutes = String(date.getMinutes()).padStart(2, "0");
+		return `${hours}:${minutes}`;
+	};
+
+	const formatTimeRange = (startedAt: string, endedAt: string): string => {
+		const start = formatShortTime(startedAt);
+		const end = formatShortTime(endedAt);
+		return start === end ? start : `${start}–${end}`;
+	};
+
 	const formatDuration = (durationMs: number): string => {
 		if (durationMs < 60 * 1000) {
-			return "<1m";
+			return "<1 min";
 		}
 
 		const totalMinutes = Math.floor(durationMs / (60 * 1000));
 		if (totalMinutes < 60) {
-			return `${totalMinutes}m`;
+			return `${totalMinutes} min`;
 		}
 
 		const hours = Math.floor(totalMinutes / 60);
 		const minutes = totalMinutes % 60;
-		return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
+		return minutes === 0
+			? `${hours} hr`
+			: `${hours} hr ${minutes} min`;
 	};
 
 	const formatDateTime = (dateString: string): string =>
@@ -803,34 +868,38 @@ function AdminActivityPageContent() {
 			const lastEvent = sessionEvents[sessionEvents.length - 1];
 			const startMs = new Date(firstEvent.created_at).getTime();
 			const endMs = new Date(lastEvent.created_at).getTime();
-				const compactFlow = sessionEvents
-					.map((event) => buildFlowStep(event, sessionLabelMap))
-					.filter(
-						(step, index, arr) => index === 0 || step !== arr[index - 1],
-					);
+			const compactFlow = sessionEvents
+				.filter(
+					(event) => !SYSTEM_EVENT_NAMES.has(event.event_name),
+				)
+				.map((event) => buildFlowStep(event, sessionLabelMap))
+				.filter(
+					(step, index, arr) =>
+						index === 0 || step !== arr[index - 1],
+				);
 
-					sessions.push({
-						id: `${firstEvent.id}-${lastEvent.id}`,
-						userGroupKey:
-							firstEvent.user_id ||
-							`anon:${firstEvent.user?.name || "anonymous"}`,
-						userName:
-							firstEvent.user?.name ||
-							(firstEvent.user_id
-							? `User ${firstEvent.user_id.slice(0, 8)}...`
-							: "Anonymous"),
-					userAvatar: firstEvent.user?.avatar || null,
-					userId: firstEvent.user_id,
-					startedAt: firstEvent.created_at,
-					endedAt: lastEvent.created_at,
-					eventCount: sessionEvents.length,
+			sessions.push({
+				id: `${firstEvent.id}-${lastEvent.id}`,
+				userGroupKey:
+					firstEvent.user_id ||
+					`anon:${firstEvent.user?.name || "anonymous"}`,
+				userName:
+					firstEvent.user?.name ||
+					(firstEvent.user_id
+						? `User ${firstEvent.user_id.slice(0, 8)}...`
+						: "Anonymous"),
+				userAvatar: firstEvent.user?.avatar || null,
+				userId: firstEvent.user_id,
+				startedAt: firstEvent.created_at,
+				endedAt: lastEvent.created_at,
+				eventCount: sessionEvents.length,
 				durationMs:
 					Number.isFinite(startMs) && Number.isFinite(endMs)
-							? Math.max(0, endMs - startMs)
-							: 0,
-					flow: compactFlow,
-				});
-			};
+						? Math.max(0, endMs - startMs)
+						: 0,
+				flow: compactFlow,
+			});
+		};
 
 		for (const userEvents of eventsByUser.values()) {
 			let currentSession: AnalyticsEvent[] = [];
@@ -966,138 +1035,104 @@ function AdminActivityPageContent() {
 							</div>
 
 							<div className="mb-3 text-xs text-muted-foreground">
-								Sessions split on <code>app_loaded</code> or
-								30m inactivity.
+								Visits are separated after an app reload or 30
+								minutes of inactivity.
 							</div>
 							{timelineGroups.length === 0 ? (
 								<div className="rounded-md border p-6 text-center text-sm text-muted-foreground">
 									No events found
 								</div>
 							) : (
-								<TooltipProvider delayDuration={120}>
-									<div className="space-y-2">
-										{timelineGroups.map((group) => (
-											<div
-												key={group.id}
-												className="rounded-md border p-3"
-											>
-												<div className="flex min-w-0 items-center gap-2.5">
-													<Avatar className="h-8 w-8 border">
-														<AvatarImage
-															src={group.userAvatar || undefined}
-															alt={group.userName}
-														/>
-														<AvatarFallback className="text-[11px] font-semibold">
-															{getInitials(group.userName)}
-														</AvatarFallback>
-													</Avatar>
-													<p className="truncate text-sm font-medium">
+								<div className="space-y-3">
+									{timelineGroups.map((group) => (
+										<article
+											key={group.id}
+											className="rounded-xl border border-border/70 bg-card/40 p-4"
+										>
+											<header className="flex min-w-0 items-center gap-3">
+												<Avatar className="h-10 w-10 border">
+													<AvatarImage
+														src={group.userAvatar || undefined}
+														alt={group.userName}
+													/>
+													<AvatarFallback className="text-xs font-semibold">
+														{getInitials(group.userName)}
+													</AvatarFallback>
+												</Avatar>
+												<div className="min-w-0">
+													<h2 className="truncate text-base font-semibold">
 														{group.userName}
-														{group.userId === currentUserId
-															? " (you)"
-															: ""}
-													</p>
+													</h2>
+													{group.userId === currentUserId ? (
+														<p className="text-xs text-muted-foreground">
+															Your activity
+														</p>
+													) : null}
 												</div>
+											</header>
 
-												<div className="mt-2 space-y-2">
-													{group.sessions.map(
-														(session, index) => (
-															<div
-																key={session.id}
-																className={
-																	index > 0
-																		? "border-t pt-2"
-																		: ""
-																}
-															>
-																<div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<span className="inline-flex cursor-default items-center gap-1">
-																				<Icon
-																					icon="solar:calendar-bold"
-																					className="size-3.5"
-																				/>
-																				{formatDate(
-																					session.startedAt,
-																				)}
-																			</span>
-																		</TooltipTrigger>
-																		<TooltipContent>
-																			Started:{" "}
-																			{formatDateTime(
-																				session.startedAt,
-																			)}
-																		</TooltipContent>
-																	</Tooltip>
-																	<Tooltip>
-																		<TooltipTrigger asChild>
-																			<span className="inline-flex cursor-default items-center gap-1">
-																				<Icon
-																					icon="solar:clock-circle-bold"
-																					className="size-3.5"
-																				/>
-																				{formatDuration(
-																					session.durationMs,
-																				)}
-																			</span>
-																		</TooltipTrigger>
-																		<TooltipContent>
-																			From{" "}
-																			{formatDateTime(
-																				session.startedAt,
-																			)}{" "}
-																			to{" "}
-																			{formatDateTime(
-																				session.endedAt,
-																			)}
-																		</TooltipContent>
-																	</Tooltip>
-																	<span>
-																		{session.eventCount} events
-																	</span>
-																</div>
-
-																<div className="mt-1 overflow-x-auto">
-																	<div className="inline-flex items-center gap-1 whitespace-nowrap text-xs">
-																		{session.flow
-																			.slice(0, 10)
-																			.map((step, stepIndex) => (
-																				<span
-																					key={`${session.id}-flow-${stepIndex}`}
-																					className="inline-flex items-center gap-1"
-																				>
-																					<span className="text-[11px] text-foreground/90">
-																						{step}
-																					</span>
-																					{stepIndex <
-																						Math.min(
-																							session.flow.length,
-																							10,
-																						) -
-																							1 && (
-																						<Icon
-																							icon="solar:alt-arrow-right-linear"
-																							className="size-3 text-muted-foreground"
-																						/>
-																					)}
-																				</span>
-																			))}
-																		{session.flow.length > 10 && (
-																			<span className="text-muted-foreground">
-																				+{session.flow.length - 10} more
-																			</span>
-																		)}
-																	</div>
-																</div>
+											<div className="mt-4">
+												{group.sessions.map(
+													(session, index) => (
+														<section
+															key={session.id}
+															className={
+																index > 0
+																	? "mt-4 border-t pt-4"
+																	: ""
+															}
+														>
+															<div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs text-muted-foreground">
+																<span className="inline-flex items-center gap-1.5">
+																	<Icon
+																		icon="solar:calendar-bold"
+																		className="size-3.5"
+																	/>
+																	{formatDate(session.startedAt)}
+																</span>
+																<span aria-hidden="true">·</span>
+																<span
+																	className="inline-flex items-center gap-1.5 font-medium text-foreground"
+																	title={`${formatDateTime(
+																		session.startedAt,
+																	)}–${formatDateTime(
+																		session.endedAt,
+																	)}`}
+																>
+																	<Icon
+																		icon="solar:clock-circle-bold"
+																		className="size-3.5 text-muted-foreground"
+																	/>
+																	{formatTimeRange(
+																		session.startedAt,
+																		session.endedAt,
+																	)}
+																</span>
+																<span aria-hidden="true">·</span>
+																<span>
+																	{formatDuration(
+																		session.durationMs,
+																	)}
+																</span>
+																<span aria-hidden="true">·</span>
+																<span>
+																	{session.eventCount} events
+																</span>
 															</div>
-														),
-													)}
-												</div>
+
+															<div className="mt-3 rounded-lg bg-muted/35 px-3 py-2.5">
+																<ActivityJourney
+																	sessionId={session.id}
+																	steps={session.flow}
+																/>
+															</div>
+														</section>
+													),
+												)}
 											</div>
-										))}
-									</div>
-								</TooltipProvider>
+										</article>
+									))}
+								</div>
 							)}
 
 							{showTable && (
