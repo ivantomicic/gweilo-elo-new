@@ -10,6 +10,7 @@ import {
 	captureCompletedSessionSnapshots,
 } from "@/lib/elo/snapshots";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
+import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -491,6 +492,16 @@ export async function POST(request: NextRequest) {
 				"Error capturing completed session snapshots after import:",
 				snapshotError
 			);
+		}
+
+		try {
+			await refreshMissionSnapshotsAfterDataChange({
+				adminClient,
+				reason: "session_imported",
+				generatedBy: userId,
+			});
+		} catch (missionError) {
+			console.error("Error refreshing missions after session import:", missionError);
 		}
 
 		// Success - return session ID

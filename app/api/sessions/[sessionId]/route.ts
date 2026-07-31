@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { rebuildAllEloData } from "@/lib/elo/rebuild";
+import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
 
 /**
  * DELETE /api/sessions/[sessionId]
@@ -220,6 +221,16 @@ export async function DELETE(
 		);
 
 		revalidateTag("statistics");
+
+		try {
+			await refreshMissionSnapshotsAfterDataChange({
+				adminClient,
+				reason: "session_deleted",
+				generatedBy: adminUserId,
+			});
+		} catch (missionError) {
+			console.error("Error refreshing missions after session deletion:", missionError);
+		}
 
 		return NextResponse.json({
 			success: true,

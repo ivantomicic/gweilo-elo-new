@@ -1,5 +1,4 @@
-import type { GeneratedMission, MissionCandidate } from "@/lib/rivalries/types";
-import { RIVALRY_CONFIG } from "@/lib/rivalries/config";
+import type { GeneratedMission, MissionCandidate } from "./types";
 
 type MissionLike = Pick<
 	GeneratedMission | MissionCandidate,
@@ -39,37 +38,34 @@ export function renderMissionCopy(mission: MissionLike) {
 	switch (mission.type) {
 		case "climb_rank":
 			return {
-				title: `Ispred tebe: ${opponentName}`,
-				body:
-					gapElo <= RIVALRY_CONFIG.gaps.closeElo
-						? `${opponentName} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da preokrene tabelu.`
-						: `${opponentName} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da zatvori taj minus.`,
+				title: `Približi se igraču ${opponentName}`,
+				body: `${opponentName} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`,
 			};
 		case "defend_rank":
 			return {
-				title: `Iza tebe: ${opponentName}`,
-				body: `${opponentName} je ${gapElo} Elo iza tebe. Ako nastavi dobar niz, razlika može brzo da se istopi.`,
+				title: `Sačuvaj poziciju ispred ${opponentName}`,
+				body: `Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`,
 			};
 		case "settle_score":
 			return {
-				title: `Rivalstvo: ${opponentName}`,
-				body: `Skor u ovom duelu je ${getNumberMetric(metrics, "wins")}-${getNumberMetric(metrics, "losses")}. Sledeći meč može ozbiljno da promeni odnos snaga.`,
+				title: `Duel sa ${opponentName}`,
+				body: `Međusobni rezultat je ${getNumberMetric(metrics, "wins")}–${getNumberMetric(metrics, "losses")}. Cilj je da popraviš svoj rezultat u narednom meču.`,
 			};
 		case "break_streak":
 			return {
 				title: `Niz za prekid: ${opponentName}`,
-				body: `Trenutni niz je ${getNumberMetric(metrics, "lossStreak")} poraza zaredom. Sledeći meč je prilika da ga prekineš.`,
+				body: `${opponentName} ima niz od ${getNumberMetric(metrics, "lossStreak")} uzastopnih pobeda protiv tebe. Cilj je da prekineš niz.`,
 			};
 		case "close_gap": {
 			const direction = getStringMetric(metrics, "direction", "ispred");
 			const isThreat = direction === "iza";
 			return {
 				title: isThreat
-					? `Najveća pretnja: ${opponentName}`
-					: `Najbliža meta: ${opponentName}`,
+					? `Sačuvaj prednost ispred ${opponentName}`
+					: `Smanji razliku do ${opponentName}`,
 				body: isThreat
-					? `${opponentName} je ${gapElo} Elo iza tebe. Jedan dobar termin ga vraća ozbiljno u priču.`
-					: `${opponentName} je ${gapElo} Elo ispred tebe. To je trenutno najbliža uhvatljiva meta na tabeli.`,
+					? `Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`
+					: `${opponentName} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`,
 			};
 		}
 		default:

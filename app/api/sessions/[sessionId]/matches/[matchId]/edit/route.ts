@@ -8,6 +8,7 @@ import {
 	findPairedMatch,
 } from "@/lib/sessions/two-half-singles";
 import { runMatchEditRecalculation } from "./recalculation";
+import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -331,6 +332,15 @@ export async function POST(
 
 		if (response.ok) {
 			revalidateTag("statistics");
+			try {
+				await refreshMissionSnapshotsAfterDataChange({
+					adminClient,
+					reason: "match_result_edited",
+					generatedBy: user.id,
+				});
+			} catch (missionError) {
+				console.error("Error refreshing missions after match edit:", missionError);
+			}
 		}
 
 		return response;

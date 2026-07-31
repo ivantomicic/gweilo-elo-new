@@ -20,6 +20,7 @@ import {
 	detectTwoHalfSinglesSession,
 } from "@/lib/sessions/two-half-singles";
 import { notifySessionCompleted } from "@/lib/notifications/events";
+import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
 import {
 	endSessionLiveActivitySafely,
 	updateSessionLiveActivitySafely,
@@ -92,6 +93,17 @@ async function finalizeSessionMetadata(adminClient: AdminClient, sessionId: stri
 		console.error("Error calculating completed-session metadata:", error);
 	} finally {
 		revalidateTag("statistics");
+	}
+
+	try {
+		await refreshMissionSnapshotsAfterDataChange({
+			adminClient,
+			reason: "session_completed",
+		});
+	} catch (error) {
+		// Invalidation happens first, so a later homepage request retries instead
+		// of displaying missions from the previous session.
+		console.error("Error refreshing missions after session completion:", error);
 	}
 }
 

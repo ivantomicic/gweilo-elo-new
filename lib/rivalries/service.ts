@@ -10,6 +10,12 @@ import {
 	type AuthAdminUser,
 } from "@/lib/supabase/admin";
 import { RIVALRY_CONFIG, getBasePriority } from "@/lib/rivalries/config";
+import { getSinglesWinnerId } from "@/lib/rivalries/match-result";
+import {
+	dedupeMissionCandidates,
+	sanitizeStoredMissions,
+	selectMissionCandidates,
+} from "@/lib/rivalries/mission-selection";
 import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
 import { MIN_SINGLES_MATCHES } from "@/lib/statistics/min-matches";
 import type {
@@ -57,8 +63,6 @@ type MatchHistoryRow = {
 	match_id: string;
 	player1_id: string;
 	player2_id: string;
-	player1_elo_delta: number | null;
-	player2_elo_delta: number | null;
 };
 
 type MissionPlayer = {
@@ -252,36 +256,6 @@ function makeGapReference(player: MissionPlayer | null, gapElo: number): Mission
 	};
 }
 
-function dedupeCandidates(candidates: MissionCandidate[]) {
-	const candidateMap = new Map<string, MissionCandidate>();
-
-	for (const candidate of candidates) {
-		const existing = candidateMap.get(candidate.id);
-		if (!existing || candidate.score > existing.score) {
-			candidateMap.set(candidate.id, candidate);
-		}
-	}
-
-	return Array.from(candidateMap.values());
-}
-
-function candidateToMission(candidate: MissionCandidate): GeneratedMission {
-	return {
-		id: candidate.id,
-		type: candidate.type,
-		priorityBucket: candidate.priorityBucket,
-		title: candidate.title,
-		body: candidate.body,
-		opponentId: candidate.opponentId,
-		opponentName: candidate.opponentName,
-		basePriority: candidate.basePriority,
-		score: candidate.score,
-		scoreBreakdown: candidate.scoreBreakdown,
-		reasoning: candidate.reasoning,
-		metrics: candidate.metrics,
-	};
-}
-
 async function listEligiblePlayers(adminClient: SupabaseClient) {
 	const [users, activeSinglesPlayerIds] = await Promise.all([
 		listAllAuthUsers(adminClient),
@@ -415,9 +389,7 @@ async function loadPairStatsFallback(
 		const matchIdBatch = matchIds.slice(index, index + MATCH_HISTORY_BATCH_SIZE);
 		const { data: batchRows, error: historyError } = await adminClient
 			.from("match_elo_history")
-			.select(
-				"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta",
-			)
+			.select("match_id, player1_id, player2_id")
 			.in("match_id", matchIdBatch);
 
 		if (historyError) {
@@ -442,8 +414,8 @@ async function loadPairStatsFallback(
 				? row.player_ids
 				: null;
 
-		const player1Id = historyPlayer1Id || fallbackPlayerIds?.[0];
-		const player2Id = historyPlayer2Id || fallbackPlayerIds?.[1];
+		const player1Id = fallbackPlayerIds?.[0] || historyPlayer1Id;
+		const player2Id = fallbackPlayerIds?.[1] || historyPlayer2Id;
 
 		if (!player1Id || !player2Id) {
 			continue;
@@ -460,17 +432,12 @@ async function loadPairStatsFallback(
 			new Date().toISOString();
 		const team1Score = row.team1_score ?? 0;
 		const team2Score = row.team2_score ?? 0;
-		const winnerId = history
-			? history.player1_elo_delta === history.player2_elo_delta
-				? null
-				: (history.player1_elo_delta ?? 0) > (history.player2_elo_delta ?? 0)
-					? player1Id
-					: player2Id
-			: team1Score === team2Score
-				? null
-				: team1Score > team2Score
-					? player1Id
-					: player2Id;
+		const winnerId = getSinglesWinnerId(
+			player1Id,
+			player2Id,
+			row.team1_score,
+			row.team2_score,
+		);
 		const key = getPairKey(player1Id, player2Id);
 		const pair = pairHistoryMap.get(key) || {
 			playerAId: [player1Id, player2Id].sort()[0],
@@ -702,10 +669,7 @@ function createClimbCandidate(
 			: player.tier === "bottom" || player.tier === "provisional"
 				? 12
 				: 5;
-	const body =
-		gapElo <= RIVALRY_CONFIG.gaps.closeElo
-			? `${opponent.name} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da preokrene tabelu.`
-			: `${opponent.name} je ${gapElo} Elo ispred tebe. Jedan dobar termin može ozbiljno da zatvori taj minus.`;
+	const body = `${opponent.name} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`;
 	const breakdown = createBreakdown(
 		basePriority,
 		closeness,
@@ -720,14 +684,14 @@ function createClimbCandidate(
 		opponent,
 		"competitive",
 		breakdown,
-		`Stigni ${opponent.name}`,
+		`Približi se igraču ${opponent.name}`,
 		body,
 		[
 			`Najbliži igrač iznad tebe na tabeli.`,
 			`Elo razlika je ${gapElo}.`,
 			lastPlayedAt
-				? `Poslednji duel je bio skoro, pa je priča i dalje živa.`
-				: `Nemate skoro odigran duel, ali Elo razlika je dovoljno mala.`,
+				? `Nedavno ste odigrali međusobni meč.`
+				: `Elo razlika je u realnom rasponu.`,
 		],
 		{
 			gapElo,
@@ -764,12 +728,12 @@ function createDefendCandidate(
 		opponent,
 		"competitive",
 		breakdown,
-		`Zadrži prednost nad ${opponent.name}`,
-		`${opponent.name} je ${gapElo} Elo iza tebe. Ako nastavi dobar niz, razlika može brzo da se istopi.`,
+		`Sačuvaj poziciju ispred ${opponent.name}`,
+		`Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`,
 		[
 			`Najbliži pratilac ispod tebe na tabeli.`,
 			`Elo razlika je ${gapElo}.`,
-			`Ovo je misija odbrane pozicije, ne jurcanje za vrhom.`,
+			`Cilj je zadržavanje trenutne pozicije.`,
 		],
 		{
 			gapElo,
@@ -806,13 +770,13 @@ function createSettleScoreCandidate(
 		opponent,
 		"story",
 		breakdown,
-		`Reši duel sa ${opponent.name}`,
-		`Protiv ${opponent.name} si na ${pairStats.wins}-${pairStats.losses}. Sledeći meč može da okrene rivalstvo.`,
+		`Duel sa ${opponent.name}`,
+		`Međusobni rezultat je ${pairStats.wins}–${pairStats.losses}. Cilj je da popraviš svoj rezultat u narednom meču.`,
 		[
 			`Rivalstvo je tesno na ${pairStats.wins}-${pairStats.losses}.`,
 			`Odigrali ste ${pairStats.totalMatches} singl mečeva.`,
 			`Zajedno ste igrali u ${pairStats.recentSharedSessionCount} od poslednje ${RIVALRY_CONFIG.rivalry.recentSharedSessionWindow} sesije.`,
-			`Mala Elo razlika drži ovu priču realnom.`,
+			`Elo razlika je u realnom rasponu.`,
 		],
 		{
 			totalMatches: pairStats.totalMatches,
@@ -864,13 +828,13 @@ function createBreakStreakCandidate(
 		"story",
 		breakdown,
 		`Prekini niz protiv ${opponent.name}`,
-		`Vezao si ${pairStats.latestLossStreak} poraza protiv ${opponent.name}. Sledeći meč je prilika da presečeš taj niz.`,
+		`${opponent.name} ima niz od ${pairStats.latestLossStreak} uzastopnih pobeda protiv tebe. Cilj je da prekineš niz.`,
 		[
 			`Trenutni niz poraza: ${pairStats.latestLossStreak}.`,
 			pairStats.recentCloseLossInStreak
 				? `U nizu postoji bar jedan tesan poraz, pa misija nije nerealna.`
 				: `Niz je dug, ali Elo razlika je i dalje uhvatljiva.`,
-			`Ovo je čista priča za povratak u ritam.`,
+			`Cilj je prekid trenutnog niza.`,
 		],
 		{
 			lossStreak: pairStats.latestLossStreak,
@@ -916,16 +880,16 @@ function createCloseGapCandidate(
 		"fallback",
 		breakdown,
 		isThreat
-			? `Najveća pretnja: ${opponent.name}`
-			: `Najbliža meta: ${opponent.name}`,
+			? `Sačuvaj prednost ispred ${opponent.name}`
+			: `Smanji razliku do ${opponent.name}`,
 		isThreat
-			? `${opponent.name} je ${gapElo} Elo iza tebe. Jedan dobar termin ga vraća ozbiljno u priču.`
-			: `${opponent.name} je ${gapElo} Elo ispred tebe. To je trenutno najbliža uhvatljiva meta na tabeli.`,
+			? `Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`
+			: `${opponent.name} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`,
 		[
 			`Najmanja Elo razlika koju trenutno imaš.`,
 			isThreat
-				? `Ovo je fallback misija odbrane kada nema jače priče.`
-				: `Ovo je fallback misija kada nema jače priče.`,
+				? `Najmanja razlika do igrača iza tebe.`
+				: `Najmanja razlika do igrača ispred tebe.`,
 		],
 		{
 			gapElo,
@@ -934,53 +898,6 @@ function createCloseGapCandidate(
 			opponentRank: opponent.rank,
 		},
 	);
-}
-
-function selectMissions(candidates: MissionCandidate[]) {
-	const sorted = [...candidates].sort((a, b) => {
-		if (b.score !== a.score) {
-			return b.score - a.score;
-		}
-		return a.title.localeCompare(b.title, "sr-Latn-RS");
-	});
-
-	const selected: MissionCandidate[] = [];
-	const trySelect = (candidate: MissionCandidate | undefined) => {
-		if (!candidate) {
-			return;
-		}
-		if (selected.length >= RIVALRY_CONFIG.maxMissionsPerPlayer) {
-			return;
-		}
-		if (
-			selected.some(
-				(item) =>
-					item.type === candidate.type ||
-					(item.opponentId !== null &&
-						item.opponentId === candidate.opponentId),
-			)
-		) {
-			return;
-		}
-		selected.push(candidate);
-	};
-
-	trySelect(sorted.find((candidate) => candidate.priorityBucket === "competitive"));
-	trySelect(sorted.find((candidate) => candidate.priorityBucket === "story"));
-
-	for (const candidate of sorted) {
-		trySelect(candidate);
-	}
-
-	const selectedIds = new Set(selected.map((candidate) => candidate.id));
-
-	return {
-		missions: selected.map(candidateToMission),
-		candidates: sorted.map((candidate) => ({
-			...candidate,
-			selected: selectedIds.has(candidate.id),
-		})),
-	};
 }
 
 function buildPlayerSnapshot(
@@ -1134,9 +1051,9 @@ function buildPlayerSnapshot(
 		}
 	}
 
-	const dedupedCandidates = dedupeCandidates(candidates);
+	const dedupedCandidates = dedupeMissionCandidates(candidates);
 	const { missions, candidates: decoratedCandidates } =
-		selectMissions(dedupedCandidates);
+		selectMissionCandidates(dedupedCandidates);
 
 	return {
 		player_id: player.id,
@@ -1167,7 +1084,7 @@ function mapSnapshotRowToSnapshot(row: PersistedSnapshotRow): MissionSnapshot {
 		generatedAt: row.generated_at,
 		generatedReason: row.generated_reason,
 		generatedBy: row.generated_by,
-		missions: row.missions || [],
+		missions: sanitizeStoredMissions(row.missions || []),
 		candidates: row.candidates || [],
 		context: row.context || {
 			closestAbove: null,
@@ -1299,6 +1216,39 @@ export async function fetchMissionSnapshotForPlayer(
 	return data ? mapSnapshotRowToSnapshot(data as PersistedSnapshotRow) : null;
 }
 
+export async function invalidateMissionSnapshots(options?: {
+	adminClient?: SupabaseClient;
+}) {
+	const adminClient = options?.adminClient || createAdminClient();
+	const { error } = await adminClient
+		.from(SNAPSHOT_TABLE)
+		.delete()
+		.neq("player_id", "00000000-0000-0000-0000-000000000000");
+
+	if (error) {
+		throw new Error(`Failed to invalidate mission snapshots: ${error.message}`);
+	}
+}
+
+/**
+ * Invalidate first so a failed regeneration can never leave stale missions on
+ * the homepage. The next read will retry generation if the immediate refresh
+ * cannot complete.
+ */
+export async function refreshMissionSnapshotsAfterDataChange(options: {
+	adminClient?: SupabaseClient;
+	reason: string;
+	generatedBy?: string | null;
+}) {
+	const adminClient = options.adminClient || createAdminClient();
+	await invalidateMissionSnapshots({ adminClient });
+	return generateAndStoreMissionSnapshots({
+		adminClient,
+		reason: options.reason,
+		generatedBy: options.generatedBy,
+	});
+}
+
 function refreshMissionSnapshotsOnce(
 	adminClient: SupabaseClient,
 	reason: "auto" | "on_demand",
@@ -1321,7 +1271,12 @@ export async function ensureMissionSnapshotsFresh(options?: {
 }) {
 	const adminClient = options?.adminClient || createAdminClient();
 
-	const [{ data: latestSnapshotRows, error: snapshotError }, { data: latestSessions, error: sessionError }] =
+	const [
+		{ data: latestSnapshotRows, error: snapshotError },
+		{ data: latestSessions, error: sessionError },
+		{ data: latestRatings, error: ratingsError },
+		{ data: latestProfiles, error: profilesError },
+	] =
 		await Promise.all([
 			adminClient
 				.from(SNAPSHOT_TABLE)
@@ -1334,6 +1289,16 @@ export async function ensureMissionSnapshotsFresh(options?: {
 				.eq("status", "completed")
 				.not("completed_at", "is", null)
 				.order("completed_at", { ascending: false })
+				.limit(1),
+			adminClient
+				.from("player_ratings")
+				.select("updated_at")
+				.order("updated_at", { ascending: false })
+				.limit(1),
+			adminClient
+				.from("profiles")
+				.select("updated_at")
+				.order("updated_at", { ascending: false })
 				.limit(1),
 		]);
 
@@ -1349,12 +1314,31 @@ export async function ensureMissionSnapshotsFresh(options?: {
 		);
 	}
 
+	if (ratingsError) {
+		throw new Error(`Failed to inspect rating freshness: ${ratingsError.message}`);
+	}
+
+	if (profilesError) {
+		throw new Error(`Failed to inspect profile freshness: ${profilesError.message}`);
+	}
+
 	const latestGeneratedAt = latestSnapshotRows?.[0]?.generated_at
 		? new Date(latestSnapshotRows[0].generated_at).getTime()
 		: null;
 	const latestCompletedAt = latestSessions?.[0]?.completed_at
 		? new Date(latestSessions[0].completed_at).getTime()
 		: null;
+	const latestRatingUpdatedAt = latestRatings?.[0]?.updated_at
+		? new Date(latestRatings[0].updated_at).getTime()
+		: null;
+	const latestProfileUpdatedAt = latestProfiles?.[0]?.updated_at
+		? new Date(latestProfiles[0].updated_at).getTime()
+		: null;
+	const latestSourceUpdatedAt = Math.max(
+		latestCompletedAt ?? 0,
+		latestRatingUpdatedAt ?? 0,
+		latestProfileUpdatedAt ?? 0,
+	);
 	const snapshotMaxAgeMs =
 		RIVALRY_CONFIG.snapshotMaxAgeHours * 60 * 60 * 1000;
 	const snapshotExpired =
@@ -1367,9 +1351,8 @@ export async function ensureMissionSnapshotsFresh(options?: {
 
 	if (
 		snapshotExpired ||
-		(latestCompletedAt !== null &&
-			Number.isFinite(latestCompletedAt) &&
-			latestCompletedAt > latestGeneratedAt)
+		(Number.isFinite(latestSourceUpdatedAt) &&
+			latestSourceUpdatedAt > latestGeneratedAt)
 	) {
 		return refreshMissionSnapshotsOnce(adminClient, "auto");
 	}
@@ -1384,11 +1367,11 @@ export async function ensureMissionSnapshotsFresh(options?: {
 			return [];
 		}
 
-		if (snapshot && snapshotReferencesInactivePlayer(snapshot, activePlayerIds)) {
+		if (!snapshot || snapshotReferencesInactivePlayer(snapshot, activePlayerIds)) {
 			return refreshMissionSnapshotsOnce(adminClient, "auto");
 		}
 
-		return snapshot ? [snapshot] : [];
+		return [snapshot];
 	}
 
 	return fetchMissionSnapshots({ adminClient });

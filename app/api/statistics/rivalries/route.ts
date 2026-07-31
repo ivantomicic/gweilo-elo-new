@@ -27,15 +27,6 @@ type ProfileRow = {
 	avatar_url: string | null;
 };
 
-type MatchHistoryRow = {
-	match_id: string;
-	player1_id: string;
-	player2_id: string;
-	player1_elo_delta: number | null;
-	player2_elo_delta: number | null;
-	created_at: string;
-};
-
 type SessionRelation = {
 	completed_at: string | null;
 	created_at: string;
@@ -43,13 +34,14 @@ type SessionRelation = {
 
 type SinglesMatchRow = {
 	id: string;
+	player_ids: string[] | null;
+	team1_score: number | null;
+	team2_score: number | null;
 	created_at: string;
 	round_number: number | null;
 	match_order: number | null;
 	sessions: SessionRelation | SessionRelation[] | null;
 };
-
-const MATCH_BATCH_SIZE = 100;
 
 function toNumber(value: number | string) {
 	const parsed = Number(value);
@@ -65,39 +57,18 @@ async function loadPlayerPairStatsFallback(
 	adminClient: SupabaseClient,
 	playerId: string,
 ) {
-	const { data: historyData, error: historyError } = await adminClient
-		.from("match_elo_history")
+	const { data, error } = await adminClient
+		.from("session_matches")
 		.select(
-			"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta, created_at",
+			"id, player_ids, team1_score, team2_score, created_at, round_number, match_order, sessions!inner(completed_at, created_at)",
 		)
-		.or(`player1_id.eq.${playerId},player2_id.eq.${playerId}`);
+		.eq("match_type", "singles")
+		.eq("status", "completed");
 
-	if (historyError) {
-		throw new Error(`Failed to fetch rivalry history: ${historyError.message}`);
+	if (error) {
+		throw new Error(`Failed to fetch rivalry matches: ${error.message}`);
 	}
 
-	const historyRows = (historyData || []) as MatchHistoryRow[];
-	const matchIds = historyRows.map((row) => row.match_id);
-	const matchRows: SinglesMatchRow[] = [];
-
-	for (let index = 0; index < matchIds.length; index += MATCH_BATCH_SIZE) {
-		const { data, error } = await adminClient
-			.from("session_matches")
-			.select(
-				"id, created_at, round_number, match_order, sessions!inner(completed_at, created_at)",
-			)
-			.eq("match_type", "singles")
-			.eq("status", "completed")
-			.in("id", matchIds.slice(index, index + MATCH_BATCH_SIZE));
-
-		if (error) {
-			throw new Error(`Failed to fetch rivalry matches: ${error.message}`);
-		}
-
-		matchRows.push(...((data || []) as SinglesMatchRow[]));
-	}
-
-	const matchMap = new Map(matchRows.map((row) => [row.id, row]));
 	const opponentMatches = new Map<
 		string,
 		Array<{
@@ -109,28 +80,18 @@ async function loadPlayerPairStatsFallback(
 		}>
 	>();
 
-	for (const history of historyRows) {
-		const match = matchMap.get(history.match_id);
-		if (!match) continue;
+	for (const match of (data || []) as SinglesMatchRow[]) {
+		const playerIds = match.player_ids;
+		if (!Array.isArray(playerIds) || playerIds.length < 2) continue;
+		const playerIndex = playerIds.indexOf(playerId);
+		if (playerIndex < 0) continue;
 
-		const opponentId =
-			history.player1_id === playerId
-				? history.player2_id
-				: history.player1_id;
-		const playerDelta =
-			history.player1_id === playerId
-				? history.player1_elo_delta
-				: history.player2_elo_delta;
-		const opponentDelta =
-			history.player1_id === playerId
-				? history.player2_elo_delta
-				: history.player1_elo_delta;
+		const opponentId = playerIds[playerIndex === 0 ? 1 : 0];
+		if (!opponentId) continue;
+		const score1 = match.team1_score ?? 0;
+		const score2 = match.team2_score ?? 0;
 		const winnerId =
-			playerDelta === opponentDelta
-				? null
-				: (playerDelta ?? 0) > (opponentDelta ?? 0)
-					? playerId
-					: opponentId;
+			score1 === score2 ? null : score1 > score2 ? playerIds[0] : playerIds[1];
 		const session = getSession(match);
 		const matches = opponentMatches.get(opponentId) || [];
 		matches.push({

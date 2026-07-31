@@ -1,4 +1,4 @@
-import type { MissionType, PlayerTier } from "@/lib/rivalries/types";
+import type { MissionType, PlayerTier } from "./types";
 
 export const RIVALRY_CONFIG = {
 	snapshotMaxAgeHours: 24,

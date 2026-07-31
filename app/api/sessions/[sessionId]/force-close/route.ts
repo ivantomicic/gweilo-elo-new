@@ -10,6 +10,7 @@ import {
 import { captureCompletedSessionSnapshots } from "@/lib/elo/snapshots";
 import { notifySessionCompleted } from "@/lib/notifications/events";
 import { endSessionLiveActivitySafely } from "@/lib/live-activities/service";
+import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -145,6 +146,15 @@ export async function POST(
 				}
 			}
 
+			try {
+				await refreshMissionSnapshotsAfterDataChange({
+					adminClient,
+					reason: "session_completed",
+				});
+			} catch (missionError) {
+				console.error("Error refreshing missions after force close:", missionError);
+			}
+
 			return NextResponse.json({
 				success: true,
 				message: "Session is already completed",
@@ -184,6 +194,15 @@ export async function POST(
 				"Error capturing completed session snapshots after force close:",
 				snapshotError
 			);
+		}
+
+		try {
+			await refreshMissionSnapshotsAfterDataChange({
+				adminClient,
+				reason: "session_completed",
+			});
+		} catch (missionError) {
+			console.error("Error refreshing missions after force close:", missionError);
 		}
 
 		await Promise.all([
