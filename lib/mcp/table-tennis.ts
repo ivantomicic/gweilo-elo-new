@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
 	serializeJsonbPlayerIdsContainment,
+	resolveOpponentMatchesByName,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
 	type ScopedSinglesMatch,
@@ -35,6 +36,7 @@ export class McpTableTennisError extends Error {
 		message: string,
 		public readonly code:
 			| "NOT_FOUND"
+			| "AMBIGUOUS_OPPONENT"
 			| "INVALID_OPPONENT"
 			| "DATA_UNAVAILABLE" = "DATA_UNAVAILABLE",
 	) {
@@ -182,6 +184,45 @@ async function loadHeadToHeadRows(
 	);
 }
 
+async function loadOwnMatchHistoryRows(
+	adminClient: SupabaseClient,
+	userId: string,
+) {
+	const rows: DatabaseMatchRecord[] = [];
+
+	for (let from = 0; from < MAX_HEAD_TO_HEAD_MATCHES; from += MATCH_PAGE_SIZE) {
+		const { data, error } = await adminClient
+			.from("session_matches")
+			.select("player_ids, team1_score, team2_score, created_at")
+			.eq("match_type", "singles")
+			.eq("status", "completed")
+			.contains(
+				"player_ids",
+				serializeJsonbPlayerIdsContainment([userId]),
+			)
+			.not("team1_score", "is", null)
+			.not("team2_score", "is", null)
+			.order("created_at", { ascending: false })
+			.range(from, from + MATCH_PAGE_SIZE - 1);
+
+		if (error) {
+			throw new McpTableTennisError(
+				"Head-to-head data is temporarily unavailable.",
+			);
+		}
+
+		const page = (data || []) as DatabaseMatchRecord[];
+		rows.push(...page);
+		if (page.length < MATCH_PAGE_SIZE) {
+			return rows;
+		}
+	}
+
+	throw new McpTableTennisError(
+		"Match history is too large for this pilot endpoint.",
+	);
+}
+
 async function formatMatchesForUser(
 	adminClient: SupabaseClient,
 	userId: string,
@@ -274,6 +315,18 @@ export async function getOwnPerformanceSummary(
 	};
 }
 
+function formatHeadToHeadResult(
+	opponentMatches: ScopedSinglesMatch[],
+	recentLimit: number,
+) {
+	return {
+		mode: "singles" as const,
+		opponent: opponentMatches[0].opponent,
+		...summarizeScopedMatches(opponentMatches),
+		recent_matches: opponentMatches.slice(0, recentLimit),
+	};
+}
+
 export async function getOwnHeadToHead(
 	userId: string,
 	opponentId: string,
@@ -310,10 +363,37 @@ export async function getOwnHeadToHead(
 		);
 	}
 
-	return {
-		mode: "singles" as const,
-		opponent: opponentMatches[0].opponent,
-		...summarizeScopedMatches(opponentMatches),
-		recent_matches: opponentMatches.slice(0, recentLimit),
-	};
+	return formatHeadToHeadResult(opponentMatches, recentLimit);
+}
+
+export async function getOwnHeadToHeadByName(
+	userId: string,
+	opponentName: string,
+	recentLimit: number,
+) {
+	const adminClient = createAdminClient();
+	const rows = await loadOwnMatchHistoryRows(adminClient, userId);
+	const matches = await formatMatchesForUser(adminClient, userId, rows);
+	const resolution = resolveOpponentMatchesByName(matches, opponentName);
+
+	// Name resolution is intentionally limited to profiles reached through the
+	// authenticated player's own completed singles matches.
+	if (resolution.status === "not_found") {
+		throw new McpTableTennisError(
+			`No completed singles matches were found against an opponent matching "${opponentName}".`,
+			"NOT_FOUND",
+		);
+	}
+
+	if (resolution.status === "ambiguous") {
+		const names = resolution.candidates
+			.map((candidate) => candidate.display_name)
+			.join(", ");
+		throw new McpTableTennisError(
+			`More than one opponent matches "${opponentName}": ${names}. Ask again using the full name.`,
+			"AMBIGUOUS_OPPONENT",
+		);
+	}
+
+	return formatHeadToHeadResult(resolution.matches, recentLimit);
 }

@@ -18,8 +18,99 @@ export type SinglesMatchRecord = {
 	created_at: string | null;
 };
 
+export type OpponentNameResolution =
+	| {
+			status: "matched";
+			opponentId: string;
+			matches: ScopedSinglesMatch[];
+	  }
+	| {
+			status: "ambiguous";
+			candidates: Array<{
+				id: string;
+				display_name: string;
+			}>;
+	  }
+	| {
+			status: "not_found";
+	  };
+
 export function serializeJsonbPlayerIdsContainment(playerIds: string[]) {
 	return JSON.stringify(playerIds);
+}
+
+function normalizeOpponentName(value: string) {
+	return value
+		.normalize("NFKD")
+		.replace(/\p{Diacritic}/gu, "")
+		.trim()
+		.toLocaleLowerCase("en-US")
+		.replace(/\s+/g, " ");
+}
+
+function isNameAtWordBoundary(displayName: string, query: string) {
+	return (
+		displayName.startsWith(`${query} `) ||
+		displayName.endsWith(` ${query}`) ||
+		displayName.includes(` ${query} `)
+	);
+}
+
+export function resolveOpponentMatchesByName(
+	matches: ScopedSinglesMatch[],
+	opponentName: string,
+): OpponentNameResolution {
+	const query = normalizeOpponentName(opponentName);
+	if (!query) {
+		return { status: "not_found" };
+	}
+
+	const opponents = Array.from(
+		new Map(
+			matches.map((match) => [
+				match.opponent.id,
+				{
+					id: match.opponent.id,
+					display_name: match.opponent.display_name,
+					normalizedName: normalizeOpponentName(
+						match.opponent.display_name,
+					),
+				},
+			]),
+		).values(),
+	);
+	const exactMatches = opponents.filter(
+		(opponent) => opponent.normalizedName === query,
+	);
+	const candidates =
+		exactMatches.length > 0
+			? exactMatches
+			: opponents.filter((opponent) =>
+					isNameAtWordBoundary(opponent.normalizedName, query),
+				);
+
+	if (candidates.length === 0) {
+		return { status: "not_found" };
+	}
+
+	if (candidates.length > 1) {
+		return {
+			status: "ambiguous",
+			candidates: candidates.map(({ id, display_name }) => ({
+				id,
+				display_name,
+			})),
+		};
+	}
+
+	const opponentId = candidates[0].id;
+	return {
+		status: "matched",
+		opponentId,
+		matches: matches.filter(
+			(match) => match.opponent.id === opponentId,
+		),
+	};
 }
 
 export function toScopedSinglesMatch(

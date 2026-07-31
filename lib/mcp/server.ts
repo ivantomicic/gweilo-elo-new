@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import {
 	getOwnHeadToHead,
+	getOwnHeadToHeadByName,
 	getOwnPerformanceSummary,
 	getOwnRecentMatches,
 	McpTableTennisError,
@@ -53,7 +54,7 @@ export function createGweiloMcpServer(userId: string) {
 				tools: {},
 			},
 			instructions:
-				"Read-only singles statistics for the authenticated Gweilo player. All results are scoped to that player; do not infer data for other players.",
+				"Read-only singles statistics for the authenticated Gweilo player. All results are scoped to that player; do not infer data for other players. For questions about how the player performed against a named opponent, call head_to_head with opponent_name.",
 		},
 	);
 
@@ -118,28 +119,69 @@ export function createGweiloMcpServer(userId: string) {
 		{
 			title: "My Head-to-Head",
 			description:
-				"Return the authenticated player's singles record against one opponent. Use an opponent ID previously returned by recent_matches.",
-			inputSchema: z.object({
-				opponent_id: z
-					.string()
-					.uuid()
-					.describe("The selected opponent's Gweilo player ID."),
-				recent_limit: z
-					.number()
-					.int()
-					.min(1)
-					.max(20)
-					.default(10)
-					.describe("Number of recent meetings to return (1-20)."),
-			}),
+				"Return the authenticated player's singles record against a named opponent, including wins, losses, win rate, sets, and recent meetings. For natural-language questions such as 'How did I play against Andrej?', pass opponent_name. An opponent_id from recent_matches is also accepted.",
+			inputSchema: z
+				.object({
+					opponent_name: z
+						.string()
+						.trim()
+						.min(1)
+						.max(100)
+						.optional()
+						.describe(
+							"The opponent's display name, first name, or other unambiguous name from the authenticated player's own match history.",
+						),
+					opponent_id: z
+						.string()
+						.uuid()
+						.optional()
+						.describe(
+							"Optional Gweilo player ID previously returned by recent_matches.",
+						),
+					recent_limit: z
+						.number()
+						.int()
+						.min(1)
+						.max(20)
+						.default(10)
+						.describe(
+							"Number of recent meetings to return (1-20).",
+						),
+				})
+				.refine(
+					({ opponent_id: opponentId, opponent_name: opponentName }) =>
+						Boolean(opponentId) !== Boolean(opponentName),
+					{
+						message:
+							"Provide exactly one of opponent_name or opponent_id.",
+					},
+				),
 			annotations: readOnlyAnnotations,
 			_meta: oauthToolMetadata,
 		},
 		async ({
+			opponent_name: opponentName,
 			opponent_id: opponentId,
 			recent_limit: recentLimit,
 		}) => {
 			try {
+				if (opponentName) {
+					return toolResult(
+						await getOwnHeadToHeadByName(
+							userId,
+							opponentName,
+							recentLimit,
+						),
+					);
+				}
+
+				if (!opponentId) {
+					throw new McpTableTennisError(
+						"Provide an opponent name or opponent ID.",
+						"INVALID_OPPONENT",
+					);
+				}
+
 				return toolResult(
 					await getOwnHeadToHead(userId, opponentId, recentLimit),
 				);
