@@ -7,6 +7,7 @@ import {
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
 	type GeneralStatisticsSort,
+	type PeriodEloChange,
 	type ScopedSinglesMatch,
 	type SinglesMatchRecord,
 } from "@/lib/mcp/table-tennis-stats";
@@ -14,6 +15,7 @@ import {
 const MATCH_PAGE_SIZE = 500;
 const MAX_HEAD_TO_HEAD_MATCHES = 5000;
 const MAX_PERIOD_MATCHES = 5000;
+const ELO_HISTORY_BATCH_SIZE = 200;
 
 type ProfileRecord = {
 	id: string;
@@ -28,10 +30,19 @@ type RatingRecord = {
 };
 
 type DatabaseMatchRecord = {
+	id?: string;
 	player_ids: unknown;
 	team1_score: number | string | null;
 	team2_score: number | string | null;
 	created_at: string | null;
+};
+
+type DatabaseEloHistoryRecord = {
+	match_id: string;
+	player1_id: string;
+	player2_id: string;
+	player1_elo_delta: number | string | null;
+	player2_elo_delta: number | string | null;
 };
 
 export class McpTableTennisError extends Error {
@@ -89,6 +100,7 @@ function normalizeDatabaseMatch(
 	}
 
 	return {
+		...(match.id ? { id: match.id } : {}),
 		player_ids: playerIds,
 		team1_score: team1Score,
 		team2_score: team2Score,
@@ -236,7 +248,7 @@ async function loadPeriodMatchRows(
 	for (let from = 0; from < MAX_PERIOD_MATCHES; from += MATCH_PAGE_SIZE) {
 		const { data, error } = await adminClient
 			.from("session_matches")
-			.select("player_ids, team1_score, team2_score, created_at")
+			.select("id, player_ids, team1_score, team2_score, created_at")
 			.eq("match_type", "singles")
 			.eq("status", "completed")
 			.gte("created_at", periodStart)
@@ -261,6 +273,83 @@ async function loadPeriodMatchRows(
 
 	throw new McpTableTennisError(
 		"Too many matches were found for this statistics period.",
+	);
+}
+
+function roundToTwo(value: number) {
+	return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+async function loadPeriodEloChanges(
+	adminClient: SupabaseClient,
+	matchIds: string[],
+) {
+	const changes = new Map<
+		string,
+		{
+			eloPointsGained: number;
+			eloPointsLost: number;
+			netEloChange: number;
+			matchIds: Set<string>;
+		}
+	>();
+
+	const addDelta = (
+		playerId: string,
+		matchId: string,
+		rawDelta: number | string | null,
+	) => {
+		const delta = toFiniteNumber(rawDelta);
+		if (delta === null) return;
+
+		const current = changes.get(playerId) || {
+			eloPointsGained: 0,
+			eloPointsLost: 0,
+			netEloChange: 0,
+			matchIds: new Set<string>(),
+		};
+		if (delta > 0) current.eloPointsGained += delta;
+		else if (delta < 0) current.eloPointsLost += Math.abs(delta);
+		current.netEloChange += delta;
+		current.matchIds.add(matchId);
+		changes.set(playerId, current);
+	};
+
+	for (
+		let offset = 0;
+		offset < matchIds.length;
+		offset += ELO_HISTORY_BATCH_SIZE
+	) {
+		const batch = matchIds.slice(offset, offset + ELO_HISTORY_BATCH_SIZE);
+		const { data, error } = await adminClient
+			.from("match_elo_history")
+			.select(
+				"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta",
+			)
+			.in("match_id", batch);
+
+		if (error) {
+			throw new McpTableTennisError(
+				"Elo changes are temporarily unavailable.",
+			);
+		}
+
+		for (const row of (data || []) as DatabaseEloHistoryRecord[]) {
+			addDelta(row.player1_id, row.match_id, row.player1_elo_delta);
+			addDelta(row.player2_id, row.match_id, row.player2_elo_delta);
+		}
+	}
+
+	return new Map<string, PeriodEloChange>(
+		Array.from(changes.entries()).map(([playerId, change]) => [
+			playerId,
+			{
+				eloPointsGained: roundToTwo(change.eloPointsGained),
+				eloPointsLost: roundToTwo(change.eloPointsLost),
+				netEloChange: roundToTwo(change.netEloChange),
+				matchIds: change.matchIds,
+			},
+		]),
 	);
 }
 
@@ -461,10 +550,17 @@ export async function getGeneralSinglesStatistics(options: {
 	const playerIds = Array.from(
 		new Set(matches.flatMap((match) => match.player_ids)),
 	);
-	const profiles = await getProfilesMap(adminClient, playerIds);
+	const matchIds = matches
+		.map((match) => match.id)
+		.filter((matchId): matchId is string => Boolean(matchId));
+	const [profiles, eloChanges] = await Promise.all([
+		getProfilesMap(adminClient, playerIds),
+		loadPeriodEloChanges(adminClient, matchIds),
+	]);
 	const aggregate = aggregateGeneralSinglesStatistics({
 		matches,
 		profiles,
+		eloChanges,
 		sortBy: options.sortBy,
 		minimumMatches: options.minimumMatches,
 		limit: options.limit,

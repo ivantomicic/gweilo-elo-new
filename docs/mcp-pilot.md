@@ -8,7 +8,7 @@ This pilot exposes four backend-only MCP tools at `/api/mcp`:
 - `head_to_head`: that player's singles record against a selected opponent,
   resolved by name or by an ID returned from `recent_matches`
 - `general_statistics`: aggregate completed-singles rankings over a rolling
-  period, sortable by win rate, wins, draws, losses, activity, or set difference
+  period, sortable by match results, sets, activity, or committed Elo change
 
 The endpoint uses stateless Streamable HTTP so it fits the existing Next.js /
 Vercel deployment. It accepts both current MCP requests and the stateless
@@ -29,8 +29,9 @@ Vercel deployment. It accepts both current MCP requests and the stateless
   search. If a first name matches multiple past opponents, it asks for a full
   name.
 - `general_statistics` is the deliberately broader aggregate tool. It returns
-  player display names and completed-singles totals only. It does not return
-  player IDs, contact details, avatars, authentication data, or raw match rows.
+  player display names, completed-singles totals, and committed Elo aggregates
+  only. It does not return player IDs, contact details, avatars, authentication
+  data, or raw match rows.
 - Database access uses the existing server-only service-role client. Queries
   for personal data are explicitly constrained by the verified user ID.
 - Tools are annotated read-only and no insert, update, delete, or RPC write
@@ -177,6 +178,13 @@ best over the last month?” maps to `days: 30`, `sort_by: "win_rate"`;
 `minimum_matches: 1`. The default `minimum_matches` is 3 so a single match does
 not normally win a performance ranking. Count-based superlatives should lower
 it to 1. The result describes a rolling-day window rather than a calendar month.
+Each player row also includes positive Elo earned, Elo lost, signed net Elo
+change, the number of matches with Elo history, and whether Elo history covers
+every returned match. Use `sort_by: "elo_points_gained"` for “who earned the
+most Elo?” and `sort_by: "net_elo_change"` for overall rating movement. These
+figures are summed from `match_elo_history`; the MCP server does not recalculate
+past Elo. Use `sort_by: "sets_won"` when the requested ordering is total sets
+won.
 
 For command-line testing, an MCP client can still use the deployed
 `https://<deployment>/api/mcp` URL and a short-lived Supabase bearer token.
