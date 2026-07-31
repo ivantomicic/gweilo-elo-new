@@ -1,12 +1,14 @@
 # Gweilo read-only MCP pilot
 
-This pilot exposes three backend-only MCP tools at `/api/mcp`:
+This pilot exposes four backend-only MCP tools at `/api/mcp`:
 
 - `recent_matches`: the authenticated player's recent completed singles matches
 - `player_performance`: that player's all-time singles wins, losses, draws,
   win rate, and recent form
 - `head_to_head`: that player's singles record against a selected opponent,
   resolved by name or by an ID returned from `recent_matches`
+- `general_statistics`: aggregate completed-singles rankings over a rolling
+  period, sortable by win rate, wins, draws, losses, activity, or set difference
 
 The endpoint uses stateless Streamable HTTP so it fits the existing Next.js /
 Vercel deployment. It accepts both current MCP requests and the stateless
@@ -26,8 +28,11 @@ Vercel deployment. It accepts both current MCP requests and the stateless
   player's completed singles history. It does not provide arbitrary profile
   search. If a first name matches multiple past opponents, it asks for a full
   name.
+- `general_statistics` is the deliberately broader aggregate tool. It returns
+  player display names and completed-singles totals only. It does not return
+  player IDs, contact details, avatars, authentication data, or raw match rows.
 - Database access uses the existing server-only service-role client. Queries
-  are explicitly constrained by the verified user ID.
+  for personal data are explicitly constrained by the verified user ID.
 - Tools are annotated read-only and no insert, update, delete, or RPC write
   operations are registered.
 - Responses are marked `Cache-Control: no-store`.
@@ -166,6 +171,13 @@ The lookup ignores capitalization and diacritics. A unique first name works;
 ambiguous names return a prompt to use the full display name. Existing clients
 can continue to use an `opponent.id` from `recent_matches` as `opponent_id`.
 
+For general questions, use `general_statistics`. For example, “Who performed
+best over the last month?” maps to `days: 30`, `sort_by: "win_rate"`;
+“Who had the most draws?” maps to `sort_by: "draws"` and
+`minimum_matches: 1`. The default `minimum_matches` is 3 so a single match does
+not normally win a performance ranking. Count-based superlatives should lower
+it to 1. The result describes a rolling-day window rather than a calendar month.
+
 For command-line testing, an MCP client can still use the deployed
 `https://<deployment>/api/mcp` URL and a short-lived Supabase bearer token.
 OAuth-capable clients should use discovery instead, so they can obtain and
@@ -180,4 +192,5 @@ and that the runtime is Node.js 20 or newer. Then run the handshake and
 user's access token.
 
 This is intentionally singles-only. Expanding it to doubles, write operations,
-or broader player lookup should be a separate reviewed change.
+raw global match data, or arbitrary profile lookup should be a separate
+reviewed change.

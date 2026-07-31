@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+	aggregateGeneralSinglesStatistics,
 	resolveOpponentMatchesByName,
 	serializeJsonbPlayerIdsContainment,
 	summarizeScopedMatches,
@@ -11,6 +12,7 @@ import {
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const OPPONENT_ID = "22222222-2222-4222-8222-222222222222";
 const SECOND_OPPONENT_ID = "33333333-3333-4333-8333-333333333333";
+const THIRD_OPPONENT_ID = "44444444-4444-4444-8444-444444444444";
 
 const opponentMatches: ScopedSinglesMatch[] = [
 	{
@@ -199,4 +201,100 @@ test("does not resolve players absent from the authenticated player's matches", 
 		resolveOpponentMatchesByName(opponentMatches, "Nikola"),
 		{ status: "not_found" },
 	);
+});
+
+test("ranks period statistics by win rate for best-performance questions", () => {
+	const result = aggregateGeneralSinglesStatistics({
+		matches: [
+			{
+				player_ids: [USER_ID, OPPONENT_ID],
+				team1_score: 3,
+				team2_score: 1,
+				created_at: null,
+			},
+			{
+				player_ids: [USER_ID, SECOND_OPPONENT_ID],
+				team1_score: 2,
+				team2_score: 2,
+				created_at: null,
+			},
+			{
+				player_ids: [OPPONENT_ID, SECOND_OPPONENT_ID],
+				team1_score: 2,
+				team2_score: 2,
+				created_at: null,
+			},
+		],
+		profiles: new Map([
+			[USER_ID, "Ivan"],
+			[OPPONENT_ID, "Andrej"],
+			[SECOND_OPPONENT_ID, "Marko"],
+		]),
+		sortBy: "win_rate",
+		minimumMatches: 2,
+		limit: 10,
+	});
+
+	assert.equal(result.total_eligible_players, 3);
+	assert.deepEqual(
+		result.players.map((player) => player.display_name),
+		["Ivan", "Marko", "Andrej"],
+	);
+	assert.deepEqual(result.players[0], {
+		rank: 1,
+		display_name: "Ivan",
+		matches_played: 2,
+		wins: 1,
+		losses: 0,
+		draws: 1,
+		win_rate_percent: 50,
+		sets_won: 5,
+		sets_lost: 3,
+		set_difference: 2,
+	});
+});
+
+test("ranks period statistics by draws and applies limits", () => {
+	const result = aggregateGeneralSinglesStatistics({
+		matches: [
+			{
+				player_ids: [USER_ID, OPPONENT_ID],
+				team1_score: 2,
+				team2_score: 2,
+				created_at: null,
+			},
+			{
+				player_ids: [USER_ID, SECOND_OPPONENT_ID],
+				team1_score: 3,
+				team2_score: 1,
+				created_at: null,
+			},
+			{
+				player_ids: [OPPONENT_ID, SECOND_OPPONENT_ID],
+				team1_score: 1,
+				team2_score: 1,
+				created_at: null,
+			},
+			{
+				player_ids: [OPPONENT_ID, THIRD_OPPONENT_ID],
+				team1_score: 2,
+				team2_score: 2,
+				created_at: null,
+			},
+		],
+		profiles: new Map([
+			[USER_ID, "Ivan"],
+			[OPPONENT_ID, "Andrej"],
+			[SECOND_OPPONENT_ID, "Marko"],
+			[THIRD_OPPONENT_ID, "Nikola"],
+		]),
+		sortBy: "draws",
+		minimumMatches: 1,
+		limit: 2,
+	});
+
+	assert.equal(result.total_eligible_players, 4);
+	assert.equal(result.players.length, 2);
+	assert.equal(result.players[0].display_name, "Andrej");
+	assert.equal(result.players[0].draws, 3);
 });

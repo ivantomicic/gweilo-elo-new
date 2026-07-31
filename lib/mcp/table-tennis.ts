@@ -1,16 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+	aggregateGeneralSinglesStatistics,
 	serializeJsonbPlayerIdsContainment,
 	resolveOpponentMatchesByName,
 	summarizeScopedMatches,
 	toScopedSinglesMatch,
+	type GeneralStatisticsSort,
 	type ScopedSinglesMatch,
 	type SinglesMatchRecord,
 } from "@/lib/mcp/table-tennis-stats";
 
 const MATCH_PAGE_SIZE = 500;
 const MAX_HEAD_TO_HEAD_MATCHES = 5000;
+const MAX_PERIOD_MATCHES = 5000;
 
 type ProfileRecord = {
 	id: string;
@@ -223,6 +226,44 @@ async function loadOwnMatchHistoryRows(
 	);
 }
 
+async function loadPeriodMatchRows(
+	adminClient: SupabaseClient,
+	periodStart: string,
+	periodEnd: string,
+) {
+	const rows: DatabaseMatchRecord[] = [];
+
+	for (let from = 0; from < MAX_PERIOD_MATCHES; from += MATCH_PAGE_SIZE) {
+		const { data, error } = await adminClient
+			.from("session_matches")
+			.select("player_ids, team1_score, team2_score, created_at")
+			.eq("match_type", "singles")
+			.eq("status", "completed")
+			.gte("created_at", periodStart)
+			.lte("created_at", periodEnd)
+			.not("team1_score", "is", null)
+			.not("team2_score", "is", null)
+			.order("created_at", { ascending: false })
+			.range(from, from + MATCH_PAGE_SIZE - 1);
+
+		if (error) {
+			throw new McpTableTennisError(
+				"General statistics are temporarily unavailable.",
+			);
+		}
+
+		const page = (data || []) as DatabaseMatchRecord[];
+		rows.push(...page);
+		if (page.length < MATCH_PAGE_SIZE) {
+			return rows;
+		}
+	}
+
+	throw new McpTableTennisError(
+		"Too many matches were found for this statistics period.",
+	);
+}
+
 async function formatMatchesForUser(
 	adminClient: SupabaseClient,
 	userId: string,
@@ -396,4 +437,50 @@ export async function getOwnHeadToHeadByName(
 	}
 
 	return formatHeadToHeadResult(resolution.matches, recentLimit);
+}
+
+export async function getGeneralSinglesStatistics(options: {
+	days: number;
+	sortBy: GeneralStatisticsSort;
+	minimumMatches: number;
+	limit: number;
+}) {
+	const adminClient = createAdminClient();
+	const periodEnd = new Date();
+	const periodStart = new Date(
+		periodEnd.getTime() - options.days * 24 * 60 * 60 * 1000,
+	);
+	const rows = await loadPeriodMatchRows(
+		adminClient,
+		periodStart.toISOString(),
+		periodEnd.toISOString(),
+	);
+	const matches = rows
+		.map(normalizeDatabaseMatch)
+		.filter((match): match is SinglesMatchRecord => match !== null);
+	const playerIds = Array.from(
+		new Set(matches.flatMap((match) => match.player_ids)),
+	);
+	const profiles = await getProfilesMap(adminClient, playerIds);
+	const aggregate = aggregateGeneralSinglesStatistics({
+		matches,
+		profiles,
+		sortBy: options.sortBy,
+		minimumMatches: options.minimumMatches,
+		limit: options.limit,
+	});
+
+	return {
+		mode: "singles" as const,
+		period: {
+			type: "rolling_days" as const,
+			days: options.days,
+			from: periodStart.toISOString(),
+			to: periodEnd.toISOString(),
+		},
+		sort_by: options.sortBy,
+		minimum_matches: options.minimumMatches,
+		returned_players: aggregate.players.length,
+		...aggregate,
+	};
 }

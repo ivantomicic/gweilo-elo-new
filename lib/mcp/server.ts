@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import {
+	getGeneralSinglesStatistics,
 	getOwnHeadToHead,
 	getOwnHeadToHeadByName,
 	getOwnPerformanceSummary,
@@ -54,7 +55,7 @@ export function createGweiloMcpServer(userId: string) {
 				tools: {},
 			},
 			instructions:
-				"Read-only singles statistics for the authenticated Gweilo player. All results are scoped to that player; do not infer data for other players. For questions about how the player performed against a named opponent, call head_to_head with opponent_name.",
+				"Read-only Gweilo singles statistics. Personal tools are scoped to the authenticated player. For questions about how that player performed against a named opponent, call head_to_head with opponent_name. For aggregate questions such as who performed best or had the most draws during a period, call general_statistics. Use win_rate with minimum_matches 3 for 'best performance'. Use draws, wins, losses, or matches_played with minimum_matches 1 for count-based superlatives.",
 		},
 	);
 
@@ -107,6 +108,71 @@ export function createGweiloMcpServer(userId: string) {
 			try {
 				return toolResult(
 					await getOwnPerformanceSummary(userId, recentLimit),
+				);
+			} catch (error) {
+				return toolError(error);
+			}
+		},
+	);
+
+	server.registerTool(
+		"general_statistics",
+		{
+			title: "General Singles Statistics",
+			description:
+				"Rank Gweilo players using aggregate completed-singles statistics over a rolling period. Use sort_by win_rate and minimum_matches 3 for questions like 'Who performed best last month?'. Use minimum_matches 1 with draws for 'Who had the most draws?', wins for most wins, or matches_played for most active. Returns display names and aggregates only, never contact or authentication data.",
+			inputSchema: z.object({
+				days: z
+					.number()
+					.int()
+					.min(1)
+					.max(365)
+					.default(30)
+					.describe(
+						"Rolling number of days to include. Use 30 for 'last month'.",
+					),
+				sort_by: z
+					.enum([
+						"win_rate",
+						"wins",
+						"draws",
+						"losses",
+						"matches_played",
+						"set_difference",
+					])
+					.default("win_rate")
+					.describe(
+						"Statistic used to rank players. win_rate represents best performance.",
+					),
+				minimum_matches: z
+					.number()
+					.int()
+					.min(1)
+					.max(100)
+					.default(3)
+					.describe(
+						"Minimum completed singles matches in the period. The default avoids ranking tiny one-match samples as best.",
+					),
+				limit: z
+					.number()
+					.int()
+					.min(1)
+					.max(20)
+					.default(10)
+					.describe("Maximum number of ranked players to return."),
+			}),
+			annotations: readOnlyAnnotations,
+			_meta: oauthToolMetadata,
+		},
+		async ({ days, sort_by: sortBy, minimum_matches, limit }) => {
+			try {
+				return toolResult(
+					await getGeneralSinglesStatistics({
+						days,
+						sortBy,
+						minimumMatches: minimum_matches,
+						limit,
+					}),
 				);
 			} catch (error) {
 				return toolError(error);
