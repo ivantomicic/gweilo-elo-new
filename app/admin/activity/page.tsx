@@ -118,7 +118,6 @@ const STATIC_PAGE_LABELS: Record<string, string> = {
 	"/admin": "Admin",
 	"/admin/activity": "Admin Activity",
 	"/admin/missions": "Admin Missions",
-	"/admin/video-processing": "Admin Video Processing",
 	"/admin/settings": "Admin Settings",
 };
 
