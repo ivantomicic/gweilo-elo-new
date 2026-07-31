@@ -43,6 +43,16 @@ export function getManagedRoleFromAuthUser(
 	return getManagedRoleFromAppMetadata(user?.app_metadata) ?? "user";
 }
 
+/** Guests and access-disabled accounts retain history but are not ranked. */
+export function isRankedPlayerAccount(
+	user: AuthUserLike | null | undefined,
+) {
+	return (
+		getManagedRoleFromAuthUser(user) !== "guest" &&
+		!isPlatformAccessDisabled(user)
+	);
+}
+
 export function getUserRoleFromAuthUser(
 	user: AuthUserLike | null | undefined,
 ): UserRole {

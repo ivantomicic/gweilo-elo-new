@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getLatestTwoCompletedSessions } from "@/lib/elo/rank-movements";
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+	createAdminClient,
+	listAllAuthUsers,
+} from "@/lib/supabase/admin";
+import { isRankedPlayerAccount } from "@/lib/auth/roles";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
 import {
-	isRankingEligible,
+	isPlayerRankingEligible,
 	STATISTICS_ELIGIBILITY,
 } from "@/lib/statistics/eligibility";
 
@@ -89,7 +93,13 @@ export async function GET(request: NextRequest) {
 		}
 
 		const adminClient = createAdminClient();
-		const activePlayerIds = await getActiveSinglesPlayerIds(adminClient);
+		const [activePlayerIds, authUsers] = await Promise.all([
+			getActiveSinglesPlayerIds(adminClient),
+			listAllAuthUsers(adminClient),
+		]);
+		const rankedPlayerIds = new Set(
+			authUsers.filter(isRankedPlayerAccount).map((rankedUser) => rankedUser.id),
+		);
 
 		if (activePlayerIds.size === 0) {
 			return NextResponse.json({ data: [] });
@@ -145,10 +155,11 @@ export async function GET(request: NextRequest) {
 
 		const topSinglesRatings = sourceRows
 			.filter((rating) =>
-				isRankingEligible({
-					entityId: rating.player_id,
+				isPlayerRankingEligible({
+					playerId: rating.player_id,
 					matchesPlayed: rating.matches_played,
-					activeEntityIds: activePlayerIds,
+					activePlayerIds,
+					rankedPlayerIds,
 					minimumMatches:
 						STATISTICS_ELIGIBILITY.singles.minimumMatches,
 				})
@@ -187,32 +198,11 @@ export async function GET(request: NextRequest) {
 		const authUsersById = new Map<
 			string,
 			{ user_metadata?: Record<string, unknown> | null }
-		>();
-
-		if (missingAvatarIds.length > 0) {
-			const authUsers = await Promise.all(
-				missingAvatarIds.map(async (playerId) => {
-					const { data, error } =
-						await adminClient.auth.admin.getUserById(playerId);
-
-					if (error || !data.user) {
-						console.error(
-							`Error fetching top 3 avatar fallback for ${playerId}:`,
-							error,
-						);
-						return null;
-					}
-
-					return data.user;
-				}),
-			);
-
-			authUsers.forEach((authUser) => {
-				if (authUser) {
-					authUsersById.set(authUser.id, authUser);
-				}
-			});
-		}
+		>(
+			authUsers
+				.filter((authUser) => missingAvatarIds.includes(authUser.id))
+				.map((authUser) => [authUser.id, authUser]),
+		);
 
 		// Build response with top 3 players
 		const top3Stats = topSinglesRatings.map((rating) => {

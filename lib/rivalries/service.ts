@@ -1,13 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-	getManagedRoleFromAuthUser,
-	isPlatformAccessDisabled,
+	isRankedPlayerAccount,
 } from "@/lib/auth/roles";
 import { getProviderAvatarFromMetadata } from "@/lib/profile-avatar";
 import {
 	createAdminClient,
 	listAllAuthUsers,
-	type AuthAdminUser,
 } from "@/lib/supabase/admin";
 import { RIVALRY_CONFIG, getBasePriority } from "@/lib/rivalries/config";
 import { getSinglesWinnerId } from "@/lib/rivalries/match-result";
@@ -168,10 +166,6 @@ function toNumber(value: unknown, fallback = 0): number {
 	return fallback;
 }
 
-function getUserRole(user: AuthAdminUser): string {
-	return getManagedRoleFromAuthUser(user);
-}
-
 function getPairKey(playerAId: string, playerBId: string) {
 	return [playerAId, playerBId].sort().join(":");
 }
@@ -264,8 +258,7 @@ async function listEligiblePlayers(adminClient: SupabaseClient) {
 
 	const eligibleUsers = (users || []).filter(
 		(user) =>
-			getUserRole(user) !== "guest" &&
-			!isPlatformAccessDisabled(user) &&
+			isRankedPlayerAccount(user) &&
 			activeSinglesPlayerIds.has(user.id),
 	);
 

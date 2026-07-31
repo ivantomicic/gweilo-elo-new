@@ -30,6 +30,11 @@ const rankingRules = [
 		description:
 			"Rezultati i Elo rejting se ne brišu. Kada igrač ili tim ponovo ispuni uslove, automatski se vraća na odgovarajuću tabelu.",
 	},
+	{
+		title: "Gostujući nalozi",
+		description:
+			"Igrači označeni kao gosti ne prikazuju se u singl ili dubl poretku ni na Top 3 podijumu. Njihovi prethodni rezultati i Elo rejting ostaju sačuvani.",
+	},
 ];
 
 export default function RulesPage() {

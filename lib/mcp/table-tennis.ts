@@ -1,11 +1,15 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isRankedPlayerAccount } from "@/lib/auth/roles";
 import {
 	calculateEloDelta,
 	calculateExpectedScore,
 	calculateKFactor,
 	type MatchResult,
 } from "@/lib/elo/calculation";
-import { createAdminClient } from "@/lib/supabase/admin";
+import {
+	createAdminClient,
+	listAllAuthUsers,
+} from "@/lib/supabase/admin";
 import {
 	aggregateGeneralSinglesStatistics,
 	aggregateRivalries,
@@ -23,6 +27,7 @@ import {
 	type SinglesMatchRecord,
 } from "@/lib/mcp/table-tennis-stats";
 import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
+import { isPlayerRankingEligible } from "@/lib/statistics/eligibility";
 import {
 	MAX_SINGLES_INACTIVITY_DAYS,
 	MIN_SINGLES_MATCHES,
@@ -261,6 +266,7 @@ async function loadCurrentSinglesRanking(
 		ownProfileResult,
 		activePlayerIds,
 		latestCompletedSessionResult,
+		authUsers,
 	] = await Promise.all([
 		adminClient
 			.from("player_ratings")
@@ -281,6 +287,7 @@ async function loadCurrentSinglesRanking(
 			.order("completed_at", { ascending: false })
 			.limit(1)
 			.maybeSingle(),
+		listAllAuthUsers(adminClient),
 	]);
 
 	if (
@@ -324,11 +331,18 @@ async function loadCurrentSinglesRanking(
 		adminClient,
 		ratings.map((rating) => rating.player_id),
 	);
+	const rankedPlayerIds = new Set(
+		authUsers.filter(isRankedPlayerAccount).map((rankedUser) => rankedUser.id),
+	);
 	const eligibleRatings = ratings
-		.filter(
-			(rating) =>
-				(rating.matches_played ?? 0) >= MIN_SINGLES_MATCHES &&
-				activePlayerIds.has(rating.player_id),
+		.filter((rating) =>
+			isPlayerRankingEligible({
+				playerId: rating.player_id,
+				matchesPlayed: rating.matches_played,
+				activePlayerIds,
+				rankedPlayerIds,
+				minimumMatches: MIN_SINGLES_MATCHES,
+			}),
 		)
 		.sort(
 			(left, right) =>
@@ -347,6 +361,7 @@ async function loadCurrentSinglesRanking(
 	const ownProfile = ownProfileResult.data as ProfileRecord | null;
 	const ownRank = rankedPlayers.find((player) => player.player_id === userId);
 	const ownIsActive = activePlayerIds.has(userId);
+	const ownIsRankedAccount = rankedPlayerIds.has(userId);
 	const ownMatchesPlayed = ownRating?.matches_played ?? 0;
 
 	return {
@@ -366,6 +381,7 @@ async function loadCurrentSinglesRanking(
 			rank: ownRank?.rank ?? null,
 			ranking_eligible: Boolean(ownRank),
 			eligibility_status: {
+				is_ranked_account: ownIsRankedAccount,
 				has_minimum_matches: ownMatchesPlayed >= MIN_SINGLES_MATCHES,
 				is_recently_active: ownIsActive,
 				matches_needed: Math.max(

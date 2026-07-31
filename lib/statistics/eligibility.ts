@@ -38,3 +38,56 @@ export function isRankingEligible({
 		activeEntityIds.has(entityId)
 	);
 }
+
+export function isPlayerRankingEligible({
+	playerId,
+	matchesPlayed,
+	activePlayerIds,
+	rankedPlayerIds,
+	minimumMatches,
+}: {
+	playerId: string;
+	matchesPlayed: number | null;
+	activePlayerIds: ReadonlySet<string>;
+	rankedPlayerIds: ReadonlySet<string>;
+	minimumMatches: number;
+}) {
+	return (
+		rankedPlayerIds.has(playerId) &&
+		isRankingEligible({
+			entityId: playerId,
+			matchesPlayed,
+			activeEntityIds: activePlayerIds,
+			minimumMatches,
+		})
+	);
+}
+
+export function isDoublesTeamRankingEligible({
+	teamId,
+	player1Id,
+	player2Id,
+	matchesPlayed,
+	activeTeamIds,
+	rankedPlayerIds,
+	minimumMatches,
+}: {
+	teamId: string;
+	player1Id: string;
+	player2Id: string;
+	matchesPlayed: number | null;
+	activeTeamIds: ReadonlySet<string>;
+	rankedPlayerIds: ReadonlySet<string>;
+	minimumMatches: number;
+}) {
+	return (
+		rankedPlayerIds.has(player1Id) &&
+		rankedPlayerIds.has(player2Id) &&
+		isRankingEligible({
+			entityId: teamId,
+			matchesPlayed,
+			activeEntityIds: activeTeamIds,
+			minimumMatches,
+		})
+	);
+}

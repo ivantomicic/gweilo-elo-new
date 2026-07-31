@@ -5,7 +5,12 @@ import {
 	computeRankMovements,
 } from "@/lib/elo/rank-movements";
 import { computeCurrentRankDurations } from "@/lib/elo/rank-duration";
-import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
+import {
+	createAdminClient,
+	listAllAuthUsers,
+	verifyUser,
+} from "@/lib/supabase/admin";
+import { isRankedPlayerAccount } from "@/lib/auth/roles";
 import {
 	MAX_DOUBLES_PLAYER_INACTIVITY_DAYS,
 	MAX_DOUBLES_TEAM_INACTIVITY_DAYS,
@@ -15,7 +20,8 @@ import {
 } from "@/lib/statistics/min-matches";
 import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
 import {
-	isRankingEligible,
+	isDoublesTeamRankingEligible,
+	isPlayerRankingEligible,
 	STATISTICS_ELIGIBILITY,
 } from "@/lib/statistics/eligibility";
 
@@ -569,7 +575,9 @@ async function getActiveDoublesPlayerIdsFresh(): Promise<string[]> {
 		return Array.from(activePlayerIds);
 }
 
-async function getFreshSinglesStats(): Promise<PlayerStats[]> {
+async function getFreshSinglesStats(
+	rankedPlayerIds: ReadonlySet<string>,
+): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
@@ -617,13 +625,15 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 
 		const activeSinglesPlayerSet = new Set(activeSinglesPlayerIds);
 		const singlesStats = sourceRows
-			.filter((rating) =>
-				isRankingEligible({
-					entityId: rating.player_id,
-					matchesPlayed: rating.matches_played,
-					activeEntityIds: activeSinglesPlayerSet,
-					minimumMatches: MIN_SINGLES_MATCHES,
-				})
+			.filter(
+				(rating) =>
+					isPlayerRankingEligible({
+						playerId: rating.player_id,
+						matchesPlayed: rating.matches_played,
+						activePlayerIds: activeSinglesPlayerSet,
+						rankedPlayerIds,
+						minimumMatches: MIN_SINGLES_MATCHES,
+					}),
 			)
 			.map((rating): PlayerStats => {
 				const profile = profilesMap.get(rating.player_id);
@@ -683,7 +693,9 @@ async function getFreshSinglesStats(): Promise<PlayerStats[]> {
 		return singlesStats;
 }
 
-async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
+async function getFreshDoublesPlayerStats(
+	rankedPlayerIds: ReadonlySet<string>,
+): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
@@ -734,13 +746,15 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 
 		const activeDoublesPlayerSet = new Set(activeDoublesPlayerIds);
 		const doublesPlayerStats = sourceRows
-			.filter((rating) =>
-				isRankingEligible({
-					entityId: rating.player_id,
-					matchesPlayed: rating.matches_played,
-					activeEntityIds: activeDoublesPlayerSet,
-					minimumMatches: MIN_DOUBLES_PLAYER_MATCHES,
-				})
+			.filter(
+				(rating) =>
+					isPlayerRankingEligible({
+						playerId: rating.player_id,
+						matchesPlayed: rating.matches_played,
+						activePlayerIds: activeDoublesPlayerSet,
+						rankedPlayerIds,
+						minimumMatches: MIN_DOUBLES_PLAYER_MATCHES,
+					}),
 			)
 			.map((rating): PlayerStats => {
 				const profile = profilesMap.get(rating.player_id);
@@ -801,7 +815,9 @@ async function getFreshDoublesPlayerStats(): Promise<PlayerStats[]> {
 		return doublesPlayerStats;
 }
 
-async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
+async function getFreshDoublesTeamStats(
+	rankedPlayerIds: ReadonlySet<string>,
+): Promise<TeamStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
@@ -858,14 +874,21 @@ async function getFreshDoublesTeamStats(): Promise<TeamStats[]> {
 				: ((ratingsResult.data || []) as DoublesTeamRatingRecord[]);
 		const activeDoublesTeamSet = new Set(activeDoublesTeamIds);
 		const doublesTeamStats = sourceRows
-			.filter((rating) =>
-				isRankingEligible({
-					entityId: rating.team_id,
-					matchesPlayed: rating.matches_played,
-					activeEntityIds: activeDoublesTeamSet,
-					minimumMatches: MIN_DOUBLES_TEAM_MATCHES,
-				})
-			)
+			.filter((rating) => {
+				const team = teamsMap.get(rating.team_id);
+				return Boolean(
+					team &&
+						isDoublesTeamRankingEligible({
+							teamId: rating.team_id,
+							player1Id: team.player_1_id,
+							player2Id: team.player_2_id,
+							matchesPlayed: rating.matches_played,
+							activeTeamIds: activeDoublesTeamSet,
+							rankedPlayerIds,
+							minimumMatches: MIN_DOUBLES_TEAM_MATCHES,
+						}),
+				);
+			})
 			.map((rating): TeamStats | null => {
 				const team = teamsMap.get(rating.team_id);
 				if (!team) {
@@ -994,23 +1017,28 @@ export async function GET(request: NextRequest) {
 		} = {
 			eligibility: STATISTICS_ELIGIBILITY,
 		};
+		const rankedPlayerIds = new Set(
+			(await listAllAuthUsers(createAdminClient()))
+				.filter(isRankedPlayerAccount)
+				.map((rankedUser) => rankedUser.id),
+		);
 
 		if (viewParam === "all") {
 			const [singles, doublesPlayers, doublesTeams] = await Promise.all([
-				getFreshSinglesStats(),
-				getFreshDoublesPlayerStats(),
-				getFreshDoublesTeamStats(),
+				getFreshSinglesStats(rankedPlayerIds),
+				getFreshDoublesPlayerStats(rankedPlayerIds),
+				getFreshDoublesTeamStats(rankedPlayerIds),
 			]);
 
 			responseBody.singles = singles;
 			responseBody.doublesPlayers = doublesPlayers;
 			responseBody.doublesTeams = doublesTeams;
 		} else if (viewParam === "singles") {
-			responseBody.singles = await getFreshSinglesStats();
+			responseBody.singles = await getFreshSinglesStats(rankedPlayerIds);
 		} else if (viewParam === "doubles_player") {
-			responseBody.doublesPlayers = await getFreshDoublesPlayerStats();
+			responseBody.doublesPlayers = await getFreshDoublesPlayerStats(rankedPlayerIds);
 		} else {
-			responseBody.doublesTeams = await getFreshDoublesTeamStats();
+			responseBody.doublesTeams = await getFreshDoublesTeamStats(rankedPlayerIds);
 		}
 
 		return jsonNoStore(responseBody);

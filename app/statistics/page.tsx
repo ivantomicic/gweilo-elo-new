@@ -106,7 +106,7 @@ const EMPTY_LOADED: StatisticsLoaded = {
 	doublesTeams: false,
 };
 
-const STATISTICS_CACHE_VERSION = 4;
+const STATISTICS_CACHE_VERSION = 5;
 const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"singles",

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import {
@@ -281,7 +282,7 @@ export async function PATCH(
 			updatedAuthUser = data.user;
 		}
 
-		if (accessDisabled !== undefined) {
+		if (role !== undefined || accessDisabled !== undefined) {
 			const { error: missionInvalidationError } = await adminClient
 				.from(MISSION_SNAPSHOT_TABLE)
 				.delete()
@@ -289,7 +290,7 @@ export async function PATCH(
 
 			if (missionInvalidationError) {
 				console.error(
-					"User access changed, but mission snapshots could not be invalidated:",
+					"User ranking access changed, but mission snapshots could not be invalidated:",
 					missionInvalidationError,
 				);
 				return NextResponse.json(
@@ -398,6 +399,15 @@ export async function PATCH(
 					{ status: 500 },
 				);
 			}
+		}
+
+		if (
+			name !== undefined ||
+			avatar !== undefined ||
+			role !== undefined ||
+			accessDisabled !== undefined
+		) {
+			revalidateTag("statistics");
 		}
 
 		if (!updatedAuthUser) {
