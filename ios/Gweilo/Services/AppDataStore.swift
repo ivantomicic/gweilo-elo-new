@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WidgetKit
 
 struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
     let topThreeSinglesPlayers: [RankingEntry]
@@ -89,14 +90,20 @@ final class AppDataStore {
     private(set) var hasCheckedActiveSession = false
     private(set) var canManageSessions: Bool
     private(set) var isAdmin: Bool
+    private(set) var missionSnapshot: RivalryMissionSnapshot?
+    private(set) var isMissionsLoading = false
+    private(set) var hasLoadedMissions = false
+    private(set) var missionsErrorMessage: String?
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var errorMessage: String?
 
     private var client: SupabaseDataClient
     private var apiClient: GweiloAPIClient
+    private var missionsClient: RivalryMissionsClient
     private let configuration: AppConfiguration
     private let homeSnapshotStore: HomeDashboardSnapshotStore
+    private let widgetSnapshotStore: GweiloWidgetSnapshotStore
     private var homeLatestSessionDelta: Double?
     private var homeCurrentUserFirstName: String?
     @ObservationIgnored
@@ -124,10 +131,13 @@ final class AppDataStore {
         configuration: AppConfiguration,
         session: AuthSession,
         homeSnapshotStore: HomeDashboardSnapshotStore =
-            HomeDashboardSnapshotStore()
+            HomeDashboardSnapshotStore(),
+        widgetSnapshotStore: GweiloWidgetSnapshotStore =
+            GweiloWidgetSnapshotStore()
     ) {
         self.configuration = configuration
         self.homeSnapshotStore = homeSnapshotStore
+        self.widgetSnapshotStore = widgetSnapshotStore
         currentUserID = session.user.id
         authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
@@ -137,6 +147,10 @@ final class AppDataStore {
             accessToken: session.accessToken
         )
         apiClient = GweiloAPIClient(
+            configuration: configuration,
+            accessToken: session.accessToken
+        )
+        missionsClient = RivalryMissionsClient(
             configuration: configuration,
             accessToken: session.accessToken
         )
@@ -166,6 +180,11 @@ final class AppDataStore {
             configuration: configuration,
             accessToken: session.accessToken
         )
+        missionsClient = RivalryMissionsClient(
+            configuration: configuration,
+            accessToken: session.accessToken
+        )
+        hasLoadedMissions = false
     }
 
     var activeSession: SessionSummary? {
@@ -195,7 +214,7 @@ final class AppDataStore {
         return displayName
             .split(whereSeparator: \.isWhitespace)
             .first
-            .map(String.init) ?? "Player"
+            .map(String.init) ?? "Igrač"
     }
 
     private static func fallbackName(for email: String?) -> String {
@@ -206,7 +225,7 @@ final class AppDataStore {
             }).first,
             !firstComponent.isEmpty
         else {
-            return "Player"
+            return "Igrač"
         }
 
         return String(firstComponent).capitalized
@@ -237,6 +256,7 @@ final class AppDataStore {
             )
             invalidateProfileCaches()
             await load(forceRefresh: true)
+            await loadMissions(forceRefresh: true)
             if sessions.contains(where: {
                 $0.id == sessionID && $0.status == .completed
             }) {
@@ -361,6 +381,24 @@ final class AppDataStore {
         return cachedCalculatorPlayers
     }
 
+    func loadMissions(forceRefresh: Bool = false) async {
+        guard !isMissionsLoading else { return }
+        guard forceRefresh || !hasLoadedMissions else { return }
+
+        isMissionsLoading = true
+        missionsErrorMessage = nil
+        defer {
+            isMissionsLoading = false
+            hasLoadedMissions = true
+        }
+
+        do {
+            missionSnapshot = try await missionsClient.playerSnapshot()
+        } catch {
+            missionsErrorMessage = error.localizedDescription
+        }
+    }
+
     private func prepareAvailableSessionPlayers(
         _ players: [SessionCreationPlayer]
     ) -> [SessionCreationPlayer] {
@@ -420,6 +458,7 @@ final class AppDataStore {
         clubActiveSessionID = nil
         invalidateProfileCaches()
         await load(forceRefresh: true)
+        await loadMissions(forceRefresh: true)
     }
 
     func load(forceRefresh: Bool = false) async {
@@ -441,7 +480,10 @@ final class AppDataStore {
         async let activeSessionRequest = apiClient.fetchActiveSessionID()
         async let sessionPlayersRequest =
             apiClient.fetchAvailableSessionPlayers()
+        async let widgetHistoryRequest =
+            apiClient.fetchPlayerEloHistory(playerID: currentUserID)
         var firstError: Error?
+        var widgetHistory: PlayerEloHistory?
 
         do {
             let loadedSessions = try await sessionsRequest
@@ -498,6 +540,19 @@ final class AppDataStore {
             hasLoadedAvailableSessionPlayers = false
         }
 
+        do {
+            let history = try await widgetHistoryRequest
+            guard generation == loadGeneration else { return }
+            widgetHistory = history
+            playerHistoryCache.insert(history, for: currentUserID)
+        } catch {
+            // Rankings still provide a useful form bar and table.
+        }
+
+        if generation == loadGeneration {
+            saveWidgetSnapshot(history: widgetHistory)
+        }
+
         if generation == loadGeneration {
             errorMessage = firstError?.localizedDescription
         }
@@ -521,6 +576,60 @@ final class AppDataStore {
                 savedAt: .now
             ),
             for: currentUserID
+        )
+    }
+
+    private func saveWidgetSnapshot(history: PlayerEloHistory?) {
+        guard !singlesRankings.isEmpty else { return }
+
+        let standings = singlesRankings.prefix(5).enumerated().map {
+            index,
+            entry in
+            GweiloWidgetStanding(
+                rank: index + 1,
+                name: entry.name,
+                elo: entry.elo,
+                recentForm: entry.recentForm.suffix(5).map {
+                    Int($0.rounded())
+                },
+                isCurrentUser: entry.id == currentUserID
+            )
+        }
+
+        let currentPlayer = singlesRankings.enumerated().first {
+            $0.element.id == currentUserID
+        }.map { index, entry in
+            GweiloWidgetPlayer(
+                name: entry.name,
+                elo: entry.elo,
+                rank: index + 1,
+                recentForm: entry.recentForm.suffix(5).map {
+                    Int($0.rounded())
+                },
+                recentMatches: Array(
+                    (history?.points ?? [])
+                        .filter { $0.match > 0 }
+                        .suffix(3)
+                        .reversed()
+                ).map {
+                    GweiloWidgetMatch(
+                        opponent: $0.opponent ?? "Nepoznat protivnik",
+                        score: $0.formattedScore,
+                        eloDelta: $0.delta.map { Int($0.rounded()) },
+                        outcome: $0.resolvedOutcome?.rawValue
+                    )
+                }
+            )
+        }
+
+        let snapshot = GweiloWidgetSnapshot(
+            savedAt: .now,
+            player: currentPlayer,
+            standings: standings
+        )
+        widgetSnapshotStore.save(snapshot)
+        WidgetCenter.shared.reloadTimelines(
+            ofKind: GweiloWidgetSnapshot.widgetKind
         )
     }
 }

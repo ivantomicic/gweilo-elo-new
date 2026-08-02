@@ -569,13 +569,13 @@ enum LiveDataError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidURL:
-            "The Supabase data URL is invalid."
+            "Supabase adresa za podatke nije ispravna."
         case .invalidResponse:
-            "Supabase returned an invalid response."
+            "Supabase je vratio neispravan odgovor."
         case .unauthorized:
-            "Your login expired. Return to the app and try again."
+            "Prijava je istekla. Vrati se u aplikaciju i pokušaj ponovo."
         case let .requestFailed(message):
-            "Could not load live data. \(message)"
+            "Aktuelni podaci nisu mogli da se učitaju. \(message)"
         }
     }
 }
@@ -866,7 +866,7 @@ enum BackendAPIError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .invalidResponse:
-            "The Gweilo server returned an invalid response."
+            "Gweilo server je vratio neispravan odgovor."
         case let .rejected(message):
             message
         case let .sessionNotFound(message):
@@ -898,8 +898,8 @@ struct GweiloAPIClient: Sendable {
         guard (200..<300).contains(httpResponse.statusCode) else {
             let errorResponse = try? JSONDecoder().decode(APIErrorResponse.self, from: data)
             let fallback = httpResponse.statusCode == 401
-                ? "Your login expired. Reopen the app and try again."
-                : "The round could not be submitted."
+                ? "Prijava je istekla. Ponovo otvori aplikaciju i pokušaj ponovo."
+                : "Runda nije mogla da se sačuva."
             let message =
                 if httpResponse.statusCode >= 500 {
                     errorResponse?.details ??
@@ -914,7 +914,7 @@ struct GweiloAPIClient: Sendable {
                 }
             if httpResponse.statusCode == 404,
                errorResponse?.error == "Session not found" {
-                throw BackendAPIError.sessionNotFound(message)
+                throw BackendAPIError.sessionNotFound("Termin nije pronađen.")
             }
             throw BackendAPIError.rejected(
                 message
@@ -947,7 +947,7 @@ struct GweiloAPIClient: Sendable {
         let request = try makePlayerEloHistoryRequest(playerID: playerID)
         let responseBody: PlayerEloHistoryResponse = try await perform(
             request,
-            fallbackMessage: "Could not load this player's Elo history."
+            fallbackMessage: "Elo istorija ovog igrača nije mogla da se učita."
         )
         return makeEloHistory(from: responseBody)
     }
@@ -955,7 +955,7 @@ struct GweiloAPIClient: Sendable {
     func fetchTopThreeSinglesPlayerIDs() async throws -> [UUID] {
         let response: TopThreePlayersResponse = try await perform(
             makeTopThreeSinglesRequest(),
-            fallbackMessage: "Could not load the current Top 3."
+            fallbackMessage: "Trenutna najbolja 3 igrača nisu mogla da se učitaju."
         )
         return response.data.map(\.playerID)
     }
@@ -1029,7 +1029,7 @@ struct GweiloAPIClient: Sendable {
         )
         let response: HeadToHeadResponse = try await perform(
             request,
-            fallbackMessage: "Could not load head-to-head results."
+            fallbackMessage: "Međusobni rezultati nisu mogli da se učitaju."
         )
         return PlayerHeadToHead(
             player: makeHeadToHeadPlayer(from: response.player1),
@@ -1042,7 +1042,7 @@ struct GweiloAPIClient: Sendable {
         let request = makeDoublesTeamProfileRequest(teamID: teamID)
         let response: DoublesTeamProfileResponse = try await perform(
             request,
-            fallbackMessage: "Could not load this doubles team."
+            fallbackMessage: "Ovaj dubl tim nije mogao da se učita."
         )
         return DoublesTeamProfile(
             id: response.id,
@@ -1063,7 +1063,7 @@ struct GweiloAPIClient: Sendable {
         let request = makeDoublesTeamEloHistoryRequest(teamID: teamID)
         let response: PlayerEloHistoryResponse = try await perform(
             request,
-            fallbackMessage: "Could not load this team's Elo history."
+            fallbackMessage: "Elo istorija ovog tima nije mogla da se učita."
         )
         return makeEloHistory(from: response)
     }
@@ -1072,7 +1072,7 @@ struct GweiloAPIClient: Sendable {
         let request = makeAvailableSessionPlayersRequest()
         let response: AdminUsersResponse = try await perform(
             request,
-            fallbackMessage: "Could not load the player list."
+            fallbackMessage: "Lista igrača nije mogla da se učita."
         )
         return response.users.map {
             SessionCreationPlayer(
@@ -1094,7 +1094,7 @@ struct GweiloAPIClient: Sendable {
         )
         return try await perform(
             request,
-            fallbackMessage: "Could not prepare this schedule."
+            fallbackMessage: "Raspored nije mogao da se pripremi."
         )
     }
 

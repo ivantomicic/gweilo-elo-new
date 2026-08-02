@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import WidgetKit
 import Security
 
 private struct AuthSessionVault {
@@ -91,13 +92,13 @@ final class AuthStore {
             await refreshIfNeeded()
         } catch {
             vault.delete()
-            errorMessage = "Your saved login could not be restored. Please sign in again."
+            errorMessage = "Sačuvana prijava nije mogla da se vrati. Prijavi se ponovo."
         }
     }
 
     func signIn(email: String, password: String) async {
         guard let configuration else {
-            errorMessage = "Supabase is not configured for this build."
+            errorMessage = "Supabase nije podešen za ovu verziju aplikacije."
             return
         }
 
@@ -119,7 +120,7 @@ final class AuthStore {
         authenticate: @MainActor (URL) async throws -> URL
     ) async {
         guard let configuration else {
-            errorMessage = "Supabase is not configured for this build."
+            errorMessage = "Supabase nije podešen za ovu verziju aplikacije."
             return
         }
 
@@ -165,13 +166,13 @@ final class AuthStore {
         } catch let error as AuthenticationError {
             if case .rejected = error {
                 signOut()
-                errorMessage = "Your session expired. Please sign in again."
+                errorMessage = "Sesija je istekla. Prijavi se ponovo."
             } else {
                 errorMessage = error.localizedDescription
             }
         } catch {
             // Keep the saved session through temporary connectivity failures.
-            errorMessage = "Could not refresh your login. We will try again."
+            errorMessage = "Prijava nije mogla da se osveži. Pokušaćemo ponovo."
         }
     }
 
@@ -201,6 +202,10 @@ final class AuthStore {
 
     func signOut() {
         vault.delete()
+        GweiloWidgetSnapshotStore().clear()
+        WidgetCenter.shared.reloadTimelines(
+            ofKind: GweiloWidgetSnapshot.widgetKind
+        )
         session = nil
         errorMessage = nil
     }
@@ -211,7 +216,7 @@ final class AuthStore {
             let email = session?.user.email,
             !currentPassword.isEmpty
         else {
-            throw AuthenticationError.rejected("Enter your current password.")
+            throw AuthenticationError.rejected("Unesi trenutnu lozinku.")
         }
 
         let refreshedSession = try await SupabaseAuthClient(configuration: configuration)
@@ -223,7 +228,7 @@ final class AuthStore {
 
     func updateAuthenticatedUser(_ user: AuthenticatedUser) throws {
         guard let currentSession = session else {
-            throw AuthenticationError.rejected("Please sign in again.")
+            throw AuthenticationError.rejected("Prijavi se ponovo.")
         }
         let updatedSession = AuthSession(
             accessToken: currentSession.accessToken,

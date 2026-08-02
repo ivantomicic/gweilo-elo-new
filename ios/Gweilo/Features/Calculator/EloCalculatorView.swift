@@ -266,7 +266,8 @@ struct EloCalculatorView: View {
         }
         .scrollIndicators(.hidden)
         .floatingTabBarAccessory(
-            isPresented: !model.selectedOpponents.isEmpty
+            isPresented: dataStore.activeSession == nil
+                && !model.selectedOpponents.isEmpty
         ) {
             CalculatorFloatingProjectionSummary(
                 opponentCount: model.selectedOpponents.count,
@@ -600,7 +601,7 @@ private struct CalculatorOpponentProjection: View {
                 )
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("VS \(opponent.name)")
+                    Text("PROTIV \(opponent.name)")
                         .font(.headline.weight(.bold))
                         .foregroundStyle(GweiloTheme.bone)
                         .lineLimit(1)

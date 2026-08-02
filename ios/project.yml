@@ -51,6 +51,32 @@ targets:
     scheme:
       testTargets:
         - GweiloTests
+    dependencies:
+      - target: GweiloLiveActivity
+        embed: true
+  GweiloLiveActivity:
+    type: app-extension
+    platform: iOS
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
+    sources:
+      - path: GweiloLiveActivity
+        excludes:
+          - Info.plist
+      - path: Gweilo/LiveActivities/GweiloSessionActivityAttributes.swift
+      - path: Gweilo/Models/GweiloWidgetSnapshot.swift
+    settings:
+      base:
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_ENTITLEMENTS: GweiloLiveActivity/GweiloLiveActivity.entitlements
+        DEVELOPMENT_TEAM: 5JKSYD4AUC
+        PRODUCT_BUNDLE_IDENTIFIER: com.ivantomicic.gweilo.LiveActivity
+        PRODUCT_NAME: GweiloLiveActivity
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: GweiloLiveActivity/Info.plist
+        SKIP_INSTALL: YES
+        TARGETED_DEVICE_FAMILY: "1"
   GweiloTests:
     type: bundle.unit-test
     platform: iOS

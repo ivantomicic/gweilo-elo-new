@@ -751,7 +751,7 @@ struct DoublesTeamProfileView: View {
                         DoublesTeamRecordStrip(profile: profile)
 
                         VStack(alignment: .leading, spacing: 14) {
-                            SectionHeading(title: "Team Elo")
+                            SectionHeading(title: "Elo tima")
                             if let history {
                                 EloHistoryChart(
                                     history: history,
@@ -761,12 +761,12 @@ struct DoublesTeamProfileView: View {
                         }
 
                         RecentEloResults(
-                            title: "Recent doubles",
-                            emptyMessage: "Recent doubles results will appear here.",
+                            title: "Poslednji dublovi",
+                            emptyMessage: "Poslednji rezultati dublova pojaviće se ovde.",
                             results: recentResults
                         )
                     } else if isLoading {
-                        GweiloLoadingView("Loading doubles team…")
+                        GweiloLoadingView("Učitavam dubl tim…")
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 80)
                     } else if let errorMessage {
@@ -824,7 +824,7 @@ private struct DoublesTeamHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("DOUBLES TEAM")
+            Text("DUBL TIM")
                 .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
                 .tracking(1.8)
                 .foregroundStyle(GweiloTheme.lime)
@@ -873,14 +873,14 @@ private struct DoublesTeamRecordStrip: View {
     var body: some View {
         VStack(spacing: 16) {
             HStack(spacing: 0) {
-                ProfileMetric(value: "\(profile.matches)", label: "MATCHES")
-                ProfileMetric(value: "\(profile.wins)", label: "WINS")
-                ProfileMetric(value: "\(profile.draws)", label: "DRAWS")
-                ProfileMetric(value: "\(profile.losses)", label: "LOSSES")
+                ProfileMetric(value: "\(profile.matches)", label: "MEČEVI")
+                ProfileMetric(value: "\(profile.wins)", label: "POBEDE")
+                ProfileMetric(value: "\(profile.draws)", label: "NEREŠENO")
+                ProfileMetric(value: "\(profile.losses)", label: "PORAZI")
             }
 
             HStack {
-                Text("SETS")
+                Text("SETOVI")
                     .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
                     .tracking(1)
                     .foregroundStyle(GweiloTheme.muted)
@@ -1284,17 +1284,17 @@ struct RecentResultsPreviewScreen: View {
 
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("PLAYER PROFILE")
+                    Text("PROFIL IGRAČA")
                         .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
                         .tracking(1.8)
                         .foregroundStyle(GweiloTheme.lime)
 
-                    Text("RECENT FORM")
+                    Text("POSLEDNJA FORMA")
                         .font(GweiloTheme.displayFont(size: 42, relativeTo: .largeTitle))
                 }
 
                 RecentEloResults(
-                    title: "Recent singles",
+                    title: "Poslednji singlovi",
                     emptyMessage: "",
                     results: results
                 )
@@ -1986,7 +1986,7 @@ private struct EloMatchScrubDetail: View {
                     .tracking(1)
                     .foregroundStyle(point.performanceBand.color)
 
-                Text("VS \(point.opponent ?? "nepoznatog protivnika")")
+                Text("PROTIV \(point.opponent ?? "nepoznatog protivnika")")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
 
@@ -2207,12 +2207,12 @@ struct ChartScrubPreviewScreen: View {
 
             VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("INTERACTIVE HISTORY")
+                    Text("INTERAKTIVNA ISTORIJA")
                         .font(GweiloTheme.labelFont(size: 12, relativeTo: .caption))
                         .tracking(1.8)
                         .foregroundStyle(GweiloTheme.lime)
 
-                    Text("ELO SCRUB")
+                    Text("PREGLED ELO ISTORIJE")
                         .font(GweiloTheme.displayFont(size: 44, relativeTo: .largeTitle))
                 }
 
@@ -2585,7 +2585,7 @@ struct PlayerProfileMatchResultRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(
-                    "VS "
+                    "PROTIV "
                         + "\(result.opponent ?? "nepoznatog protivnika")"
                 )
                 .font(.body.weight(.semibold))
@@ -2702,7 +2702,7 @@ private struct RecentMatchMetric: View {
                 Text(formattedDelta)
                     .foregroundStyle(result.performanceBand.color)
 
-                Text("ELO CHANGE")
+                Text("ELO PROMENA")
                     .font(.caption2.weight(.bold))
                     .tracking(0.4)
                     .foregroundStyle(GweiloTheme.muted)

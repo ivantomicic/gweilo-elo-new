@@ -114,7 +114,7 @@ struct AdminUsersView: View {
 
             if model.isLoading && model.users.isEmpty {
                 GweiloFullScreenLoadingView(
-                    "Loading users",
+                    "Učitavam korisnike…",
                     size: 172
                 )
             } else {
@@ -142,7 +142,7 @@ struct AdminUsersView: View {
                             }
                         }
                     } header: {
-                        Text("\(visibleUsers.count) USERS")
+                        Text("\(visibleUsers.count) KORISNIKA")
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -156,9 +156,9 @@ struct AdminUsersView: View {
                 }
             }
         }
-        .navigationTitle("User management")
+        .navigationTitle("Upravljanje korisnicima")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $searchText, prompt: "Name, email or role")
+        .searchable(text: $searchText, prompt: "Ime, email ili uloga")
         .task {
             if model.users.isEmpty {
                 await model.load()
@@ -194,8 +194,8 @@ private struct AdminUserRow: View {
                     .foregroundStyle(roleColor)
 
                 Text(
-                    user.sessionsPerWeek.map { "\($0)× weekly" }
-                        ?? "Not set"
+                    user.sessionsPerWeek.map { "\($0)× nedeljno" }
+                        ?? "Nije podešeno"
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -267,7 +267,7 @@ private struct AdminUserEditView: View {
                     }
 
                     Section {
-                        TextField("Display name", text: $name)
+                        TextField("Ime za prikaz", text: $name)
                             .textContentType(.name)
                             .textInputAutocapitalization(.words)
 
@@ -276,47 +276,47 @@ private struct AdminUserEditView: View {
                             .textInputAutocapitalization(.never)
                             .keyboardType(.emailAddress)
                     } header: {
-                        Text("PROFILE")
+                        Text("PROFIL")
                     } footer: {
                         Text(
-                            "Changing the email sends a confirmation message to the new address."
+                            "Promena email adrese šalje poruku za potvrdu na novu adresu."
                         )
                     }
 
                     Section {
-                        Picker("Role", selection: $role) {
+                        Picker("Uloga", selection: $role) {
                             ForEach(AdminUserRole.allCases) { role in
                                 Text(role.displayName).tag(role)
                             }
                         }
 
                         Picker(
-                            "Sessions per week",
+                            "Termina nedeljno",
                             selection: $sessionsPerWeek
                         ) {
-                            Text("Not set").tag(Int?.none)
+                            Text("Nije podešeno").tag(Int?.none)
                             ForEach(1...4, id: \.self) { count in
                                 Text("\(count)×").tag(Int?.some(count))
                             }
                         }
                     } header: {
-                        Text("ACCESS")
+                        Text("PRISTUP")
                     } footer: {
                         Text(
-                            "The weekly target is used by attendance and no-show calculations."
+                            "Nedeljni cilj koristi se za računanje prisustva i nedolazaka."
                         )
                     }
 
                     Section {
-                        Button("Remove platform access", role: .destructive) {
+                        Button("Ukloni pristup platformi", role: .destructive) {
                             showsRemoveAccessConfirmation = true
                         }
                         .disabled(userID == currentUserID || model.isSaving)
                     } footer: {
                         Text(
                             userID == currentUserID
-                                ? "You cannot remove your own access."
-                                : "The user will no longer be able to sign in. This does not erase historical results."
+                                ? "Ne možeš ukloniti sopstveni pristup."
+                                : "Korisnik više neće moći da se prijavi. Istorijski rezultati neće biti obrisani."
                         )
                     }
 
@@ -333,19 +333,19 @@ private struct AdminUserEditView: View {
                 .scrollContentBackground(.hidden)
             } else {
                 ContentUnavailableView(
-                    "User unavailable",
+                    "Korisnik nije dostupan",
                     systemImage: "person.slash",
                     description: Text(
-                        "This user may have been removed from the list."
+                        "Ovaj korisnik je možda uklonjen sa liste."
                     )
                 )
             }
         }
-        .navigationTitle("Edit user")
+        .navigationTitle("Izmeni korisnika")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
-                Button(model.isSaving ? "Saving…" : "Save") {
+                Button(model.isSaving ? "Čuvam…" : "Sačuvaj") {
                     Task { await save() }
                 }
                 .disabled(!canSave)
@@ -368,21 +368,21 @@ private struct AdminUserEditView: View {
             model.clearError()
         }
         .confirmationDialog(
-            "Remove access for \(user?.name ?? "this user")?",
+            "Ukloniti pristup za \(user?.name ?? "ovog korisnika")?",
             isPresented: $showsRemoveAccessConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Remove access", role: .destructive) {
+            Button("Ukloni pristup", role: .destructive) {
                 Task {
                     if await model.removeAccess(for: userID) {
                         dismiss()
                     }
                 }
             }
-            Button("Cancel", role: .cancel) {}
+            Button("Otkaži", role: .cancel) {}
         } message: {
             Text(
-                "They will no longer be able to sign in. Historical match data is preserved."
+                "Korisnik više neće moći da se prijavi. Istorijski podaci o mečevima ostaju sačuvani."
             )
         }
     }

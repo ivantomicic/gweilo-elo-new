@@ -191,7 +191,7 @@ struct SessionDetailView: View {
             Text(managementConfirmationMessage)
         }
         .alert("Termin nije ažuriran", isPresented: managementErrorBinding) {
-            Button("OK", role: .cancel) {}
+                Button("U redu", role: .cancel) {}
         } message: {
             Text(managementErrorMessage ?? "Pokušaj ponovo.")
         }
@@ -1614,7 +1614,7 @@ struct SessionDetailPreviewScreen: View {
                                     try await Task.sleep(for: .milliseconds(700))
                                     return RoundSubmissionResult(
                                         success: true,
-                                        message: "Round submitted",
+                                        message: "Runda je sačuvana",
                                         ratingsDeferred: false,
                                         ratingsApplied: true,
                                         combinedWithRound: nil

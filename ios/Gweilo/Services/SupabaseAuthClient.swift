@@ -130,9 +130,9 @@ enum AuthenticationError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cancelled:
-            "Sign-in was cancelled."
+            "Prijava je otkazana."
         case .invalidResponse:
-            "Supabase returned an invalid response."
+            "Supabase je vratio neispravan odgovor."
         case let .rejected(message):
             message
         }
@@ -249,7 +249,7 @@ struct SupabaseAuthClient: Sendable {
         guard (200..<300).contains(httpResponse.statusCode) else {
             let response = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
             throw AuthenticationError.rejected(
-                response?.message ?? response?.errorDescription ?? "Account update failed."
+                response?.message ?? response?.errorDescription ?? "Ažuriranje naloga nije uspelo."
             )
         }
         return try JSONDecoder().decode(AuthenticatedUser.self, from: data)
@@ -266,7 +266,7 @@ struct SupabaseAuthClient: Sendable {
             throw AuthenticationError.rejected(
                 response?.message ??
                 response?.errorDescription ??
-                "Sign-in failed. Check your email and password."
+                "Prijava nije uspela. Proveri email i lozinku."
             )
         }
 

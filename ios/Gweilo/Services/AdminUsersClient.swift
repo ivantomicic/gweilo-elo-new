@@ -10,10 +10,10 @@ enum AdminUserRole: String, CaseIterable, Codable, Identifiable, Sendable {
 
     var displayName: String {
         switch self {
-        case .user: "User"
+        case .user: "Korisnik"
         case .mod: "Moderator"
-        case .admin: "Admin"
-        case .guest: "Guest"
+        case .admin: "Administrator"
+        case .guest: "Gost"
         }
     }
 }
@@ -166,7 +166,7 @@ struct AdminUsersClient: Sendable {
             throw BackendAPIError.rejected(
                 serverError?.error
                     ?? serverError?.detail
-                    ?? "User management request failed."
+                    ?? "Zahtev za upravljanje korisnicima nije uspeo."
             )
         }
 

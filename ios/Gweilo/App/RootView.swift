@@ -65,7 +65,7 @@ struct RootView: View {
             } else if isSessionDetailPreview {
                 SessionDetailPreviewScreen()
             } else if authStore.isRestoringSession {
-                GweiloLoadingView("Restoring your club…", size: 172)
+                GweiloLoadingView("Vraćam tvoj klub…", size: 172)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(ArenaBackground())
             } else if authStore.session == nil {
@@ -77,7 +77,7 @@ struct RootView: View {
                     pushNotifications: pushNotifications
                 )
             } else {
-                GweiloLoadingView("Loading your club…", size: 172)
+                GweiloLoadingView("Učitavam tvoj klub…", size: 172)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(ArenaBackground())
             }
@@ -279,20 +279,27 @@ private struct MainTabView: View {
     let authStore: AuthStore
     let pushNotifications: PushNotificationManager
     @State private var selectedTab = MainTabSelection.home
+    @State private var requestedActiveSessionID: UUID?
+    @State private var isActiveSessionDetailPresented = false
+
+    private var requestedSessionID: UUID? {
+        requestedActiveSessionID ?? pushNotifications.pendingSessionID
+    }
 
     var body: some View {
         TabView(selection: $selectedTab) {
             Tab(
-                "Home",
+                "Početna",
                 systemImage: "house.fill",
                 value: MainTabSelection.home
             ) {
-                HomeView(
-                    dataStore: dataStore,
-                    openRankings: {
-                        selectedTab = .rankings
-                    }
-                )
+                ActiveSessionAccessoryHost(
+                    session: dataStore.activeSession,
+                    isHidden: false,
+                    openSession: openActiveSession
+                ) {
+                    HomeView(dataStore: dataStore)
+                }
             }
 
             Tab(
@@ -300,13 +307,19 @@ private struct MainTabView: View {
                 systemImage: "figure.table.tennis",
                 value: MainTabSelection.sessions
             ) {
-                SessionsView(
-                    dataStore: dataStore,
-                    requestedSessionID: pushNotifications.pendingSessionID,
-                    didOpenRequestedSession: {
-                        pushNotifications.consumePendingSession($0)
-                    }
-                )
+                ActiveSessionAccessoryHost(
+                    session: dataStore.activeSession,
+                    isHidden: isActiveSessionDetailPresented,
+                    openSession: openActiveSession
+                ) {
+                    SessionsView(
+                        dataStore: dataStore,
+                        requestedSessionID: requestedSessionID,
+                        activeSessionDetailIsPresented:
+                            $isActiveSessionDetailPresented,
+                        didOpenRequestedSession: didOpenRequestedSession
+                    )
+                }
             }
 
             Tab(
@@ -314,26 +327,38 @@ private struct MainTabView: View {
                 systemImage: "trophy.fill",
                 value: MainTabSelection.rankings
             ) {
-                RankingsView(dataStore: dataStore)
+                ActiveSessionAccessoryHost(
+                    session: dataStore.activeSession,
+                    isHidden: false,
+                    openSession: openActiveSession
+                ) {
+                    RankingsView(dataStore: dataStore)
+                }
             }
 
             Tab(
-                "More",
+                "Više",
                 systemImage: "ellipsis",
                 value: MainTabSelection.more
             ) {
-                AccountView(
-                    email: authStore.session?.user.email,
-                    player: authStore.session.flatMap { session in
-                        dataStore.singlesRankings.first {
-                            $0.id == session.user.id
-                        }
-                    },
-                    dataStore: dataStore,
-                    pushNotifications: pushNotifications,
-                    authStore: authStore,
-                    signOut: authStore.signOut
-                )
+                ActiveSessionAccessoryHost(
+                    session: dataStore.activeSession,
+                    isHidden: false,
+                    openSession: openActiveSession
+                ) {
+                    AccountView(
+                        email: authStore.session?.user.email,
+                        player: authStore.session.flatMap { session in
+                            dataStore.singlesRankings.first {
+                                $0.id == session.user.id
+                            }
+                        },
+                        dataStore: dataStore,
+                        pushNotifications: pushNotifications,
+                        authStore: authStore,
+                        signOut: authStore.signOut
+                    )
+                }
             }
         }
         .tint(GweiloTheme.accent)
@@ -352,6 +377,85 @@ private struct MainTabView: View {
             selectedTab = .sessions
             pushNotifications.consumeSessionsDestination()
         }
+        .onChange(
+            of: pushNotifications.shouldOpenStatistics,
+            initial: true
+        ) {
+            guard pushNotifications.shouldOpenStatistics else { return }
+            selectedTab = .rankings
+            pushNotifications.consumeStatisticsDestination()
+        }
+    }
+
+    private func openActiveSession(_ session: SessionSummary) {
+        requestedActiveSessionID = session.id
+        selectedTab = .sessions
+    }
+
+    private func didOpenRequestedSession(_ sessionID: UUID) {
+        if requestedActiveSessionID == sessionID {
+            requestedActiveSessionID = nil
+        }
+        if pushNotifications.pendingSessionID == sessionID {
+            pushNotifications.consumePendingSession(sessionID)
+        }
+    }
+}
+
+private struct ActiveSessionAccessoryHost<Content: View>: View {
+    let session: SessionSummary?
+    let isHidden: Bool
+    let openSession: (SessionSummary) -> Void
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .floatingTabBarAccessory(
+                isPresented: session != nil && !isHidden
+            ) {
+                if let session {
+                    ActiveSessionFloatingButton(
+                        session: session,
+                        action: { openSession(session) }
+                    )
+                }
+            }
+    }
+}
+
+private struct ActiveSessionFloatingButton: View {
+    let session: SessionSummary
+    let action: () -> Void
+
+    private var currentRound: Int {
+        session.currentRound ?? 1
+    }
+
+    var body: some View {
+        Button(action: action) {
+            Text(
+                "Termin u toku · Runda \(currentRound) od \(session.totalRounds)"
+            )
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(GweiloTheme.background)
+            .lineLimit(1)
+            .minimumScaleFactor(0.85)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 20)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .contentShape(.capsule)
+        }
+        .buttonStyle(ResponsiveButtonStyle())
+        .adaptiveSurface(
+            in: Capsule(),
+            interactive: true,
+            tint: GweiloTheme.lime.opacity(0.50)
+        )
+        .accessibilityLabel(
+            "Aktivan termin, runda \(currentRound) od \(session.totalRounds)"
+        )
+        .accessibilityHint("Otvara aktivni termin")
     }
 }
 
@@ -376,16 +480,16 @@ private struct AccountView: View {
                 ArenaBackground()
 
                 List {
-                    Section("ACCOUNT") {
-                        LabeledContent("Signed in as") {
-                            Text(email ?? "Gweilo member")
+                    Section("NALOG") {
+                        LabeledContent("Prijavljen kao") {
+                            Text(email ?? "Gweilo član")
                                 .foregroundStyle(.secondary)
                                 .lineLimit(1)
                         }
 
                         if let player {
                             NavigationLink(value: player) {
-                                Label("My player profile", systemImage: "person.text.rectangle")
+                                Label("Moj profil igrača", systemImage: "person.text.rectangle")
                             }
                         }
 
@@ -403,11 +507,11 @@ private struct AccountView: View {
                                 }
                             )
                         } label: {
-                            Label("Account settings", systemImage: "person.crop.circle")
+                            Label("Podešavanja naloga", systemImage: "person.crop.circle")
                         }
                     }
 
-                    Section("CLUB") {
+                    Section("KLUB") {
                         NavigationLink {
                             EloCalculatorView(dataStore: dataStore)
                         } label: {
@@ -420,7 +524,7 @@ private struct AccountView: View {
                         NavigationLink {
                             RulesView(eligibility: dataStore.rankingEligibility)
                         } label: {
-                            Label("Rules", systemImage: "book.closed")
+                            Label("Pravila", systemImage: "book.closed")
                         }
                     }
 
@@ -429,7 +533,7 @@ private struct AccountView: View {
                         let configuration = authStore.configuration,
                         let session = authStore.session
                     {
-                        Section("ADMIN") {
+                        Section("ADMINISTRACIJA") {
                             NavigationLink {
                                 AdminUsersView(
                                     configuration: configuration,
@@ -438,7 +542,7 @@ private struct AccountView: View {
                                 )
                             } label: {
                                 Label(
-                                    "User management",
+                                    "Upravljanje korisnicima",
                                     systemImage: "person.2.badge.gearshape"
                                 )
                             }
@@ -451,36 +555,48 @@ private struct AccountView: View {
                                 )
                             } label: {
                                 Label(
-                                    "Activity",
+                                    "Aktivnost",
                                     systemImage: "clock.arrow.trianglehead.counterclockwise.rotate.90"
+                                )
+                            }
+
+                            NavigationLink {
+                                AdminMissionsView(
+                                    configuration: configuration,
+                                    accessToken: session.accessToken
+                                )
+                            } label: {
+                                Label(
+                                    "Misije",
+                                    systemImage: "scope"
                                 )
                             }
                         }
                     }
 
-                    Section("APP") {
+                    Section("APLIKACIJA") {
                         NavigationLink {
                             SettingsView(
                                 pushNotifications: pushNotifications
                             )
                         } label: {
-                            Label("Settings", systemImage: "gearshape")
+                            Label("Podešavanja", systemImage: "gearshape")
                         }
-                        LabeledContent("Version", value: version)
+                        LabeledContent("Verzija", value: version)
                         LabeledContent("Server", value: "www.gweilo.lol")
                     }
 
                     Section {
-                        Button("Sign out", role: .destructive) {
+                        Button("Odjavi se", role: .destructive) {
                             showsSignOutConfirmation = true
                         }
                     } footer: {
-                        Text("Your login is stored securely on this iPhone.")
+                        Text("Podaci za prijavu bezbedno su sačuvani na ovom iPhone-u.")
                     }
                 }
                 .scrollContentBackground(.hidden)
             }
-            .navigationTitle("More")
+            .navigationTitle("Više")
             .navigationDestination(for: RankingEntry.self) { player in
                 PlayerProfileView(
                     player: player,
@@ -488,17 +604,17 @@ private struct AccountView: View {
                 )
             }
             .confirmationDialog(
-                "Sign out of Gweilo?",
+                "Odjaviti se iz Gweilo aplikacije?",
                 isPresented: $showsSignOutConfirmation,
                 titleVisibility: .visible
             ) {
-                Button("Sign out", role: .destructive) {
+                Button("Odjavi se", role: .destructive) {
                     Task {
                         await pushNotifications.unregisterCurrentDevice()
                         signOut()
                     }
                 }
-                Button("Cancel", role: .cancel) {}
+                Button("Otkaži", role: .cancel) {}
             }
         }
     }
@@ -524,19 +640,19 @@ private struct SettingsView: View {
             List {
                 Section {
                     Toggle(isOn: $hapticsEnabled) {
-                        Label("Score-entry haptics", systemImage: "waveform")
+                        Label("Vibracija pri unosu rezultata", systemImage: "waveform")
                     }
                     .tint(GweiloTheme.lime)
 
                     Toggle(isOn: $confirmsRoundSubmission) {
-                        Label("Confirm round submission", systemImage: "checkmark.shield")
+                        Label("Potvrda čuvanja runde", systemImage: "checkmark.shield")
                     }
                     .tint(GweiloTheme.lime)
                 } header: {
-                    Text("MATCH PLAY")
+                    Text("IGRA")
                 } footer: {
                     Text(
-                        "Confirmation is recommended. The server still protects every round from duplicate submissions."
+                        "Potvrda je preporučena. Server dodatno štiti svaku rundu od dvostrukog čuvanja."
                     )
                 }
 
@@ -545,20 +661,20 @@ private struct SettingsView: View {
                 )
 
                 Section {
-                    LabeledContent("Appearance", value: "Dark")
-                    LabeledContent("Elo calculation", value: "Server")
-                    LabeledContent("Data source", value: "Supabase")
+                    LabeledContent("Izgled", value: "Tamni")
+                    LabeledContent("Elo obračun", value: "Server")
+                    LabeledContent("Izvor podataka", value: "Supabase")
                 } header: {
-                    Text("SYSTEM")
+                    Text("SISTEM")
                 } footer: {
                     Text(
-                        "Appearance and rating ownership are fixed product decisions, shown here for clarity."
+                        "Izgled i način obračuna rejtinga unapred su određeni i ovde su prikazani radi jasnoće."
                     )
                 }
             }
             .scrollContentBackground(.hidden)
         }
-        .navigationTitle("Settings")
+        .navigationTitle("Podešavanja")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -585,11 +701,11 @@ private struct RulesView: View {
             marker:
                 "\(eligibility.singles.minimumMatches) / "
                 + "\(eligibility.singles.maximumInactivityDays)",
-            title: "Singles leaderboard",
+            title: "Lista singl igrača",
             description:
-                "Play at least \(eligibility.singles.minimumMatches) singles matches "
-                + "and at least one singles match during the last "
-                + "\(eligibility.singles.maximumInactivityDays) days.",
+                "Odigrati najmanje \(eligibility.singles.minimumMatches) singl mečeva "
+                + "i najmanje jedan singl meč u poslednjih "
+                + "\(eligibility.singles.maximumInactivityDays) dana.",
             accent: GweiloTheme.lime
         ),
         LeaderboardRule(
@@ -597,11 +713,11 @@ private struct RulesView: View {
             marker:
                 "\(eligibility.doublesPlayers.minimumMatches) / "
                 + "\(eligibility.doublesPlayers.maximumInactivityDays)",
-            title: "Doubles players",
+            title: "Igrači dublova",
             description:
-                "Play at least \(eligibility.doublesPlayers.minimumMatches) doubles matches "
-                + "and at least one doubles match during the last "
-                + "\(eligibility.doublesPlayers.maximumInactivityDays) days.",
+                "Odigrati najmanje \(eligibility.doublesPlayers.minimumMatches) dubl mečeva "
+                + "i najmanje jedan dubl meč u poslednjih "
+                + "\(eligibility.doublesPlayers.maximumInactivityDays) dana.",
             accent: GweiloTheme.accentBright
         ),
         LeaderboardRule(
@@ -609,19 +725,19 @@ private struct RulesView: View {
             marker:
                 "\(eligibility.doublesTeams.minimumMatches) / "
                 + "\(eligibility.doublesTeams.maximumInactivityDays)",
-            title: "Doubles teams",
+            title: "Dubl timovi",
             description:
-                "A team needs at least \(eligibility.doublesTeams.minimumMatches) matches "
-                + "together and must have played together during the last "
-                + "\(eligibility.doublesTeams.maximumInactivityDays) days.",
+                "Tim mora zajedno odigrati najmanje \(eligibility.doublesTeams.minimumMatches) mečeva "
+                + "i bar jedan zajednički meč u poslednjih "
+                + "\(eligibility.doublesTeams.maximumInactivityDays) dana.",
             accent: GweiloTheme.cyan
         ),
         LeaderboardRule(
             id: "return",
             marker: "AUTO",
-            title: "Returning to a leaderboard",
+            title: "Povratak na listu",
             description:
-                "Results and Elo are never deleted. A player or team returns automatically as soon as the eligibility rules are met again.",
+                "Rezultati i Elo se nikada ne brišu. Igrač ili tim automatski se vraća čim ponovo ispuni uslove.",
             accent: GweiloTheme.coral
         )
         ]
@@ -644,7 +760,7 @@ private struct RulesView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .navigationTitle("Rules")
+        .navigationTitle("Pravila")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -659,13 +775,13 @@ private struct RulesHero: View {
                     .padding(.vertical, 4)
                     .background(GweiloTheme.lime)
 
-                Text("LEADERBOARD ACCESS")
+                Text("USLOVI ZA LISTU")
                     .foregroundStyle(GweiloTheme.lime)
                     .tracking(1.5)
             }
             .font(.caption2.weight(.black))
 
-            Text("Earn your place.\nKeep it active.")
+            Text("Zasluži svoje mesto.\nOstani aktivan.")
                 .font(
                     GweiloTheme.displayFont(
                         size: 42,
@@ -676,7 +792,7 @@ private struct RulesHero: View {
                 .tracking(0.2)
 
             Text(
-                "These rules decide who appears in Statistika and the Top 3. Falling outside them hides a player or team—it never erases results or Elo."
+                "Ova pravila određuju ko se prikazuje u Statistici i među najbolja 3. Igrač ili tim koji ne ispunjava uslove samo se sakriva — rezultati i Elo ostaju sačuvani."
             )
             .font(.subheadline)
             .foregroundStyle(.secondary)

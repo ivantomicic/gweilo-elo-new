@@ -175,17 +175,17 @@ enum MatchOutcome: String, Hashable, Sendable {
 
     var shortLabel: String {
         switch self {
-        case .win: "W"
-        case .loss: "L"
-        case .draw: "D"
+        case .win: "P"
+        case .loss: "I"
+        case .draw: "N"
         }
     }
 
     var label: String {
         switch self {
-        case .win: "Win"
-        case .loss: "Loss"
-        case .draw: "Draw"
+        case .win: "Pobeda"
+        case .loss: "Poraz"
+        case .draw: "Nerešeno"
         }
     }
 }
@@ -1133,7 +1133,7 @@ struct SessionDetail: Hashable, Sendable {
     }
 
     func name(for playerID: UUID) -> String {
-        participant(for: playerID)?.name ?? "Unknown player"
+        participant(for: playerID)?.name ?? "Nepoznat igrač"
     }
 
     func teamNames(for playerIDs: [UUID]) -> (String, String) {
@@ -1145,8 +1145,8 @@ struct SessionDetail: Hashable, Sendable {
         }
 
         return (
-            playerIDs.first.map(name(for:)) ?? "Unknown player",
-            playerIDs.dropFirst().first.map(name(for:)) ?? "Unknown player"
+            playerIDs.first.map(name(for:)) ?? "Nepoznat igrač",
+            playerIDs.dropFirst().first.map(name(for:)) ?? "Nepoznat igrač"
         )
     }
 

@@ -3,6 +3,77 @@ import XCTest
 
 final class NotificationModelsTests: XCTestCase {
     @MainActor
+    func testMissionSnapshotDecodesBackendShape() throws {
+        let playerID = UUID()
+        let opponentID = UUID()
+        let data = Data(
+            """
+            {
+              "playerId": "\(playerID.uuidString)",
+              "playerName": "Ivan",
+              "playerAvatarUrl": null,
+              "playerElo": 1780,
+              "playerRank": 1,
+              "matchesPlayed": 42,
+              "playerTier": "top",
+              "generatedAt": "2026-07-31T12:34:56.789Z",
+              "generatedReason": "auto",
+              "generatedBy": null,
+              "missions": [
+                {
+                  "id": "defend_rank:\(playerID.uuidString):\(opponentID.uuidString)",
+                  "type": "defend_rank",
+                  "priorityBucket": "competitive",
+                  "title": "Sačuvaj poziciju",
+                  "body": "Imaš prednost od 18 Elo poena.",
+                  "opponentId": "\(opponentID.uuidString)",
+                  "opponentName": "Leo",
+                  "basePriority": 88,
+                  "score": 112,
+                  "scoreBreakdown": {
+                    "basePriority": 88,
+                    "closeness": 12,
+                    "recency": 4,
+                    "realism": 4,
+                    "tierFit": 4,
+                    "total": 112
+                  },
+                  "reasoning": [],
+                  "metrics": {
+                    "gapElo": 18,
+                    "direction": "iza",
+                    "featured": true,
+                    "lastPlayedAt": null
+                  }
+                }
+              ],
+              "candidates": [],
+              "context": {
+                "closestAbove": null,
+                "closestBelow": {
+                  "id": "\(opponentID.uuidString)",
+                  "name": "Leo",
+                  "gapElo": 18
+                }
+              }
+            }
+            """.utf8
+        )
+
+        let snapshot = try JSONDecoder().decode(
+            RivalryMissionSnapshot.self,
+            from: data
+        )
+
+        XCTAssertEqual(snapshot.playerId, playerID)
+        XCTAssertEqual(snapshot.playerTier, .top)
+        XCTAssertNotNil(snapshot.generatedDate)
+        XCTAssertEqual(snapshot.missions.first?.opponentId, opponentID)
+        XCTAssertEqual(snapshot.missions.first?.numberMetric("gapElo"), 18)
+        XCTAssertEqual(snapshot.missions.first?.stringMetric("direction"), "iza")
+    }
+
+    @MainActor
     func testHomeSnapshotRoundTripsForTheSameUser() throws {
         let suiteName = "HomeDashboardSnapshotTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(

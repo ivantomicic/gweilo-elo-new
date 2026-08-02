@@ -62,7 +62,7 @@ struct AccountSettingsView: View {
             .scrollContentBackground(.hidden)
             .disabled(isSaving || isLoadingProfile)
         }
-        .navigationTitle("Account")
+        .navigationTitle("Nalog")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadProfile() }
         .onChange(of: selectedPhoto) { _, item in
@@ -77,22 +77,22 @@ struct AccountSettingsView: View {
                 ProfileAvatar(url: avatarURL, name: displayName)
 
                 PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Change photo", systemImage: "camera")
+                    Label("Promeni fotografiju", systemImage: "camera")
                 }
             }
 
-            TextField("Display name", text: $displayName)
+            TextField("Ime za prikaz", text: $displayName)
                 .textContentType(.name)
                 .textInputAutocapitalization(.words)
 
-            Button("Save profile") {
+            Button("Sačuvaj profil") {
                 Task { await saveProfile() }
             }
             .disabled(displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         } header: {
-            Text("PROFILE")
+            Text("PROFIL")
         } footer: {
-            Text("Your name and photo are shown to other Gweilo members.")
+            Text("Tvoje ime i fotografiju vide ostali Gweilo članovi.")
         }
     }
 
@@ -103,39 +103,39 @@ struct AccountSettingsView: View {
                 .textInputAutocapitalization(.never)
                 .keyboardType(.emailAddress)
 
-            SecureField("Current password", text: $emailCurrentPassword)
+            SecureField("Trenutna lozinka", text: $emailCurrentPassword)
                 .textContentType(.password)
 
-            Button("Update email") {
+            Button("Promeni email") {
                 Task { await saveEmail() }
             }
             .disabled(!canChangeEmail)
         } header: {
             Text("EMAIL")
         } footer: {
-            Text("We will send a verification link to your new email address. Your current password is required to protect this change.")
+            Text("Poslaćemo link za potvrdu na novu email adresu. Radi zaštite ove izmene potrebna je trenutna lozinka.")
         }
     }
 
     private var passwordSection: some View {
         Section {
-            SecureField("Current password", text: $passwordCurrentPassword)
+            SecureField("Trenutna lozinka", text: $passwordCurrentPassword)
                 .textContentType(.password)
 
-            SecureField("New password", text: $newPassword)
+            SecureField("Nova lozinka", text: $newPassword)
                 .textContentType(.newPassword)
 
-            SecureField("Confirm new password", text: $confirmPassword)
+            SecureField("Potvrdi novu lozinku", text: $confirmPassword)
                 .textContentType(.newPassword)
 
-            Button("Set new password") {
+            Button("Postavi novu lozinku") {
                 Task { await savePassword() }
             }
             .disabled(!canChangePassword)
         } header: {
-            Text("PASSWORD")
+            Text("LOZINKA")
         } footer: {
-            Text("Use at least 6 characters. Your current password is required before a new password can be set.")
+            Text("Koristi najmanje 6 znakova. Pre postavljanja nove lozinke potrebna je trenutna lozinka.")
         }
     }
 
@@ -168,7 +168,7 @@ struct AccountSettingsView: View {
                 avatarURL = profile.avatarURL
             }
         } catch {
-            errorMessage = "Could not load your account profile."
+            errorMessage = "Profil naloga nije mogao da se učita."
         }
     }
 
@@ -185,7 +185,7 @@ struct AccountSettingsView: View {
                 .updateDisplayName(name, accessToken: accessToken, userID: userID)
             try authStore.updateAuthenticatedUser(user)
             await refreshAppData()
-            message = "Profile updated."
+            message = "Profil je ažuriran."
         }
     }
 
@@ -197,7 +197,7 @@ struct AccountSettingsView: View {
 
         await performSave {
             guard let data = try await item.loadTransferable(type: Data.self) else {
-                throw AuthenticationError.rejected("Could not read that photo.")
+                throw AuthenticationError.rejected("Fotografija nije mogla da se učita.")
             }
             let mimeType = item.supportedContentTypes.first?.preferredMIMEType ?? "image/jpeg"
             let url = try await AccountSettingsClient(configuration: configuration)
@@ -205,7 +205,7 @@ struct AccountSettingsView: View {
             avatarURL = url
             selectedPhoto = nil
             await refreshAppData()
-            message = "Profile photo updated."
+            message = "Profilna fotografija je ažurirana."
         }
     }
 
@@ -222,7 +222,7 @@ struct AccountSettingsView: View {
                 .updateUser(accessToken: freshSession.accessToken, email: newEmail)
             try authStore.updateAuthenticatedUser(user)
             emailCurrentPassword = ""
-            message = "Verification email sent to \(newEmail)."
+            message = "Email za potvrdu poslat je na \(newEmail)."
         }
     }
 
@@ -230,7 +230,7 @@ struct AccountSettingsView: View {
     private func savePassword() async {
         guard let configuration = authStore.configuration else { return }
         guard newPassword == confirmPassword else {
-            errorMessage = "New passwords do not match."
+            errorMessage = "Nove lozinke se ne podudaraju."
             return
         }
 
@@ -244,7 +244,7 @@ struct AccountSettingsView: View {
             passwordCurrentPassword = ""
             newPassword = ""
             confirmPassword = ""
-            message = "Password updated."
+            message = "Lozinka je ažurirana."
         }
     }
 
@@ -282,6 +282,6 @@ private struct ProfileAvatar: View {
         .frame(width: 64, height: 64)
         .clipShape(.circle)
         .overlay(Circle().stroke(GweiloTheme.hairline, lineWidth: 1))
-        .accessibilityLabel("Profile photo")
+        .accessibilityLabel("Profilna fotografija")
     }
 }

@@ -4,15 +4,19 @@ struct SessionsView: View {
     let dataStore: AppDataStore
     let requestedSessionID: UUID?
     let didOpenRequestedSession: (UUID) -> Void
+    @Binding var activeSessionDetailIsPresented: Bool
     @State private var navigationPath = NavigationPath()
 
     init(
         dataStore: AppDataStore,
         requestedSessionID: UUID? = nil,
+        activeSessionDetailIsPresented: Binding<Bool> = .constant(false),
         didOpenRequestedSession: @escaping (UUID) -> Void = { _ in }
     ) {
         self.dataStore = dataStore
         self.requestedSessionID = requestedSessionID
+        self._activeSessionDetailIsPresented =
+            activeSessionDetailIsPresented
         self.didOpenRequestedSession = didOpenRequestedSession
     }
 
@@ -44,6 +48,15 @@ struct SessionsView: View {
                     session: session,
                     dataStore: dataStore
                 )
+                .onAppear {
+                    updateActiveSessionDetailVisibility(for: session.id)
+                }
+                .onChange(of: dataStore.activeSession?.id) {
+                    updateActiveSessionDetailVisibility(for: session.id)
+                }
+                .onDisappear {
+                    activeSessionDetailIsPresented = false
+                }
             }
             .task(id: requestedSessionID) {
                 await openRequestedSession()
@@ -66,6 +79,10 @@ struct SessionsView: View {
         navigationPath = NavigationPath()
         navigationPath.append(requestedSession)
         didOpenRequestedSession(requestedSessionID)
+    }
+
+    private func updateActiveSessionDetailVisibility(for sessionID: UUID) {
+        activeSessionDetailIsPresented = dataStore.activeSession?.id == sessionID
     }
 }
 
@@ -653,9 +670,9 @@ struct StartSessionView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     if step == .setup {
-                        Button("Close", action: dismiss.callAsFunction)
+                        Button("Zatvori", action: dismiss.callAsFunction)
                     } else {
-                        Button("Back", systemImage: "chevron.left", action: goBack)
+                        Button("Nazad", systemImage: "chevron.left", action: goBack)
                     }
                 }
             }
@@ -673,10 +690,10 @@ struct StartSessionView: View {
                     await loadPlayers()
                 }
             }
-            .alert("Couldn’t continue", isPresented: showsErrorBinding) {
-                Button("OK", role: .cancel) {}
+            .alert("Nije moguće nastaviti", isPresented: showsErrorBinding) {
+                Button("U redu", role: .cancel) {}
             } message: {
-                Text(errorMessage ?? "Please try again.")
+                Text(errorMessage ?? "Pokušaj ponovo.")
             }
         }
         .preferredColorScheme(.dark)
@@ -1597,7 +1614,7 @@ private struct SessionReviewTeamCard: View {
                     .font(.caption2.weight(.black))
                     .foregroundStyle(color)
 
-                Text(players.map(\.name).joined(separator: " & "))
+                Text(players.map(\.name).joined(separator: " i "))
                     .font(.caption2.weight(.semibold))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
@@ -1763,7 +1780,7 @@ private struct ScheduleMatchCard: View {
         HStack(spacing: 8) {
             MatchSide(players: firstSide, alignment: .trailing)
 
-            Text("VS")
+            Text("PROTIV")
                 .font(.caption2.weight(.black))
                 .foregroundStyle(.secondary)
                 .frame(width: 20)
@@ -1816,7 +1833,7 @@ private struct MatchSide: View {
     }
 
     private var playerNames: some View {
-        Text(players.map(\.name).joined(separator: " & "))
+        Text(players.map(\.name).joined(separator: " i "))
             .font(.caption.weight(.semibold))
             .multilineTextAlignment(
                 alignment == .trailing ? .trailing : .leading

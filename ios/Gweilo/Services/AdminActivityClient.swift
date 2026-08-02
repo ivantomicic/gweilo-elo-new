@@ -50,7 +50,7 @@ struct AdminActivityVisit: Identifiable, Hashable, Sendable {
     var duration: TimeInterval { max(0, endedAt.timeIntervalSince(startedAt)) }
 
     var userName: String {
-        user?.name ?? (userID == nil ? "Anonymous" : "Unknown user")
+        user?.name ?? (userID == nil ? "Anonimni korisnik" : "Nepoznat korisnik")
     }
 
     var searchableText: String {
@@ -68,13 +68,13 @@ extension AdminActivityEvent {
     var readableLabel: String {
         switch eventName {
         case "app_loaded":
-            return "App loaded"
+            return "Aplikacija učitana"
         case "user_logged_in":
-            return "Logged in"
+            return "Prijava"
         case "page_viewed":
-            return page.map(ActivityPageLabel.label) ?? "Page viewed"
+            return page.map(ActivityPageLabel.label) ?? "Pregled stranice"
         case "player_viewed":
-            return "Player profile"
+            return "Profil igrača"
         default:
             return eventName
                 .replacingOccurrences(of: "_", with: " ")
@@ -89,21 +89,21 @@ extension AdminActivityEvent {
 
 private enum ActivityPageLabel {
     private static let labels: [String: String] = [
-        "/": "Home",
-        "/dashboard": "Dashboard",
-        "/statistics": "Statistics",
-        "/sessions": "Sessions",
-        "/start-session": "Start session",
-        "/calculator": "Calculator",
-        "/polls": "Polls",
-        "/notifications": "Notifications",
-        "/settings": "Settings",
-        "/no-shows": "No shows",
-        "/rules": "Rules",
-        "/admin": "Admin",
-        "/admin/activity": "Admin activity",
-        "/admin/missions": "Admin missions",
-        "/admin/settings": "Admin settings"
+        "/": "Početna",
+        "/dashboard": "Kontrolna tabla",
+        "/statistics": "Statistika",
+        "/sessions": "Termini",
+        "/start-session": "Novi termin",
+        "/calculator": "Kalkulator",
+        "/polls": "Ankete",
+        "/notifications": "Obaveštenja",
+        "/settings": "Podešavanja",
+        "/no-shows": "Nedolasci",
+        "/rules": "Pravila",
+        "/admin": "Administracija",
+        "/admin/activity": "Aktivnost administratora",
+        "/admin/missions": "Administracija misija",
+        "/admin/settings": "Administratorska podešavanja"
     ]
 
     static func label(for path: String) -> String {
@@ -118,10 +118,10 @@ private enum ActivityPageLabel {
             return label
         }
         if normalized.hasPrefix("/session/") {
-            return "Session"
+            return "Termin"
         }
         if normalized.hasPrefix("/player/") {
-            return "Player profile"
+            return "Profil igrača"
         }
         return normalized
     }
@@ -213,7 +213,7 @@ struct AdminActivityClient: Sendable {
             throw BackendAPIError.rejected(
                 serverError?.message
                     ?? serverError?.errorDescription
-                    ?? "Activity could not be loaded."
+                    ?? "Aktivnost nije mogla da se učita."
             )
         }
         do {
@@ -223,22 +223,22 @@ struct AdminActivityClient: Sendable {
             )
         } catch let DecodingError.dataCorrupted(context) {
             throw BackendAPIError.rejected(
-                "An activity record has an unsupported value: "
+                "Zapis aktivnosti sadrži nepodržanu vrednost: "
                     + context.debugDescription
             )
         } catch let DecodingError.typeMismatch(_, context) {
             throw BackendAPIError.rejected(
-                "An activity record has an unexpected field type: "
+                "Zapis aktivnosti sadrži neočekivan tip polja: "
                     + context.debugDescription
             )
         } catch let DecodingError.valueNotFound(_, context) {
             throw BackendAPIError.rejected(
-                "An activity record is missing a value: "
+                "Zapisu aktivnosti nedostaje vrednost: "
                     + context.debugDescription
             )
         } catch let DecodingError.keyNotFound(key, _) {
             throw BackendAPIError.rejected(
-                "An activity record is missing \(key.stringValue)."
+                "Zapisu aktivnosti nedostaje polje \(key.stringValue)."
             )
         }
     }

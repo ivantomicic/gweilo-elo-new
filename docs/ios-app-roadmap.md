@@ -175,7 +175,7 @@ score-entry flow.
 - ⏸️ Poll list and poll voting
 - ⏸️ Poll creation and token-based answering
 - ⏸️ No-show tracking
-- ⏸️ Missions
+- ✅ Missions
 - ⏸️ Video library
 - ⏸️ Video upload and processing status
 - 🚧 Push notifications (implementation ready; external APNs setup pending)
@@ -193,7 +193,6 @@ score-entry flow.
 
 - ⏸️ Home-screen widgets
 - ⏸️ Live Activities
-- ⏸️ Apple Watch app
 - ⏸️ iPad-specific layouts
 
 ## External connections
@@ -261,6 +260,13 @@ No private credentials should be committed to this repository.
 
 ## Change log
 
+- 2026-07-31: Added native rivalry missions. The home screen now loads the
+  signed-in player’s current server-generated missions without blocking the
+  rest of the dashboard, refreshes them after scoring and pull-to-refresh, and
+  presents their live Elo or rivalry metric. Added an administrator screen for
+  reviewing every player’s selected missions and manually regenerating the
+  shared server snapshots. No new schema or duplicated on-device selection
+  logic was required.
 - 2026-07-23: Created the roadmap and recorded the initial scope, architecture,
   backend status, external integrations, and first-release definition of done.
 - 2026-07-23: Confirmed that the updated Next.js backend was committed,

@@ -56,6 +56,8 @@ Apple Developer account is required for TestFlight and App Store distribution.
 - Pull-to-refresh, loading, empty, and network-error states
 - Deliberately dark-only purple, acid-green, and near-black appearance
 - Native Liquid Glass on supported iOS versions
+- Small and large Gweilo home-screen widgets with a Serbian club overview and
+  a direct shortcut to sessions
 - Live score entry for every match in the active round
 - Confirmed whole-round submission to `https://www.gweilo.lol`
 - Server-owned atomic Elo updates and duplicate-submission protection

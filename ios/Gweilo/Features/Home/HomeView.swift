@@ -2,18 +2,9 @@ import SwiftUI
 
 struct HomeView: View {
     let dataStore: AppDataStore
-    let openRankings: () -> Void
     @State private var navigationPath = NavigationPath()
     @State private var showsStartSession = false
     @State private var pendingCreatedSession: SessionSummary?
-
-    init(
-        dataStore: AppDataStore,
-        openRankings: @escaping () -> Void = {}
-    ) {
-        self.dataStore = dataStore
-        self.openRankings = openRankings
-    }
 
     private var topSinglesPlayers: [RankingEntry] {
         dataStore.topThreeSinglesPlayers
@@ -30,15 +21,30 @@ struct HomeView: View {
                             playerName: dataStore.currentUserFirstName,
                             lastSessionDelta: dataStore.currentUserLatestSessionDelta
                         )
-                        HomeLiveSession(
-                            session: dataStore.activeSession,
-                            canManageSession: dataStore.canManageSessions,
-                            canStartSession: dataStore.canManageSessions
-                        )
-                        HomeRankingSection(
-                            players: topSinglesPlayers,
-                            openRankings: openRankings
-                        )
+                        TopThreeStandings(players: topSinglesPlayers)
+
+                        if let snapshot = dataStore.missionSnapshot,
+                           !snapshot.missions.isEmpty {
+                            RivalryMissionsSection(snapshot: snapshot)
+                        } else if dataStore.isMissionsLoading,
+                                  !dataStore.hasLoadedMissions {
+                            HomeMissionsLoadingView()
+                        } else if let errorMessage =
+                                    dataStore.missionsErrorMessage {
+                            VStack(alignment: .leading, spacing: 10) {
+                                SectionHeading(title: "Moje misije")
+                                DataErrorNotice(
+                                    message: errorMessage,
+                                    retry: {
+                                        Task {
+                                            await dataStore.loadMissions(
+                                                forceRefresh: true
+                                            )
+                                        }
+                                    }
+                                )
+                            }
+                        }
 
                         if let latestSession = dataStore.latestCompletedSession {
                             LatestSessionResult(session: latestSession)
@@ -57,7 +63,11 @@ struct HomeView: View {
                     .padding(.bottom, 40)
                 }
                 .refreshable {
-                    await dataStore.load()
+                    async let appData: Void = dataStore.load()
+                    async let missions: Void = dataStore.loadMissions(
+                        forceRefresh: true
+                    )
+                    _ = await (appData, missions)
                 }
                 .scrollIndicators(.hidden)
                 .floatingTabBarAccessory(
@@ -96,11 +106,31 @@ struct HomeView: View {
                 self.pendingCreatedSession = nil
                 navigationPath.append(pendingCreatedSession)
             }
+            .task {
+                await dataStore.loadMissions()
+            }
         }
     }
 
     private func startSession() {
         showsStartSession = true
+    }
+}
+
+private struct HomeMissionsLoadingView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Moje misije")
+            HStack(spacing: 10) {
+                ProgressView()
+                    .tint(GweiloTheme.accentBright)
+                Text("Učitavam tvoje izazove…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 8)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -119,7 +149,7 @@ struct DataErrorNotice: View {
 
             Spacer(minLength: 4)
 
-            Button("Retry", action: retry)
+            Button("Pokušaj ponovo", action: retry)
                 .font(.footnote.weight(.bold))
         }
         .padding(.vertical, 12)
@@ -146,7 +176,7 @@ private struct HomeHeader: View {
                     .tracking(2.2)
                     .foregroundStyle(GweiloTheme.lime)
 
-                Text("Poy, \(playerName)")
+                Text("Ćao, \(playerName)")
                     .font(
                         GweiloTheme.displayFont(
                             size: 44,
@@ -227,225 +257,27 @@ private struct LastSessionMascot: View {
     }
 }
 
-private struct HomeLiveSession: View {
-    let session: SessionSummary?
-    let canManageSession: Bool
-    let canStartSession: Bool
-
-    var body: some View {
-        Group {
-            if let session {
-                NavigationLink(value: session) {
-                    LiveSessionFeature(
-                        session: session,
-                        canManageSession: canManageSession
-                    )
-                }
-                .buttonStyle(ResponsiveButtonStyle())
-                .accessibilityHint("Otvara aktivni termin")
-            } else {
-                EmptySessionFeature(
-                    canStartSession: canStartSession
-                )
-            }
-        }
-        .transition(.opacity.combined(with: .offset(y: 4)))
-        .animation(.smooth(duration: 0.22), value: session?.id)
-    }
-}
-
-private struct EmptySessionFeature: View {
-    let canStartSession: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text("NEMA AKTIVNOG TERMINA")
-                    .font(
-                        GweiloTheme.labelFont(
-                            size: 11,
-                            relativeTo: .caption
-                        )
-                    )
-                    .tracking(1.5)
-                    .foregroundStyle(.secondary)
-
-                Text(canStartSession ? "Okupi ekipu." : "Čekamo sledeću igru.")
-                    .font(
-                        GweiloTheme.displayFont(
-                            size: 30,
-                            relativeTo: .title2
-                        )
-                    )
-                    .textCase(.uppercase)
-
-                Text(
-                    canStartSession
-                        ? "Izaberi igrače, proveri raspored i kreni."
-                        : "Aktivni termin će se pojaviti ovde čim počne."
-                )
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.vertical, 4)
-    }
-}
-
 private struct HomeStartSessionButton: View {
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title3)
-                    .foregroundStyle(GweiloTheme.lime)
-
-                Text("Pokreni novi termin")
-                    .font(.headline.weight(.black))
-                    .foregroundStyle(GweiloTheme.bone)
-
-                Spacer(minLength: 8)
-
-                Image(systemName: "arrow.up.right")
-                    .font(.subheadline.weight(.black))
-                    .foregroundStyle(GweiloTheme.lime)
-            }
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .contentShape(.capsule)
+            Text("Pokreni novi termin")
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(GweiloTheme.background)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .contentShape(.capsule)
         }
         .buttonStyle(ResponsiveButtonStyle())
-        .adaptiveSurface(in: Capsule(), interactive: true)
+        .adaptiveSurface(
+            in: Capsule(),
+            interactive: true,
+            tint: GweiloTheme.lime.opacity(0.50)
+        )
         .accessibilityHint("Otvara izbor igrača i raspored")
-    }
-}
-
-private struct LiveSessionFeature: View {
-    let session: SessionSummary
-    let canManageSession: Bool
-
-    private var currentRound: Int {
-        session.currentRound ?? 1
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                HStack(spacing: 7) {
-                    Circle()
-                        .fill(GweiloTheme.lime)
-                        .frame(width: 7, height: 7)
-
-                    Text("TERMIN U TOKU")
-                }
-                    .font(
-                        GweiloTheme.labelFont(
-                            size: 11,
-                            relativeTo: .caption
-                        )
-                    )
-                    .tracking(1.4)
-                    .foregroundStyle(GweiloTheme.lime)
-
-                Spacer()
-
-                Text("\(session.playerCount) IGRAČA")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Runda \(currentRound)")
-                        .font(
-                            GweiloTheme.displayFont(
-                                size: 40,
-                                relativeTo: .title
-                            )
-                        )
-                        .textCase(.uppercase)
-                        .tracking(0.4)
-
-                    Text("\(currentRound) od \(session.totalRounds)")
-                        .font(.caption.monospacedDigit().weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-            }
-
-            HStack {
-                Text(canManageSession ? "Unesi rezultate" : "Prati termin")
-                    .font(.subheadline.weight(.bold))
-
-                Spacer()
-
-                Image(systemName: "arrow.right")
-                    .font(.subheadline.weight(.bold))
-            }
-            .foregroundStyle(GweiloTheme.lime)
-            .padding(.top, 2)
-        }
-        .foregroundStyle(.primary)
-        .padding(18)
-        .background(GweiloTheme.raisedSurface, in: .rect(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            GweiloTheme.lime.opacity(0.42),
-                            GweiloTheme.accent.opacity(0.22)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.8
-                )
-        }
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct HomeRankingSection: View {
-    let players: [RankingEntry]
-    let openRankings: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 15) {
-            HomeSectionHeader(
-                title: "Vrh liste",
-                actionTitle: "Cela statistika",
-                action: openRankings
-            )
-
-            TopThreeStandings(players: players)
-        }
-    }
-}
-
-private struct HomeSectionHeader: View {
-    let title: String
-    let actionTitle: String?
-    let action: () -> Void
-
-    var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            SectionHeading(title: title)
-
-            Spacer()
-
-            if let actionTitle {
-                Button(actionTitle, action: action)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(GweiloTheme.lime)
-                    .buttonStyle(ResponsiveButtonStyle())
-            }
-        }
     }
 }
 
@@ -583,8 +415,8 @@ private struct PodiumPlayer: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Rank \(rank), \(player.name), \(player.elo) Elo")
-        .accessibilityHint("Opens player profile")
+        .accessibilityLabel("Mesto \(rank), \(player.name), \(player.elo) Elo")
+        .accessibilityHint("Otvara profil igrača")
     }
 }
 
@@ -633,13 +465,7 @@ struct TopThreePreviewScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 30) {
                         HomeHeader(playerName: "Ivan", lastSessionDelta: 12)
-                        EmptySessionFeature(
-                            canStartSession: true
-                        )
-                        HomeRankingSection(
-                            players: players,
-                            openRankings: {}
-                        )
+                        TopThreeStandings(players: players)
                     }
                     .padding(.horizontal, 20)
                 }

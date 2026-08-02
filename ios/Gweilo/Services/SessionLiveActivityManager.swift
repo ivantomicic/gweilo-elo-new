@@ -64,7 +64,7 @@ private struct LiveActivityAPIClient: Sendable {
             (200..<300).contains(httpResponse.statusCode)
         else {
             throw BackendAPIError.rejected(
-                "Live Activity registration failed."
+                "Registracija aktivnosti uživo nije uspela."
             )
         }
         return try JSONDecoder().decode(Response.self, from: data)
@@ -201,7 +201,7 @@ final class SessionLiveActivityManager {
             )
             observeUpdateToken(for: activity)
         } catch {
-            statusMessage = "Live Activity nije mogla da se pokrene."
+            statusMessage = "Aktivnost uživo nije mogla da se pokrene."
         }
     }
 

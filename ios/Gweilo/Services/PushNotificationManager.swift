@@ -114,7 +114,7 @@ private struct PushNotificationAPIClient: Sendable {
             throw BackendAPIError.rejected(
                 errorResponse?.error
                     ?? errorResponse?.detail
-                    ?? "Notification settings could not be updated."
+                    ?? "Podešavanja obaveštenja nisu mogla da se ažuriraju."
             )
         }
         return try JSONDecoder().decode(Response.self, from: data)
@@ -139,6 +139,7 @@ final class PushNotificationManager {
     private(set) var statusMessage: String?
     private(set) var pendingSessionID: UUID?
     private(set) var shouldOpenSessions = false
+    private(set) var shouldOpenStatistics = false
 
     @ObservationIgnored
     private let notificationCenter = UNUserNotificationCenter.current()
@@ -316,6 +317,7 @@ final class PushNotificationManager {
         let route = userInfo["route"] as? String
         if route == "sessions" {
             pendingSessionID = nil
+            shouldOpenStatistics = false
             shouldOpenSessions = true
             return
         }
@@ -328,16 +330,31 @@ final class PushNotificationManager {
             return
         }
         shouldOpenSessions = false
+        shouldOpenStatistics = false
         pendingSessionID = sessionID
     }
 
     func handleDeepLink(_ url: URL) {
-        guard url.scheme == "gweilo", url.host == "session" else { return }
+        guard url.scheme == "gweilo" else { return }
+        if url.host == "sessions" {
+            pendingSessionID = nil
+            shouldOpenStatistics = false
+            shouldOpenSessions = true
+            return
+        }
+        if url.host == "statistics" {
+            pendingSessionID = nil
+            shouldOpenSessions = false
+            shouldOpenStatistics = true
+            return
+        }
+        guard url.host == "session" else { return }
         let value = url.pathComponents
             .filter { $0 != "/" }
             .first
         guard let value, let sessionID = UUID(uuidString: value) else { return }
         shouldOpenSessions = false
+        shouldOpenStatistics = false
         pendingSessionID = sessionID
     }
 
@@ -348,6 +365,10 @@ final class PushNotificationManager {
 
     func consumeSessionsDestination() {
         shouldOpenSessions = false
+    }
+
+    func consumeStatisticsDestination() {
+        shouldOpenStatistics = false
     }
 
     private func updatePreferences(

@@ -100,7 +100,7 @@ struct AdminActivityView: View {
 
             if model.isLoading && model.visits.isEmpty {
                 GweiloFullScreenLoadingView(
-                    "Loading activity",
+                    "Učitavam aktivnost…",
                     size: 172
                 )
             } else {
@@ -135,13 +135,13 @@ struct AdminActivityView: View {
                     if visibleVisits.isEmpty {
                         ContentUnavailableView(
                             searchText.isEmpty
-                                ? "No activity"
-                                : "No matching activity",
+                                ? "Nema aktivnosti"
+                                : "Nema odgovarajuće aktivnosti",
                             systemImage: "clock.badge.questionmark",
                             description: Text(
                                 searchText.isEmpty
-                                    ? "No visits match the selected scope."
-                                    : "Try another search or activity scope."
+                                    ? "Nijedna poseta ne odgovara izabranom opsegu."
+                                    : "Pokušaj sa drugom pretragom ili opsegom aktivnosti."
                             )
                         )
                     }
@@ -151,11 +151,11 @@ struct AdminActivityView: View {
                 }
             }
         }
-        .navigationTitle("Activity")
+        .navigationTitle("Aktivnost")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(
             text: $searchText,
-            prompt: "User, event or page"
+            prompt: "Korisnik, događaj ili stranica"
         )
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -171,10 +171,10 @@ struct AdminActivityView: View {
 
     private var activityScopeMenu: some View {
         Menu {
-            scopeButton("Other users", scope: .otherUsers)
-            scopeButton("Everyone", scope: .everyone)
-            scopeButton("My activity", scope: .currentUser)
-            scopeButton("Anonymous", scope: .anonymous)
+            scopeButton("Drugi korisnici", scope: .otherUsers)
+            scopeButton("Svi", scope: .everyone)
+            scopeButton("Moja aktivnost", scope: .currentUser)
+            scopeButton("Anonimni", scope: .anonymous)
 
             if !userOptions.isEmpty {
                 Divider()
@@ -183,9 +183,9 @@ struct AdminActivityView: View {
                 }
             }
         } label: {
-            Label("Activity scope", systemImage: "line.3.horizontal.decrease")
+            Label("Opseg aktivnosti", systemImage: "line.3.horizontal.decrease")
         }
-        .accessibilityLabel("Filter activity")
+        .accessibilityLabel("Filtriraj aktivnost")
     }
 
     private func scopeButton(
@@ -260,7 +260,7 @@ private struct ActivityVisitCard: View {
                 Text("·")
                 Text(durationText)
                 Text("·")
-                Text("\(visit.events.count) events")
+                Text("\(visit.events.count) događaja")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -273,7 +273,7 @@ private struct ActivityVisitCard: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
                     .accessibilityLabel(
-                        "System events: \(systemEventsSummary)"
+                        "Sistemski događaji: \(systemEventsSummary)"
                     )
             }
 
@@ -305,7 +305,7 @@ private struct ActivityVisitCard: View {
 
     private var userSubtitle: String {
         visit.userID == nil
-            ? "No signed-in user"
+            ? "Korisnik nije prijavljen"
             : visit.userID?.uuidString ?? ""
     }
 
@@ -326,8 +326,8 @@ private struct ActivityVisitCard: View {
         let hours = totalMinutes / 60
         let minutes = totalMinutes % 60
         return minutes == 0
-            ? "\(hours) hr"
-            : "\(hours) hr \(minutes) min"
+            ? "\(hours) č"
+            : "\(hours) č \(minutes) min"
     }
 
     private var systemEventsSummary: String {
@@ -425,7 +425,7 @@ private struct ActivityJourneyChip: View {
     private var accessibilityText: String {
         step.count == 1
             ? "\(step.label), \(timeText)"
-            : "\(step.label), \(step.count) events, \(timeText)"
+            : "\(step.label), \(step.count) događaja, \(timeText)"
     }
 }
 

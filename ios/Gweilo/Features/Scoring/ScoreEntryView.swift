@@ -307,7 +307,7 @@ private struct NextRoundMatchup: View {
             Text(teamOne)
                 .lineLimit(1)
 
-            Text("VS")
+            Text("PROTIV")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(GweiloTheme.muted)
 
@@ -510,7 +510,7 @@ private struct MatchScoreEditor: View {
 
                 Spacer()
 
-                Text("MATCH \(match.order + 1)")
+                Text("MEČ \(match.order + 1)")
                     .font(.caption2.monospacedDigit().weight(.semibold))
                     .foregroundStyle(.secondary)
             }
@@ -600,7 +600,7 @@ private struct MatchSide: View {
                         )
                 }
                 .focused(focusedScore, equals: focus)
-                .accessibilityLabel("\(name) score")
+                .accessibilityLabel("Rezultat za \(name)")
         }
         .accessibilityElement(children: .contain)
     }
@@ -611,16 +611,16 @@ private struct EloPredictionStrip: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            PredictionDelta(label: "W", value: prediction.win, color: GweiloTheme.lime)
-            PredictionDelta(label: "D", value: prediction.draw, color: GweiloTheme.amber)
-            PredictionDelta(label: "L", value: prediction.loss, color: GweiloTheme.coral)
+            PredictionDelta(label: "P", value: prediction.win, color: GweiloTheme.lime)
+            PredictionDelta(label: "N", value: prediction.draw, color: GweiloTheme.amber)
+            PredictionDelta(label: "I", value: prediction.loss, color: GweiloTheme.coral)
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "Elo \(Int(prediction.rating.rounded())). "
-                + "Win \(formatted(prediction.win)), "
-                + "draw \(formatted(prediction.draw)), "
-                + "loss \(formatted(prediction.loss)) Elo"
+                + "pobeda \(formatted(prediction.win)), "
+                + "nerešeno \(formatted(prediction.draw)), "
+                + "poraz \(formatted(prediction.loss)) Elo"
         )
     }
 
@@ -684,7 +684,7 @@ private struct VersusDivider: View {
                 .fill(GweiloTheme.hairline)
                 .frame(height: 1)
 
-            Text("VS")
+            Text("PROTIV")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
 
@@ -745,7 +745,7 @@ struct ScoreEntryPreviewScreen: View {
                     try await Task.sleep(for: .milliseconds(700))
                     return RoundSubmissionResult(
                         success: true,
-                        message: "Round submitted",
+                        message: "Runda je sačuvana",
                         ratingsDeferred: false,
                         ratingsApplied: true,
                         combinedWithRound: nil

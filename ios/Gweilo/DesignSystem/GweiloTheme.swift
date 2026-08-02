@@ -127,25 +127,50 @@ struct FlatSurfaceModifier: ViewModifier {
 struct AdaptiveSurfaceModifier<SurfaceShape: Shape>: ViewModifier {
     let shape: SurfaceShape
     let interactive: Bool
+    let tint: Color?
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content
-                .glassEffect(
-                    interactive ? .regular.interactive() : .regular,
-                    in: shape
-                )
+            if let tint {
+                content
+                    .glassEffect(
+                        interactive
+                            ? .regular.tint(tint).interactive()
+                            : .regular.tint(tint),
+                        in: shape
+                    )
+            } else {
+                content
+                    .glassEffect(
+                        interactive ? .regular.interactive() : .regular,
+                        in: shape
+                    )
+            }
         } else {
-            content
-                .background(
-                    GweiloTheme.raisedSurface,
-                    in: shape
-                )
-                .overlay {
-                    shape
-                        .stroke(GweiloTheme.hairline)
-                }
+            if let tint {
+                content
+                    .background {
+                        shape
+                            .fill(.ultraThinMaterial)
+                            .overlay {
+                                shape.fill(tint.opacity(0.28))
+                            }
+                    }
+                    .overlay {
+                        shape.stroke(tint.opacity(0.58), lineWidth: 0.8)
+                    }
+            } else {
+                content
+                    .background(
+                        GweiloTheme.raisedSurface,
+                        in: shape
+                    )
+                    .overlay {
+                        shape
+                            .stroke(GweiloTheme.hairline)
+                    }
+            }
         }
     }
 }
@@ -271,24 +296,28 @@ extension View {
 
     func adaptiveSurface(
         cornerRadius: CGFloat = 24,
-        interactive: Bool = false
+        interactive: Bool = false,
+        tint: Color? = nil
     ) -> some View {
         modifier(
             AdaptiveSurfaceModifier(
                 shape: RoundedRectangle(cornerRadius: cornerRadius),
-                interactive: interactive
+                interactive: interactive,
+                tint: tint
             )
         )
     }
 
     func adaptiveSurface<SurfaceShape: Shape>(
         in shape: SurfaceShape,
-        interactive: Bool = false
+        interactive: Bool = false,
+        tint: Color? = nil
     ) -> some View {
         modifier(
             AdaptiveSurfaceModifier(
                 shape: shape,
-                interactive: interactive
+                interactive: interactive,
+                tint: tint
             )
         )
     }

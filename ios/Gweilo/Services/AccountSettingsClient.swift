@@ -49,7 +49,7 @@ struct AccountSettingsClient: Sendable {
         let profiles = try JSONDecoder().decode([AccountProfileResponse].self, from: data)
         guard let profile = profiles.first else { return nil }
         return AccountProfile(
-            displayName: profile.displayName ?? "User",
+            displayName: profile.displayName ?? "Korisnik",
             avatarURL: profile.avatarURL.flatMap(URL.init(string:))
         )
     }
@@ -79,10 +79,10 @@ struct AccountSettingsClient: Sendable {
         userID: UUID
     ) async throws -> URL {
         guard data.count <= 5 * 1024 * 1024 else {
-            throw AuthenticationError.rejected("Choose an image smaller than 5 MB.")
+            throw AuthenticationError.rejected("Izaberi fotografiju manju od 5 MB.")
         }
         guard mimeType.hasPrefix("image/") else {
-            throw AuthenticationError.rejected("Choose an image file.")
+            throw AuthenticationError.rejected("Izaberi datoteku sa fotografijom.")
         }
 
         let fileExtension: String
@@ -151,7 +151,7 @@ struct AccountSettingsClient: Sendable {
         guard (200..<300).contains(response.statusCode) else {
             let error = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
             throw AuthenticationError.rejected(
-                error?.message ?? error?.errorDescription ?? "Account update failed."
+                error?.message ?? error?.errorDescription ?? "Ažuriranje naloga nije uspelo."
             )
         }
     }

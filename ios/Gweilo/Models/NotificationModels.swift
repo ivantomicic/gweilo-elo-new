@@ -105,7 +105,7 @@ enum PushNotificationPreference: String, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .liveActivities: "Live aktivnosti"
+        case .liveActivities: "Aktivnosti uživo"
         case .sessions: "Termini"
         case .rounds: "Runde"
         case .results: "Rezultati i Elo"

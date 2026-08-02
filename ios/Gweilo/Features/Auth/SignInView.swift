@@ -125,7 +125,7 @@ struct SignInView: View {
     }
 
     private var header: some View {
-        Text("Less talkie-talkie,\nmore ping-pong.")
+        Text("Manje priče,\nviše ping-ponga.")
             .font(
                 GweiloTheme.displayFont(
                     size: 38,
@@ -165,7 +165,7 @@ struct SignInView: View {
                     .foregroundStyle(GweiloTheme.coral)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
-                    .accessibilityLabel("Sign-in error: \(errorMessage)")
+                    .accessibilityLabel("Greška pri prijavi: \(errorMessage)")
             }
 
             Button(action: submit) {
@@ -222,7 +222,7 @@ struct SignInView: View {
 
             if authStore.configuration == nil {
                 Label(
-                    "Add SUPABASE_URL and SUPABASE_ANON_KEY in the target Build Settings.",
+                    "Dodaj SUPABASE_URL i SUPABASE_ANON_KEY u Build Settings podešavanja targeta.",
                     systemImage: "wrench.and.screwdriver"
                 )
                 .font(.footnote)
