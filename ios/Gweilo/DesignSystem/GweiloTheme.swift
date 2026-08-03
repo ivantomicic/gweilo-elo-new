@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum GweiloTheme {
     static let background = Color(red: 0.012, green: 0.012, blue: 0.016)
@@ -165,21 +166,24 @@ enum GweiloCardStyle {
 struct GweiloCard<Content: View>: View {
     let style: GweiloCardStyle
     let minHeight: CGFloat?
+    let contentPadding: CGFloat
     @ViewBuilder let content: Content
 
     init(
         style: GweiloCardStyle = .neutral,
         minHeight: CGFloat? = nil,
+        contentPadding: CGFloat = 14,
         @ViewBuilder content: () -> Content
     ) {
         self.style = style
         self.minHeight = minHeight
+        self.contentPadding = contentPadding
         self.content = content()
     }
 
     var body: some View {
         content
-            .padding(14)
+            .padding(contentPadding)
             .frame(
                 maxWidth: .infinity,
                 minHeight: minHeight,
@@ -192,7 +196,9 @@ struct GweiloCard<Content: View>: View {
 }
 
 struct GweiloCardCarousel<Content: View>: View {
-    @State private var edgeAvailability = CarouselEdgeAvailability.initial
+    @State private var settledIndex = 0
+    @State private var candidateIndex = 0
+    @State private var scrollPhase = ScrollPhase.idle
 
     let itemCount: Int
     @ViewBuilder let content: Content
@@ -206,11 +212,11 @@ struct GweiloCardCarousel<Content: View>: View {
     }
 
     private var canScrollLeft: Bool {
-        itemCount > 1 && edgeAvailability.canScrollLeft
+        itemCount > 1 && settledIndex > 0
     }
 
     private var canScrollRight: Bool {
-        itemCount > 1 && edgeAvailability.canScrollRight
+        itemCount > 1 && settledIndex < itemCount - 1
     }
 
     var body: some View {
@@ -219,28 +225,36 @@ struct GweiloCardCarousel<Content: View>: View {
                 content
             }
             .scrollTargetLayout()
+            .background(FastScrollDecelerationConfigurator())
         }
         .contentMargins(.horizontal, 20, for: .scrollContent)
-        .scrollTargetBehavior(CenteredViewAlignedScrollTargetBehavior())
+        .defaultScrollAnchor(.leading)
+        .scrollTargetBehavior(
+            CenteredViewAlignedScrollTargetBehavior(itemCount: itemCount)
+        )
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
-        .onScrollGeometryChange(for: CarouselEdgeAvailability.self) {
-            geometry in
-            let leadingEdge = -geometry.contentInsets.leading
-            let trailingEdge = max(
-                leadingEdge,
-                geometry.contentSize.width
-                    - geometry.containerSize.width
-                    + geometry.contentInsets.trailing
-            )
+        .onScrollTargetVisibilityChange(
+            idType: Int.self,
+            threshold: 0.80
+        ) { visibleIDs in
+            guard let visibleIndex = visibleIDs.first else { return }
 
-            return CarouselEdgeAvailability(
-                canScrollLeft: geometry.contentOffset.x > leadingEdge + 1,
-                canScrollRight: geometry.contentOffset.x < trailingEdge - 1
-            )
-        } action: { _, newAvailability in
-            if edgeAvailability != newAvailability {
-                edgeAvailability = newAvailability
+            if candidateIndex != visibleIndex {
+                candidateIndex = visibleIndex
+            }
+
+            if scrollPhase == .idle,
+               settledIndex != visibleIndex {
+                settledIndex = visibleIndex
+            }
+        }
+        .onScrollPhaseChange { _, newPhase in
+            scrollPhase = newPhase
+
+            if newPhase == .idle,
+               settledIndex != candidateIndex {
+                settledIndex = candidateIndex
             }
         }
         .mask {
@@ -265,17 +279,36 @@ struct GweiloCardCarousel<Content: View>: View {
     }
 }
 
-private struct CarouselEdgeAvailability: Equatable {
-    let canScrollLeft: Bool
-    let canScrollRight: Bool
+private struct FastScrollDecelerationConfigurator: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        configureNearestScrollView(from: view)
+        return view
+    }
 
-    static let initial = CarouselEdgeAvailability(
-        canScrollLeft: false,
-        canScrollRight: true
-    )
+    func updateUIView(_ uiView: UIView, context: Context) {
+        configureNearestScrollView(from: uiView)
+    }
+
+    private func configureNearestScrollView(from view: UIView) {
+        DispatchQueue.main.async { [weak view] in
+            var ancestor = view?.superview
+
+            while let currentView = ancestor {
+                if let scrollView = currentView as? UIScrollView {
+                    scrollView.decelerationRate = .fast
+                    return
+                }
+
+                ancestor = currentView.superview
+            }
+        }
+    }
 }
 
 private struct CenteredViewAlignedScrollTargetBehavior: ScrollTargetBehavior {
+    let itemCount: Int
+
     private let baseBehavior = ViewAlignedScrollTargetBehavior(
         limitBehavior: .always
     )
@@ -289,6 +322,17 @@ private struct CenteredViewAlignedScrollTargetBehavior: ScrollTargetBehavior {
             context.containerSize.width * 0.72,
             272
         )
+        let cardStride = cardWidth + 12
+        let selectedIndex = Int(
+            (target.rect.minX / cardStride).rounded()
+        )
+
+        guard selectedIndex > 0,
+              selectedIndex < itemCount - 1 else {
+            target.anchor = .topLeading
+            return
+        }
+
         let centeringInset = max(
             (context.containerSize.width - cardWidth) / 2,
             0

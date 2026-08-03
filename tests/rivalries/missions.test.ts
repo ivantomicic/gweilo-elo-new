@@ -91,16 +91,31 @@ test("head-to-head winner always follows the current match score", () => {
 	assert.equal(getSinglesWinnerId("player-a", "player-b", 10, 10), null);
 });
 
-test("mission copy is factual and uses the current stored metrics", () => {
+test("mission copy uses the stored instrumental name and configured wording", () => {
 	const copy = renderMissionCopy({
 		type: "settle_score",
 		opponentName: "Gara",
+		opponentNameCases: { instrumental: "Garom" },
 		metrics: { wins: 15, losses: 15 },
 		title: "",
 		body: "",
 	});
 
-	assert.equal(copy.title, "Duel sa Gara");
-	assert.match(copy.body, /15–15/);
-	assert.doesNotMatch(copy.body, /ozbiljno|meta|pretnja|priča/i);
+	assert.equal(copy.title, "Duel sa Garom");
+	assert.equal(
+		copy.body,
+		"Međusobni rezultat je 15–15. Reguliši to na sledećem terminu.",
+	);
+});
+
+test("mission copy falls back to the display name when a case is missing", () => {
+	const copy = renderMissionCopy({
+		type: "settle_score",
+		opponentName: "Chen",
+		metrics: { wins: 2, losses: 1 },
+		title: "",
+		body: "",
+	});
+
+	assert.equal(copy.title, "Duel sa Chen");
 });

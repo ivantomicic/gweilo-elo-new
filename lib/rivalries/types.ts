@@ -1,3 +1,5 @@
+import type { SerbianNameCases } from "../serbian-name-cases";
+
 export type PlayerTier = "provisional" | "top" | "mid" | "bottom";
 
 export type MissionType =
@@ -32,6 +34,7 @@ export type MissionCandidate = {
 	body: string;
 	opponentId: string | null;
 	opponentName: string | null;
+	opponentNameCases?: Partial<SerbianNameCases> | null;
 	basePriority: number;
 	score: number;
 	scoreBreakdown: MissionScoreBreakdown;

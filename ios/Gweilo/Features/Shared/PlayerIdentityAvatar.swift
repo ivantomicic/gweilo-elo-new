@@ -1,4 +1,29 @@
+import Foundation
 import SwiftUI
+
+enum DiceBearAvatar {
+    private static let endpoint =
+        "https://api.dicebear.com/10.x/waves/png"
+
+    static func resolvedURL(customURL: URL?, seed: String) -> URL? {
+        customURL ?? generatedURL(seed: seed)
+    }
+
+    static func generatedURL(seed: String) -> URL? {
+        let trimmedSeed = seed.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !trimmedSeed.isEmpty,
+              var components = URLComponents(string: endpoint) else {
+            return nil
+        }
+
+        components.queryItems = [
+            URLQueryItem(name: "seed", value: trimmedSeed)
+        ]
+        return components.url
+    }
+}
 
 struct PlayerIdentityAvatar: View {
     let name: String
@@ -8,8 +33,15 @@ struct PlayerIdentityAvatar: View {
     var showsBorder = true
     var softlyFadesAtEdge = false
 
+    private var resolvedAvatarURL: URL? {
+        DiceBearAvatar.resolvedURL(customURL: avatarURL, seed: name)
+    }
+
     var body: some View {
-        AsyncImage(url: avatarURL, transaction: Transaction(animation: nil)) { phase in
+        AsyncImage(
+            url: resolvedAvatarURL,
+            transaction: Transaction(animation: nil)
+        ) { phase in
             switch phase {
             case let .success(image):
                 image

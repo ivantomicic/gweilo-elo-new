@@ -1,8 +1,14 @@
 import type { GeneratedMission, MissionCandidate } from "./types";
+import { getSerbianNameCase } from "../serbian-name-cases";
 
 type MissionLike = Pick<
 	GeneratedMission | MissionCandidate,
-	"type" | "opponentName" | "metrics" | "title" | "body"
+	| "type"
+	| "opponentName"
+	| "opponentNameCases"
+	| "metrics"
+	| "title"
+	| "body"
 >;
 
 function getNumberMetric(
@@ -32,40 +38,55 @@ function getStringMetric(
 
 export function renderMissionCopy(mission: MissionLike) {
 	const opponentName = mission.opponentName || "Protivnik";
+	const opponentGenitive = getSerbianNameCase(
+		opponentName,
+		mission.opponentNameCases,
+		"genitive",
+	);
+	const opponentDative = getSerbianNameCase(
+		opponentName,
+		mission.opponentNameCases,
+		"dative",
+	);
+	const opponentInstrumental = getSerbianNameCase(
+		opponentName,
+		mission.opponentNameCases,
+		"instrumental",
+	);
 	const metrics = mission.metrics || {};
 	const gapElo = getNumberMetric(metrics, "gapElo");
 
 	switch (mission.type) {
 		case "climb_rank":
 			return {
-				title: `Približi se igraču ${opponentName}`,
-				body: `${opponentName} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`,
+				title: `Približi se ${opponentDative}`,
+				body: `${opponentName} ima prednost od ${gapElo} Elo poena. Uozbilji se pred sledeći termin.`,
 			};
 		case "defend_rank":
 			return {
-				title: `Sačuvaj poziciju ispred ${opponentName}`,
-				body: `Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`,
+				title: `Sačuvaj poziciju ispred ${opponentGenitive}`,
+				body: `Imaš prednost od ${gapElo} Elo poena. Nemoj usrati sledeći termin.`,
 			};
 		case "settle_score":
 			return {
-				title: `Duel sa ${opponentName}`,
-				body: `Međusobni rezultat je ${getNumberMetric(metrics, "wins")}–${getNumberMetric(metrics, "losses")}. Cilj je da popraviš svoj rezultat u narednom meču.`,
+				title: `Duel sa ${opponentInstrumental}`,
+				body: `Međusobni rezultat je ${getNumberMetric(metrics, "wins")}–${getNumberMetric(metrics, "losses")}. Reguliši to na sledećem terminu.`,
 			};
 		case "break_streak":
 			return {
-				title: `Niz za prekid: ${opponentName}`,
-				body: `${opponentName} ima niz od ${getNumberMetric(metrics, "lossStreak")} uzastopnih pobeda protiv tebe. Cilj je da prekineš niz.`,
+				title: `Prekini niz protiv ${opponentGenitive}`,
+				body: `${opponentName} ima niz od ${getNumberMetric(metrics, "lossStreak")} uzastopnih pobeda protiv tebe. Uozbilji se.`,
 			};
 		case "close_gap": {
 			const direction = getStringMetric(metrics, "direction", "ispred");
 			const isThreat = direction === "iza";
 			return {
 				title: isThreat
-					? `Sačuvaj prednost ispred ${opponentName}`
-					: `Smanji razliku do ${opponentName}`,
+					? `Sačuvaj prednost ispred ${opponentGenitive}`
+					: `Smanji razliku do ${opponentGenitive}`,
 				body: isThreat
-					? `Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`
-					: `${opponentName} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`,
+					? `Imaš prednost od ${gapElo} Elo poena. Nemoj da se osramotiš sledeći termin.`
+					: `${opponentName} ima prednost od ${gapElo} Elo poena. Uozbilji se.`,
 			};
 		}
 		default:

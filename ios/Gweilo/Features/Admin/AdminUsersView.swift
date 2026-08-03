@@ -406,7 +406,10 @@ private struct AdminUserAvatar: View {
 
     var body: some View {
         AsyncImage(
-            url: user.avatar,
+            url: DiceBearAvatar.resolvedURL(
+                customURL: user.avatar,
+                seed: user.name
+            ),
             transaction: Transaction(animation: nil)
         ) { phase in
             if let image = phase.image {

@@ -1378,7 +1378,10 @@ private struct PlayerProfilePortrait: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             AsyncImage(
-                url: player.avatarURL,
+                url: DiceBearAvatar.resolvedURL(
+                    customURL: player.avatarURL,
+                    seed: player.name
+                ),
                 transaction: Transaction(animation: nil)
             ) { phase in
                 switch phase {

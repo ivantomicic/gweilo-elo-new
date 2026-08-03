@@ -651,13 +651,15 @@ private struct PerformanceTableRow: View {
     let action: () -> Void
 
     private var eloChangeText: String {
-        let rounded = Int(performance.eloChange.rounded())
+        guard let eloChange = performance.eloChange else { return "BEZ ELO-A" }
+        let rounded = Int(eloChange.rounded())
         return rounded > 0 ? "+\(rounded)" : "\(rounded)"
     }
 
     private var eloColor: Color {
-        if performance.eloChange > 0 { return GweiloTheme.lime }
-        if performance.eloChange < 0 { return GweiloTheme.coral }
+        guard let eloChange = performance.eloChange else { return .secondary }
+        if eloChange > 0 { return GweiloTheme.lime }
+        if eloChange < 0 { return GweiloTheme.coral }
         return .secondary
     }
 
@@ -933,13 +935,13 @@ private struct SessionRecordSummary: View {
 }
 
 private struct SessionEloResult: View {
-    let eloAfter: Double
+    let eloAfter: Double?
     let changeText: String
     let changeColor: Color
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 1) {
-            Text("\(Int(eloAfter.rounded()))")
+            Text(eloAfter.map { "\(Int($0.rounded()))" } ?? "—")
                 .font(
                     GweiloTheme.displayFont(size: 19, relativeTo: .body)
                         .monospacedDigit()
@@ -1276,9 +1278,14 @@ private struct SelectedSessionPlayerHeader: View {
         for performance: SessionPlayerPerformance,
         label: String
     ) -> String {
-        let value = Int(performance.eloChange.rounded())
+        guard let eloAfter = performance.eloAfter,
+              let eloChange = performance.eloChange
+        else {
+            return "\(label) bez ELO-a"
+        }
+        let value = Int(eloChange.rounded())
         let change = value > 0 ? "+\(value)" : "\(value)"
-        return "\(label) \(Int(performance.eloAfter.rounded())) (\(change))"
+        return "\(label) \(Int(eloAfter.rounded())) (\(change))"
     }
 }
 
@@ -1382,6 +1389,8 @@ private struct ScoreboardMatch: View {
     let detail: SessionDetail
     let emphasis: Bool
 
+    @ScaledMetric(relativeTo: .body) private var outcomeSize: CGFloat = 30
+
     private var teamOneIDs: [UUID] {
         match.type == .doubles
             ? Array(match.playerIDs.prefix(2))
@@ -1408,64 +1417,85 @@ private struct ScoreboardMatch: View {
         )
     }
 
+    private var teamOneName: String {
+        teamOneIDs.map { detail.name(for: $0) }.joined(separator: " + ")
+    }
+
+    private var teamTwoName: String {
+        teamTwoIDs.map { detail.name(for: $0) }.joined(separator: " + ")
+    }
+
+    private var accessibilityResult: String {
+        let teamOneScore = match.teamOneScore.map(String.init) ?? "bez rezultata"
+        let teamTwoScore = match.teamTwoScore.map(String.init) ?? "bez rezultata"
+        let rating = match.isRated ? "" : ", bez ELO-a"
+        return "\(teamOneName), \(teamOneScore), protiv \(teamTwoScore), \(teamTwoName)\(rating)"
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(match.type.label)
-                    .font(.caption2.weight(.bold))
-                    .tracking(0.8)
-                    .foregroundStyle(.secondary)
+        GweiloCard(
+            style: emphasis ? .live : .neutral,
+            contentPadding: 12
+        ) {
+            HStack(spacing: 10) {
+                Text(teamOneName)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
 
-                Spacer()
+                outcomeArtwork(teamOneOutcome)
 
-                if !match.isRated {
-                    Text("BEZ ELO-A")
-                        .font(.caption2.weight(.bold))
-                        .foregroundStyle(.orange)
-                }
+                score(match.teamOneScore, outcome: teamOneOutcome)
 
-                Text(match.isCompleted ? "REZULTAT" : "SLEDEĆI")
+                Text("VS")
                     .font(.caption2.weight(.bold))
                     .tracking(0.7)
-                    .foregroundStyle(
-                        match.isCompleted ? .secondary : GweiloTheme.lime
-                    )
+                    .foregroundStyle(GweiloTheme.muted)
+
+                score(match.teamTwoScore, outcome: teamTwoOutcome)
+
+                outcomeArtwork(teamTwoOutcome)
+
+                Text(teamTwoName)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !match.isRated {
+                    Image(systemName: "bolt.slash.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                        .accessibilityLabel("Bez ELO-a")
+                }
             }
-            .padding(.bottom, 10)
-
-            TeamScoreRow(
-                playerIDs: teamOneIDs,
-                score: match.teamOneScore,
-                outcome: teamOneOutcome,
-                detail: detail
-            )
-
-            Divider()
-                .padding(.leading, 44)
-
-            TeamScoreRow(
-                playerIDs: teamTwoIDs,
-                score: match.teamTwoScore,
-                outcome: teamTwoOutcome,
-                detail: detail
-            )
+            .font(.subheadline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.68)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 11)
-        .background(
-            emphasis ? GweiloTheme.raisedSurface : GweiloTheme.surface,
-            in: .rect(cornerRadius: 7)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 7)
-                .stroke(
-                    emphasis
-                        ? GweiloTheme.accent.opacity(0.28)
-                        : GweiloTheme.hairline,
-                    lineWidth: 0.8
-                )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityResult)
+    }
+
+    @ViewBuilder
+    private func outcomeArtwork(_ outcome: MatchOutcome?) -> some View {
+        if let outcome {
+            MatchOutcomeArtwork(outcome: outcome, size: outcomeSize)
+        } else {
+            Color.clear
+                .frame(width: outcomeSize, height: outcomeSize)
+                .accessibilityHidden(true)
         }
-        .accessibilityElement(children: .combine)
+    }
+
+    private func score(
+        _ value: Int?,
+        outcome: MatchOutcome?
+    ) -> some View {
+        Text(value.map(String.init) ?? "—")
+            .font(
+                GweiloTheme.displayFont(size: 24, relativeTo: .title3)
+                    .monospacedDigit()
+            )
+            .foregroundStyle(
+                outcome == .win ? GweiloTheme.lime : GweiloTheme.bone
+            )
+            .frame(minWidth: 26)
     }
 
     private func outcome(
@@ -1476,70 +1506,6 @@ private struct ScoreboardMatch: View {
         if score > opponentScore { return .win }
         if score < opponentScore { return .loss }
         return .draw
-    }
-}
-
-private struct TeamScoreRow: View {
-    let playerIDs: [UUID]
-    let score: Int?
-    let outcome: MatchOutcome?
-    let detail: SessionDetail
-
-    private var teamName: String {
-        playerIDs.map { detail.name(for: $0) }.joined(separator: " + ")
-    }
-
-    private var isWinner: Bool {
-        outcome == .win
-    }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            AvatarStack(
-                participants: playerIDs.compactMap {
-                    detail.participant(for: $0)
-                }
-            )
-
-            Text(teamName)
-                .font(.body.weight(isWinner ? .bold : .semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(2)
-
-            Spacer(minLength: 8)
-
-            if let outcome {
-                MatchOutcomeBadge(outcome: outcome)
-            }
-
-            Text(score.map(String.init) ?? "—")
-                .font(GweiloTheme.displayFont(size: 31, relativeTo: .title2).monospacedDigit())
-                .foregroundStyle(isWinner ? GweiloTheme.lime : .primary)
-                .frame(minWidth: 28, alignment: .trailing)
-        }
-        .padding(.vertical, 7)
-    }
-}
-
-private struct AvatarStack: View {
-    let participants: [SessionParticipant]
-
-    var body: some View {
-        HStack(spacing: -8) {
-            ForEach(participants) { participant in
-                PlayerIdentityAvatar(
-                    name: participant.name,
-                    initials: participant.initials,
-                    avatarURL: participant.avatarURL,
-                    size: 30
-                )
-                .overlay {
-                    Circle()
-                        .stroke(GweiloTheme.surface, lineWidth: 1)
-                }
-            }
-        }
-        .frame(width: participants.count > 1 ? 52 : 34, alignment: .leading)
     }
 }
 

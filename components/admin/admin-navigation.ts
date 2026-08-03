@@ -1,6 +1,7 @@
 import {
 	ClipboardListIcon,
 	BellRingIcon,
+	LanguagesIcon,
 	ListIcon,
 	SettingsIcon,
 	UsersIcon,
@@ -12,6 +13,7 @@ export type AdminNavigationItem = {
 		| "users"
 		| "activity"
 		| "missions"
+		| "nameCases"
 		| "notifications"
 		| "settings";
 	title: string;
@@ -37,6 +39,12 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 		title: "Missions",
 		url: "/admin/missions",
 		icon: ClipboardListIcon,
+	},
+	{
+		value: "nameCases",
+		title: "Padeži imena",
+		url: "/admin/name-cases",
+		icon: LanguagesIcon,
 	},
 	{
 		value: "notifications",

@@ -16,6 +16,10 @@ import {
 } from "@/lib/rivalries/mission-selection";
 import { getActiveSinglesPlayerIds } from "@/lib/statistics/active-singles";
 import { MIN_SINGLES_MATCHES } from "@/lib/statistics/min-matches";
+import {
+	getSerbianNameCase,
+	type SerbianNameCases,
+} from "@/lib/serbian-name-cases";
 import type {
 	GeneratedMission,
 	MissionCandidate,
@@ -32,6 +36,12 @@ type ProfileRecord = {
 	id: string;
 	display_name: string | null;
 	avatar_url: string | null;
+	name_genitive: string | null;
+	name_dative: string | null;
+	name_accusative: string | null;
+	name_vocative: string | null;
+	name_instrumental: string | null;
+	name_locative: string | null;
 };
 
 type RatingRecord = {
@@ -66,6 +76,7 @@ type MatchHistoryRow = {
 type MissionPlayer = {
 	id: string;
 	name: string;
+	nameCases: SerbianNameCases;
 	avatarUrl: string | null;
 	elo: number;
 	matchesPlayed: number;
@@ -271,7 +282,9 @@ async function listEligiblePlayers(adminClient: SupabaseClient) {
 		await Promise.all([
 			adminClient
 				.from("profiles")
-				.select("id, display_name, avatar_url")
+				.select(
+					"id, display_name, avatar_url, name_genitive, name_dative, name_accusative, name_vocative, name_instrumental, name_locative",
+				)
 				.in("id", playerIds),
 			adminClient
 				.from("player_ratings")
@@ -315,6 +328,14 @@ async function listEligiblePlayers(adminClient: SupabaseClient) {
 			return {
 				id: user.id,
 				name,
+				nameCases: {
+					genitive: profile?.name_genitive || null,
+					dative: profile?.name_dative || null,
+					accusative: profile?.name_accusative || null,
+					vocative: profile?.name_vocative || null,
+					instrumental: profile?.name_instrumental || null,
+					locative: profile?.name_locative || null,
+				},
 				avatarUrl,
 				elo,
 				matchesPlayed,
@@ -633,6 +654,7 @@ function buildCandidate(
 		body,
 		opponentId: opponent.id,
 		opponentName: opponent.name,
+		opponentNameCases: opponent.nameCases,
 		basePriority: breakdown.basePriority,
 		score: breakdown.total,
 		scoreBreakdown: breakdown,
@@ -663,7 +685,7 @@ function createClimbCandidate(
 			: player.tier === "bottom" || player.tier === "provisional"
 				? 12
 				: 5;
-	const body = `${opponent.name} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`;
+	const body = `${opponent.name} ima prednost od ${gapElo} Elo poena. Uozbilji se pred sledeći termin.`;
 	const breakdown = createBreakdown(
 		basePriority,
 		closeness,
@@ -678,7 +700,7 @@ function createClimbCandidate(
 		opponent,
 		"competitive",
 		breakdown,
-		`Približi se igraču ${opponent.name}`,
+		`Približi se ${getSerbianNameCase(opponent.name, opponent.nameCases, "dative")}`,
 		body,
 		[
 			`Najbliži igrač iznad tebe na tabeli.`,
@@ -722,8 +744,8 @@ function createDefendCandidate(
 		opponent,
 		"competitive",
 		breakdown,
-		`Sačuvaj poziciju ispred ${opponent.name}`,
-		`Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`,
+		`Sačuvaj poziciju ispred ${getSerbianNameCase(opponent.name, opponent.nameCases, "genitive")}`,
+		`Imaš prednost od ${gapElo} Elo poena. Nemoj usrati sledeći termin.`,
 		[
 			`Najbliži pratilac ispod tebe na tabeli.`,
 			`Elo razlika je ${gapElo}.`,
@@ -764,8 +786,8 @@ function createSettleScoreCandidate(
 		opponent,
 		"story",
 		breakdown,
-		`Duel sa ${opponent.name}`,
-		`Međusobni rezultat je ${pairStats.wins}–${pairStats.losses}. Cilj je da popraviš svoj rezultat u narednom meču.`,
+		`Duel sa ${getSerbianNameCase(opponent.name, opponent.nameCases, "instrumental")}`,
+		`Međusobni rezultat je ${pairStats.wins}–${pairStats.losses}. Reguliši to na sledećem terminu.`,
 		[
 			`Rivalstvo je tesno na ${pairStats.wins}-${pairStats.losses}.`,
 			`Odigrali ste ${pairStats.totalMatches} singl mečeva.`,
@@ -821,8 +843,8 @@ function createBreakStreakCandidate(
 		opponent,
 		"story",
 		breakdown,
-		`Prekini niz protiv ${opponent.name}`,
-		`${opponent.name} ima niz od ${pairStats.latestLossStreak} uzastopnih pobeda protiv tebe. Cilj je da prekineš niz.`,
+		`Prekini niz protiv ${getSerbianNameCase(opponent.name, opponent.nameCases, "genitive")}`,
+		`${opponent.name} ima niz od ${pairStats.latestLossStreak} uzastopnih pobeda protiv tebe. Uozbilji se.`,
 		[
 			`Trenutni niz poraza: ${pairStats.latestLossStreak}.`,
 			pairStats.recentCloseLossInStreak
@@ -874,11 +896,11 @@ function createCloseGapCandidate(
 		"fallback",
 		breakdown,
 		isThreat
-			? `Sačuvaj prednost ispred ${opponent.name}`
-			: `Smanji razliku do ${opponent.name}`,
+			? `Sačuvaj prednost ispred ${getSerbianNameCase(opponent.name, opponent.nameCases, "genitive")}`
+			: `Smanji razliku do ${getSerbianNameCase(opponent.name, opponent.nameCases, "genitive")}`,
 		isThreat
-			? `Imaš prednost od ${gapElo} Elo poena. Cilj je da je zadržiš.`
-			: `${opponent.name} ima prednost od ${gapElo} Elo poena. Cilj je da smanjiš razliku.`,
+			? `Imaš prednost od ${gapElo} Elo poena. Nemoj da se osramotiš sledeći termin.`
+			: `${opponent.name} ima prednost od ${gapElo} Elo poena. Uozbilji se.`,
 		[
 			`Najmanja Elo razlika koju trenutno imaš.`,
 			isThreat

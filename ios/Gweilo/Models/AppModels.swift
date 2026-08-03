@@ -973,9 +973,9 @@ struct SessionPlayerPerformance: Identifiable, Hashable, Sendable {
     let wins: Int
     let losses: Int
     let draws: Int
-    let eloBefore: Double
-    let eloAfter: Double
-    let eloChange: Double
+    let eloBefore: Double?
+    let eloAfter: Double?
+    let eloChange: Double?
 
     var id: UUID { playerID }
 }
@@ -1296,17 +1296,17 @@ struct SessionDetail: Hashable, Sendable {
         snapshotEloByMatchID: [UUID: Double]
     ) -> [UUID: Double] {
         var runningElo: [SessionMatchType: Double] = [:]
-        if let singles = performance(
+        if let singlesElo = performance(
             for: selectedPlayerID,
             type: .singles
-        ) {
-            runningElo[.singles] = singles.eloBefore
+        )?.eloBefore {
+            runningElo[.singles] = singlesElo
         }
-        if let doubles = performance(
+        if let doublesElo = performance(
             for: selectedPlayerID,
             type: .doubles
-        ) {
-            runningElo[.doubles] = doubles.eloBefore
+        )?.eloBefore {
+            runningElo[.doubles] = doublesElo
         }
 
         var deltasByMatchID: [UUID: Double] = [:]
@@ -1382,7 +1382,7 @@ enum SessionHalfResultGrouper {
             }
 
             for firstMatch in firstRound.matches {
-                guard let secondMatch = secondRound.matches.first(where: {
+                guard secondRound.matches.contains(where: {
                     $0.order == firstMatch.order
                         && pairKey($0.playerIDs) == pairKey(firstMatch.playerIDs)
                 }) else {

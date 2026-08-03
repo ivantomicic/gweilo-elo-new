@@ -268,7 +268,10 @@ private struct ProfileAvatar: View {
     let name: String
 
     var body: some View {
-        AsyncImage(url: url, transaction: Transaction(animation: nil)) { phase in
+        AsyncImage(
+            url: DiceBearAvatar.resolvedURL(customURL: url, seed: name),
+            transaction: Transaction(animation: nil)
+        ) { phase in
             if let image = phase.image {
                 image.resizable().scaledToFill()
             } else {

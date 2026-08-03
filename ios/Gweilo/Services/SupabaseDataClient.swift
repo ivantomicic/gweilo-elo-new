@@ -112,9 +112,9 @@ private struct SessionEloPredictionsResponse: Decodable, Sendable {
 
 private struct SessionPlayerSummaryRecord: Decodable, Sendable {
     let playerID: UUID
-    let eloBefore: Double
-    let eloAfter: Double
-    let eloChange: Double
+    let eloBefore: Double?
+    let eloAfter: Double?
+    let eloChange: Double?
     let matchesPlayed: Int
     let wins: Int
     let losses: Int
@@ -431,7 +431,7 @@ struct SupabaseDataClient: Sendable {
         .sorted {
             if $0.wins != $1.wins { return $0.wins > $1.wins }
             if $0.losses != $1.losses { return $0.losses < $1.losses }
-            return $0.eloChange > $1.eloChange
+            return ($0.eloChange ?? 0) > ($1.eloChange ?? 0)
         }
     }
 

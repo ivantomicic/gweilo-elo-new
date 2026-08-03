@@ -82,6 +82,58 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSixPlayerSinglesResultsCollapseMirroredHalves() throws {
+        let playerIDs = (1...6).map { index in
+            UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", index))!
+        }
+        let firstHalfPairs = [
+            [[0, 1], [2, 3], [4, 5]],
+            [[0, 3], [1, 5], [2, 4]],
+            [[0, 5], [3, 4], [1, 2]],
+            [[0, 4], [5, 2], [3, 1]],
+            [[0, 2], [4, 1], [5, 3]]
+        ]
+        var secondHalfIDs: [UUID] = []
+        let rounds = (1...10).map { roundNumber in
+            let pairIndexes = firstHalfPairs[(roundNumber - 1) % 5]
+            let matches = pairIndexes.enumerated().map { order, pair in
+                let matchID = UUID()
+                if roundNumber > 5 { secondHalfIDs.append(matchID) }
+                return SessionMatch(
+                    id: matchID,
+                    roundNumber: roundNumber,
+                    type: .singles,
+                    order: order,
+                    playerIDs: pair.map { playerIDs[$0] },
+                    isCompleted: true,
+                    teamOneScore: roundNumber <= 5 ? 2 : 1,
+                    teamTwoScore: roundNumber <= 5 ? 4 : 2
+                )
+            }
+            return SessionRound(
+                number: roundNumber,
+                matches: matches,
+                restingPlayers: []
+            )
+        }
+
+        let matches = try XCTUnwrap(
+            SessionHalfResultGrouper.groupedMatches(
+                playerCount: 6,
+                rounds: rounds
+            )
+        )
+
+        XCTAssertEqual(matches.count, 15)
+        XCTAssertEqual(Set(matches.map(\.id)), Set(secondHalfIDs))
+        XCTAssertTrue(
+            matches.allSatisfy {
+                $0.teamOneScore == 3 && $0.teamTwoScore == 6
+            }
+        )
+    }
+
+    @MainActor
     func testPlayerMatchFilterKeepsSelectedSinglesPlayerFirst() throws {
         let matchID = UUID()
         let match = SessionMatch(

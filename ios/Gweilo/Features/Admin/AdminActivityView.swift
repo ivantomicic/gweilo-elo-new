@@ -503,7 +503,10 @@ private struct ActivityUserAvatar: View {
 
     var body: some View {
         AsyncImage(
-            url: visit.user?.avatar,
+            url: DiceBearAvatar.resolvedURL(
+                customURL: visit.user?.avatar,
+                seed: visit.userName
+            ),
             transaction: Transaction(animation: nil)
         ) { phase in
             if let image = phase.image {
