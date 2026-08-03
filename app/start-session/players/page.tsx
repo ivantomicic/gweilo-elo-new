@@ -344,7 +344,7 @@ function SelectPlayersPageContent() {
 									<Box className="flex size-16 items-center justify-center rounded-full border-2 border-dashed border-primary/50 bg-primary/10 text-primary">
 										<Icon icon="solar:user-plus-bold" className="size-7" />
 									</Box>
-									<span className="text-xs font-semibold text-primary">Placeholder</span>
+									<span className="text-xs font-semibold text-primary">Gost</span>
 								</motion.button>
 								<AnimatePresence>
 									{users
@@ -485,7 +485,7 @@ function SelectPlayersPageContent() {
 														</p>
 														{player.isPlaceholder ? (
 															<p className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
-																Revijalni · Bez ELO-a
+																Gost · Bez ELO-a
 															</p>
 														) : player.elo ? (
 															<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
@@ -686,7 +686,7 @@ function SelectPlayersPageContent() {
 																					</p>
 																					{player.isPlaceholder ? (
 																						<p className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
-																							Bez ELO-a
+																							Gost · Bez ELO-a
 																						</p>
 																					) : player.elo ? (
 																						<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
@@ -853,7 +853,7 @@ function SelectPlayersPageContent() {
 									id="placeholder-title"
 									className="text-xl font-bold"
 								>
-									Dodaj privremenog igrača
+									Dodaj gosta
 								</h2>
 								<p className="mt-1 text-sm text-muted-foreground">
 									Mečevi ostaju vidljivi u terminu, ali ne utiču na ELO.
@@ -861,7 +861,7 @@ function SelectPlayersPageContent() {
 							</Box>
 							<Input
 								autoFocus
-								label="Ime igrača"
+								label="Ime gosta"
 								value={placeholderName}
 								maxLength={80}
 								onChange={(event) => setPlaceholderName(event.target.value)}
@@ -884,7 +884,7 @@ function SelectPlayersPageContent() {
 									disabled={!placeholderName.trim()}
 									onClick={handleAddPlaceholder}
 								>
-									Dodaj igrača
+									Dodaj gosta
 								</Button>
 							</Stack>
 						</Stack>

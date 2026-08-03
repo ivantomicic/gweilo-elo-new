@@ -305,7 +305,7 @@ private struct NextRoundMatchup: View {
     var body: some View {
         VStack(spacing: 4) {
             if !match.isRated {
-                Text("REVIJALNI MEČ · BEZ ELO-A")
+                Text("BEZ ELO-A")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.orange)
             }

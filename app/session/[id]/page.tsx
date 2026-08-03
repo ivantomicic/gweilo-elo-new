@@ -388,7 +388,7 @@ function SessionPageContent() {
 					});
 					if (!match.is_rated) {
 						lines.push({
-							text: "Revijalni meč — rezultat je sačuvan bez ELO-a",
+							text: "Rezultat je sačuvan bez ELO-a",
 							type: "dim",
 							delay: 60,
 						});
@@ -493,7 +493,7 @@ function SessionPageContent() {
 					});
 					if (!match.is_rated) {
 						lines.push({
-							text: "Revijalni meč — rezultat je sačuvan bez ELO-a",
+							text: "Rezultat je sačuvan bez ELO-a",
 							type: "dim",
 							delay: 60,
 						});
@@ -3434,7 +3434,7 @@ function SessionPageContent() {
 									>
 										{!match.is_rated && (
 											<Box className="mb-2 inline-flex rounded-full bg-amber-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-amber-500">
-											Revijalni meč · Bez ELO-a
+											Bez ELO-a
 											</Box>
 										)}
 										{/* Edit button for completed matches */}

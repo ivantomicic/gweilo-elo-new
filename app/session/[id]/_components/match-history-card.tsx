@@ -70,7 +70,7 @@ export function MatchHistoryCard({
 		>
 			{!isRated && (
 				<Box className="border-b border-amber-500/15 bg-amber-500/5 px-3 py-1 text-center text-[9px] font-black uppercase tracking-wider text-amber-500">
-					Revijalni meč · Bez ELO-a
+					Bez ELO-a
 				</Box>
 			)}
 			<Box className="px-3 py-3 flex items-center gap-3">

@@ -911,7 +911,7 @@ private struct SessionSetupStep: View {
 
                         Button(action: presentPlaceholderSheet) {
                             Label(
-                                "Dodaj privremenog igrača",
+                                "Dodaj gosta",
                                 systemImage: "person.badge.plus"
                             )
                             .font(.subheadline.weight(.semibold))
@@ -921,7 +921,7 @@ private struct SessionSetupStep: View {
                         .tint(GweiloTheme.accentBright)
                         .disabled(draft.canPreview)
                         .accessibilityHint(
-                            "Dodaje igrača bez naloga. Njegovi mečevi ne utiču na ELO."
+                            "Dodaje gosta bez naloga. Njegovi mečevi ne utiču na ELO."
                         )
 
                         if draft.usesDoublesTeams {
@@ -1017,7 +1017,7 @@ private struct PlaceholderPlayerSheet: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Ime igrača", text: $name)
+                    TextField("Ime gosta", text: $name)
                         .focused($isNameFocused)
                         .textInputAutocapitalization(.words)
                         .submitLabel(.done)
@@ -1028,7 +1028,7 @@ private struct PlaceholderPlayerSheet: View {
                     )
                 }
             }
-            .navigationTitle("Privremeni igrač")
+            .navigationTitle("Gost")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -1864,7 +1864,7 @@ private struct ScheduleMatchCard: View {
     var body: some View {
         VStack(spacing: 8) {
             if match.players.contains(where: \.isPlaceholder) {
-                Label("Revijalni meč · Bez ELO-a", systemImage: "person.crop.circle.badge.clock")
+                Label("Bez ELO-a", systemImage: "person.crop.circle.badge.clock")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(.orange)
             }

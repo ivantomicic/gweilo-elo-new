@@ -44,7 +44,7 @@ export function MatchRow({ type, players, isShuffling = false, shuffleKey = 0 }:
 			<Box className="relative flex items-center justify-between bg-background/50 rounded-xl p-3 pt-7 border border-border/30">
 				{isExhibition && (
 					<span className="absolute left-3 top-2 text-[9px] font-black uppercase tracking-wider text-amber-500">
-						Revijalni meč · Bez ELO-a
+						Bez ELO-a
 					</span>
 				)}
 				<Box className="flex-1 flex justify-end">
@@ -127,7 +127,7 @@ export function MatchRow({ type, players, isShuffling = false, shuffleKey = 0 }:
 		<Box className="relative flex items-center justify-between bg-background/50 rounded-xl p-3 pt-7 border border-border/30">
 			{isExhibition && (
 				<span className="absolute left-3 top-2 text-[9px] font-black uppercase tracking-wider text-amber-500">
-					Revijalni meč · Bez ELO-a
+					Bez ELO-a
 				</span>
 			)}
 			<Box className="flex-1 flex justify-end">
