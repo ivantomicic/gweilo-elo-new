@@ -40,6 +40,17 @@ enum GweiloTheme {
         )
     }
 
+    static func headingFont(
+        size: CGFloat,
+        relativeTo textStyle: Font.TextStyle
+    ) -> Font {
+        .custom(
+            "AvenirNextCondensed-Bold",
+            size: size,
+            relativeTo: textStyle
+        )
+    }
+
     static func labelFont(
         size: CGFloat,
         relativeTo textStyle: Font.TextStyle
@@ -94,6 +105,227 @@ struct ArenaBackground: View {
             )
         }
         .ignoresSafeArea()
+    }
+}
+
+enum GweiloCardStyle {
+    case accent
+    case live
+    case neutral
+    case tinted(Color)
+
+    fileprivate var baseColor: Color {
+        switch self {
+        case .accent:
+            GweiloTheme.raisedSurface
+        case .live:
+            GweiloTheme.raisedSurface
+        case .neutral:
+            Color(red: 0.075, green: 0.074, blue: 0.082)
+        case .tinted:
+            GweiloTheme.raisedSurface
+        }
+    }
+
+    fileprivate var gradientColors: [Color] {
+        switch self {
+        case .accent:
+            [
+                GweiloTheme.accent.opacity(0.30),
+                GweiloTheme.accent.opacity(0.12)
+            ]
+        case .live:
+            [
+                GweiloTheme.lime.opacity(0.11),
+                GweiloTheme.lime.opacity(0.025)
+            ]
+        case .neutral:
+            [
+                Color.white.opacity(0.045),
+                Color.white.opacity(0.012)
+            ]
+        case let .tinted(color):
+            [
+                color.opacity(0.18),
+                color.opacity(0.055)
+            ]
+        }
+    }
+
+    fileprivate var borderOpacity: Double {
+        switch self {
+        case .accent: 0.11
+        case .live: 0.10
+        case .neutral: 0.08
+        case .tinted: 0.10
+        }
+    }
+}
+
+struct GweiloCard<Content: View>: View {
+    let style: GweiloCardStyle
+    let minHeight: CGFloat?
+    @ViewBuilder let content: Content
+
+    init(
+        style: GweiloCardStyle = .neutral,
+        minHeight: CGFloat? = nil,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.style = style
+        self.minHeight = minHeight
+        self.content = content()
+    }
+
+    var body: some View {
+        content
+            .padding(14)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: minHeight,
+                alignment: .topLeading
+            )
+            .background {
+                GweiloCardSurface(style: style)
+            }
+    }
+}
+
+struct GweiloCardCarousel<Content: View>: View {
+    @State private var edgeAvailability = CarouselEdgeAvailability.initial
+
+    let itemCount: Int
+    @ViewBuilder let content: Content
+
+    init(
+        itemCount: Int,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.itemCount = itemCount
+        self.content = content()
+    }
+
+    private var canScrollLeft: Bool {
+        itemCount > 1 && edgeAvailability.canScrollLeft
+    }
+
+    private var canScrollRight: Bool {
+        itemCount > 1 && edgeAvailability.canScrollRight
+    }
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(alignment: .top, spacing: 12) {
+                content
+            }
+            .scrollTargetLayout()
+        }
+        .contentMargins(.horizontal, 20, for: .scrollContent)
+        .scrollTargetBehavior(CenteredViewAlignedScrollTargetBehavior())
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+        .onScrollGeometryChange(for: CarouselEdgeAvailability.self) {
+            geometry in
+            let leadingEdge = -geometry.contentInsets.leading
+            let trailingEdge = max(
+                leadingEdge,
+                geometry.contentSize.width
+                    - geometry.containerSize.width
+                    + geometry.contentInsets.trailing
+            )
+
+            return CarouselEdgeAvailability(
+                canScrollLeft: geometry.contentOffset.x > leadingEdge + 1,
+                canScrollRight: geometry.contentOffset.x < trailingEdge - 1
+            )
+        } action: { _, newAvailability in
+            if edgeAvailability != newAvailability {
+                edgeAvailability = newAvailability
+            }
+        }
+        .mask {
+            LinearGradient(
+                stops: [
+                    .init(
+                        color: canScrollLeft ? .clear : .black,
+                        location: 0
+                    ),
+                    .init(color: .black, location: 0.11),
+                    .init(color: .black, location: 0.89),
+                    .init(
+                        color: canScrollRight ? .clear : .black,
+                        location: 1
+                    )
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        }
+        .padding(.horizontal, -20)
+    }
+}
+
+private struct CarouselEdgeAvailability: Equatable {
+    let canScrollLeft: Bool
+    let canScrollRight: Bool
+
+    static let initial = CarouselEdgeAvailability(
+        canScrollLeft: false,
+        canScrollRight: true
+    )
+}
+
+private struct CenteredViewAlignedScrollTargetBehavior: ScrollTargetBehavior {
+    private let baseBehavior = ViewAlignedScrollTargetBehavior(
+        limitBehavior: .always
+    )
+
+    func updateTarget(
+        _ target: inout ScrollTarget,
+        context: TargetContext
+    ) {
+        baseBehavior.updateTarget(&target, context: context)
+        let cardWidth = min(
+            context.containerSize.width * 0.72,
+            272
+        )
+        let centeringInset = max(
+            (context.containerSize.width - cardWidth) / 2,
+            0
+        )
+
+        target.rect.origin.x -= centeringInset
+        target.anchor = .topLeading
+    }
+}
+
+private struct GweiloCardSurface: View {
+    let style: GweiloCardStyle
+    private let shape = RoundedRectangle(cornerRadius: 20)
+
+    var body: some View {
+        shape
+            .fill(style.baseColor)
+            .overlay {
+                shape.fill(
+                    LinearGradient(
+                        colors: style.gradientColors,
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            }
+            .overlay {
+                shape.stroke(
+                    Color.white.opacity(style.borderOpacity),
+                    lineWidth: 0.8
+                )
+            }
+            .shadow(
+                color: Color.black.opacity(0.28),
+                radius: 10,
+                y: 6
+            )
     }
 }
 

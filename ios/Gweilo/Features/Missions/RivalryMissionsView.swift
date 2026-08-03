@@ -4,25 +4,12 @@ struct RivalryMissionsSection: View {
     let snapshot: RivalryMissionSnapshot
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .firstTextBaseline) {
-                SectionHeading(title: "Moje misije")
-                Spacer()
-                Text("#\(snapshot.playerRank) · \(formattedElo) Elo")
-                    .font(.caption.monospacedDigit().weight(.bold))
-                    .foregroundStyle(.secondary)
-            }
-
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Moje misije")
             RivalryMissionList(missions: snapshot.missions)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Moje misije")
-    }
-
-    private var formattedElo: String {
-        Int(snapshot.playerElo.rounded()).formatted(
-            .number.grouping(.never)
-        )
     }
 }
 
@@ -30,84 +17,61 @@ struct RivalryMissionList: View {
     let missions: [RivalryMission]
 
     var body: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(GweiloTheme.hairline)
-                .frame(height: 1)
-
+        GweiloCardCarousel(itemCount: missions.count) {
             ForEach(
                 Array(missions.enumerated()),
                 id: \.element.id
             ) { index, mission in
-                RivalryMissionRow(
-                    number: index + 1,
-                    mission: mission
+                RivalryMissionCard(
+                    mission: mission,
+                    style: cardStyle(at: index)
                 )
-
-                if mission.id != missions.last?.id {
-                    Rectangle()
-                        .fill(GweiloTheme.hairline)
-                        .frame(height: 1)
-                }
+                    .containerRelativeFrame(.horizontal) { length, _ in
+                        min(length * 0.72, 272)
+                    }
+                    .id(index)
             }
-
-            Rectangle()
-                .fill(GweiloTheme.hairline)
-                .frame(height: 1)
         }
         .accessibilityElement(children: .contain)
     }
+
+    private func cardStyle(at index: Int) -> GweiloCardStyle {
+        guard missions.count > 1 else { return .accent }
+
+        switch index % 4 {
+        case 0:
+            return .accent
+        case 1:
+            return .tinted(GweiloTheme.cyan)
+        case 2:
+            return .tinted(GweiloTheme.amber)
+        default:
+            return .tinted(GweiloTheme.coral)
+        }
+    }
 }
 
-private struct RivalryMissionRow: View {
-    @ScaledMetric(relativeTo: .title2) private var numberColumnWidth = 46.0
-
-    let number: Int
+private struct RivalryMissionCard: View {
     let mission: RivalryMission
+    let style: GweiloCardStyle
 
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 7) {
-                Text(formattedNumber)
+        GweiloCard(style: style, minHeight: 128) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(mission.type.displayName.uppercased())
                     .font(
-                        GweiloTheme.displayFont(
-                            size: 38,
-                            relativeTo: .title2
+                        GweiloTheme.labelFont(
+                            size: 9,
+                            relativeTo: .caption2
                         )
-                        .monospacedDigit()
                     )
-                    .foregroundStyle(GweiloTheme.accentBright)
-
-                Rectangle()
-                    .fill(GweiloTheme.lime)
-                    .frame(width: 21, height: 3)
-            }
-            .frame(width: numberColumnWidth, alignment: .leading)
-            .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .top, spacing: 10) {
-                    Text(mission.type.displayName.uppercased())
-                        .font(
-                            GweiloTheme.labelFont(
-                                size: 10,
-                                relativeTo: .caption2
-                            )
-                        )
-                        .tracking(1)
-                        .foregroundStyle(GweiloTheme.muted)
-
-                    Spacer(minLength: 4)
-
-                    if let metric {
-                        MissionMetricView(metric: metric)
-                    }
-                }
+                    .tracking(1.2)
+                    .foregroundStyle(GweiloTheme.bone.opacity(0.58))
 
                 Text(mission.title)
                     .font(
-                        GweiloTheme.displayFont(
-                            size: 22,
+                        GweiloTheme.headingFont(
+                            size: 20,
                             relativeTo: .title3
                         )
                     )
@@ -116,101 +80,17 @@ private struct RivalryMissionRow: View {
 
                 Text(mission.body)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(GweiloTheme.bone.opacity(0.58))
                     .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(2)
             }
         }
-        .padding(.vertical, 18)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Misija \(number). \(mission.type.displayName). \(mission.title)"
+            "\(mission.type.displayName). \(mission.title)"
         )
-        .accessibilityValue(accessibilityValue)
+        .accessibilityValue(mission.body)
     }
-
-    private var formattedNumber: String {
-        number.formatted(
-            .number.precision(.integerLength(2))
-        )
-    }
-
-    private var metric: MissionMetric? {
-        switch mission.type {
-        case .climbRank, .closeGap:
-            mission.numberMetric("gapElo").map {
-                MissionMetric(
-                    value: "\(Int($0.rounded()))",
-                    label: "ELO RAZLIKE"
-                )
-            }
-        case .defendRank:
-            mission.numberMetric("gapElo").map {
-                MissionMetric(
-                    value: "\(Int($0.rounded()))",
-                    label: "ELO PREDNOSTI"
-                )
-            }
-        case .settleScore:
-            if let wins = mission.numberMetric("wins"),
-               let losses = mission.numberMetric("losses") {
-                MissionMetric(
-                    value: "\(Int(wins.rounded()))–\(Int(losses.rounded()))",
-                    label: "MEĐUSOBNO"
-                )
-            } else {
-                nil
-            }
-        case .breakStreak:
-            mission.numberMetric("lossStreak").map {
-                MissionMetric(
-                    value: "\(Int($0.rounded()))",
-                    label: "PORAZA U NIZU"
-                )
-            }
-        }
-    }
-
-    private var accessibilityValue: String {
-        [mission.body, metric.map { "\($0.value), \($0.label.lowercased())" }]
-            .compactMap { $0 }
-            .joined(separator: ". ")
-    }
-}
-
-private struct MissionMetricView: View {
-    let metric: MissionMetric
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            Text(metric.value)
-                .font(
-                    GweiloTheme.displayFont(
-                        size: 22,
-                        relativeTo: .title3
-                    )
-                    .monospacedDigit()
-                )
-                .foregroundStyle(GweiloTheme.lime)
-
-            Text(metric.label)
-                .font(
-                    GweiloTheme.labelFont(
-                        size: 8,
-                        relativeTo: .caption2
-                    )
-                )
-                .tracking(0.7)
-                .foregroundStyle(GweiloTheme.muted)
-                .multilineTextAlignment(.trailing)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: 76, alignment: .trailing)
-    }
-}
-
-private struct MissionMetric {
-    let value: String
-    let label: String
 }
 
 private extension RivalryMissionType {

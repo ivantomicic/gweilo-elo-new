@@ -197,8 +197,12 @@ final class AppDataStore {
             && clubActiveSessionID == nil
     }
 
-    var latestCompletedSession: SessionSummary? {
-        sessions.first { $0.status == .completed }
+    var recentCompletedSessions: [SessionSummary] {
+        Array(
+            sessions.lazy
+                .filter { $0.status == .completed }
+                .prefix(3)
+        )
     }
 
     var currentUserLatestSessionDelta: Double? {

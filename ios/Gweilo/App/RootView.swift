@@ -436,14 +436,14 @@ private struct ActiveSessionFloatingButton: View {
             Text(
                 "Termin u toku · Runda \(currentRound) od \(session.totalRounds)"
             )
-            .font(.headline.weight(.semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundStyle(GweiloTheme.background)
             .lineLimit(1)
             .minimumScaleFactor(0.85)
             .multilineTextAlignment(.center)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity)
-            .frame(height: 56)
+            .frame(height: 50)
             .contentShape(.capsule)
         }
         .buttonStyle(ResponsiveButtonStyle())

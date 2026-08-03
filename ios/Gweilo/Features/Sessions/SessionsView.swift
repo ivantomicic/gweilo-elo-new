@@ -197,14 +197,7 @@ private struct SessionsContent: View {
                 }
 
                 if !activeSessions.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SessionSectionHeader(
-                            title: "U TOKU",
-                            detail: activeSessions.count == 1
-                                ? "AKTIVNA SESIJA"
-                                : "\(activeSessions.count) AKTIVNI"
-                        )
-
+                    VStack(spacing: 12) {
                         ForEach(activeSessions) { session in
                             ActiveSessionRecord(session: session)
                         }
@@ -292,86 +285,68 @@ private struct ActiveSessionRecord: View {
 
     var body: some View {
         NavigationLink(value: session) {
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("SESIJA U TOKU")
-                            .font(
-                                GweiloTheme.labelFont(
-                                    size: 12,
-                                    relativeTo: .caption
-                                )
+            GweiloCard(style: .live, minHeight: 148) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(SessionHistoryFormatter.fullDate(session.createdAt))
+                        .font(
+                            GweiloTheme.headingFont(
+                                size: 20,
+                                relativeTo: .title3
                             )
-                            .tracking(1.5)
-                            .foregroundStyle(GweiloTheme.lime)
+                        )
+                        .foregroundStyle(GweiloTheme.bone)
 
-                        Text(SessionHistoryFormatter.fullDate(session.createdAt))
-                            .font(.headline)
-                            .foregroundStyle(.primary)
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("Runda \(currentRound)")
+                                .font(
+                                    GweiloTheme.headingFont(
+                                        size: 24,
+                                        relativeTo: .title2
+                                    )
+                                )
+
+                            Text("od \(session.totalRounds)")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(.secondary)
+
+                            Spacer(minLength: 10)
+
+                            Text(
+                                SessionHistoryFormatter.matchSummary(session)
+                            )
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        }
+
+                        GeometryReader { proxy in
+                            ZStack(alignment: .leading) {
+                                Capsule()
+                                    .fill(Color.white.opacity(0.08))
+
+                                Capsule()
+                                    .fill(GweiloTheme.lime)
+                                    .frame(
+                                        width: proxy.size.width * progress
+                                    )
+                            }
+                        }
+                        .frame(height: 4)
                     }
 
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(GweiloTheme.lime)
-                        .padding(.top, 4)
-                }
-
-                VStack(alignment: .leading, spacing: 9) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("Runda \(currentRound)")
-                            .font(
-                                GweiloTheme.displayFont(
-                                    size: 31,
-                                    relativeTo: .title2
-                                )
-                            )
-
-                        Text("od \(session.totalRounds)")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                    HStack {
+                        Label("Nastavi termin", systemImage: "play.fill")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(GweiloTheme.lime)
 
                         Spacer()
 
-                        Text(SessionHistoryFormatter.matchSummary(session))
+                        Text("\(session.playerCount) igrača")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
                     }
-
-                    GeometryReader { proxy in
-                        ZStack(alignment: .leading) {
-                            Capsule()
-                                .fill(Color.white.opacity(0.08))
-
-                            Capsule()
-                                .fill(GweiloTheme.lime)
-                                .frame(width: proxy.size.width * progress)
-                        }
-                    }
-                    .frame(height: 5)
                 }
-
-                HStack {
-                    Label("Nastavi termin", systemImage: "play.fill")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(GweiloTheme.lime)
-
-                    Spacer()
-
-                    Text("\(session.playerCount) igrača")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(18)
-            .background(
-                GweiloTheme.lime.opacity(0.065),
-                in: .rect(cornerRadius: 18)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(GweiloTheme.lime.opacity(0.22), lineWidth: 1)
             }
             .contentShape(.rect)
         }

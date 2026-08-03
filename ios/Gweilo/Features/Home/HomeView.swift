@@ -22,13 +22,16 @@ struct HomeView: View {
                             lastSessionDelta: dataStore.currentUserLatestSessionDelta
                         )
                         TopThreeStandings(players: topSinglesPlayers)
+                            .padding(.top, 18)
 
                         if let snapshot = dataStore.missionSnapshot,
                            !snapshot.missions.isEmpty {
                             RivalryMissionsSection(snapshot: snapshot)
+                                .padding(.top, -36)
                         } else if dataStore.isMissionsLoading,
                                   !dataStore.hasLoadedMissions {
                             HomeMissionsLoadingView()
+                                .padding(.top, -36)
                         } else if let errorMessage =
                                     dataStore.missionsErrorMessage {
                             VStack(alignment: .leading, spacing: 10) {
@@ -44,10 +47,13 @@ struct HomeView: View {
                                     }
                                 )
                             }
+                            .padding(.top, -36)
                         }
 
-                        if let latestSession = dataStore.latestCompletedSession {
-                            LatestSessionResult(session: latestSession)
+                        if !dataStore.recentCompletedSessions.isEmpty {
+                            RecentSessionsSection(
+                                sessions: dataStore.recentCompletedSessions
+                            )
                         }
 
                         if let errorMessage = dataStore.errorMessage {
@@ -176,10 +182,10 @@ private struct HomeHeader: View {
                     .tracking(2.2)
                     .foregroundStyle(GweiloTheme.lime)
 
-                Text("Ćao, \(playerName)")
+                Text("Poy, \(playerName)")
                     .font(
-                        GweiloTheme.displayFont(
-                            size: 44,
+                        GweiloTheme.headingFont(
+                            size: 40,
                             relativeTo: .largeTitle
                         )
                     )
@@ -263,12 +269,12 @@ private struct HomeStartSessionButton: View {
     var body: some View {
         Button(action: action) {
             Text("Pokreni novi termin")
-                .font(.headline.weight(.semibold))
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(GweiloTheme.background)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity)
-                .frame(height: 56)
+                .frame(height: 50)
                 .contentShape(.capsule)
         }
         .buttonStyle(ResponsiveButtonStyle())
@@ -346,6 +352,23 @@ private struct PodiumPlayer: View {
     var body: some View {
         VStack(spacing: 5) {
             ZStack {
+                PlayerIdentityAvatar(
+                    name: player.name,
+                    initials: player.initials,
+                    avatarURL: player.avatarURL,
+                    size: avatarSize,
+                    showsBorder: rank != 1
+                )
+                .overlay {
+                    if rank != 1 {
+                        Circle()
+                            .stroke(
+                            GweiloTheme.bone.opacity(0.28),
+                            lineWidth: 1
+                        )
+                    }
+                }
+
                 if rank == 1 && !reduceMotion {
                     LoopingBundleVideo(
                         resourceName: "PodiumGoldFrame",
@@ -357,24 +380,6 @@ private struct PodiumPlayer: View {
                     .blendMode(.screen)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
-                }
-
-                PlayerIdentityAvatar(
-                    name: player.name,
-                    initials: player.initials,
-                    avatarURL: player.avatarURL,
-                    size: avatarSize,
-                    showsBorder: rank != 1,
-                    softlyFadesAtEdge: rank == 1
-                )
-                .overlay {
-                    if rank != 1 {
-                        Circle()
-                            .stroke(
-                                GweiloTheme.bone.opacity(0.28),
-                                lineWidth: 1
-                            )
-                    }
                 }
             }
             .frame(width: avatarSize, height: avatarSize)
@@ -475,45 +480,79 @@ struct TopThreePreviewScreen: View {
     }
 }
 
-private struct LatestSessionResult: View {
+private struct RecentSessionsSection: View {
+    let sessions: [SessionSummary]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeading(title: "Poslednji termini")
+
+            GweiloCardCarousel(itemCount: sessions.count) {
+                ForEach(
+                    Array(sessions.enumerated()),
+                    id: \.element.id
+                ) { index, session in
+                    RecentSessionCard(session: session)
+                        .containerRelativeFrame(.horizontal) { length, _ in
+                            min(length * 0.72, 272)
+                        }
+                        .id(index)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct RecentSessionCard: View {
     let session: SessionSummary
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            SectionHeading(title: "Poslednji termin")
-
-            NavigationLink(value: session) {
-                HStack(alignment: .center, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(HomeSessionFormatter.date(session.createdAt))
-                            .font(.headline)
-
-                        Text(sessionSummary)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-
-                        if let bestPlayer = session.bestPlayer,
-                           let bestDelta = session.bestDelta {
-                            Label(
-                                "\(bestPlayer) \(bestDelta >= 0 ? "+" : "")\(bestDelta) Elo",
-                                systemImage: "arrow.up.right"
+        NavigationLink(value: session) {
+            GweiloCard(style: .neutral, minHeight: 128) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(HomeSessionFormatter.date(session.createdAt))
+                        .font(
+                            GweiloTheme.headingFont(
+                                size: 20,
+                                relativeTo: .title3
                             )
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(GweiloTheme.lime)
-                        }
+                        )
+                        .foregroundStyle(GweiloTheme.bone)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+
+                    Text(sessionSummary)
+                        .font(.caption)
+                        .foregroundStyle(
+                            GweiloTheme.bone.opacity(0.58)
+                        )
+
+                    if let bestPlayer = session.bestPlayer,
+                       let bestDelta = session.bestDelta {
+                        SessionDeltaRow(
+                            player: bestPlayer,
+                            delta: bestDelta
+                        )
                     }
 
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
+                    if let worstPlayer = session.worstPlayer,
+                       let worstDelta = session.worstDelta {
+                        SessionDeltaRow(
+                            player: worstPlayer,
+                            delta: worstDelta
+                        )
+                    }
                 }
-                .contentShape(.rect)
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .topLeading
+                )
             }
-            .buttonStyle(ResponsiveButtonStyle())
-            .accessibilityHint("Otvara poslednji završeni termin")
         }
+        .buttonStyle(ResponsiveButtonStyle())
+        .accessibilityHint("Otvara poslednji završeni termin")
     }
 
     private var sessionSummary: String {
@@ -527,6 +566,29 @@ private struct LatestSessionResult: View {
         }
 
         return parts.joined(separator: " · ")
+    }
+}
+
+private struct SessionDeltaRow: View {
+    let player: String
+    let delta: Int
+
+    private var isGain: Bool {
+        delta >= 0
+    }
+
+    private var deltaText: String {
+        "\(isGain ? "+" : "")\(delta)"
+    }
+
+    var body: some View {
+        Label(
+            "\(player) \(deltaText) Elo",
+            systemImage: isGain ? "arrow.up.right" : "arrow.down.right"
+        )
+        .font(.caption.weight(.bold))
+        .foregroundStyle(isGain ? GweiloTheme.lime : GweiloTheme.coral)
+        .lineLimit(1)
     }
 }
 
