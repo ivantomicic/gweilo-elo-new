@@ -216,6 +216,13 @@ function SessionPageContent() {
 			hasDoublesTeam: hasDoubles,
 		};
 	}, [sessionData]);
+	const completedMatchCount = useMemo(
+		() =>
+			Object.values(sessionData?.matchesByRound ?? {})
+				.flat()
+				.filter((match) => match.status === "completed").length,
+		[sessionData],
+	);
 
 	// Terminal state for ELO calculation visualization
 	const [showCalculationTerminal, setShowCalculationTerminal] =
@@ -1386,6 +1393,7 @@ function SessionPageContent() {
 
 		if (result.success && result.updatedPlayers) {
 			const roundToUpdate = submitRoundRef.current;
+			clearSessionSummaryCache(sessionId);
 
 			// If this is Round 5 for a 6-player session and we have refreshed matches
 			if (
@@ -1513,7 +1521,7 @@ function SessionPageContent() {
 		setIsTerminalComplete(false);
 		setSubmitting(false);
 		submitResultRef.current = null;
-	}, [sessionData, scores]);
+	}, [sessionData, scores, sessionId]);
 
 	// Submit round results with terminal visualization
 	const handleSubmitRound = useCallback(async () => {
@@ -2284,6 +2292,7 @@ function SessionPageContent() {
 								</h3>
 							</Box>
 								<SessionSummaryTable
+									key={`${sessionId}:${completedMatchCount}`}
 									sessionId={sessionId}
 									activeView={activeView}
 									onPlayerClick={(playerId) => {
@@ -2538,8 +2547,7 @@ function SessionPageContent() {
 														? team1EloChange
 														: team2EloChange
 												}
-												isRated={match.is_rated}
-														onClick={() =>
+												onClick={() =>
 															isAdmin &&
 															handleOpenVideoDrawer(
 																match,
@@ -3432,11 +3440,6 @@ function SessionPageContent() {
 												: undefined
 										}
 									>
-										{!match.is_rated && (
-											<Box className="mb-2 inline-flex rounded-full bg-amber-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-amber-500">
-											Bez ELO-a
-											</Box>
-										)}
 										{/* Edit button for completed matches */}
 										{isMatchCompleted && (
 											<Button

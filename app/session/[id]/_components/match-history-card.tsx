@@ -28,7 +28,6 @@ type MatchHistoryCardProps = {
 	team2EloChange?: number;
 	onClick?: () => void;
 	hasVideo?: boolean;
-	isRated?: boolean;
 };
 
 export function MatchHistoryCard({
@@ -42,7 +41,6 @@ export function MatchHistoryCard({
 	team2EloChange,
 	onClick,
 	hasVideo,
-	isRated = true,
 }: MatchHistoryCardProps) {
 	const isSingles = matchType === "singles";
 	const team1Won =
@@ -68,11 +66,6 @@ export function MatchHistoryCard({
 					"cursor-pointer hover:border-border active:scale-[0.99] transition-[transform,border-color] duration-150"
 			)}
 		>
-			{!isRated && (
-				<Box className="border-b border-amber-500/15 bg-amber-500/5 px-3 py-1 text-center text-[9px] font-black uppercase tracking-wider text-amber-500">
-					Bez ELO-a
-				</Box>
-			)}
 			<Box className="px-3 py-3 flex items-center gap-3">
 				{/* Team 1 */}
 				<Box className="flex items-center gap-2 flex-1">

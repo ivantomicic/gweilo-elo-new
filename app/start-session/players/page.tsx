@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
+import { createClientUuid } from "@/lib/sessions/client-uuid";
 
 type User = {
 	id: string;
@@ -43,9 +44,7 @@ function SelectPlayersPageContent() {
 	const [isStartingSession, setIsStartingSession] = useState(false);
 	const [showPlaceholderPrompt, setShowPlaceholderPrompt] = useState(false);
 	const [placeholderName, setPlaceholderName] = useState("");
-	const creationKey = useRef(
-		typeof crypto === "undefined" ? "" : crypto.randomUUID(),
-	);
+	const creationKey = useRef(createClientUuid());
 
 	// Scroll indicators state
 	const scrollRef = useRef<HTMLDivElement>(null);
@@ -193,7 +192,7 @@ function SelectPlayersPageContent() {
 		setSelectedPlayers((current) => [
 			...current,
 			{
-				id: crypto.randomUUID(),
+				id: createClientUuid(),
 				name,
 				avatar: null,
 				email: "",

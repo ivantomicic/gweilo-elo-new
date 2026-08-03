@@ -2,13 +2,14 @@ export type SessionPlayerSummary = {
 	player_id: string;
 	display_name: string;
 	avatar: string | null;
-	elo_before: number;
-	elo_after: number;
-	elo_change: number;
+	elo_before: number | null;
+	elo_after: number | null;
+	elo_change: number | null;
 	matches_played: number;
 	wins: number;
 	losses: number;
 	draws: number;
+	is_placeholder: boolean;
 };
 
 export type SessionTeamSummary = {

@@ -129,7 +129,7 @@ function ensureLocalRoute() {
   const validation = spawnSync(
     nginxExecutable,
     ["-t", ...nginxArguments],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: 5000 },
   );
   if (validation.status !== 0) {
     process.stderr.write(
@@ -141,19 +141,21 @@ function ensureLocalRoute() {
   const reload = spawnSync(
     nginxExecutable,
     ["-s", "reload", ...nginxArguments],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: 5000 },
   );
   if (reload.status !== 0) {
-    const start = spawnSync(
-      nginxExecutable,
-      nginxArguments,
-      { encoding: "utf8" },
-    );
-    if (start.status !== 0) {
+    // Local configures its router with `daemon off`, so waiting synchronously
+    // here would block forever and prevent Next.js from ever starting.
+    const start = spawn(nginxExecutable, nginxArguments, {
+      detached: true,
+      stdio: "ignore",
+    });
+    start.once("error", (error) => {
       process.stderr.write(
-        `Could not start Local's router:\n${start.stderr || reload.stderr}`,
+        `Could not start Local's router; use http://localhost:${port} instead. ${error.message}\n`,
       );
-    }
+    });
+    start.unref();
   }
 }
 

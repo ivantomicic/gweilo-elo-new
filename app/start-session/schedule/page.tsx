@@ -14,6 +14,7 @@ import { Icon } from "@/components/ui/icon";
 import { RoundCard } from "./_components/round-card";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
+import { createClientUuid } from "@/lib/sessions/client-uuid";
 import {
 	generateSchedule,
 	type FourPlayerFormat,
@@ -604,9 +605,7 @@ function SchedulePageContent() {
 		return parseSelectedPlayers(sessionStorage.getItem("selectedPlayers"));
 	});
 
-	const creationKey = useRef(
-		typeof crypto === "undefined" ? "" : crypto.randomUUID(),
-	);
+	const creationKey = useRef(createClientUuid());
 	const [sixPlayerRound5SinglesTeam, setSixPlayerRound5SinglesTeam] =
 		useState<SixPlayerTeamKey>("C");
 	const [isLoadingSixPlayerRound5Team, setIsLoadingSixPlayerRound5Team] =

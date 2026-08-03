@@ -20,13 +20,14 @@ type SessionPlayerSummary = {
 	player_id: string;
 	display_name: string;
 	avatar: string | null;
-	elo_before: number;
-	elo_after: number;
-	elo_change: number;
+	elo_before: number | null;
+	elo_after: number | null;
+	elo_change: number | null;
 	matches_played: number;
 	wins: number;
 	losses: number;
 	draws: number;
+	is_placeholder: boolean;
 };
 
 type SessionTeamSummary = {
@@ -264,19 +265,23 @@ export async function GET(
 		}
 
 		// Get session players and completed matches in parallel
-		const [sessionPlayersResult, sessionMatchesResult] = await Promise.all([
+		const [sessionPlayersResult, placeholdersResult, sessionMatchesResult] =
+			await Promise.all([
 			adminClient
 				.from("session_players")
 				.select("player_id")
 				.eq("session_id", sessionId),
 			adminClient
+				.from("session_placeholders")
+				.select("id, display_name")
+				.eq("session_id", sessionId),
+			adminClient
 				.from("session_matches")
 				.select(
-					"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order"
+					"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order, is_rated"
 				)
 					.eq("session_id", sessionId)
-					.eq("status", "completed")
-					.eq("is_rated", true),
+					.eq("status", "completed"),
 		]);
 
 		if (sessionPlayersResult.error) {
@@ -297,6 +302,17 @@ export async function GET(
 			);
 			return NextResponse.json(
 				{ error: "Failed to fetch session matches" },
+				{ status: 500 },
+			);
+		}
+
+		if (placeholdersResult.error) {
+			console.error(
+				"Error fetching session placeholders:",
+				placeholdersResult.error,
+			);
+			return NextResponse.json(
+				{ error: "Failed to fetch session guests" },
 				{ status: 500 },
 			);
 		}
@@ -323,15 +339,23 @@ export async function GET(
 			);
 		}
 
-		const userMap = new Map(
+		const participantMap = new Map(
 			(profilesResult.data || []).map((p) => [
 				p.id,
 				{
 					display_name: p.display_name || "Unknown",
 					avatar: p.avatar_url || null,
+					is_placeholder: false,
 				},
 			]),
 		);
+		for (const placeholder of placeholdersResult.data || []) {
+			participantMap.set(placeholder.id, {
+				display_name: placeholder.display_name,
+				avatar: null,
+				is_placeholder: true,
+			});
+		}
 		const sessionMatches = sessionMatchesResult.data;
 		const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
 			session.player_count,
@@ -422,11 +446,14 @@ export async function GET(
 				// Process matches in order to find first and last elo values
 				for (const match of sortedSinglesMatches) {
 					const playerIds = (match.player_ids as string[]) || [];
-					if (playerIds.length < 2 || match.team1_score === null || match.team2_score === null)
+					if (
+						playerIds.length < 2 ||
+						match.team1_score === null ||
+						match.team2_score === null
+					)
 						continue;
 
 					const history = historyMap.get(match.id);
-					if (!history) continue;
 					const effectiveScore =
 						twoHalfSinglesConfig
 							? getCombinedTwoHalfScore(
@@ -445,33 +472,33 @@ export async function GET(
 					// Process player1
 					const player1Id = playerIds[0];
 					if (singlesPlayerIds.has(player1Id)) {
-						// Set elo_before from first match
-						if (!playerEloBeforeMap.has(player1Id)) {
-							const eloBefore =
-								typeof history.player1_elo_before === "string"
-									? parseFloat(history.player1_elo_before)
-									: Number(history.player1_elo_before ?? 1500);
-							playerEloBeforeMap.set(player1Id, eloBefore);
+						if (history) {
+							// Set elo_before from the player's first rated match.
+							if (!playerEloBeforeMap.has(player1Id)) {
+								const eloBefore =
+									typeof history.player1_elo_before === "string"
+										? parseFloat(history.player1_elo_before)
+										: Number(history.player1_elo_before ?? 1500);
+								playerEloBeforeMap.set(player1Id, eloBefore);
+							}
+
+							const eloAfter =
+								typeof history.player1_elo_after === "string"
+									? parseFloat(history.player1_elo_after)
+									: Number(history.player1_elo_after ?? 1500);
+							playerEloAfterMap.set(player1Id, eloAfter);
+
+							const delta =
+								typeof history.player1_elo_delta === "string"
+									? parseFloat(history.player1_elo_delta)
+									: Number(history.player1_elo_delta ?? 0);
+							playerDeltaMap.set(
+								player1Id,
+								(playerDeltaMap.get(player1Id) ?? 0) + delta,
+							);
 						}
 
-						// Always update elo_after (last match will be the final value)
-						const eloAfter =
-							typeof history.player1_elo_after === "string"
-								? parseFloat(history.player1_elo_after)
-								: Number(history.player1_elo_after ?? 1500);
-						playerEloAfterMap.set(player1Id, eloAfter);
-
-						// Aggregate delta
-						const delta =
-							typeof history.player1_elo_delta === "string"
-								? parseFloat(history.player1_elo_delta)
-								: Number(history.player1_elo_delta ?? 0);
-						playerDeltaMap.set(
-							player1Id,
-							(playerDeltaMap.get(player1Id) ?? 0) + delta
-						);
-
-						// Update stats
+						// Exhibition matches count in this session's table, but not ELO.
 						const stats = playerStatsMap.get(player1Id)!;
 						stats.matchesPlayed += 1;
 						if (effectiveScore.team1Score > effectiveScore.team2Score) {
@@ -486,31 +513,30 @@ export async function GET(
 					// Process player2
 					const player2Id = playerIds[1];
 					if (singlesPlayerIds.has(player2Id)) {
-						// Set elo_before from first match
-						if (!playerEloBeforeMap.has(player2Id)) {
-							const eloBefore =
-								typeof history.player2_elo_before === "string"
-									? parseFloat(history.player2_elo_before)
-									: Number(history.player2_elo_before ?? 1500);
-							playerEloBeforeMap.set(player2Id, eloBefore);
+						if (history) {
+							if (!playerEloBeforeMap.has(player2Id)) {
+								const eloBefore =
+									typeof history.player2_elo_before === "string"
+										? parseFloat(history.player2_elo_before)
+										: Number(history.player2_elo_before ?? 1500);
+								playerEloBeforeMap.set(player2Id, eloBefore);
+							}
+
+							const eloAfter =
+								typeof history.player2_elo_after === "string"
+									? parseFloat(history.player2_elo_after)
+									: Number(history.player2_elo_after ?? 1500);
+							playerEloAfterMap.set(player2Id, eloAfter);
+
+							const delta =
+								typeof history.player2_elo_delta === "string"
+									? parseFloat(history.player2_elo_delta)
+									: Number(history.player2_elo_delta ?? 0);
+							playerDeltaMap.set(
+								player2Id,
+								(playerDeltaMap.get(player2Id) ?? 0) + delta,
+							);
 						}
-
-						// Always update elo_after (last match will be the final value)
-						const eloAfter =
-							typeof history.player2_elo_after === "string"
-								? parseFloat(history.player2_elo_after)
-								: Number(history.player2_elo_after ?? 1500);
-						playerEloAfterMap.set(player2Id, eloAfter);
-
-						// Aggregate delta
-						const delta =
-							typeof history.player2_elo_delta === "string"
-								? parseFloat(history.player2_elo_delta)
-								: Number(history.player2_elo_delta ?? 0);
-						playerDeltaMap.set(
-							player2Id,
-							(playerDeltaMap.get(player2Id) ?? 0) + delta
-						);
 
 						// Update stats
 						const stats = playerStatsMap.get(player2Id)!;
@@ -528,13 +554,19 @@ export async function GET(
 				// Build summary using elo_before and elo_after from match_elo_history
 				const singlesSummary: SessionPlayerSummary[] = [];
 				for (const playerId of singlesPlayerIds) {
-					const eloBefore = playerEloBeforeMap.get(playerId) ?? 1500;
-					const eloAfter = playerEloAfterMap.get(playerId) ?? eloBefore;
-					const eloChange = playerDeltaMap.get(playerId) ?? 0;
-
 					const stats = playerStatsMap.get(playerId)!;
-					const userInfo = userMap.get(playerId);
+					const userInfo = participantMap.get(playerId);
 					if (!userInfo) continue;
+					const hasRatedElo = playerEloBeforeMap.has(playerId);
+					const eloBefore = hasRatedElo
+						? (playerEloBeforeMap.get(playerId) ?? 1500)
+						: null;
+					const eloAfter = hasRatedElo
+						? (playerEloAfterMap.get(playerId) ?? eloBefore)
+						: null;
+					const eloChange = hasRatedElo
+						? (playerDeltaMap.get(playerId) ?? 0)
+						: null;
 
 					singlesSummary.push({
 						player_id: playerId,
@@ -547,6 +579,7 @@ export async function GET(
 						wins: stats.wins,
 						losses: stats.losses,
 						draws: stats.draws,
+						is_placeholder: userInfo.is_placeholder,
 					});
 				}
 
@@ -558,7 +591,7 @@ export async function GET(
 					if (a.losses !== b.losses) {
 						return a.losses - b.losses; // ASC
 					}
-					return b.elo_change - a.elo_change; // DESC
+					return (b.elo_change ?? 0) - (a.elo_change ?? 0); // DESC
 				});
 
 				result.singles = singlesSummary;
@@ -572,10 +605,43 @@ export async function GET(
 			if (doublesMatches.length > 0) {
 				// Collect all players who played doubles matches
 				const doublesPlayerIds = new Set<string>();
+				const ratedDoublesPlayerIds = new Set<string>();
+				const exhibitionStats = new Map<
+					string,
+					{ matchesPlayed: number; wins: number; losses: number; draws: number }
+				>();
 				for (const match of doublesMatches) {
 					const playerIds = (match.player_ids as string[]) || [];
 					for (const playerId of playerIds) {
 						doublesPlayerIds.add(playerId);
+						if (match.is_rated) ratedDoublesPlayerIds.add(playerId);
+					}
+
+					if (
+						match.is_rated ||
+						playerIds.length < 4 ||
+						match.team1_score === null ||
+						match.team2_score === null
+					) {
+						continue;
+					}
+
+					for (const [index, playerId] of playerIds.entries()) {
+						const stats = exhibitionStats.get(playerId) ?? {
+							matchesPlayed: 0,
+							wins: 0,
+							losses: 0,
+							draws: 0,
+						};
+						stats.matchesPlayed += 1;
+						const playerScore =
+							index < 2 ? match.team1_score : match.team2_score;
+						const opponentScore =
+							index < 2 ? match.team2_score : match.team1_score;
+						if (playerScore > opponentScore) stats.wins += 1;
+						else if (playerScore < opponentScore) stats.losses += 1;
+						else stats.draws += 1;
+						exhibitionStats.set(playerId, stats);
 					}
 				}
 
@@ -622,21 +688,33 @@ export async function GET(
 						draws: 0,
 					};
 					const after = postSessionState.get(playerId) ?? before;
-					const userInfo = userMap.get(playerId);
+					const userInfo = participantMap.get(playerId);
 					if (!userInfo) continue;
+					const unrated = exhibitionStats.get(playerId) ?? {
+						matchesPlayed: 0,
+						wins: 0,
+						losses: 0,
+						draws: 0,
+					};
+					const hasRatedElo =
+						ratedDoublesPlayerIds.has(playerId) &&
+						!userInfo.is_placeholder;
 
 					doublesPlayerSummary.push({
 						player_id: playerId,
 						display_name: userInfo.display_name,
 						avatar: userInfo.avatar,
-						elo_before: before.elo,
-						elo_after: after.elo,
-						elo_change: after.elo - before.elo,
+						elo_before: hasRatedElo ? before.elo : null,
+						elo_after: hasRatedElo ? after.elo : null,
+						elo_change: hasRatedElo ? after.elo - before.elo : null,
 						matches_played:
-							after.matches_played - before.matches_played,
-						wins: after.wins - before.wins,
-						losses: after.losses - before.losses,
-						draws: after.draws - before.draws,
+							after.matches_played -
+							before.matches_played +
+							unrated.matchesPlayed,
+						wins: after.wins - before.wins + unrated.wins,
+						losses: after.losses - before.losses + unrated.losses,
+						draws: after.draws - before.draws + unrated.draws,
+						is_placeholder: userInfo.is_placeholder,
 					});
 				}
 
@@ -648,7 +726,7 @@ export async function GET(
 					if (a.losses !== b.losses) {
 						return a.losses - b.losses; // ASC
 					}
-					return b.elo_change - a.elo_change; // DESC
+					return (b.elo_change ?? 0) - (a.elo_change ?? 0); // DESC
 				});
 
 				result.doubles_player = doublesPlayerSummary;
@@ -855,8 +933,8 @@ export async function GET(
 					const players = teamPlayerMap.get(teamId);
 					if (!players) continue;
 
-					const player1Info = userMap.get(players.player1Id);
-					const player2Info = userMap.get(players.player2Id);
+					const player1Info = participantMap.get(players.player1Id);
+					const player2Info = participantMap.get(players.player2Id);
 
 					doublesTeamSummary.push({
 						team_id: teamId,

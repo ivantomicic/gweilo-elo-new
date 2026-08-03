@@ -202,6 +202,30 @@ export function SessionSummaryTable({
 	const sortByWins = <T extends { wins: number }>(arr: T[]): T[] => {
 		return [...arr].sort((a, b) => b.wins - a.wins);
 	};
+	const renderPlayerIdentity = (player: SessionPlayerSummary) => (
+		<PlayerTableIdentity
+			name={player.display_name}
+			avatar={player.avatar}
+			id={player.is_placeholder ? undefined : player.player_id}
+			size="sm"
+			onClick={
+				onPlayerClick ? () => onPlayerClick(player.player_id) : undefined
+			}
+			selected={selectedPlayerFilter === player.player_id}
+			mobileRecord={player}
+		/>
+	);
+	const renderPlayerElo = (player: SessionPlayerSummary) =>
+		player.elo_change === null || player.elo_after === null ? (
+			<TableCell className="text-center text-[10px] font-bold text-muted-foreground">
+				Bez ELO-a
+			</TableCell>
+		) : (
+			<EloChangeCell
+				change={player.elo_change}
+				eloAfter={player.elo_after}
+			/>
+		);
 
 	if (isCurrentViewLoading && !currentViewLoaded) {
 		return (
@@ -262,21 +286,7 @@ export function SessionSummaryTable({
 						{sortedPlayers.map((player, index) => (
 							<TableRow key={player.player_id}>
 								<RankCell index={index} />
-								<TableCell>
-									<PlayerTableIdentity
-										name={player.display_name}
-										avatar={player.avatar}
-										id={player.player_id}
-										size="sm"
-										onClick={
-											onPlayerClick
-												? () => onPlayerClick(player.player_id)
-												: undefined
-										}
-										selected={selectedPlayerFilter === player.player_id}
-										mobileRecord={player}
-									/>
-								</TableCell>
+								<TableCell>{renderPlayerIdentity(player)}</TableCell>
 								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 									{player.wins}
 								</TableCell>
@@ -286,10 +296,7 @@ export function SessionSummaryTable({
 								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
 									{player.draws}
 								</TableCell>
-								<EloChangeCell
-									change={player.elo_change}
-									eloAfter={player.elo_after}
-								/>
+								{renderPlayerElo(player)}
 							</TableRow>
 						))}
 					</TableBody>
@@ -334,21 +341,7 @@ export function SessionSummaryTable({
 						{sortedPlayers.map((player, index) => (
 							<TableRow key={player.player_id}>
 								<RankCell index={index} />
-								<TableCell>
-									<PlayerTableIdentity
-										name={player.display_name}
-										avatar={player.avatar}
-										id={player.player_id}
-										size="sm"
-										onClick={
-											onPlayerClick
-												? () => onPlayerClick(player.player_id)
-												: undefined
-										}
-										selected={selectedPlayerFilter === player.player_id}
-										mobileRecord={player}
-									/>
-								</TableCell>
+								<TableCell>{renderPlayerIdentity(player)}</TableCell>
 								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
 									{player.wins}
 								</TableCell>
@@ -358,10 +351,7 @@ export function SessionSummaryTable({
 								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
 									{player.draws}
 								</TableCell>
-								<EloChangeCell
-									change={player.elo_change}
-									eloAfter={player.elo_after}
-								/>
+								{renderPlayerElo(player)}
 							</TableRow>
 						))}
 					</TableBody>

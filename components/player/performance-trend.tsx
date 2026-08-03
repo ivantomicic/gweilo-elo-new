@@ -740,13 +740,14 @@ export function PerformanceTrend({
 								stroke="hsl(var(--primary))"
 								strokeWidth={2}
 								dot={(props: any) => {
-									const { cx, cy, payload } = props;
+									const { cx, cy, payload, index } = props;
 									const dataPoint = payload as EloHistoryDataPoint;
 									const delta = dataPoint?.delta ?? 0;
 									const fillColor =
 										delta >= 0 ? "#10b981" : "#ef4444"; // emerald-500 : red-500
 									return (
 										<circle
+											key={`elo-dot-${index}`}
 											cx={cx}
 											cy={cy}
 											r={4}
