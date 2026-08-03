@@ -19,6 +19,7 @@ import {
 	type FourPlayerFormat,
 	type SixPlayerFormat,
 } from "@/lib/sessions/schedule";
+import { parseSelectedPlayers } from "@/lib/sessions/selected-players";
 
 type Player = {
 	id: string;
@@ -600,21 +601,7 @@ function SchedulePageContent() {
 	// Get selected players from sessionStorage
 	const [selectedPlayers, setSelectedPlayers] = useState<Player[]>(() => {
 		if (typeof window === "undefined") return [];
-		const stored = sessionStorage.getItem("selectedPlayers");
-		if (stored) {
-			try {
-				const parsed = JSON.parse(stored);
-				// Remove email field if present (from User type)
-				return parsed.map((p: any) => ({
-					id: p.id,
-					name: p.name,
-					avatar: p.avatar,
-				}));
-			} catch (e) {
-				return [];
-			}
-		}
-		return [];
+		return parseSelectedPlayers(sessionStorage.getItem("selectedPlayers"));
 	});
 
 	const creationKey = useRef(
