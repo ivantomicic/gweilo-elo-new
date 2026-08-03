@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlayerNameCard } from "@/components/ui/player-name-card";
+import { Input } from "@/components/ui/input";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase/client";
@@ -25,6 +26,7 @@ type User = {
 	role?: string;
 	elo?: number;
 	matchesPlayed?: number;
+	isPlaceholder?: boolean;
 };
 
 function SelectPlayersPageContent() {
@@ -39,10 +41,12 @@ function SelectPlayersPageContent() {
 	const [loadingUsers, setLoadingUsers] = useState(true);
 	const [selectedPlayers, setSelectedPlayers] = useState<User[]>([]);
 	const [isStartingSession, setIsStartingSession] = useState(false);
+	const [showPlaceholderPrompt, setShowPlaceholderPrompt] = useState(false);
+	const [placeholderName, setPlaceholderName] = useState("");
 	const creationKey = useRef(
 		typeof crypto === "undefined" ? "" : crypto.randomUUID(),
 	);
-	
+
 	// Scroll indicators state
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -51,15 +55,15 @@ function SelectPlayersPageContent() {
 	const updateScrollIndicators = useCallback(() => {
 		const el = scrollRef.current;
 		if (!el) return;
-		
+
 		setCanScrollLeft(el.scrollLeft > 0);
 		setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 1);
 	}, []);
 
 	useEffect(() => {
 		updateScrollIndicators();
-		window.addEventListener('resize', updateScrollIndicators);
-		return () => window.removeEventListener('resize', updateScrollIndicators);
+		window.addEventListener("resize", updateScrollIndicators);
+		return () => window.removeEventListener("resize", updateScrollIndicators);
 	}, [updateScrollIndicators, users, selectedPlayers]);
 
 	// Fetch users and their Elo ratings
@@ -180,6 +184,30 @@ function SelectPlayersPageContent() {
 		setSelectedPlayers(selectedPlayers.filter((p) => p.id !== playerId));
 	};
 
+	const handleAddPlaceholder = () => {
+		const name = placeholderName.trim();
+		if (!name || name.length > 80 || selectedPlayers.length >= maxSelections) {
+			return;
+		}
+		void trigger();
+		setSelectedPlayers((current) => [
+			...current,
+			{
+				id: crypto.randomUUID(),
+				name,
+				avatar: null,
+				email: "",
+				isPlaceholder: true,
+			},
+		]);
+		setPlaceholderName("");
+		setShowPlaceholderPrompt(false);
+	};
+	const closePlaceholderPrompt = () => {
+		setPlaceholderName("");
+		setShowPlaceholderPrompt(false);
+	};
+
 	const isSelected = (playerId: string) => {
 		return selectedPlayers.some((p) => p.id === playerId);
 	};
@@ -204,6 +232,7 @@ function SelectPlayersPageContent() {
 				id: player.id,
 				name: player.name,
 				avatar: player.avatar,
+				isPlaceholder: player.isPlaceholder === true,
 			}));
 
 			const rounds = [
@@ -302,6 +331,21 @@ function SelectPlayersPageContent() {
 							className="w-full overflow-x-auto scrollbar-hide"
 						>
 							<div className="flex gap-4 pb-4 w-max">
+								<motion.button
+									type="button"
+									onClick={() => setShowPlaceholderPrompt(true)}
+									disabled={selectedPlayers.length >= maxSelections}
+									className={cn(
+										"flex w-24 shrink-0 flex-col items-center gap-2 text-center",
+										selectedPlayers.length >= maxSelections && "cursor-not-allowed opacity-50",
+									)}
+									whileTap={{ scale: 0.95 }}
+								>
+									<Box className="flex size-16 items-center justify-center rounded-full border-2 border-dashed border-primary/50 bg-primary/10 text-primary">
+										<Icon icon="solar:user-plus-bold" className="size-7" />
+									</Box>
+									<span className="text-xs font-semibold text-primary">Placeholder</span>
+								</motion.button>
 								<AnimatePresence>
 									{users
 										.filter(
@@ -435,16 +479,20 @@ function SelectPlayersPageContent() {
 																{player.name.charAt(0).toUpperCase()}
 															</AvatarFallback>
 														</Avatar>
-														<Box>
-															<p className="font-semibold text-sm">
-																{player.name}
+													<Box>
+														<p className="font-semibold text-sm">
+															{player.name}
+														</p>
+														{player.isPlaceholder ? (
+															<p className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
+																Revijalni · Bez ELO-a
 															</p>
-															{player.elo && (
-																<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-																	Elo {player.elo}
-																</p>
-															)}
-														</Box>
+														) : player.elo ? (
+															<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+																Elo {player.elo}
+															</p>
+														) : null}
+													</Box>
 													</Stack>
 												</motion.div>
 											) : (
@@ -632,16 +680,20 @@ function SelectPlayersPageContent() {
 																		{player.name.charAt(0).toUpperCase()}
 																	</AvatarFallback>
 																</Avatar>
-																<Box>
-																	<p className="font-semibold text-sm">
-																		{player.name}
-																	</p>
-																	{player.elo && (
-																		<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-																			Elo {player.elo}
-																		</p>
-																	)}
-																</Box>
+																				<Box>
+																					<p className="font-semibold text-sm">
+																						{player.name}
+																					</p>
+																					{player.isPlaceholder ? (
+																						<p className="text-[10px] font-bold uppercase tracking-widest text-amber-500">
+																							Bez ELO-a
+																						</p>
+																					) : player.elo ? (
+																						<p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+																							Elo {player.elo}
+																						</p>
+																					) : null}
+																				</Box>
 															</motion.div>
 														) : (
 															<motion.div
@@ -783,6 +835,62 @@ function SelectPlayersPageContent() {
 					</Button>
 				</Stack>
 			</Box>
+			{showPlaceholderPrompt && (
+				<Box
+					className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+					onClick={closePlaceholderPrompt}
+				>
+					<Box
+						role="dialog"
+						aria-modal="true"
+						aria-labelledby="placeholder-title"
+						className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+						onClick={(event) => event.stopPropagation()}
+					>
+						<Stack direction="column" spacing={4}>
+							<Box>
+								<h2
+									id="placeholder-title"
+									className="text-xl font-bold"
+								>
+									Dodaj privremenog igrača
+								</h2>
+								<p className="mt-1 text-sm text-muted-foreground">
+									Mečevi ostaju vidljivi u terminu, ali ne utiču na ELO.
+								</p>
+							</Box>
+							<Input
+								autoFocus
+								label="Ime igrača"
+								value={placeholderName}
+								maxLength={80}
+								onChange={(event) => setPlaceholderName(event.target.value)}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") handleAddPlaceholder();
+									if (event.key === "Escape") closePlaceholderPrompt();
+								}}
+								placeholder="Unesi ime"
+							/>
+							<Stack direction="row" spacing={3}>
+								<Button
+									variant="outline"
+									className="flex-1"
+									onClick={closePlaceholderPrompt}
+								>
+									Otkaži
+								</Button>
+								<Button
+									className="flex-1"
+									disabled={!placeholderName.trim()}
+									onClick={handleAddPlaceholder}
+								>
+									Dodaj igrača
+								</Button>
+							</Stack>
+						</Stack>
+					</Box>
+				</Box>
+			)}
 		</AppShell>
 	);
 }

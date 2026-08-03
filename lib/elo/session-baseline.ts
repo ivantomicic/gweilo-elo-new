@@ -81,6 +81,7 @@ export async function getSessionBaseline(
 			.select("*")
 			.eq("session_id", prevSession.id)
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.order("round_number", { ascending: true })
 			.order("match_order", { ascending: true });
 
@@ -211,6 +212,7 @@ export async function replaySessionMatches(
 		.select("*")
 		.eq("session_id", sessionId)
 		.eq("status", "completed")
+		.eq("is_rated", true)
 		.order("round_number", { ascending: true })
 		.order("match_order", { ascending: true });
 
@@ -368,6 +370,7 @@ export async function getDoublesPlayerBaseline(
 			.eq("session_id", prevSession.id)
 			.eq("match_type", "doubles")
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.order("round_number", { ascending: true })
 			.order("match_order", { ascending: true });
 
@@ -515,6 +518,7 @@ export async function replayDoublesPlayerMatches(
 		.eq("session_id", sessionId)
 		.eq("match_type", "doubles")
 		.eq("status", "completed")
+		.eq("is_rated", true)
 		.order("round_number", { ascending: true })
 		.order("match_order", { ascending: true });
 
@@ -691,6 +695,7 @@ export async function getDoublesTeamBaseline(
 			.eq("session_id", prevSession.id)
 			.eq("match_type", "doubles")
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.order("round_number", { ascending: true })
 			.order("match_order", { ascending: true });
 
@@ -833,6 +838,7 @@ export async function replayDoublesTeamMatches(
 		.eq("session_id", sessionId)
 		.eq("match_type", "doubles")
 		.eq("status", "completed")
+		.eq("is_rated", true)
 		.order("round_number", { ascending: true })
 		.order("match_order", { ascending: true });
 

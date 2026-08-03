@@ -2,6 +2,7 @@ export type SessionPlayer = {
 	id: string;
 	name: string;
 	avatar: string | null;
+	isPlaceholder?: boolean;
 };
 
 export type SessionMatch = {

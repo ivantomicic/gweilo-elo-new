@@ -161,4 +161,46 @@ describe("session creation boundary", () => {
 		);
 		assert.ok(payload.matches.every((match) => match.matchType === "singles"));
 	});
+
+	it("creates session-local placeholders and marks only their matches unrated", async () => {
+		const sessionPlayers: SessionCreationPlayer[] = [
+			{ ...players[0] },
+			{ ...players[1] },
+			{ ...players[2], name: "Visiting Ana", isPlaceholder: true },
+			{ ...players[3] },
+		];
+		const payload = await buildAtomicSessionPayload({
+			players: sessionPlayers,
+			rounds: generateSchedule(sessionPlayers, { fourPlayerFormat: "mixed" }),
+			resolveTeam: async () => "rated-team-id",
+		});
+
+		assert.equal(payload.players[2].isPlaceholder, true);
+		assert.equal(payload.players[2].name, "Visiting Ana");
+		assert.ok(
+			payload.matches
+				.filter((match) => match.playerIds.includes(sessionPlayers[2].id))
+				.every((match) => !match.isRated && !match.team1Id && !match.team2Id),
+		);
+		assert.ok(
+			payload.matches
+				.filter((match) => !match.playerIds.includes(sessionPlayers[2].id))
+				.every((match) => match.isRated),
+		);
+	});
+
+	it("rejects a placeholder without a usable display name", () => {
+		const placeholderPlayers = [
+			players[0],
+			{ ...players[1], name: "   ", isPlaceholder: true },
+		];
+		assert.equal(
+			validateSessionCreation({
+				players: placeholderPlayers,
+				rounds: generateSchedule(placeholderPlayers),
+				playerCount: 2,
+			}),
+			"Placeholder names must be between 1 and 80 characters",
+		);
+	});
 });

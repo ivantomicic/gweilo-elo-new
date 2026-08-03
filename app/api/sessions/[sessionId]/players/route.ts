@@ -44,25 +44,33 @@ export async function GET(
 		});
 
 		// Fetch session players
-		const { data: sessionPlayers, error: playersError } = await supabase
-			.from("session_players")
-			.select("id, player_id, team")
-			.eq("session_id", sessionId);
+		const [sessionPlayersResult, placeholdersResult] = await Promise.all([
+			supabase
+				.from("session_players")
+				.select("id, player_id, team")
+				.eq("session_id", sessionId),
+			supabase
+				.from("session_placeholders")
+				.select("id, display_name, team")
+				.eq("session_id", sessionId),
+		]);
+		const { data: sessionPlayers, error: playersError } = sessionPlayersResult;
+		const { data: placeholders, error: placeholdersError } = placeholdersResult;
 
-		if (playersError) {
-			console.error("Error fetching session players:", playersError);
+		if (playersError || placeholdersError) {
+			console.error("Error fetching session participants:", playersError || placeholdersError);
 			return NextResponse.json(
 				{ error: "Failed to fetch session players" },
 				{ status: 500 }
 			);
 		}
 
-		if (!sessionPlayers || sessionPlayers.length === 0) {
+		if ((!sessionPlayers || sessionPlayers.length === 0) && (!placeholders || placeholders.length === 0)) {
 			return NextResponse.json({ players: [] });
 		}
 
 		// Extract player IDs
-		const playerIds = sessionPlayers.map((sp) => sp.player_id);
+		const playerIds = (sessionPlayers || []).map((sp) => sp.player_id);
 
 		// Fetch players with ratings using the reusable helper
 		// Use admin client to access auth.users and ratings tables
@@ -75,10 +83,12 @@ export async function GET(
 		);
 
 		// Fetch match counts for accurate K-factor calculation
-		const { data: singlesRatings, error: ratingsError } = await adminClient
-			.from("player_ratings")
-			.select("player_id, wins, losses, draws")
-			.in("player_id", playerIds);
+		const { data: singlesRatings, error: ratingsError } = playerIds.length > 0
+			? await adminClient
+					.from("player_ratings")
+					.select("player_id, wins, losses, draws")
+					.in("player_id", playerIds)
+			: { data: [], error: null };
 
 		if (ratingsError) {
 			console.error("Error fetching match counts:", ratingsError);
@@ -97,7 +107,7 @@ export async function GET(
 		);
 
 		// Combine session player data with user details, ratings, and match counts
-		const playersWithDetails = sessionPlayers.map((sp) => {
+		const playersWithDetails = (sessionPlayers || []).map((sp) => {
 			const playerData = ratingsMap.get(sp.player_id);
 			const matchCount = matchCountMap.get(sp.player_id) || 0;
 
@@ -110,8 +120,22 @@ export async function GET(
 				elo: playerData?.singles_elo ?? 1500, // Default to 1500 if no rating exists
 				doublesElo: playerData?.doubles_elo ?? 1500, // Player doubles Elo (partner-independent skill)
 				matchCount, // For accurate K-factor calculation in UI previews
+				isPlaceholder: false,
 			};
 		});
+		playersWithDetails.push(
+			...(placeholders || []).map((placeholder) => ({
+				id: placeholder.id,
+				sessionPlayerId: placeholder.id,
+				team: placeholder.team,
+				name: placeholder.display_name,
+				avatar: null,
+				elo: 1500,
+				doublesElo: 1500,
+				matchCount: 0,
+				isPlaceholder: true,
+			})),
+		);
 
 		return NextResponse.json({ players: playersWithDetails });
 	} catch (error) {

@@ -69,7 +69,8 @@ export async function GET(
 		const { data, error } = await supabase
 			.from("session_matches")
 			.select("id, match_type, player_ids, team_1_id, team_2_id")
-			.eq("session_id", params.sessionId);
+			.eq("session_id", params.sessionId)
+			.eq("is_rated", true);
 
 		if (error) {
 			return NextResponse.json(

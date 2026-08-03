@@ -88,6 +88,46 @@ test("deferred rounds write scores without producing ELO mutations", () => {
 	assert.equal(plan.snapshots.length, 0);
 });
 
+test("unrated matches write scores while rated matches in the same round still update ELO", () => {
+	const matches: AtomicMatch[] = [
+		{
+			id: "exhibition",
+			match_type: "singles",
+			player_ids: ["placeholder", "alice"],
+			team_1_id: null,
+			team_2_id: null,
+			match_order: 0,
+			is_rated: false,
+		},
+		{
+			id: "competitive",
+			match_type: "singles",
+			player_ids: ["bob", "carol"],
+			team_1_id: null,
+			team_2_id: null,
+			match_order: 1,
+			is_rated: true,
+		},
+	];
+	const plan = buildAtomicRoundPlan({
+		matches,
+		displayScores: new Map([
+			["exhibition", { team1Score: 3, team2Score: 0 }],
+			["competitive", { team1Score: 3, team2Score: 2 }],
+		]),
+		ratingInputs: [
+			blank("player_singles", "bob"),
+			blank("player_singles", "carol"),
+		],
+	});
+
+	assert.equal(plan.matches.length, 2);
+	assert.equal(plan.history.length, 1);
+	assert.equal(plan.history[0].match_id, "competitive");
+	assert.equal(plan.ratings.length, 2);
+	assert.equal(plan.snapshots.length, 2);
+});
+
 test("builds both independent doubles rating systems", () => {
 	const matches: AtomicMatch[] = [{
 		id: "doubles",

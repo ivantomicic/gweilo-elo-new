@@ -1418,6 +1418,12 @@ private struct ScoreboardMatch: View {
 
                 Spacer()
 
+                if !match.isRated {
+                    Text("BEZ ELO-A")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(.orange)
+                }
+
                 Text(match.isCompleted ? "REZULTAT" : "SLEDEĆI")
                     .font(.caption2.weight(.bold))
                     .tracking(0.7)

@@ -111,7 +111,8 @@ async function getPreviousRankingByReversingLatestSession({
 			.select("id, player_ids")
 			.eq("session_id", latestSessionId)
 			.eq("status", "completed")
-			.eq("match_type", "singles");
+			.eq("match_type", "singles")
+			.eq("is_rated", true);
 
 		if (matchesError) {
 			console.error("[RANK] Failed to fetch latest singles matches:", matchesError);
@@ -194,7 +195,8 @@ async function getPreviousRankingByReversingLatestSession({
 			.select("id, team_1_id, team_2_id")
 			.eq("session_id", latestSessionId)
 			.eq("status", "completed")
-			.eq("match_type", "doubles");
+			.eq("match_type", "doubles")
+			.eq("is_rated", true);
 
 		if (matchesError) {
 			console.error(

@@ -42,6 +42,7 @@ export async function getActiveSinglesPlayerIds(
 		.select("player_ids")
 		.eq("match_type", "singles")
 		.eq("status", "completed")
+		.eq("is_rated", true)
 		.in("session_id", sessionIds);
 
 	if (matchesError) {

@@ -274,8 +274,9 @@ export async function GET(
 				.select(
 					"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order"
 				)
-				.eq("session_id", sessionId)
-				.eq("status", "completed"),
+					.eq("session_id", sessionId)
+					.eq("status", "completed")
+					.eq("is_rated", true),
 		]);
 
 		if (sessionPlayersResult.error) {

@@ -11,6 +11,7 @@ export type AtomicMatch = {
 	team_1_id: string | null;
 	team_2_id: string | null;
 	match_order: number;
+	is_rated?: boolean;
 };
 
 export type AtomicScore = { team1Score: number; team2Score: number };
@@ -86,13 +87,13 @@ export function buildAtomicRoundPlan({
 	matches,
 	displayScores,
 	eloScores = displayScores,
-	applyRatings,
+	applyRatings = true,
 	ratingInputs,
 }: {
 	matches: AtomicMatch[];
 	displayScores: Map<string, AtomicScore>;
 	eloScores?: Map<string, AtomicScore>;
-	applyRatings: boolean;
+	applyRatings?: boolean;
 	ratingInputs: RatingInput[];
 }): AtomicRoundPlan {
 	const initial = new Map<string, RatingSeed>();
@@ -118,7 +119,7 @@ export function buildAtomicRoundPlan({
 			team1_score: display.team1Score,
 			team2_score: display.team2Score,
 		});
-		if (!applyRatings) continue;
+		if (!applyRatings || match.is_rated === false) continue;
 
 		const score = eloScores.get(match.id);
 		if (!score) throw new Error(`Missing ELO score for match ${match.id}`);

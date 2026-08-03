@@ -500,12 +500,49 @@ struct SessionCreationPlayer: Identifiable, Hashable, Codable, Sendable {
     let name: String
     let avatarURL: URL?
     let elo: Int?
+    let isPlaceholder: Bool
 
     private enum CodingKeys: String, CodingKey {
         case id
         case name
         case avatarURL = "avatar"
         case elo
+        case isPlaceholder
+    }
+
+    nonisolated init(
+        id: UUID,
+        name: String,
+        avatarURL: URL?,
+        elo: Int?,
+        isPlaceholder: Bool = false
+    ) {
+        self.id = id
+        self.name = name
+        self.avatarURL = avatarURL
+        self.elo = elo
+        self.isPlaceholder = isPlaceholder
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        avatarURL = try container.decodeIfPresent(URL.self, forKey: .avatarURL)
+        elo = try container.decodeIfPresent(Int.self, forKey: .elo)
+        isPlaceholder = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isPlaceholder
+        ) ?? false
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encodeIfPresent(avatarURL, forKey: .avatarURL)
+        try container.encodeIfPresent(elo, forKey: .elo)
+        try container.encode(isPlaceholder, forKey: .isPlaceholder)
     }
 
     var initials: String {
@@ -644,6 +681,24 @@ struct SessionCreationDraft: Equatable, Sendable {
         } else if selectedPlayers.count < playerCount {
             selectedPlayers.append(player)
         }
+    }
+
+    mutating func addPlaceholder(named rawName: String) {
+        let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard
+            !name.isEmpty,
+            name.count <= 80,
+            selectedPlayers.count < playerCount
+        else { return }
+        selectedPlayers.append(
+            SessionCreationPlayer(
+                id: UUID(),
+                name: name,
+                avatarURL: nil,
+                elo: nil,
+                isPlaceholder: true
+            )
+        )
     }
 
     mutating func removeSelectedPlayer(at index: Int) {
@@ -968,6 +1023,7 @@ struct SessionMatch: Identifiable, Hashable, Sendable {
     let teamOneScore: Int?
     let teamTwoScore: Int?
     let eloPrediction: MatchEloPrediction?
+    let isRated: Bool
 
     nonisolated init(
         id: UUID,
@@ -978,7 +1034,8 @@ struct SessionMatch: Identifiable, Hashable, Sendable {
         isCompleted: Bool,
         teamOneScore: Int?,
         teamTwoScore: Int?,
-        eloPrediction: MatchEloPrediction? = nil
+        eloPrediction: MatchEloPrediction? = nil,
+        isRated: Bool = true
     ) {
         self.id = id
         self.roundNumber = roundNumber
@@ -989,6 +1046,7 @@ struct SessionMatch: Identifiable, Hashable, Sendable {
         self.teamOneScore = teamOneScore
         self.teamTwoScore = teamTwoScore
         self.eloPrediction = eloPrediction
+        self.isRated = isRated
     }
 }
 

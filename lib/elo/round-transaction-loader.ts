@@ -26,6 +26,7 @@ export async function loadAtomicRatingInputs(
 	const doublesPlayerIds = new Set<string>();
 	const teamIds = new Set<string>();
 	for (const match of matches) {
+		if (match.is_rated === false) continue;
 		if (match.match_type === "singles") match.player_ids.forEach((id) => singlesIds.add(id));
 		else {
 			match.player_ids.forEach((id) => doublesPlayerIds.add(id));

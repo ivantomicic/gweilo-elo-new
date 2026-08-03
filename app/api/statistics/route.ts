@@ -252,7 +252,8 @@ const getCachedRecentFormMaps = unstable_cache(
 					.select(
 						"id, session_id, match_type, round_number, match_order, player_ids, team_1_id, team_2_id",
 					)
-					.eq("status", "completed"),
+					.eq("status", "completed")
+					.eq("is_rated", true),
 				adminClient
 					.from("match_elo_history")
 					.select(
@@ -496,6 +497,7 @@ async function getActiveDoublesTeamIdsFresh(): Promise<string[]> {
 				.select("team_1_id, team_2_id")
 				.eq("match_type", "doubles")
 				.eq("status", "completed")
+				.eq("is_rated", true)
 				.in("session_id", sessionIds);
 
 		if (matchesError) {
@@ -552,6 +554,7 @@ async function getActiveDoublesPlayerIdsFresh(): Promise<string[]> {
 				.select("player_ids")
 				.eq("match_type", "doubles")
 				.eq("status", "completed")
+				.eq("is_rated", true)
 				.in("session_id", sessionIds);
 
 		if (matchesError) {

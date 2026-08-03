@@ -47,6 +47,7 @@ export async function runMatchEditRecalculation({
 				.from("session_matches")
 				.select("*")
 				.eq("session_id", sessionId)
+				.eq("is_rated", true)
 				.order("round_number", { ascending: true })
 				.order("match_order", { ascending: true });
 

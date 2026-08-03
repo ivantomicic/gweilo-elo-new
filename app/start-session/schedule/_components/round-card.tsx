@@ -11,6 +11,7 @@ type Player = {
 	id: string;
 	name: string;
 	avatar: string | null;
+	isPlaceholder?: boolean;
 };
 
 type Match = {

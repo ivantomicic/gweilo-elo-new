@@ -46,6 +46,7 @@ type SessionMatchRecord = {
 	team_2_id: string | null;
 	round_number: number;
 	match_order: number;
+	is_rated: boolean;
 };
 
 type ScoreInput = {
@@ -570,6 +571,15 @@ export async function POST(
 				.single();
 
 			if (sessionData && sessionData.player_count === 6) {
+				const { data: placeholders } = await adminClient
+					.from("session_placeholders")
+					.select("id")
+					.eq("session_id", sessionId);
+				const placeholderIds = new Set(
+					(placeholders || []).map((placeholder) => placeholder.id),
+				);
+				const isRatedPlayers = (playerIds: string[]) =>
+					playerIds.every((playerId) => !placeholderIds.has(playerId));
 				// Find Round 5 matches to determine Round 6
 				const round5DoublesMatch = matches.find(
 					(m) => m.match_type === "doubles",
@@ -635,14 +645,13 @@ export async function POST(
 							// Get/create team IDs for the new doubles match
 							// Team 1: winners from Round 5 doubles
 							// Team 2: players from Round 5 singles
-							const team1Id = await getOrCreateDoubleTeam(
-								doublesWinners[0],
-								doublesWinners[1],
-							);
-							const team2Id = await getOrCreateDoubleTeam(
-								singlesPlayerIds[0],
-								singlesPlayerIds[1],
-							);
+							const isRated = isRatedPlayers(newDoublesPlayerIds);
+							const team1Id = isRated
+								? await getOrCreateDoubleTeam(doublesWinners[0], doublesWinners[1])
+								: null;
+							const team2Id = isRated
+								? await getOrCreateDoubleTeam(singlesPlayerIds[0], singlesPlayerIds[1])
+								: null;
 
 							await adminClient
 								.from("session_matches")
@@ -650,6 +659,7 @@ export async function POST(
 									player_ids: newDoublesPlayerIds,
 									team_1_id: team1Id,
 									team_2_id: team2Id,
+									is_rated: isRated,
 								})
 								.eq("id", round6DoublesMatch.id);
 						}
@@ -662,6 +672,7 @@ export async function POST(
 									player_ids: doublesLosers,
 									team_1_id: null,
 									team_2_id: null,
+									is_rated: isRatedPlayers(doublesLosers),
 								})
 								.eq("id", round6SinglesMatch.id);
 						}
@@ -697,14 +708,13 @@ export async function POST(
 
 							// Team 1: losers from Round 5 doubles
 							// Team 2: players from Round 5 singles
-							const team1Id = await getOrCreateDoubleTeam(
-								doublesLosers[0],
-								doublesLosers[1],
-							);
-							const team2Id = await getOrCreateDoubleTeam(
-								singlesPlayerIds[0],
-								singlesPlayerIds[1],
-							);
+							const isRated = isRatedPlayers(newDoublesPlayerIds);
+							const team1Id = isRated
+								? await getOrCreateDoubleTeam(doublesLosers[0], doublesLosers[1])
+								: null;
+							const team2Id = isRated
+								? await getOrCreateDoubleTeam(singlesPlayerIds[0], singlesPlayerIds[1])
+								: null;
 
 							await adminClient
 								.from("session_matches")
@@ -712,6 +722,7 @@ export async function POST(
 									player_ids: newDoublesPlayerIds,
 									team_1_id: team1Id,
 									team_2_id: team2Id,
+									is_rated: isRated,
 								})
 								.eq("id", round7DoublesMatch.id);
 						}
@@ -724,6 +735,7 @@ export async function POST(
 									player_ids: doublesWinners,
 									team_1_id: null,
 									team_2_id: null,
+									is_rated: isRatedPlayers(doublesWinners),
 								})
 								.eq("id", round7SinglesMatch.id);
 						}

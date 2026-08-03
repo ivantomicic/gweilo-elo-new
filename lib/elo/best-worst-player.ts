@@ -43,7 +43,8 @@ export async function calculateBestWorstPlayer(
 		.select("id, player_ids")
 		.eq("session_id", sessionId)
 		.eq("match_type", "singles")
-		.eq("status", "completed");
+		.eq("status", "completed")
+		.eq("is_rated", true);
 
 	if (matchesError) {
 		throw new Error(

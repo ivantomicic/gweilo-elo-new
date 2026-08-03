@@ -55,6 +55,7 @@ private struct SessionDetailMatchRecord: Decodable, Sendable {
     let status: String?
     let teamOneScore: Int?
     let teamTwoScore: Int?
+    let isRated: Bool
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -65,6 +66,19 @@ private struct SessionDetailMatchRecord: Decodable, Sendable {
         case status
         case teamOneScore = "team1_score"
         case teamTwoScore = "team2_score"
+        case isRated = "is_rated"
+    }
+}
+
+private struct SessionPlaceholderRecord: Decodable, Sendable {
+    let id: UUID
+    let displayName: String
+    let team: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case displayName = "display_name"
+        case team
     }
 }
 
@@ -199,21 +213,29 @@ struct SupabaseDataClient: Sendable {
                 .init(name: "session_id", value: "eq.\(summary.id.uuidString)")
             ]
         )
+        async let sessionPlaceholdersRequest: [SessionPlaceholderRecord] = get(
+            table: "session_placeholders",
+            queryItems: [
+                .init(name: "select", value: "id,display_name,team"),
+                .init(name: "session_id", value: "eq.\(summary.id.uuidString)")
+            ]
+        )
         async let matchesRequest: [SessionDetailMatchRecord] = get(
             table: "session_matches",
             queryItems: [
                 .init(
                     name: "select",
-                    value: "id,round_number,match_type,match_order,player_ids,status,team1_score,team2_score"
+                    value: "id,round_number,match_type,match_order,player_ids,status,team1_score,team2_score,is_rated"
                 ),
                 .init(name: "session_id", value: "eq.\(summary.id.uuidString)"),
                 .init(name: "order", value: "round_number.asc,match_order.asc")
             ]
         )
 
-        let (sessionRecords, sessionPlayers, matchRecords) = try await (
+        let (sessionRecords, sessionPlayers, sessionPlaceholders, matchRecords) = try await (
             sessionRecordRequest,
             sessionPlayersRequest,
+            sessionPlaceholdersRequest,
             matchesRequest
         )
         let latestSession = sessionRecords.first
@@ -224,6 +246,7 @@ struct SupabaseDataClient: Sendable {
         )
         let participantIDs = Set(
             sessionPlayers.map(\.playerID)
+                + sessionPlaceholders.map(\.id)
                 + matchRecords.flatMap(\.playerIDs)
         )
         let matchIDs = matchRecords.map(\.id)
@@ -255,12 +278,18 @@ struct SupabaseDataClient: Sendable {
             )) ?? []
         }
 
-        let names = Dictionary(
+        var names = Dictionary(
             uniqueKeysWithValues: profiles.map { ($0.id, $0.displayName ?? "User") }
         )
-        let teamByPlayerID = Dictionary(
+        for placeholder in sessionPlaceholders {
+            names[placeholder.id] = placeholder.displayName
+        }
+        var teamByPlayerID = Dictionary(
             uniqueKeysWithValues: sessionPlayers.map { ($0.playerID, $0.team) }
         )
+        for placeholder in sessionPlaceholders {
+            teamByPlayerID[placeholder.id] = placeholder.team
+        }
         let participants = participantIDs
             .map { playerID in
                 SessionParticipant(
@@ -292,7 +321,8 @@ struct SupabaseDataClient: Sendable {
                 isCompleted: record.status == "completed",
                 teamOneScore: record.teamOneScore,
                 teamTwoScore: record.teamTwoScore,
-                eloPrediction: eloPredictionsByMatchID[record.id]
+                eloPrediction: eloPredictionsByMatchID[record.id],
+                isRated: record.isRated
             )
         }
         let matchesByRound = Dictionary(grouping: matches, by: \.roundNumber)
@@ -620,6 +650,7 @@ private struct SessionPlayerPayload: Encodable {
     let id: UUID
     let name: String
     let avatar: String?
+    let isPlaceholder: Bool
 }
 
 private struct SessionCreationRequest: Encodable {
@@ -1357,7 +1388,8 @@ struct GweiloAPIClient: Sendable {
                     SessionPlayerPayload(
                         id: $0.id,
                         name: $0.name,
-                        avatar: $0.avatarURL?.absoluteString
+                        avatar: $0.avatarURL?.absoluteString,
+                        isPlaceholder: $0.isPlaceholder
                     )
                 },
                 rounds: rounds,

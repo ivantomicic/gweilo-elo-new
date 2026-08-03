@@ -24,6 +24,7 @@ type RebuildableMatch = {
 	team_2_id: string | null;
 	round_number: number;
 	match_order: number;
+	is_rated: boolean;
 };
 
 export type RebuildAllEloDataOptions = {
@@ -269,7 +270,7 @@ export async function rebuildAllEloData({
 		const { data: sessionMatches, error: matchesError } = await adminClient
 			.from("session_matches")
 			.select(
-				"id, match_type, player_ids, team1_score, team2_score, team_1_id, team_2_id, round_number, match_order"
+				"id, match_type, player_ids, team1_score, team2_score, team_1_id, team_2_id, round_number, match_order, is_rated"
 			)
 			.eq("session_id", session.id)
 			.eq("status", "completed")
@@ -285,6 +286,10 @@ export async function rebuildAllEloData({
 		const eloHistoryEntries: Array<Record<string, unknown>> = [];
 
 		for (const match of (sessionMatches || []) as RebuildableMatch[]) {
+			if (!match.is_rated) {
+				skippedMatchIds.push(match.id);
+				continue;
+			}
 			let replayResult:
 				| { skipped: true }
 				| { skipped: false; historyEntry: Record<string, unknown> };

@@ -81,15 +81,27 @@ export async function buildSessionLiveActivitySnapshot(
 	);
 	const names = new Map<string, string>();
 	if (playerIDs.length > 0) {
-		const { data: profiles, error } = await admin
-			.from("profiles")
-			.select("id, display_name")
-			.in("id", playerIDs);
-		if (error) throw error;
+		const [profilesResult, placeholdersResult] = await Promise.all([
+			admin.from("profiles").select("id, display_name").in("id", playerIDs),
+			admin
+				.from("session_placeholders")
+				.select("id, display_name")
+				.eq("session_id", sessionID),
+		]);
+		if (profilesResult.error || placeholdersResult.error) {
+			throw profilesResult.error || placeholdersResult.error;
+		}
+		const profiles = profilesResult.data;
 		for (const profile of profiles ?? []) {
 			names.set(
 				String(profile.id).toLowerCase(),
 				String(profile.display_name ?? "Igrač"),
+			);
+		}
+		for (const placeholder of placeholdersResult.data ?? []) {
+			names.set(
+				String(placeholder.id).toLowerCase(),
+				String(placeholder.display_name),
 			);
 		}
 	}

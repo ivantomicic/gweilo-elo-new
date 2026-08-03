@@ -939,6 +939,20 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSessionDraftAddsNamedAccountlessPlaceholder() throws {
+        var draft = SessionCreationDraft()
+        draft.setPlayerCount(2)
+
+        draft.addPlaceholder(named: "  Visiting Ana  ")
+
+        let placeholder = try XCTUnwrap(draft.selectedPlayers.first)
+        XCTAssertEqual(placeholder.name, "Visiting Ana")
+        XCTAssertTrue(placeholder.isPlaceholder)
+        XCTAssertNil(placeholder.avatarURL)
+        XCTAssertNil(placeholder.elo)
+    }
+
+    @MainActor
     func testSixPlayerDraftBuildsDoublesTeamsFromSelectionOrder() {
         var draft = SessionCreationDraft()
         draft.setPlayerCount(6)

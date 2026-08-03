@@ -303,16 +303,24 @@ private struct NextRoundMatchup: View {
     }
 
     var body: some View {
-        HStack(spacing: 5) {
-            Text(teamOne)
-                .lineLimit(1)
+        VStack(spacing: 4) {
+            if !match.isRated {
+                Text("REVIJALNI MEČ · BEZ ELO-A")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.orange)
+            }
 
-            Text("PROTIV")
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(GweiloTheme.muted)
+            HStack(spacing: 5) {
+                Text(teamOne)
+                    .lineLimit(1)
 
-            Text(teamTwo)
-                .lineLimit(1)
+                Text("PROTIV")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(GweiloTheme.muted)
+
+                Text(teamTwo)
+                    .lineLimit(1)
+            }
         }
         .font(.caption.weight(.medium))
         .foregroundStyle(GweiloTheme.bone)

@@ -102,6 +102,13 @@ export async function POST(
 			);
 		}
 
+		if (match.is_rated === false) {
+			return NextResponse.json({
+				success: true,
+				message: "Exhibition result accepted without rating changes",
+			});
+		}
+
 		// Update Elo ratings based on match type
 		if (isSingles) {
 			await updateSinglesRatings(playerIds[0], playerIds[1], team1Score, team2Score);
@@ -128,4 +135,3 @@ export async function POST(
 		);
 	}
 }
-

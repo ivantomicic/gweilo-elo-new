@@ -9,6 +9,7 @@ export type SessionCreationPlayer = {
 	id: string;
 	name: string;
 	avatar: string | null;
+	isPlaceholder?: boolean;
 };
 
 export type SessionCreationBody = {
@@ -22,6 +23,8 @@ export type SessionCreationBody = {
 
 export type AtomicSessionPlayer = {
 	id: string;
+	name: string;
+	isPlaceholder: boolean;
 	team: string | null;
 };
 
@@ -32,6 +35,7 @@ export type AtomicSessionMatch = {
 	playerIds: string[];
 	team1Id: string | null;
 	team2Id: string | null;
+	isRated: boolean;
 };
 
 const UUID_PATTERN =
@@ -62,6 +66,18 @@ export function validateSessionCreation({
 			playerCount
 	) {
 		return "Each selected player must have a unique valid ID";
+	}
+	if (players.some((player) => typeof player.name !== "string")) {
+		return "Each selected player must have a name";
+	}
+	if (
+		players.some(
+			(player) =>
+				player.isPlaceholder === true &&
+				(player.name.trim().length < 1 || player.name.trim().length > 80),
+		)
+	) {
+		return "Placeholder names must be between 1 and 80 characters";
 	}
 	if (rounds.length === 0) {
 		return "Schedule must contain at least one round";
@@ -125,6 +141,11 @@ export async function buildAtomicSessionPayload({
 	};
 
 	const matches: AtomicSessionMatch[] = [];
+	const placeholderIDs = new Set(
+		players
+			.filter((player) => player.isPlaceholder === true)
+			.map((player) => normalizePlayerID(player.id)),
+	);
 	const hasDoubles = rounds.some((round) =>
 		round.matches.some((match) => match.type === "doubles"),
 	);
@@ -134,17 +155,21 @@ export async function buildAtomicSessionPayload({
 				match.players.map((player) => player.id),
 			);
 			const isDoubles = match.type === "doubles";
+			const isRated = playerIDs.every(
+				(playerID) => !placeholderIDs.has(playerID),
+			);
 			matches.push({
 				roundNumber: round.roundNumber,
 				matchType: match.type,
 				matchOrder,
 				playerIds: playerIDs,
-				team1Id: isDoubles
+				team1Id: isDoubles && isRated
 					? await resolveCachedTeam(playerIDs[0], playerIDs[1])
 					: null,
-				team2Id: isDoubles
+				team2Id: isDoubles && isRated
 					? await resolveCachedTeam(playerIDs[2], playerIDs[3])
 					: null,
+				isRated,
 			});
 		}
 	}
@@ -152,6 +177,8 @@ export async function buildAtomicSessionPayload({
 	return {
 		players: players.map((player, index) => ({
 			id: normalizePlayerID(player.id),
+			name: player.name.trim(),
+			isPlaceholder: player.isPlaceholder === true,
 			team:
 				players.length === 6 && hasDoubles
 					? (["A", "B", "C"] as const)[Math.floor(index / 2)]

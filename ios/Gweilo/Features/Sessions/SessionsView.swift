@@ -855,6 +855,7 @@ private struct SessionSetupStep: View {
     let players: [SessionCreationPlayer]
     let isLoading: Bool
     @Namespace private var playerTransition
+    @State private var placeholderSheet: PlaceholderSheetToken?
 
     private var availablePlayers: [SessionCreationPlayer] {
         let selectedIDs = Set(draft.selectedPlayers.map(\.id))
@@ -908,6 +909,21 @@ private struct SessionSetupStep: View {
                             selectPlayer: selectPlayer
                         )
 
+                        Button(action: presentPlaceholderSheet) {
+                            Label(
+                                "Dodaj privremenog igrača",
+                                systemImage: "person.badge.plus"
+                            )
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(GweiloTheme.accentBright)
+                        .disabled(draft.canPreview)
+                        .accessibilityHint(
+                            "Dodaje igrača bez naloga. Njegovi mečevi ne utiču na ELO."
+                        )
+
                         if draft.usesDoublesTeams {
                             SessionDoublesTeamBuilder(
                                 draft: $draft,
@@ -932,6 +948,9 @@ private struct SessionSetupStep: View {
         }
         .scrollIndicators(.hidden)
         .animation(.smooth, value: selectedPlayerCount)
+        .sheet(item: $placeholderSheet) { _ in
+            PlaceholderPlayerSheet(addPlayer: addPlaceholder)
+        }
     }
 
     private func selectPlayerCount(_ count: Int) {
@@ -945,6 +964,16 @@ private struct SessionSetupStep: View {
     private func selectPlayer(_ player: SessionCreationPlayer) {
         withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
             draft.toggle(player)
+        }
+    }
+
+    private func presentPlaceholderSheet() {
+        placeholderSheet = PlaceholderSheetToken()
+    }
+
+    private func addPlaceholder(_ name: String) {
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2)) {
+            draft.addPlaceholder(named: name)
         }
     }
 
@@ -963,6 +992,62 @@ private struct SessionSetupStep: View {
                 }
             }
         )
+    }
+}
+
+private struct PlaceholderSheetToken: Identifiable {
+    let id = UUID()
+}
+
+private struct PlaceholderPlayerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @FocusState private var isNameFocused: Bool
+    let addPlayer: (String) -> Void
+
+    private var trimmedName: String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canAdd: Bool {
+        !trimmedName.isEmpty && trimmedName.count <= 80
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Ime igrača", text: $name)
+                        .focused($isNameFocused)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.done)
+                        .onSubmit(addAndDismiss)
+                } footer: {
+                    Text(
+                        "Mečevi će biti vidljivi u terminu, ali neće uticati na ELO ili statistiku. Najviše 80 znakova."
+                    )
+                }
+            }
+            .navigationTitle("Privremeni igrač")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Otkaži", action: dismiss.callAsFunction)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Dodaj", action: addAndDismiss)
+                        .disabled(!canAdd)
+                }
+            }
+            .task { isNameFocused = true }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func addAndDismiss() {
+        guard canAdd else { return }
+        addPlayer(trimmedName)
+        dismiss()
     }
 }
 
@@ -1777,15 +1862,23 @@ private struct ScheduleMatchCard: View {
     let match: SessionScheduleMatch
 
     var body: some View {
-        HStack(spacing: 8) {
-            MatchSide(players: firstSide, alignment: .trailing)
+        VStack(spacing: 8) {
+            if match.players.contains(where: \.isPlaceholder) {
+                Label("Revijalni meč · Bez ELO-a", systemImage: "person.crop.circle.badge.clock")
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(.orange)
+            }
 
-            Text("PROTIV")
-                .font(.caption2.weight(.black))
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
+            HStack(spacing: 8) {
+                MatchSide(players: firstSide, alignment: .trailing)
 
-            MatchSide(players: secondSide, alignment: .leading)
+                Text("PROTIV")
+                    .font(.caption2.weight(.black))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20)
+
+                MatchSide(players: secondSide, alignment: .leading)
+            }
         }
         .padding(.vertical, 12)
         .accessibilityElement(children: .combine)

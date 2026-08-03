@@ -9,6 +9,7 @@ type Player = {
 	id: string;
 	name: string;
 	avatar: string | null;
+	isPlaceholder?: boolean;
 };
 
 type MatchRowProps = {
@@ -36,10 +37,16 @@ const getSpinOut = () => {
 };
 
 export function MatchRow({ type, players, isShuffling = false, shuffleKey = 0 }: MatchRowProps) {
+	const isExhibition = players.some((player) => player.isPlaceholder);
 	if (type === "singles") {
 		const [player1, player2] = players;
 		return (
-			<Box className="flex items-center justify-between bg-background/50 rounded-xl p-3 border border-border/30">
+			<Box className="relative flex items-center justify-between bg-background/50 rounded-xl p-3 pt-7 border border-border/30">
+				{isExhibition && (
+					<span className="absolute left-3 top-2 text-[9px] font-black uppercase tracking-wider text-amber-500">
+						Revijalni meč · Bez ELO-a
+					</span>
+				)}
 				<Box className="flex-1 flex justify-end">
 					<AnimatePresence mode="wait">
 						<motion.div
@@ -117,7 +124,12 @@ export function MatchRow({ type, players, isShuffling = false, shuffleKey = 0 }:
 	// Doubles: 4 players
 	const [player1, player2, player3, player4] = players;
 	return (
-		<Box className="flex items-center justify-between bg-background/50 rounded-xl p-3 border border-border/30">
+		<Box className="relative flex items-center justify-between bg-background/50 rounded-xl p-3 pt-7 border border-border/30">
+			{isExhibition && (
+				<span className="absolute left-3 top-2 text-[9px] font-black uppercase tracking-wider text-amber-500">
+					Revijalni meč · Bez ELO-a
+				</span>
+			)}
 			<Box className="flex-1 flex justify-end">
 				<AnimatePresence mode="wait">
 					<motion.div
@@ -205,4 +217,3 @@ export function MatchRow({ type, players, isShuffling = false, shuffleKey = 0 }:
 		</Box>
 	);
 }
-

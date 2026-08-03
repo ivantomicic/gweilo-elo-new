@@ -63,7 +63,8 @@ async function loadPlayerPairStatsFallback(
 			"id, player_ids, team1_score, team2_score, created_at, round_number, match_order, sessions!inner(completed_at, created_at)",
 		)
 		.eq("match_type", "singles")
-		.eq("status", "completed");
+		.eq("status", "completed")
+		.eq("is_rated", true);
 
 	if (error) {
 		throw new Error(`Failed to fetch rivalry matches: ${error.message}`);

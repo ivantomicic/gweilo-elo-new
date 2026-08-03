@@ -81,6 +81,7 @@ export async function loadRecentRound5SinglesPairs(
 			.eq("session_id", session.id)
 			.eq("round_number", 5)
 			.eq("match_type", "singles")
+			.eq("is_rated", true)
 			.limit(1)
 			.maybeSingle();
 

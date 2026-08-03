@@ -63,6 +63,7 @@ type Player = {
 	elo: number;
 	doublesElo?: number; // Player doubles Elo (partner-independent skill)
 	matchCount?: number; // For accurate K-factor calculation
+	isPlaceholder?: boolean;
 };
 
 type Match = {
@@ -77,6 +78,7 @@ type Match = {
 	video_url?: string | null;
 	team_1_id?: string | null;
 	team_2_id?: string | null;
+	is_rated: boolean;
 };
 
 type SessionData = {
@@ -384,6 +386,19 @@ function SessionPageContent() {
 						type: "info",
 						delay: matchDelay,
 					});
+					if (!match.is_rated) {
+						lines.push({
+							text: "Revijalni meč — rezultat je sačuvan bez ELO-a",
+							type: "dim",
+							delay: 60,
+						});
+						lines.push({
+							text: t.terminal.matchDone(index + 1),
+							type: "success",
+							delay: 60,
+						});
+						return;
+					}
 					if (isDeferredTwoHalfRound) {
 						lines.push({
 							text: t.terminal.recordingScore,
@@ -476,6 +491,19 @@ function SessionPageContent() {
 						type: "info",
 						delay: matchDelay,
 					});
+					if (!match.is_rated) {
+						lines.push({
+							text: "Revijalni meč — rezultat je sačuvan bez ELO-a",
+							type: "dim",
+							delay: 60,
+						});
+						lines.push({
+							text: t.terminal.matchDone(index + 1),
+							type: "success",
+							delay: 60,
+						});
+						return;
+					}
 					if (isDeferredTwoHalfRound) {
 						lines.push({
 							text: t.terminal.recordingScore,
@@ -619,7 +647,7 @@ function SessionPageContent() {
 				const matchesPromise = supabaseClient
 					.from("session_matches")
 					.select(
-						"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id",
+						"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id, is_rated",
 					)
 					.eq("session_id", sessionId)
 					.order("round_number", { ascending: true })
@@ -717,6 +745,7 @@ function SessionPageContent() {
 
 					for (const match of matches) {
 						if (
+							match.is_rated &&
 							match.match_type === "doubles" &&
 							match.player_ids.length >= 4
 						) {
@@ -1572,7 +1601,7 @@ function SessionPageContent() {
 						await supabaseClient
 							.from("session_matches")
 							.select(
-								"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id",
+								"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id, is_rated",
 							)
 							.eq("session_id", sessionId)
 							.order("round_number", { ascending: true })
@@ -2504,11 +2533,12 @@ function SessionPageContent() {
 																? team2EloChange
 																: team1EloChange
 														}
-														team2EloChange={
-															shouldPlaceSelectedPlayerLeft
-																? team1EloChange
-																: team2EloChange
-														}
+												team2EloChange={
+													shouldPlaceSelectedPlayerLeft
+														? team1EloChange
+														: team2EloChange
+												}
+												isRated={match.is_rated}
 														onClick={() =>
 															isAdmin &&
 															handleOpenVideoDrawer(
@@ -3402,6 +3432,11 @@ function SessionPageContent() {
 												: undefined
 										}
 									>
+										{!match.is_rated && (
+											<Box className="mb-2 inline-flex rounded-full bg-amber-500/10 px-2 py-1 text-[9px] font-black uppercase tracking-wider text-amber-500">
+											Revijalni meč · Bez ELO-a
+											</Box>
+										)}
 										{/* Edit button for completed matches */}
 										{isMatchCompleted && (
 											<Button
@@ -3516,13 +3551,16 @@ function SessionPageContent() {
 																team1Name
 															}
 														</p>
-														<p className="text-[10px] text-muted-foreground font-medium">
-															{isSingles
-																? `Elo ${team1Elo}`
-																: `Team ${team1Elo}`}
-														</p>
-														{/* Elo predictions as addon */}
-														<Stack
+																	<p className="text-[10px] text-muted-foreground font-medium">
+																		{!match.is_rated
+																			? "Bez ELO-a"
+																			: isSingles
+																				? `Elo ${team1Elo}`
+																				: `Team ${team1Elo}`}
+																	</p>
+																	{/* Elo predictions as addon */}
+																	{match.is_rated && (
+																		<Stack
 															direction="row"
 															alignItems="center"
 															spacing={
@@ -3548,9 +3586,10 @@ function SessionPageContent() {
 																	false,
 																)}
 															</span>
-														</Stack>
-													</Box>
-												</Stack>
+																		</Stack>
+																	)}
+																</Box>
+															</Stack>
 												<Input
 													ref={(el) => {
 														scoreInputRefs.current[
@@ -3692,13 +3731,16 @@ function SessionPageContent() {
 																team2Name
 															}
 														</p>
-														<p className="text-[10px] text-muted-foreground font-medium">
-															{isSingles
-																? `Elo ${team2Elo}`
-																: `Team ${team2Elo}`}
-														</p>
-														{/* Elo predictions as addon */}
-														<Stack
+																	<p className="text-[10px] text-muted-foreground font-medium">
+																		{!match.is_rated
+																			? "Bez ELO-a"
+																			: isSingles
+																				? `Elo ${team2Elo}`
+																				: `Team ${team2Elo}`}
+																	</p>
+																	{/* Elo predictions as addon */}
+																	{match.is_rated && (
+																		<Stack
 															direction="row"
 															alignItems="center"
 															spacing={
@@ -3724,9 +3766,10 @@ function SessionPageContent() {
 																	false,
 																)}
 															</span>
-														</Stack>
-													</Box>
-												</Stack>
+																		</Stack>
+																	)}
+																</Box>
+															</Stack>
 												<Input
 													ref={(el) => {
 														scoreInputRefs.current[
@@ -3841,11 +3884,13 @@ function SessionPageContent() {
 														{team1Name}
 													</p>
 													<p className="text-xs text-muted-foreground font-medium">
-														{isSingles
-															? `${t.sessions.session.elo} ${team1Elo}`
-															: `${t.sessions.session.teamElo} ${team1Elo}`}
+												{!match.is_rated
+															? "Bez ELO-a"
+													: isSingles
+													? `${t.sessions.session.elo} ${team1Elo}`
+													: `${t.sessions.session.teamElo} ${team1Elo}`}
 													</p>
-													{!isSingles && (
+											{match.is_rated && !isSingles && (
 														<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
 															<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
 																{
@@ -3896,7 +3941,10 @@ function SessionPageContent() {
 													alignItems="center"
 													justifyContent="center"
 													spacing={3}
-													className="text-xs font-bold mt-2"
+											className={cn(
+												"text-xs font-bold mt-2",
+												!match.is_rated && "hidden",
+											)}
 												>
 													<span className="text-chart-2">
 														{formatEloDelta(
@@ -4083,11 +4131,13 @@ function SessionPageContent() {
 														{team2Name}
 													</p>
 													<p className="text-xs text-muted-foreground font-medium">
-														{isSingles
-															? `${t.sessions.session.elo} ${team2Elo}`
-															: `${t.sessions.session.teamElo} ${team2Elo}`}
+												{!match.is_rated
+															? "Bez ELO-a"
+													: isSingles
+													? `${t.sessions.session.elo} ${team2Elo}`
+													: `${t.sessions.session.teamElo} ${team2Elo}`}
 													</p>
-													{!isSingles && (
+											{match.is_rated && !isSingles && (
 														<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
 															<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
 																{
@@ -4138,7 +4188,10 @@ function SessionPageContent() {
 													alignItems="center"
 													justifyContent="center"
 													spacing={3}
-													className="text-xs font-bold mt-2"
+											className={cn(
+												"text-xs font-bold mt-2",
+												!match.is_rated && "hidden",
+											)}
 												>
 													<span className="text-chart-2">
 														{formatEloDelta(

@@ -403,6 +403,7 @@ async function loadRecentMatchRows(
 		.select("id, player_ids, team1_score, team2_score, created_at")
 		.eq("match_type", "singles")
 		.eq("status", "completed")
+		.eq("is_rated", true)
 		.contains(
 			"player_ids",
 			serializeJsonbPlayerIdsContainment([userId]),
@@ -432,6 +433,7 @@ async function loadHeadToHeadRows(
 			.select("id, player_ids, team1_score, team2_score, created_at")
 			.eq("match_type", "singles")
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.contains(
 				"player_ids",
 				serializeJsonbPlayerIdsContainment([userId, opponentId]),
@@ -471,6 +473,7 @@ async function loadPlayerMatchHistoryRows(
 			.select("id, player_ids, team1_score, team2_score, created_at")
 			.eq("match_type", "singles")
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.contains(
 				"player_ids",
 				serializeJsonbPlayerIdsContainment([playerId]),
@@ -511,6 +514,7 @@ async function loadPeriodMatchRows(
 			.select("id, player_ids, team1_score, team2_score, created_at")
 			.eq("match_type", "singles")
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.gte("created_at", periodStart)
 			.lte("created_at", periodEnd)
 			.not("team1_score", "is", null)
@@ -550,6 +554,7 @@ async function loadOwnPeriodMatchRows(
 			.select("id, player_ids, team1_score, team2_score, created_at")
 			.eq("match_type", "singles")
 			.eq("status", "completed")
+			.eq("is_rated", true)
 			.contains(
 				"player_ids",
 				serializeJsonbPlayerIdsContainment([userId]),

@@ -366,7 +366,8 @@ async function loadPairStatsFallback(
 				`,
 			)
 			.eq("match_type", "singles")
-			.eq("status", "completed"),
+			.eq("status", "completed")
+			.eq("is_rated", true),
 		loadRecentCompletedSessionIds(adminClient, recentSessionLimit),
 	]);
 	const { data, error } = matchesResult;

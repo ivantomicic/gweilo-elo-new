@@ -165,6 +165,34 @@ export async function POST(
 			);
 		}
 
+		const { data: targetMatch, error: targetMatchError } = await adminClient
+			.from("session_matches")
+			.select("is_rated")
+			.eq("id", matchId)
+			.eq("session_id", sessionId)
+			.single();
+		if (targetMatchError || !targetMatch) {
+			return NextResponse.json({ error: "Match not found" }, { status: 404 });
+		}
+		if (!targetMatch.is_rated) {
+			const { error: updateError } = await adminClient
+				.from("session_matches")
+				.update({ team1_score: team1Score, team2_score: team2Score })
+				.eq("id", matchId)
+				.eq("session_id", sessionId);
+			if (updateError) {
+				return NextResponse.json(
+					{ error: "Failed to update exhibition match score" },
+					{ status: 500 },
+				);
+			}
+			return NextResponse.json({
+				success: true,
+				message: "Exhibition match score updated",
+				ratingsDeferred: true,
+			});
+		}
+
 		if (
 			session.player_count === 4 ||
 			session.player_count === 5 ||
