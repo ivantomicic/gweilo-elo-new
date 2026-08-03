@@ -99,6 +99,13 @@ export function getPairedRoundNumber(
 		: roundNumber - config.halfRoundCount;
 }
 
+export function countsAsFinalSinglesResult(
+	match: TwoHalfSinglesMatch,
+	config: TwoHalfSinglesConfig | null,
+): boolean {
+	return !config || match.round_number > config.halfRoundCount;
+}
+
 export function findPairedMatch<T extends TwoHalfSinglesMatch>(
 	match: T,
 	allMatches: T[],

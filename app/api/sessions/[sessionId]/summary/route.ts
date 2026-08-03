@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { replayDoublesPlayerMatches } from "@/lib/elo/session-baseline";
 import {
 	combineTwoHalfSinglesScore,
+	countsAsFinalSinglesResult,
 	detectTwoHalfSinglesSession,
 	findPairedMatch,
 	type TwoHalfSinglesConfig,
@@ -264,7 +265,9 @@ export async function GET(
 			);
 		}
 
-		// Get session players and completed matches in parallel
+		// Get session players and all scheduled matches in parallel. The complete
+		// schedule is needed to recognize two-half singles sessions even while a
+		// session is still in progress.
 		const [sessionPlayersResult, placeholdersResult, sessionMatchesResult] =
 			await Promise.all([
 			adminClient
@@ -280,8 +283,7 @@ export async function GET(
 				.select(
 					"id, match_type, player_ids, team1_score, team2_score, status, team_1_id, team_2_id, round_number, match_order, is_rated"
 				)
-					.eq("session_id", sessionId)
-					.eq("status", "completed"),
+				.eq("session_id", sessionId),
 		]);
 
 		if (sessionPlayersResult.error) {
@@ -356,10 +358,13 @@ export async function GET(
 				is_placeholder: true,
 			});
 		}
-		const sessionMatches = sessionMatchesResult.data;
+		const allSessionMatches = sessionMatchesResult.data || [];
+		const sessionMatches = allSessionMatches.filter(
+			(match) => match.status === "completed",
+		);
 		const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
 			session.player_count,
-			sessionMatches || [],
+			allSessionMatches,
 		);
 
 		const singlesMatches =
@@ -445,6 +450,13 @@ export async function GET(
 
 				// Process matches in order to find first and last elo values
 				for (const match of sortedSinglesMatches) {
+					// In a two-half fixture, the first saved score is only a partial
+					// score. The second-half record settles the fixture and contains
+					// the only win/loss/draw that belongs in the overview.
+					if (!countsAsFinalSinglesResult(match, twoHalfSinglesConfig)) {
+						continue;
+					}
+
 					const playerIds = (match.player_ids as string[]) || [];
 					if (
 						playerIds.length < 2 ||

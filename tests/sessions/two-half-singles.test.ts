@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { generateSchedule, type SessionPlayer } from "../../lib/sessions/schedule";
 import {
 	combineTwoHalfSinglesScore,
+	countsAsFinalSinglesResult,
 	detectTwoHalfSinglesSession,
 	findPairedMatch,
 	getEffectiveTwoHalfSinglesScore,
@@ -73,6 +74,22 @@ describe("two-half singles sessions", () => {
 		assert.deepEqual(
 			getEffectiveTwoHalfSinglesScore(secondHalfMatch, matches, config),
 			{ team1Score: 4, team2Score: 4 },
+		);
+	});
+
+	it("counts only settled fixtures in a two-half session", () => {
+		const matches = recordsFor(6, "singles");
+		const config = detectTwoHalfSinglesSession(6, matches)!;
+		const countedMatches = matches.filter((match) =>
+			countsAsFinalSinglesResult(match, config),
+		);
+
+		assert.equal(matches.length, 30);
+		assert.equal(countedMatches.length, 15);
+		assert.ok(
+			countedMatches.every(
+				(match) => match.round_number > config.halfRoundCount,
+			),
 		);
 	});
 });

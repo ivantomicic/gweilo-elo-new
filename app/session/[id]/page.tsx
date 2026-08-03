@@ -216,6 +216,14 @@ function SessionPageContent() {
 			hasDoublesTeam: hasDoubles,
 		};
 	}, [sessionData]);
+	const showViewTabs = Boolean(
+		viewAvailability &&
+			[
+				viewAvailability.hasSingles,
+				viewAvailability.hasDoublesPlayer,
+				viewAvailability.hasDoublesTeam,
+			].filter(Boolean).length > 1,
+	);
 	const completedMatchCount = useMemo(
 		() =>
 			Object.values(sessionData?.matchesByRound ?? {})
@@ -2205,10 +2213,9 @@ function SessionPageContent() {
 						animate={{ opacity: 1, y: 0 }}
 						transition={pageTransition}
 					>
-						{/* Compact Header */}
-						<Box className="mb-4">
-							{/* Page-level Navigation Tabs */}
-							{viewAvailability && (
+						{/* Page-level Navigation Tabs */}
+						{showViewTabs && viewAvailability && (
+							<Box className="mb-4">
 								<Box className="mb-2">
 									<Tabs
 										value={
@@ -2278,8 +2285,8 @@ function SessionPageContent() {
 										</TabsList>
 									</Tabs>
 								</Box>
-							)}
-						</Box>
+							</Box>
+						)}
 
 						{/* Performance Overview Table */}
 						<Box className="mb-6">
