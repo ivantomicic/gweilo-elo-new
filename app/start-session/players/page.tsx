@@ -331,21 +331,6 @@ function SelectPlayersPageContent() {
 							className="w-full overflow-x-auto scrollbar-hide"
 						>
 							<div className="flex gap-4 pb-4 w-max">
-								<motion.button
-									type="button"
-									onClick={() => setShowPlaceholderPrompt(true)}
-									disabled={selectedPlayers.length >= maxSelections}
-									className={cn(
-										"flex w-24 shrink-0 flex-col items-center gap-2 text-center",
-										selectedPlayers.length >= maxSelections && "cursor-not-allowed opacity-50",
-									)}
-									whileTap={{ scale: 0.95 }}
-								>
-									<Box className="flex size-16 items-center justify-center rounded-full border-2 border-dashed border-primary/50 bg-primary/10 text-primary">
-										<Icon icon="solar:user-plus-bold" className="size-7" />
-									</Box>
-									<span className="text-xs font-semibold text-primary">Gost</span>
-								</motion.button>
 								<AnimatePresence>
 									{users
 										.filter(
@@ -385,6 +370,24 @@ function SelectPlayersPageContent() {
 											);
 										})}
 								</AnimatePresence>
+								<motion.button
+									type="button"
+									onClick={() => setShowPlaceholderPrompt(true)}
+									disabled={selectedPlayers.length >= maxSelections}
+									className={cn(
+										"flex w-24 shrink-0 flex-col items-center gap-2 text-center",
+										selectedPlayers.length >= maxSelections &&
+											"cursor-not-allowed opacity-50",
+									)}
+									whileTap={{ scale: 0.95 }}
+								>
+									<Box className="flex size-16 items-center justify-center rounded-full border-2 border-dashed border-primary/50 bg-primary/10 text-primary">
+										<Icon icon="solar:user-plus-bold" className="size-7" />
+									</Box>
+									<span className="text-xs font-semibold text-primary">
+										Gost
+									</span>
+								</motion.button>
 							</div>
 						</div>
 					</>
