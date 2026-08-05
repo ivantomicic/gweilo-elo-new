@@ -9,8 +9,7 @@ RETURNS TEXT AS $$
 	SELECT NULLIF(
 		COALESCE(
 			raw_user_meta_data->>'avatar_url_google',
-			raw_user_meta_data->>'picture',
-			raw_user_meta_data->>'avatar_url'
+			raw_user_meta_data->>'picture'
 		),
 		''
 	);
@@ -18,16 +17,41 @@ $$ LANGUAGE SQL IMMUTABLE;
 
 UPDATE public.profiles AS profiles
 SET
-	manual_avatar_url = COALESCE(profiles.manual_avatar_url, profiles.avatar_url),
+	-- A legacy profile avatar is manual only when it differs from the current
+	-- provider image. Never freeze a Google image as a manual override.
+	manual_avatar_url = CASE
+		WHEN profiles.manual_avatar_url IS NOT NULL
+			AND profiles.manual_avatar_url IS DISTINCT FROM
+				public.extract_provider_avatar(users.raw_user_meta_data)
+			AND profiles.manual_avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+			THEN profiles.manual_avatar_url
+		WHEN profiles.avatar_url IS NOT NULL
+			AND profiles.avatar_url IS DISTINCT FROM
+				public.extract_provider_avatar(users.raw_user_meta_data)
+			AND profiles.avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+			THEN profiles.avatar_url
+		ELSE NULL
+	END,
 	provider_avatar_url = COALESCE(
-		profiles.provider_avatar_url,
-		public.extract_provider_avatar(users.raw_user_meta_data)
+		public.extract_provider_avatar(users.raw_user_meta_data),
+		profiles.provider_avatar_url
 	),
 	avatar_url = COALESCE(
-		profiles.manual_avatar_url,
+		CASE
+			WHEN profiles.manual_avatar_url IS NOT NULL
+				AND profiles.manual_avatar_url IS DISTINCT FROM
+					public.extract_provider_avatar(users.raw_user_meta_data)
+				AND profiles.manual_avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+				THEN profiles.manual_avatar_url
+			WHEN profiles.avatar_url IS NOT NULL
+				AND profiles.avatar_url IS DISTINCT FROM
+					public.extract_provider_avatar(users.raw_user_meta_data)
+				AND profiles.avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+				THEN profiles.avatar_url
+		END,
+		public.extract_provider_avatar(users.raw_user_meta_data),
 		profiles.avatar_url,
-		profiles.provider_avatar_url,
-		public.extract_provider_avatar(users.raw_user_meta_data)
+		profiles.provider_avatar_url
 	),
 	updated_at = now()
 FROM auth.users AS users
@@ -80,7 +104,8 @@ BEGIN
 		avatar_url = COALESCE(
 			manual_avatar_url,
 			provider_avatar,
-			provider_avatar_url
+			provider_avatar_url,
+			avatar_url
 		),
 		email = NEW.email,
 		updated_at = now()
@@ -106,15 +131,37 @@ SELECT
 		'User'
 	) AS display_name,
 	COALESCE(
-		profiles.manual_avatar_url,
-		profiles.avatar_url,
+		CASE
+			WHEN profiles.manual_avatar_url IS NOT NULL
+				AND profiles.manual_avatar_url IS DISTINCT FROM
+					public.extract_provider_avatar(users.raw_user_meta_data)
+				AND profiles.manual_avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+				THEN profiles.manual_avatar_url
+			WHEN profiles.avatar_url IS NOT NULL
+				AND profiles.avatar_url IS DISTINCT FROM
+					public.extract_provider_avatar(users.raw_user_meta_data)
+				AND profiles.avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+				THEN profiles.avatar_url
+		END,
+		public.extract_provider_avatar(users.raw_user_meta_data),
 		profiles.provider_avatar_url,
-		public.extract_provider_avatar(users.raw_user_meta_data)
+		profiles.avatar_url
 	) AS avatar_url,
-	COALESCE(profiles.manual_avatar_url, profiles.avatar_url) AS manual_avatar_url,
+	CASE
+		WHEN profiles.manual_avatar_url IS NOT NULL
+			AND profiles.manual_avatar_url IS DISTINCT FROM
+				public.extract_provider_avatar(users.raw_user_meta_data)
+			AND profiles.manual_avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+			THEN profiles.manual_avatar_url
+		WHEN profiles.avatar_url IS NOT NULL
+			AND profiles.avatar_url IS DISTINCT FROM
+				public.extract_provider_avatar(users.raw_user_meta_data)
+			AND profiles.avatar_url !~* '^https://[^/]*googleusercontent\.com/'
+			THEN profiles.avatar_url
+	END AS manual_avatar_url,
 	COALESCE(
-		profiles.provider_avatar_url,
-		public.extract_provider_avatar(users.raw_user_meta_data)
+		public.extract_provider_avatar(users.raw_user_meta_data),
+		profiles.provider_avatar_url
 	) AS provider_avatar_url,
 	users.email
 FROM auth.users AS users
@@ -122,13 +169,13 @@ LEFT JOIN public.profiles AS profiles
 	ON profiles.id = users.id
 ON CONFLICT (id) DO UPDATE SET
 	display_name = EXCLUDED.display_name,
-	manual_avatar_url = COALESCE(public.profiles.manual_avatar_url, EXCLUDED.manual_avatar_url),
-	provider_avatar_url = COALESCE(public.profiles.provider_avatar_url, EXCLUDED.provider_avatar_url),
+	manual_avatar_url = EXCLUDED.manual_avatar_url,
+	provider_avatar_url = COALESCE(EXCLUDED.provider_avatar_url, public.profiles.provider_avatar_url),
 	avatar_url = COALESCE(
-		public.profiles.manual_avatar_url,
-		public.profiles.avatar_url,
+		EXCLUDED.manual_avatar_url,
 		EXCLUDED.provider_avatar_url,
-		EXCLUDED.avatar_url
+		EXCLUDED.avatar_url,
+		public.profiles.avatar_url
 	),
 	email = EXCLUDED.email,
 	updated_at = now();

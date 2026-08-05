@@ -219,6 +219,14 @@ struct GweiloCardCarousel<Content: View>: View {
         itemCount > 1 && settledIndex < itemCount - 1
     }
 
+    private var isScrolling: Bool {
+        scrollPhase != .idle
+    }
+
+    private var edgeFadeDepth: CGFloat {
+        isScrolling ? 0.11 : 0.052
+    }
+
     var body: some View {
         ScrollView(.horizontal) {
             LazyHStack(alignment: .top, spacing: 12) {
@@ -264,8 +272,11 @@ struct GweiloCardCarousel<Content: View>: View {
                         color: canScrollLeft ? .clear : .black,
                         location: 0
                     ),
-                    .init(color: .black, location: 0.11),
-                    .init(color: .black, location: 0.89),
+                    .init(color: .black, location: edgeFadeDepth),
+                    .init(
+                        color: .black,
+                        location: 1 - edgeFadeDepth
+                    ),
                     .init(
                         color: canScrollRight ? .clear : .black,
                         location: 1
@@ -273,6 +284,18 @@ struct GweiloCardCarousel<Content: View>: View {
                 ],
                 startPoint: .leading,
                 endPoint: .trailing
+            )
+            .animation(
+                .easeOut(duration: 0.22),
+                value: canScrollLeft
+            )
+            .animation(
+                .easeOut(duration: 0.22),
+                value: canScrollRight
+            )
+            .animation(
+                .smooth(duration: 0.22),
+                value: edgeFadeDepth
             )
         }
         .padding(.horizontal, -20)

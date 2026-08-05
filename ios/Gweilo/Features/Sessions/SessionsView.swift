@@ -205,25 +205,17 @@ private struct SessionsContent: View {
                 }
 
                 ForEach(historyGroups) { group in
-                    VStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 12) {
                         SessionSectionHeader(
                             title: group.title,
                             detail: "\(group.sessions.count) \(SessionHistoryFormatter.sessionWord(group.sessions.count))"
                         )
-                        .padding(.bottom, 4)
 
-                        ForEach(Array(group.sessions.enumerated()), id: \.element.id) { index, session in
-                            SessionRecord(
+                        ForEach(group.sessions) { session in
+                            CompletedSessionCard(
                                 session: session,
                                 rankings: dataStore.singlesRankings
                             )
-
-                            if index < group.sessions.count - 1 {
-                                Rectangle()
-                                    .fill(GweiloTheme.hairline)
-                                    .frame(height: 1)
-                                    .padding(.vertical, 12)
-                            }
                         }
                     }
                 }
@@ -356,9 +348,29 @@ private struct ActiveSessionRecord: View {
     }
 }
 
-private struct SessionRecord: View {
+enum CompletedSessionCardPresentation: Equatable {
+    case compact
+    case regular
+}
+
+struct CompletedSessionCard: View {
     let session: SessionSummary
     let rankings: [RankingEntry]
+    let presentation: CompletedSessionCardPresentation
+
+    init(
+        session: SessionSummary,
+        rankings: [RankingEntry],
+        presentation: CompletedSessionCardPresentation = .regular
+    ) {
+        self.session = session
+        self.rankings = rankings
+        self.presentation = presentation
+    }
+
+    private var isCompact: Bool {
+        presentation == .compact
+    }
 
     private var bestRanking: RankingEntry? {
         ranking(named: session.bestPlayer)
@@ -370,61 +382,91 @@ private struct SessionRecord: View {
 
     var body: some View {
         NavigationLink(value: session) {
-            VStack(alignment: .leading, spacing: 15) {
-                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text(SessionHistoryFormatter.compactDate(session.createdAt))
-                        .font(
-                            GweiloTheme.displayFont(
-                                size: 25,
-                                relativeTo: .title3
-                            )
+            GweiloCard(
+                style: .neutral,
+                minHeight: isCompact ? 120 : 128,
+                contentPadding: isCompact ? 13 : 14
+            ) {
+                VStack(alignment: .leading, spacing: isCompact ? 6 : 7) {
+                    Text(
+                        SessionHistoryFormatter.cardDate(
+                            session.createdAt
                         )
-                        .foregroundStyle(.primary)
+                    )
+                    .font(
+                        GweiloTheme.headingFont(
+                            size: isCompact ? 18 : 20,
+                            relativeTo: .title3
+                        )
+                    )
+                    .foregroundStyle(GweiloTheme.bone)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
 
-                    Spacer(minLength: 8)
-
-                    Text(SessionHistoryFormatter.matchSummary(session))
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                    Text(SessionHistoryFormatter.cardSummary(session))
+                        .font(isCompact ? .caption2 : .caption)
+                        .foregroundStyle(GweiloTheme.bone.opacity(0.58))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .minimumScaleFactor(0.76)
 
-                    Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.tertiary)
-                }
+                    if let bestPlayer = session.bestPlayer,
+                       let bestDelta = session.bestDelta {
+                        HStack(spacing: 0) {
+                            CompletedSessionPerformer(
+                                name: bestPlayer,
+                                delta: bestDelta,
+                                ranking: bestRanking,
+                                color: GweiloTheme.lime,
+                                presentation: presentation
+                            )
+                            .padding(.trailing, 16)
 
-                if let bestPlayer = session.bestPlayer,
-                   let bestDelta = session.bestDelta,
-                   let worstPlayer = session.worstPlayer,
-                   let worstDelta = session.worstDelta {
-                    HStack(spacing: 12) {
-                        SessionPerformer(
-                            name: bestPlayer,
-                            delta: bestDelta,
-                            ranking: bestRanking,
-                            color: GweiloTheme.lime
-                        )
+                            if session.worstPlayer != nil,
+                               session.worstDelta != nil {
+                                Rectangle()
+                                    .fill(GweiloTheme.hairline)
+                                    .frame(
+                                        width: 1,
+                                        height: isCompact ? 31 : 38
+                                    )
+                            }
 
-                        Rectangle()
-                            .fill(GweiloTheme.hairline)
-                            .frame(width: 1, height: 38)
-
-                        SessionPerformer(
+                            if let worstPlayer = session.worstPlayer,
+                               let worstDelta = session.worstDelta {
+                                CompletedSessionPerformer(
+                                    name: worstPlayer,
+                                    delta: worstDelta,
+                                    ranking: worstRanking,
+                                    color: GweiloTheme.coral,
+                                    presentation: presentation
+                                )
+                                .padding(.leading, 16)
+                            }
+                        }
+                        .padding(.top, isCompact ? 8 : 6)
+                    } else if let worstPlayer = session.worstPlayer,
+                              let worstDelta = session.worstDelta {
+                        CompletedSessionPerformer(
                             name: worstPlayer,
                             delta: worstDelta,
                             ranking: worstRanking,
-                            color: GweiloTheme.coral
+                            color: GweiloTheme.coral,
+                            presentation: presentation
                         )
+                        .padding(.top, isCompact ? 8 : 6)
                     }
                 }
+                .frame(
+                    maxWidth: .infinity,
+                    maxHeight: .infinity,
+                    alignment: .topLeading
+                )
             }
-            .padding(.vertical, 12)
             .contentShape(.rect)
         }
         .buttonStyle(ResponsiveButtonStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityHint("Otvara detalje termina")
+        .accessibilityHint("Otvara završeni termin")
     }
 
     private func ranking(named name: String?) -> RankingEntry? {
@@ -435,35 +477,47 @@ private struct SessionRecord: View {
     }
 }
 
-private struct SessionPerformer: View {
+private struct CompletedSessionPerformer: View {
     let name: String
     let delta: Int
     let ranking: RankingEntry?
     let color: Color
+    let presentation: CompletedSessionCardPresentation
+
+    private var isCompact: Bool {
+        presentation == .compact
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: isCompact ? 6 : 8) {
             PlayerIdentityAvatar(
                 name: name,
                 initials: ranking?.initials ?? initials,
                 avatarURL: ranking?.avatarURL,
-                size: 35
+                size: isCompact ? 29 : 35
             )
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(name)
-                    .font(.subheadline.weight(.semibold))
+                    .font(
+                        isCompact
+                            ? .caption2.weight(.semibold)
+                            : .caption.weight(.semibold)
+                    )
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.72)
 
                 Text(delta > 0 ? "+\(delta) Elo" : "\(delta) Elo")
-                    .font(.caption.weight(.bold))
+                    .font(
+                        isCompact
+                            ? .caption2.weight(.bold)
+                            : .caption.weight(.bold)
+                    )
                     .monospacedDigit()
                     .foregroundStyle(color)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var initials: String {
@@ -490,22 +544,16 @@ private enum SessionHistoryFormatter {
         .uppercased()
     }
 
-    static func day(_ date: Date) -> String {
-        date.formatted(.dateTime.day().locale(locale))
-    }
-
-    static func compactDate(_ date: Date) -> String {
-        "\(weekday(date)), \(day(date))."
-    }
-
-    static func weekday(_ date: Date) -> String {
+    static func cardDate(_ date: Date) -> String {
         date.formatted(
             .dateTime
                 .weekday(.wide)
+                .day()
+                .month(.wide)
                 .locale(locale)
         )
-        .uppercased()
         .replacingOccurrences(of: ".", with: "")
+        .capitalized(with: locale)
     }
 
     static func fullDate(_ date: Date) -> String {
@@ -531,6 +579,14 @@ private enum SessionHistoryFormatter {
             )
         }
         return values.joined(separator: " · ")
+    }
+
+    static func cardSummary(_ session: SessionSummary) -> String {
+        let matches = matchSummary(session)
+        guard !matches.isEmpty else {
+            return "\(session.playerCount) igrača"
+        }
+        return "\(session.playerCount) igrača · \(matches)"
     }
 
     static func sessionWord(_ value: Int) -> String {
@@ -1847,7 +1903,7 @@ private struct ScheduleMatchCard: View {
             HStack(spacing: 8) {
                 MatchSide(players: firstSide, alignment: .trailing)
 
-                Text("PROTIV")
+                Text("VS")
                     .font(.caption2.weight(.black))
                     .foregroundStyle(.secondary)
                     .frame(width: 20)

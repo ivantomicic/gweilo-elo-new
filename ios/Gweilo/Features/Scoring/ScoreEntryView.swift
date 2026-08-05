@@ -314,7 +314,7 @@ private struct NextRoundMatchup: View {
                 Text(teamOne)
                     .lineLimit(1)
 
-                Text("PROTIV")
+                Text("VS")
                     .font(.caption2.weight(.bold))
                     .foregroundStyle(GweiloTheme.muted)
 
@@ -692,7 +692,7 @@ private struct VersusDivider: View {
                 .fill(GweiloTheme.hairline)
                 .frame(height: 1)
 
-            Text("PROTIV")
+            Text("VS")
                 .font(.caption2.weight(.bold))
                 .foregroundStyle(.secondary)
 

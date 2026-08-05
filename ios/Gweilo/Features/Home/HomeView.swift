@@ -52,7 +52,8 @@ struct HomeView: View {
 
                         if !dataStore.recentCompletedSessions.isEmpty {
                             RecentSessionsSection(
-                                sessions: dataStore.recentCompletedSessions
+                                sessions: dataStore.recentCompletedSessions,
+                                rankings: dataStore.singlesRankings
                             )
                         }
 
@@ -482,6 +483,7 @@ struct TopThreePreviewScreen: View {
 
 private struct RecentSessionsSection: View {
     let sessions: [SessionSummary]
+    let rankings: [RankingEntry]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -492,7 +494,11 @@ private struct RecentSessionsSection: View {
                     Array(sessions.enumerated()),
                     id: \.element.id
                 ) { index, session in
-                    RecentSessionCard(session: session)
+                    CompletedSessionCard(
+                        session: session,
+                        rankings: rankings,
+                        presentation: .compact
+                    )
                         .containerRelativeFrame(.horizontal) { length, _ in
                             min(length * 0.72, 272)
                         }
@@ -501,110 +507,6 @@ private struct RecentSessionsSection: View {
             }
         }
         .accessibilityElement(children: .contain)
-    }
-}
-
-private struct RecentSessionCard: View {
-    let session: SessionSummary
-
-    var body: some View {
-        NavigationLink(value: session) {
-            GweiloCard(style: .neutral, minHeight: 128) {
-                VStack(alignment: .leading, spacing: 7) {
-                    Text(HomeSessionFormatter.date(session.createdAt))
-                        .font(
-                            GweiloTheme.headingFont(
-                                size: 20,
-                                relativeTo: .title3
-                            )
-                        )
-                        .foregroundStyle(GweiloTheme.bone)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-
-                    Text(sessionSummary)
-                        .font(.caption)
-                        .foregroundStyle(
-                            GweiloTheme.bone.opacity(0.58)
-                        )
-
-                    if let bestPlayer = session.bestPlayer,
-                       let bestDelta = session.bestDelta {
-                        SessionDeltaRow(
-                            player: bestPlayer,
-                            delta: bestDelta
-                        )
-                    }
-
-                    if let worstPlayer = session.worstPlayer,
-                       let worstDelta = session.worstDelta {
-                        SessionDeltaRow(
-                            player: worstPlayer,
-                            delta: worstDelta
-                        )
-                    }
-                }
-                .frame(
-                    maxWidth: .infinity,
-                    maxHeight: .infinity,
-                    alignment: .topLeading
-                )
-            }
-        }
-        .buttonStyle(ResponsiveButtonStyle())
-        .accessibilityHint("Otvara poslednji završeni termin")
-    }
-
-    private var sessionSummary: String {
-        var parts = ["\(session.playerCount) igrača"]
-
-        if session.singlesMatches > 0 {
-            parts.append("\(session.singlesMatches) singlova")
-        }
-        if session.doublesMatches > 0 {
-            parts.append("\(session.doublesMatches) dublova")
-        }
-
-        return parts.joined(separator: " · ")
-    }
-}
-
-private struct SessionDeltaRow: View {
-    let player: String
-    let delta: Int
-
-    private var isGain: Bool {
-        delta >= 0
-    }
-
-    private var deltaText: String {
-        "\(isGain ? "+" : "")\(delta)"
-    }
-
-    var body: some View {
-        Label(
-            "\(player) \(deltaText) Elo",
-            systemImage: isGain ? "arrow.up.right" : "arrow.down.right"
-        )
-        .font(.caption.weight(.bold))
-        .foregroundStyle(isGain ? GweiloTheme.lime : GweiloTheme.coral)
-        .lineLimit(1)
-    }
-}
-
-private enum HomeSessionFormatter {
-    private static let locale = Locale(identifier: "sr_Latn_RS")
-
-    static func date(_ date: Date) -> String {
-        date.formatted(
-            .dateTime
-                .weekday(.wide)
-                .day()
-                .month(.wide)
-                .locale(locale)
-        )
-        .replacingOccurrences(of: ".", with: "")
-        .capitalized(with: locale)
     }
 }
 

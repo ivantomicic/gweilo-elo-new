@@ -4,7 +4,6 @@ export function getProviderAvatarFromMetadata(
 	const candidates = [
 		userMetadata?.avatar_url_google,
 		userMetadata?.picture,
-		userMetadata?.avatar_url,
 	];
 
 	for (const candidate of candidates) {

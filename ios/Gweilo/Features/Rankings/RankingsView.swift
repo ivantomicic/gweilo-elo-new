@@ -1989,7 +1989,7 @@ private struct EloMatchScrubDetail: View {
                     .tracking(1)
                     .foregroundStyle(point.performanceBand.color)
 
-                Text("PROTIV \(point.opponent ?? "nepoznatog protivnika")")
+                Text("VS \(point.opponent ?? "nepoznatog protivnika")")
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
 
@@ -2588,7 +2588,7 @@ struct PlayerProfileMatchResultRow: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(
-                    "PROTIV "
+                    "VS "
                         + "\(result.opponent ?? "nepoznatog protivnika")"
                 )
                 .font(.body.weight(.semibold))
