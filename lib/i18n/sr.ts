@@ -227,7 +227,7 @@ export const sr = {
 			delete: {
 				title: "Obriši termin",
 				description:
-					"Ovo će trajno obrisati ovaj termin i ponovo izgraditi sve Elo rejtinge od početka. Ova akcija se ne može poništiti.",
+					"Ovo će trajno obrisati termin i vratiti singl, dubl igrač i tim Elo rejtinge na tačno stanje pre termina. Brisanje će biti zaustavljeno ako bezbedan povratak nije moguć. Ova akcija se ne može poništiti.",
 				button: "Obriši termin",
 				deleting: "Brisanje...",
 				confirm: "Razumem da se ovo ne može poništiti",

@@ -6,16 +6,8 @@
  * - sessionStorage (analytics tracking flags)
  */
 
-export function clearAllCaches(): void {
+function clearLocalStorageByPrefix(cacheKeys: string[]): void {
 	if (typeof window === "undefined") return;
-
-	// Clear all localStorage items that start with our cache keys
-	const cacheKeys = [
-		"elo_history_",
-		"noshow_alert_cache",
-		"noshow_distribution_cache",
-		"top3players_cache",
-	];
 
 	// Remove all localStorage items that match our cache patterns
 	const keysToRemove: string[] = [];
@@ -34,6 +26,24 @@ export function clearAllCaches(): void {
 
 	// Remove all matching keys
 	keysToRemove.forEach((key) => localStorage.removeItem(key));
+}
+
+/** Clear data that becomes stale after a completed session is deleted. */
+export function clearSessionDeletionCaches(): void {
+	clearLocalStorageByPrefix([
+		"elo_history_",
+		"sessions-page:",
+		"no_show_alert_cache",
+		"noshow_alert_cache",
+		"noshow_distribution_cache",
+		"top3players_cache",
+	]);
+}
+
+export function clearAllCaches(): void {
+	if (typeof window === "undefined") return;
+
+	clearSessionDeletionCaches();
 
 	// Clear sessionStorage (analytics tracking flags)
 	sessionStorage.clear();

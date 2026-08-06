@@ -45,6 +45,7 @@ import {
 } from "@/lib/sessions/player-id";
 import { detectTwoHalfSinglesSession } from "@/lib/sessions/two-half-singles";
 import { t } from "@/lib/i18n";
+import { clearSessionDeletionCaches } from "@/lib/utils/clear-cache";
 import {
 	CalculationTerminal,
 	TerminalLine,
@@ -1716,8 +1717,12 @@ function SessionPageContent() {
 				);
 			}
 
+			clearSessionSummaryCache(sessionId);
+			clearSessionDeletionCaches();
+
 			// Redirect to sessions list after successful deletion
-			router.push("/sessions");
+			router.replace("/sessions");
+			router.refresh();
 		} catch (err) {
 			console.error("Error deleting session:", err);
 			setError(

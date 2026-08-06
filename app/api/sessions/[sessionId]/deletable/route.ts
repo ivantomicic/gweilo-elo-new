@@ -1,13 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { createAdminClient, verifyAdmin } from "@/lib/supabase/admin";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!supabaseUrl || !supabaseAnonKey) {
-	throw new Error("Missing Supabase environment variables");
-}
+import {
+	getSessionDeletionFailure,
+	type AtomicSessionDeletionResult,
+} from "@/lib/sessions/deletion";
 
 /**
  * GET /api/sessions/[sessionId]/deletable
@@ -21,8 +17,8 @@ if (!supabaseUrl || !supabaseAnonKey) {
  *
  * Guards:
  * - User must be admin
- * - Session must be completed
- * - Session must be the latest completed session
+ * The same transactional database function used by DELETE performs a dry run,
+ * so the button and the final mutation share identical safety checks.
  */
 export async function GET(
 	request: NextRequest,
@@ -50,55 +46,42 @@ export async function GET(
 			);
 		}
 
-		// Fetch session
-		const { data: session, error: sessionError } = await adminClient
-			.from("sessions")
-			.select("id, status, completed_at")
-			.eq("id", sessionId)
-			.single();
+		const { data, error } = await adminClient.rpc(
+			"delete_latest_completed_session_atomic",
+			{
+				p_session_id: sessionId,
+				p_deleted_by: adminUserId,
+				p_execute: false,
+			},
+		);
 
-		if (sessionError || !session) {
-			return NextResponse.json({
-				deletable: false,
-				reason: "Session not found",
-				is_latest_completed: false,
-			});
+		if (error || !data) {
+			console.error("Session deletion safety check failed:", error);
+			return NextResponse.json(
+				{ error: "Cannot verify whether this session can be deleted safely" },
+				{ status: 500 },
+			);
 		}
 
-		if (session.status !== "completed") {
-			return NextResponse.json({
-				deletable: false,
-				reason: "Only completed sessions can be deleted",
-				is_latest_completed: false,
-			});
-		}
-
-		// Check if this is the latest completed session
-		const { data: latestCompletedSession, error: latestError } =
-			await adminClient
-				.from("sessions")
-				.select("id, completed_at")
-				.eq("status", "completed")
-				.order("completed_at", { ascending: false })
-				.limit(1)
-				.single();
-
-		if (latestError || !latestCompletedSession) {
-			return NextResponse.json({
-				deletable: false,
-				reason: "Cannot verify if this is the latest completed session",
-				is_latest_completed: false,
-			});
-		}
-
-		const isLatestCompleted = latestCompletedSession.id === sessionId;
+		const result = data as AtomicSessionDeletionResult;
+		const failure = getSessionDeletionFailure(result);
+		const deletable = result.state === "deletable";
+		const isLatestCompleted = [
+			"deletable",
+			"deleted",
+			"active_session_has_results",
+			"recalculation_running",
+			"rating_state_conflict",
+			"snapshot_incomplete",
+		].includes(result.state);
 
 		return NextResponse.json({
-			deletable: isLatestCompleted,
-			reason: isLatestCompleted
-				? null
-				: "Only the latest completed session can be deleted",
+			deletable,
+			reason: failure?.error ?? null,
+			state: result.state,
 			is_latest_completed: isLatestCompleted,
+			latest_completed_session_id: result.latestSessionId ?? null,
+			previous_session_id: result.previousSessionId ?? null,
 		});
 	} catch (error) {
 		console.error(
@@ -111,5 +94,3 @@ export async function GET(
 		);
 	}
 }
-
-
