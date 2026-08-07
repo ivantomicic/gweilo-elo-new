@@ -2,21 +2,22 @@ import SwiftUI
 import WidgetKit
 
 private enum ClubWidgetStyle {
-    static let lime = Color(red: 0.69, green: 1, blue: 0.04)
-    static let purple = Color(red: 0.53, green: 0.24, blue: 1)
-    static let bone = Color(red: 0.96, green: 0.95, blue: 0.91)
-    static let amber = Color(red: 0.96, green: 0.68, blue: 0.20)
-    static let coral = Color(red: 1, green: 0.28, blue: 0.36)
-    static let muted = Color.white.opacity(0.46)
-    static let hairline = Color.white.opacity(0.11)
-    static let surface = Color.white.opacity(0.07)
-    static let panel = Color(red: 0.018, green: 0.014, blue: 0.028)
+    static let accent = Color(red: 0.56, green: 0.40, blue: 0.98)
+    static let positive = Color(red: 0.73, green: 0.94, blue: 0.22)
+    static let negative = Color(red: 1, green: 0.34, blue: 0.39)
+    static let neutral = Color.orange.opacity(0.88)
+    static let text = Color.white
+    static let secondaryText = Color.white.opacity(0.60)
+    static let tertiaryText = Color.white.opacity(0.36)
+    static let separator = Color.white.opacity(0.09)
+    static let fill = Color.white.opacity(0.08)
+    static let background = Color(red: 0.055, green: 0.05, blue: 0.072)
 
     static func formColor(_ value: Int?) -> Color {
-        guard let value else { return surface }
-        if value > 5 { return lime }
-        if value < -5 { return coral }
-        return amber
+        guard let value else { return fill }
+        if value > 5 { return positive }
+        if value < -5 { return negative }
+        return neutral
     }
 }
 
@@ -63,12 +64,12 @@ struct GweiloClubWidget: Widget {
         ) { entry in
             GweiloClubWidgetView(entry: entry)
                 .containerBackground(for: .widget) {
-                    ClubWidgetStyle.panel
+                    ClubWidgetStyle.background
                 }
                 .widgetURL(URL(string: "gweilo://statistics"))
         }
         .configurationDisplayName("Gweilo statistika")
-        .description("Tvoja forma, poslednji mečevi i tabela singlova.")
+        .description("Tvoja forma i tabela singlova.")
         .supportedFamilies([.systemSmall, .systemLarge])
     }
 }
@@ -83,60 +84,51 @@ private struct GweiloClubWidgetView: View {
             case .systemLarge:
                 StandingsWidget(snapshot: entry.snapshot)
             default:
-                PlayerFormWidget(snapshot: entry.snapshot)
+                PlayerRatingWidget(snapshot: entry.snapshot)
             }
         }
         .environment(\.locale, Locale(identifier: "sr_Latn_RS"))
     }
 }
 
-private struct PlayerFormWidget: View {
+private struct PlayerRatingWidget: View {
     let snapshot: GweiloWidgetSnapshot
 
     var body: some View {
         if let player = snapshot.player {
-            VStack(alignment: .leading, spacing: 7) {
-                HStack(alignment: .firstTextBaseline) {
-                    WidgetEyebrow("MOJA FORMA")
-                    Spacer(minLength: 4)
-                    Text("#\(player.rank)")
-                        .font(.caption2.monospacedDigit().weight(.black))
-                        .foregroundStyle(ClubWidgetStyle.purple)
-                }
+            VStack(alignment: .leading, spacing: 0) {
+                WidgetBrandRow(trailingText: "#\(player.rank)")
 
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(player.name)
-                        .font(.headline.weight(.black))
-                        .foregroundStyle(ClubWidgetStyle.bone)
-                        .lineLimit(1)
-                    Spacer(minLength: 4)
+                Spacer(minLength: 8)
+
+                Text(player.name)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(ClubWidgetStyle.text)
+                    .lineLimit(1)
+
+                HStack(alignment: .lastTextBaseline, spacing: 4) {
                     Text("\(player.elo)")
-                        .font(.headline.monospacedDigit().weight(.black))
-                        .foregroundStyle(ClubWidgetStyle.lime)
+                        .font(.system(.title, design: .rounded).weight(.bold))
+                        .monospacedDigit()
+                        .foregroundStyle(ClubWidgetStyle.text)
+
+                    Text("Elo")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(ClubWidgetStyle.secondaryText)
                 }
 
-                FormStrip(values: player.recentForm)
+                FormDots(values: player.recentForm)
+                    .padding(.top, 8)
 
-                Rectangle()
-                    .fill(ClubWidgetStyle.hairline)
-                    .frame(height: 1)
+                Spacer(minLength: 8)
 
-                WidgetEyebrow("POSLEDNJI MEČEVI")
-
-                VStack(spacing: 4) {
-                    ForEach(
-                        Array(player.recentMatches.prefix(2).enumerated()),
-                        id: \.offset
-                    ) { _, match in
-                        RecentMatchRow(match: match)
-                    }
-                }
-
-                if player.recentMatches.isEmpty {
-                    Text("Poslednji mečevi pojaviće se nakon osvežavanja.")
+                if let latestMatch = player.recentMatches.first {
+                    LatestMatchSummary(match: latestMatch)
+                } else {
+                    Text("Nema nedavnih mečeva")
                         .font(.caption2)
-                        .foregroundStyle(ClubWidgetStyle.muted)
-                        .lineLimit(2)
+                        .foregroundStyle(ClubWidgetStyle.tertiaryText)
+                        .lineLimit(1)
                 }
             }
             .accessibilityElement(children: .contain)
@@ -145,60 +137,82 @@ private struct PlayerFormWidget: View {
             )
         } else {
             WidgetEmptyState(
-                title: "MOJA FORMA",
-                message: "Otvori Gweilo da učitamo tvoju statistiku."
+                title: "Tvoja statistika",
+                message: "Otvori Gweilo da osvežiš podatke."
             )
         }
     }
 }
 
-private struct RecentMatchRow: View {
+private struct WidgetBrandRow: View {
+    var trailingText: String?
+
+    var body: some View {
+        HStack(spacing: 7) {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(ClubWidgetStyle.accent)
+                .frame(width: 13, height: 13)
+                .accessibilityHidden(true)
+
+            Text("Gweilo")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ClubWidgetStyle.secondaryText)
+
+            Spacer(minLength: 6)
+
+            if let trailingText {
+                Text(trailingText)
+                    .font(.caption.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(ClubWidgetStyle.accent)
+            }
+        }
+    }
+}
+
+private struct LatestMatchSummary: View {
     let match: GweiloWidgetMatch
 
-    private var outcomeLabel: String {
+    private var color: Color {
         switch match.outcome {
-        case "win": "P"
-        case "loss": "I"
-        case "draw": "N"
-        default: "·"
+        case "win": ClubWidgetStyle.positive
+        case "loss": ClubWidgetStyle.negative
+        default: ClubWidgetStyle.neutral
         }
     }
 
-    private var outcomeColor: Color {
+    private var symbol: String {
         switch match.outcome {
-        case "win": ClubWidgetStyle.lime
-        case "loss": ClubWidgetStyle.coral
-        case "draw": ClubWidgetStyle.amber
-        default: ClubWidgetStyle.muted
+        case "win": "arrow.up.right"
+        case "loss": "arrow.down.right"
+        default: "minus"
         }
     }
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(outcomeLabel)
-                .font(.caption2.weight(.black))
-                .foregroundStyle(ClubWidgetStyle.panel)
-                .frame(width: 17, height: 17)
-                .background(outcomeColor, in: .rect(cornerRadius: 4))
+        HStack(spacing: 7) {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .bold))
+                .foregroundStyle(color)
+                .frame(width: 20, height: 20)
+                .background(color.opacity(0.13), in: .circle)
 
-            Text(match.opponent)
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(ClubWidgetStyle.bone)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Poslednji meč")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(ClubWidgetStyle.tertiaryText)
+
+                Text(match.opponent)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(ClubWidgetStyle.text)
+                    .lineLimit(1)
+            }
 
             Spacer(minLength: 2)
 
             if let score = match.score {
                 Text(score)
-                    .font(.caption2.monospacedDigit().weight(.bold))
-                    .foregroundStyle(ClubWidgetStyle.bone)
-            }
-
-            if let delta = match.eloDelta {
-                Text(delta > 0 ? "+\(delta)" : "\(delta)")
-                    .font(.caption2.monospacedDigit().weight(.black))
-                    .foregroundStyle(ClubWidgetStyle.formColor(delta))
-                    .frame(minWidth: 23, alignment: .trailing)
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(ClubWidgetStyle.secondaryText)
             }
         }
         .accessibilityElement(children: .combine)
@@ -211,11 +225,11 @@ private struct StandingsWidget: View {
     var body: some View {
         if snapshot.standings.isEmpty {
             WidgetEmptyState(
-                title: "SINGL STATISTIKA",
-                message: "Otvori Gweilo da učitamo tabelu."
+                title: "Singl tabela",
+                message: "Otvori Gweilo da osvežiš podatke."
             )
         } else {
-            VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 StandingsHeader(savedAt: snapshot.savedAt)
                     .padding(.bottom, 12)
 
@@ -226,17 +240,16 @@ private struct StandingsWidget: View {
                     StandingRow(standing: standing)
                 }
 
-                Spacer(minLength: 4)
+                Spacer(minLength: 8)
 
-                HStack {
-                    Text("P–N–I")
-                        .foregroundStyle(ClubWidgetStyle.muted)
-                    Spacer()
-                    Text("DODIRNI ZA CELU TABELU")
-                        .foregroundStyle(ClubWidgetStyle.lime)
+                HStack(spacing: 5) {
+                    Text("Otvori celu tabelu")
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
                 }
-                .font(.system(size: 8, weight: .black))
-                .tracking(0.45)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(ClubWidgetStyle.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Tabela singl statistike")
@@ -248,37 +261,41 @@ private struct StandingsHeader: View {
     let savedAt: Date
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            VStack(alignment: .leading, spacing: 2) {
-                WidgetEyebrow("GWEILO / NOVI SAD")
-                Text("SINGL STATISTIKA")
-                    .font(.title3.weight(.black))
-                    .foregroundStyle(ClubWidgetStyle.bone)
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                WidgetBrandRow()
+
+                Text("Singl tabela")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(ClubWidgetStyle.text)
             }
-            Spacer()
+
+            Spacer(minLength: 8)
+
             Text(savedAt, style: .relative)
                 .font(.caption2.weight(.medium))
-                .foregroundStyle(ClubWidgetStyle.muted)
+                .foregroundStyle(ClubWidgetStyle.tertiaryText)
+                .padding(.top, 2)
         }
     }
 }
 
 private struct StandingsColumnHeader: View {
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Text("#")
                 .frame(width: 18, alignment: .leading)
-            Text("IGRAČ")
+            Text("Igrač")
             Spacer()
-            Text("FORMA")
-                .frame(width: 66, alignment: .leading)
-            Text("ELO")
-                .frame(width: 43, alignment: .trailing)
+            Text("Forma")
+                .frame(width: 64, alignment: .leading)
+            Text("Elo")
+                .frame(width: 44, alignment: .trailing)
         }
-        .font(.system(size: 8, weight: .black))
-        .tracking(0.6)
-        .foregroundStyle(ClubWidgetStyle.muted)
-        .padding(.bottom, 4)
+        .font(.system(size: 9, weight: .medium))
+        .foregroundStyle(ClubWidgetStyle.tertiaryText)
+        .padding(.horizontal, 9)
+        .padding(.bottom, 5)
     }
 }
 
@@ -286,57 +303,45 @@ private struct StandingRow: View {
     let standing: GweiloWidgetStanding
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             Text("\(standing.rank)")
-                .font(.caption.monospacedDigit().weight(.black))
+                .font(.caption.monospacedDigit().weight(.semibold))
                 .foregroundStyle(
                     standing.isCurrentUser
-                        ? ClubWidgetStyle.lime
-                        : ClubWidgetStyle.muted
+                        ? ClubWidgetStyle.accent
+                        : ClubWidgetStyle.tertiaryText
                 )
                 .frame(width: 18, alignment: .leading)
 
-            HStack(spacing: 7) {
-                Text(initials)
-                    .font(.system(size: 8, weight: .black))
-                    .foregroundStyle(ClubWidgetStyle.bone)
-                    .frame(width: 24, height: 24)
-                    .background(
-                        standing.isCurrentUser
-                            ? ClubWidgetStyle.purple
-                            : ClubWidgetStyle.surface,
-                        in: .circle
-                    )
-
-                Text(standing.name)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(ClubWidgetStyle.bone)
-                    .lineLimit(1)
-            }
+            Text(standing.name)
+                .font(.caption.weight(standing.isCurrentUser ? .semibold : .medium))
+                .foregroundStyle(ClubWidgetStyle.text)
+                .lineLimit(1)
 
             Spacer(minLength: 4)
 
-            FormStrip(values: standing.recentForm, height: 7)
-                .frame(width: 66)
+            FormDots(values: standing.recentForm, dotHeight: 5)
+                .frame(width: 64)
 
             Text("\(standing.elo)")
-                .font(.caption.monospacedDigit().weight(.black))
-                .foregroundStyle(ClubWidgetStyle.bone)
-                .frame(width: 43, alignment: .trailing)
+                .font(.caption.monospacedDigit().weight(.semibold))
+                .foregroundStyle(ClubWidgetStyle.text)
+                .frame(width: 44, alignment: .trailing)
         }
         .frame(height: 42)
-        .padding(.horizontal, 6)
+        .padding(.horizontal, 9)
         .background(
             standing.isCurrentUser
-                ? ClubWidgetStyle.purple.opacity(0.13)
+                ? ClubWidgetStyle.accent.opacity(0.13)
                 : .clear,
-            in: .rect(cornerRadius: 8)
+            in: .rect(cornerRadius: 10)
         )
         .overlay(alignment: .bottom) {
             if !standing.isCurrentUser {
                 Rectangle()
-                    .fill(ClubWidgetStyle.hairline)
-                    .frame(height: 1)
+                    .fill(ClubWidgetStyle.separator)
+                    .frame(height: 0.5)
+                    .padding(.leading, 37)
             }
         }
         .accessibilityElement(children: .ignore)
@@ -344,76 +349,29 @@ private struct StandingRow: View {
             "Mesto \(standing.rank), \(standing.name), \(standing.elo) Elo"
         )
     }
-
-    private var initials: String {
-        standing.name
-            .split(separator: " ")
-            .prefix(2)
-            .compactMap(\.first)
-            .map(String.init)
-            .joined()
-            .uppercased()
-    }
 }
 
-private struct FormStrip: View {
+private struct FormDots: View {
     let values: [Int]
-    var height: CGFloat = 11
+    var dotHeight: CGFloat = 7
 
-    private var paddedValues: [Int?] {
+    private var samples: [FormSample] {
         let recent = values.suffix(5).map(Optional.some)
-        return Array(
-            repeating: nil,
-            count: max(0, 5 - recent.count)
-        ) + recent
-    }
-
-    private var gradientStops: [Gradient.Stop] {
-        let colors = paddedValues.map(ClubWidgetStyle.formColor)
-        guard let first = colors.first, let last = colors.last else {
-            return [
-                .init(color: ClubWidgetStyle.surface, location: 0),
-                .init(color: ClubWidgetStyle.surface, location: 1)
-            ]
+        let padded = Array(repeating: nil, count: max(0, 5 - recent.count))
+            + recent
+        return padded.enumerated().map {
+            FormSample(id: $0.offset, value: $0.element)
         }
-
-        let centerStops = colors.enumerated().map { index, color in
-            Gradient.Stop(
-                color: color,
-                location: (CGFloat(index) + 0.5) / CGFloat(colors.count)
-            )
-        }
-
-        return [.init(color: first, location: 0)]
-            + centerStops
-            + [.init(color: last, location: 1)]
     }
 
     var body: some View {
-        ZStack {
-            ClubWidgetStyle.surface
-
-            LinearGradient(
-                gradient: Gradient(stops: gradientStops),
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-
-            LinearGradient(
-                colors: [
-                    .white.opacity(0.18),
-                    .clear,
-                    .black.opacity(0.16)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .frame(height: height)
-        .clipShape(.capsule)
-        .overlay {
-            Capsule()
-                .stroke(ClubWidgetStyle.hairline, lineWidth: 0.5)
+        HStack(spacing: 3) {
+            ForEach(samples) { sample in
+                Capsule()
+                    .fill(ClubWidgetStyle.formColor(sample.value))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: dotHeight)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Forma")
@@ -421,27 +379,17 @@ private struct FormStrip: View {
     }
 
     private var accessibilityValue: String {
-        paddedValues.map { value in
-            guard let value else { return "bez rezultata" }
+        samples.map { sample in
+            guard let value = sample.value else { return "bez rezultata" }
             return value > 0 ? "+\(value) Elo" : "\(value) Elo"
         }
         .joined(separator: ", ")
     }
 }
 
-private struct WidgetEyebrow: View {
-    let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .black))
-            .tracking(0.9)
-            .foregroundStyle(ClubWidgetStyle.purple)
-    }
+private struct FormSample: Identifiable {
+    let id: Int
+    let value: Int?
 }
 
 private struct WidgetEmptyState: View {
@@ -449,20 +397,25 @@ private struct WidgetEmptyState: View {
     let message: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            WidgetEyebrow("GWEILO / NOVI SAD")
+        VStack(alignment: .leading, spacing: 8) {
+            WidgetBrandRow()
+
             Spacer()
-            Image(systemName: "chart.bar.fill")
-                .font(.title.weight(.bold))
-                .foregroundStyle(ClubWidgetStyle.lime)
+
+            Image(systemName: "chart.line.uptrend.xyaxis")
+                .font(.title2.weight(.medium))
+                .foregroundStyle(ClubWidgetStyle.accent)
                 .accessibilityHidden(true)
+
             Text(title)
-                .font(.headline.weight(.black))
-                .foregroundStyle(ClubWidgetStyle.bone)
+                .font(.headline.weight(.semibold))
+                .foregroundStyle(ClubWidgetStyle.text)
+
             Text(message)
                 .font(.caption)
-                .foregroundStyle(ClubWidgetStyle.muted)
+                .foregroundStyle(ClubWidgetStyle.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
+
             Spacer()
         }
         .accessibilityElement(children: .combine)

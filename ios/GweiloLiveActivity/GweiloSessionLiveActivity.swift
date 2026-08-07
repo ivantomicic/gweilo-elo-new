@@ -1,57 +1,54 @@
 import ActivityKit
+import Foundation
 import SwiftUI
 import WidgetKit
 
 private enum LiveActivityStyle {
-    static let lime = Color(red: 0.69, green: 1, blue: 0.04)
-    static let purple = Color(red: 0.53, green: 0.24, blue: 1)
-    static let bone = Color(red: 0.96, green: 0.95, blue: 0.91)
-    static let muted = Color.white.opacity(0.52)
-    static let subtle = Color.white.opacity(0.12)
-    static let panel = Color(red: 0.025, green: 0.018, blue: 0.045)
+    static let accent = Color(red: 0.56, green: 0.40, blue: 0.98)
+    static let live = Color(red: 0.73, green: 0.94, blue: 0.22)
+    static let text = Color.white
+    static let secondaryText = Color.white.opacity(0.62)
+    static let tertiaryText = Color.white.opacity(0.38)
+    static let fill = Color.white.opacity(0.10)
+    static let subtleFill = Color.white.opacity(0.055)
+    static let background = Color(red: 0.055, green: 0.05, blue: 0.072)
 }
 
 struct GweiloSessionLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: GweiloSessionActivityAttributes.self) {
             context in
-            LockScreenSessionView(context: context)
-                .activityBackgroundTint(LiveActivityStyle.panel)
-                .activitySystemActionForegroundColor(LiveActivityStyle.bone)
+            LockScreenSessionView(state: context.state)
+                .activityBackgroundTint(LiveActivityStyle.background)
+                .activitySystemActionForegroundColor(LiveActivityStyle.text)
                 .widgetURL(sessionURL(context.attributes.sessionID))
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Text("RUNDA")
-                        .font(.system(size: 9, weight: .black))
-                        .tracking(0.9)
-                        .foregroundStyle(LiveActivityStyle.muted)
+                    LiveBrandLockup()
                 }
+
                 DynamicIslandExpandedRegion(.trailing) {
-                    RoundValue(state: context.state, compact: true)
+                    RoundLabel(state: context.state, compact: true)
                 }
-                DynamicIslandExpandedRegion(.center) {
-                    GweiloRallyMark(size: 31)
-                        .accessibilityHidden(true)
-                }
+
                 DynamicIslandExpandedRegion(.bottom) {
                     ExpandedIslandContent(state: context.state)
                 }
             } compactLeading: {
-                GweiloRallyMark(size: 21)
-                    .accessibilityHidden(true)
+                CompactLiveMark()
             } compactTrailing: {
-                Text(
-                    "\(context.state.currentRound)/\(context.state.totalRounds)"
-                )
-                .font(.caption.weight(.bold))
-                .monospacedDigit()
-                .foregroundStyle(LiveActivityStyle.lime)
+                Text("\(context.state.currentRound)/\(context.state.totalRounds)")
+                    .font(.caption2.monospacedDigit().weight(.semibold))
+                    .foregroundStyle(LiveActivityStyle.text)
+                    .accessibilityLabel(
+                        "Runda \(context.state.currentRound) od \(context.state.totalRounds)"
+                    )
             } minimal: {
-                MinimalActivityMark()
+                MinimalLiveMark()
             }
             .widgetURL(sessionURL(context.attributes.sessionID))
-            .keylineTint(LiveActivityStyle.purple)
+            .keylineTint(LiveActivityStyle.accent)
         }
     }
 
@@ -61,39 +58,52 @@ struct GweiloSessionLiveActivity: Widget {
 }
 
 private struct LockScreenSessionView: View {
-    let context: ActivityViewContext<GweiloSessionActivityAttributes>
+    let state: GweiloSessionActivityAttributes.ContentState
 
     var body: some View {
-        ZStack {
-            LiveActivityBackdrop()
-
-            VStack(spacing: 5) {
-                if context.state.status == "active" {
-                    ProminentRoundHeader(state: context.state)
-
-                    MatchupSummaryRow(
-                        label: "SADA",
-                        matchups: context.state.matchups,
-                        tint: LiveActivityStyle.lime,
-                        showsEveryMatch: true
-                    )
-
-                    MatchupSummaryRow(
-                        label: "SLEDEĆI",
-                        matchups: context.state.nextMatchups ?? [],
-                        tint: LiveActivityStyle.purple,
-                        showsEveryMatch: false
-                    )
-
-                    ProgressSummary(state: context.state)
-                } else {
-                    CompletedSessionHeadline(state: context.state)
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            if state.status == "active" {
+                ActiveSessionContent(state: state)
+            } else {
+                FinishedSessionContent(state: state)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
         }
+        .padding(.horizontal, 15)
+        .padding(.vertical, 9)
         .accessibilityElement(children: .contain)
+    }
+}
+
+private struct ActiveSessionContent: View {
+    let state: GweiloSessionActivityAttributes.ContentState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 10) {
+                LiveBrandLockup()
+                Spacer(minLength: 8)
+                RoundLabel(state: state)
+            }
+
+            MatchupGroup(
+                matchups: state.matchups,
+                maximumVisible: 3,
+                isPrimary: true,
+                currentRound: state.currentRound,
+                totalRounds: state.totalRounds
+            )
+
+            NextRoundSummary(
+                roundLabel: nextRoundLabel,
+                matchups: state.nextMatchups ?? [],
+                compact: false
+            )
+        }
+    }
+
+    private var nextRoundLabel: String {
+        guard state.currentRound < state.totalRounds else { return "Poslednja" }
+        return "Runda \(state.currentRound + 1)"
     }
 }
 
@@ -101,73 +111,87 @@ private struct ExpandedIslandContent: View {
     let state: GweiloSessionActivityAttributes.ContentState
 
     var body: some View {
-        VStack(spacing: 8) {
+        Group {
             if state.status == "active" {
-                MatchupSummaryRow(
-                    label: "SADA",
-                    matchups: state.matchups,
-                    tint: LiveActivityStyle.lime,
-                    showsEveryMatch: true,
-                    compact: true
-                )
-                MatchupSummaryRow(
-                    label: "SLEDEĆI",
-                    matchups: state.nextMatchups ?? [],
-                    tint: LiveActivityStyle.purple,
-                    showsEveryMatch: false,
-                    compact: true
-                )
+                VStack(alignment: .leading, spacing: 7) {
+                    MatchupGroup(
+                        matchups: state.matchups,
+                        maximumVisible: 3,
+                        isPrimary: true,
+                        currentRound: state.currentRound,
+                        totalRounds: state.totalRounds,
+                        compact: true
+                    )
 
-                ProgressSummary(state: state, compact: true)
+                    NextRoundSummary(
+                        roundLabel: state.currentRound < state.totalRounds
+                            ? "Runda \(state.currentRound + 1)"
+                            : "Poslednja",
+                        matchups: state.nextMatchups ?? []
+                    )
+                }
             } else {
-                CompletedSessionHeadline(state: state, compact: true)
+                FinishedSessionContent(state: state, compact: true)
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.top, 5)
+        .padding(.horizontal, 2)
     }
 }
 
-private struct ProminentRoundHeader: View {
-    let state: GweiloSessionActivityAttributes.ContentState
-
+private struct LiveBrandLockup: View {
     var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: -2) {
-                Text("RUNDA")
-                    .font(.system(size: 9, weight: .black))
-                    .tracking(1.1)
-                    .foregroundStyle(LiveActivityStyle.lime)
+        HStack(spacing: 7) {
+            BrandMark()
 
-                RoundValue(state: state)
-            }
-
-            Spacer()
-
-            GweiloRallyMark(size: 34)
-                .accessibilityHidden(true)
+            Text("Gweilo")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(LiveActivityStyle.secondaryText)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(
-            "Runda \(state.currentRound) od \(state.totalRounds)"
-        )
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Gweilo aktivnost uživo")
     }
 }
 
-private struct RoundValue: View {
+private struct BrandMark: View {
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(LiveActivityStyle.accent)
+                .frame(width: 17, height: 17)
+
+            Circle()
+                .fill(LiveActivityStyle.live)
+                .frame(width: 6, height: 6)
+                .overlay {
+                    Circle().stroke(LiveActivityStyle.background, lineWidth: 1.5)
+                }
+                .offset(x: 2, y: -2)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+private struct RoundLabel: View {
     let state: GweiloSessionActivityAttributes.ContentState
     var compact = false
 
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 3) {
-            Text("\(state.currentRound)")
-                .font(.system(size: compact ? 20 : 34, weight: .black))
-                .foregroundStyle(LiveActivityStyle.bone)
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("Runda")
+                .foregroundStyle(LiveActivityStyle.secondaryText)
 
-            Text("/ \(state.totalRounds)")
-                .font(.system(size: compact ? 10 : 12, weight: .bold))
-                .foregroundStyle(LiveActivityStyle.muted)
+            Text("\(state.currentRound)")
+                .foregroundStyle(LiveActivityStyle.text)
+
+            Text("od \(state.totalRounds)")
+                .foregroundStyle(LiveActivityStyle.tertiaryText)
         }
-        .monospacedDigit()
+        .font(
+            compact
+                ? .caption2.monospacedDigit().weight(.semibold)
+                : .caption.monospacedDigit().weight(.semibold)
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
             "Runda \(state.currentRound) od \(state.totalRounds)"
@@ -175,344 +199,538 @@ private struct RoundValue: View {
     }
 }
 
-private struct MatchupSummaryRow: View {
-    let label: String
+private struct MatchupGroup: View {
     let matchups: [GweiloSessionActivityAttributes.Matchup]
-    let tint: Color
-    let showsEveryMatch: Bool
+    let maximumVisible: Int
+    let isPrimary: Bool
+    let currentRound: Int
+    let totalRounds: Int
     var compact = false
 
-    private var visibleMatchups: [GweiloSessionActivityAttributes.Matchup] {
-        showsEveryMatch ? matchups : Array(matchups.prefix(1))
+    private var visibleMatchups: ArraySlice<
+        GweiloSessionActivityAttributes.Matchup
+    > {
+        matchups.prefix(maximumVisible)
     }
 
     private var hiddenCount: Int {
         max(0, matchups.count - visibleMatchups.count)
     }
 
-    private var summary: String {
-        guard !visibleMatchups.isEmpty else {
-            return "—"
-        }
-        let pairings = visibleMatchups
-            .map { "\($0.left) VS \($0.right)" }
-            .joined(separator: "  ·  ")
-        return hiddenCount > 0 ? "\(pairings)  +\(hiddenCount)" : pairings
+    private var progressRingCornerRadius: CGFloat {
+        compact ? 18 : 22
+    }
+
+    private var progressRingGap: CGFloat {
+        compact ? 4 : 5
+    }
+
+    private var innerCardCornerRadius: CGFloat {
+        progressRingCornerRadius - progressRingGap
     }
 
     var body: some View {
-        HStack(spacing: compact ? 7 : 9) {
-            Text(label)
-                .font(
-                    .system(
-                        size: compact ? 8 : 9,
-                        weight: .black
-                    )
-                )
-                .tracking(0.8)
-                .foregroundStyle(tint)
-                .frame(width: compact ? 48 : 57, alignment: .leading)
-
-            Text(summary)
-                .font(.system(size: compact ? 9 : 10, weight: .bold))
-                .foregroundStyle(
-                    visibleMatchups.isEmpty
-                        ? LiveActivityStyle.muted
-                        : LiveActivityStyle.bone
-                )
-                .lineLimit(1)
-                .minimumScaleFactor(0.62)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.horizontal, compact ? 7 : 9)
-        .frame(height: compact ? 20 : 22)
-        .background(
-            LiveActivityStyle.subtle.opacity(0.68),
-            in: .rect(cornerRadius: 6)
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label): \(summary)")
-    }
-}
-
-private struct CompletedSessionHeadline: View {
-    let state: GweiloSessionActivityAttributes.ContentState
-    var compact = false
-
-    var body: some View {
-        VStack(spacing: compact ? 5 : 7) {
-            HStack {
-                Text("SESIJA JE ZAVRŠENA")
-                    .font(
-                        .system(
-                            size: compact ? 13 : 16,
-                            weight: .heavy
-                        )
-                    )
-                    .foregroundStyle(LiveActivityStyle.bone)
-
-                Spacer()
-
-                GweiloRallyMark(size: compact ? 22 : 28)
-                    .accessibilityHidden(true)
-            }
-
-            if
-                let bestPlayerName = state.bestPlayerName,
-                let bestPlayerDelta = state.bestPlayerDelta,
-                let worstPlayerName = state.worstPlayerName,
-                let worstPlayerDelta = state.worstPlayerDelta
-            {
-                HStack(spacing: compact ? 5 : 7) {
-                    PerformanceResult(
-                        label: "NAJVEĆI PLUS",
-                        name: bestPlayerName,
-                        delta: bestPlayerDelta,
-                        tint: LiveActivityStyle.lime,
-                        compact: compact
-                    )
-                    PerformanceResult(
-                        label: "NAJVEĆI MINUS",
-                        name: worstPlayerName,
-                        delta: worstPlayerDelta,
-                        tint: .red,
+        VStack(alignment: .leading, spacing: compact ? 1 : 4) {
+            if visibleMatchups.isEmpty {
+                Text(isPrimary ? "Nema aktivnog meča" : "Još nije određeno")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(LiveActivityStyle.tertiaryText)
+                    .lineLimit(1)
+            } else {
+                ForEach(Array(visibleMatchups.enumerated()), id: \.offset) {
+                    _, matchup in
+                    MatchupLine(
+                        matchup: matchup,
+                        isPrimary: isPrimary,
                         compact: compact
                     )
                 }
-            } else if let latestResult = state.latestResult {
-                Text(latestResult)
-                    .font(.system(size: compact ? 9 : 11, weight: .semibold))
-                    .foregroundStyle(LiveActivityStyle.muted)
+            }
+
+            if hiddenCount > 0 {
+                Text("Još \(hiddenCount) \(hiddenCount == 1 ? "meč" : "meča")")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(LiveActivityStyle.tertiaryText)
+            }
+        }
+        .padding(.horizontal, isPrimary ? (compact ? 7 : 9) : 1)
+        .padding(.vertical, isPrimary ? (compact ? 4 : 7) : 0)
+        .background {
+            if isPrimary {
+                RoundedRectangle(
+                    cornerRadius: innerCardCornerRadius,
+                    style: .continuous
+                )
+                .fill(LiveActivityStyle.subtleFill)
+                .overlay {
+                    RoundedRectangle(
+                        cornerRadius: innerCardCornerRadius,
+                        style: .continuous
+                    )
+                    .stroke(LiveActivityStyle.fill.opacity(0.55), lineWidth: 0.8)
+                }
+                .padding(progressRingGap)
+            }
+        }
+        .overlay {
+            if isPrimary {
+                RoundProgressBorder(
+                    currentRound: currentRound,
+                    totalRounds: totalRounds,
+                    cornerRadius: progressRingCornerRadius
+                )
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct RoundProgressBorder: View {
+    let currentRound: Int
+    let totalRounds: Int
+    let cornerRadius: CGFloat
+
+    private var roundCount: Int {
+        max(1, totalRounds)
+    }
+
+    private var segmentLength: CGFloat {
+        1 / CGFloat(roundCount)
+    }
+
+    private let gap: CGFloat = 0.006
+
+    var body: some View {
+        ZStack {
+            ForEach(1...roundCount, id: \.self) { round in
+                let index = CGFloat(round - 1)
+                let start = index == 0
+                    ? 0
+                    : index * segmentLength + gap / 2
+                let rawEnd = CGFloat(round) * segmentLength
+                let end = round == roundCount
+                    ? rawEnd - gap
+                    : rawEnd - gap / 2
+
+                PerimeterProgressShape(
+                    start: start,
+                    end: end,
+                    cornerRadius: cornerRadius
+                )
+                .stroke(
+                    color(for: round),
+                    style: StrokeStyle(
+                        lineWidth: round == currentRound ? 3 : 2.2,
+                        lineCap: .round
+                    )
+                )
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func color(for round: Int) -> Color {
+        if round < currentRound {
+            return LiveActivityStyle.accent.opacity(0.82)
+        }
+        if round == currentRound {
+            return LiveActivityStyle.live
+        }
+        return LiveActivityStyle.fill
+    }
+}
+
+private struct PerimeterProgressShape: Shape {
+    let start: CGFloat
+    let end: CGFloat
+    let cornerRadius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let radius = min(cornerRadius, min(rect.width, rect.height) / 2)
+        var perimeter = Path()
+
+        perimeter.move(to: CGPoint(x: rect.minX + radius, y: rect.minY))
+        perimeter.addLine(to: CGPoint(x: rect.maxX - radius, y: rect.minY))
+        perimeter.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + radius),
+            control: CGPoint(x: rect.maxX, y: rect.minY)
+        )
+        perimeter.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - radius))
+        perimeter.addQuadCurve(
+            to: CGPoint(x: rect.maxX - radius, y: rect.maxY),
+            control: CGPoint(x: rect.maxX, y: rect.maxY)
+        )
+        perimeter.addLine(to: CGPoint(x: rect.minX + radius, y: rect.maxY))
+        perimeter.addQuadCurve(
+            to: CGPoint(x: rect.minX, y: rect.maxY - radius),
+            control: CGPoint(x: rect.minX, y: rect.maxY)
+        )
+        perimeter.addLine(to: CGPoint(x: rect.minX, y: rect.minY + radius))
+        perimeter.addQuadCurve(
+            to: CGPoint(x: rect.minX + radius, y: rect.minY),
+            control: CGPoint(x: rect.minX, y: rect.minY)
+        )
+
+        return perimeter.trimmedPath(
+            from: min(1, max(0, start)),
+            to: min(1, max(0, end))
+        )
+    }
+}
+
+private struct MatchupLine: View {
+    let matchup: GweiloSessionActivityAttributes.Matchup
+    let isPrimary: Bool
+    var compact = false
+
+    var body: some View {
+        HStack(spacing: compact ? 3 : 5) {
+            MatchupSide(
+                fallbackName: matchup.left,
+                players: matchup.leftPlayers ?? [],
+                isTrailing: true,
+                compact: compact
+            )
+
+            Text("vs")
+                .font(.system(size: compact ? 8 : 9, weight: .medium))
+                .foregroundStyle(LiveActivityStyle.tertiaryText)
+                .frame(width: compact ? 12 : 16)
+
+            MatchupSide(
+                fallbackName: matchup.right,
+                players: matchup.rightPlayers ?? [],
+                isTrailing: false,
+                compact: compact
+            )
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(matchup.left) protiv \(matchup.right), \(matchup.kind)"
+        )
+    }
+}
+
+private struct MatchupSide: View {
+    let fallbackName: String
+    let players: [GweiloSessionActivityAttributes.Player]
+    let isTrailing: Bool
+    let compact: Bool
+
+    private var eloText: String? {
+        let values = players.compactMap(\.elo).map(String.init)
+        return values.isEmpty ? nil : values.joined(separator: " · ")
+    }
+
+    var body: some View {
+        HStack(spacing: compact ? 4 : 6) {
+            if isTrailing {
+                PlayerAvatarStack(players: players, compact: compact)
+            }
+
+            VStack(alignment: isTrailing ? .trailing : .leading, spacing: 0) {
+                Text(fallbackName)
+                    .font(
+                        compact
+                            ? .system(size: 9, weight: .semibold)
+                            : .caption.weight(.semibold)
+                    )
+                    .foregroundStyle(LiveActivityStyle.text)
                     .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.76)
+
+                if let eloText {
+                    Text(eloText)
+                        .font(.system(size: compact ? 7 : 8, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(LiveActivityStyle.tertiaryText)
+                        .lineLimit(1)
+                }
+            }
+            .layoutPriority(1)
+
+            if !isTrailing {
+                PlayerAvatarStack(players: players, compact: compact)
+            }
+        }
+        .frame(
+            maxWidth: .infinity,
+            alignment: isTrailing ? .trailing : .leading
+        )
+    }
+}
+
+private struct PlayerAvatarStack: View {
+    let players: [GweiloSessionActivityAttributes.Player]
+    let compact: Bool
+
+    private var visiblePlayers: ArraySlice<
+        GweiloSessionActivityAttributes.Player
+    > {
+        players.prefix(2)
+    }
+
+    var body: some View {
+        HStack(spacing: compact ? -5 : -6) {
+            ForEach(visiblePlayers, id: \.name) { player in
+                PlayerAvatar(player: player, compact: compact)
+            }
+        }
+        .frame(minWidth: players.count > 1 ? (compact ? 23 : 28) : 0)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct PlayerAvatar: View {
+    let player: GweiloSessionActivityAttributes.Player
+    let compact: Bool
+
+    private var size: CGFloat { compact ? 15 : 18 }
+
+    private var initials: String {
+        player.name
+            .split(separator: " ")
+            .prefix(2)
+            .compactMap(\.first)
+            .map(String.init)
+            .joined()
+            .uppercased()
+    }
+
+    private var resolvedURL: URL? {
+        if let avatarURL = player.avatarURL.flatMap(URL.init(string:)) {
+            return avatarURL
+        }
+        guard var components = URLComponents(
+            string: "https://api.dicebear.com/10.x/waves/png"
+        ) else {
+            return nil
+        }
+        components.queryItems = [URLQueryItem(name: "seed", value: player.name)]
+        return components.url
+    }
+
+    var body: some View {
+        AsyncImage(url: resolvedURL, transaction: Transaction(animation: nil)) {
+            phase in
+            if case let .success(image) = phase {
+                image
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Text(initials)
+                    .font(.system(size: size * 0.36, weight: .bold))
+                    .foregroundStyle(LiveActivityStyle.text.opacity(0.78))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(LiveActivityStyle.accent.opacity(0.22))
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(.circle)
+        .overlay {
+            Circle()
+                .stroke(LiveActivityStyle.background, lineWidth: 1.5)
+                .overlay {
+                    Circle()
+                        .stroke(
+                            LiveActivityStyle.accent.opacity(0.45),
+                            lineWidth: 0.7
+                        )
+                        .padding(1)
+                }
+        }
+    }
+}
+
+private struct NextRoundSummary: View {
+    let roundLabel: String
+    let matchups: [GweiloSessionActivityAttributes.Matchup]
+    var compact = true
+
+    private var summary: String {
+        guard !matchups.isEmpty else { return "Još nije određeno" }
+        return matchups.prefix(3)
+            .map { "\($0.left) vs \($0.right)" }
+            .joined(separator: "  ·  ")
+    }
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 2) {
+            Text(roundLabel)
+                .font(
+                    .system(size: compact ? 9 : 10, weight: .semibold)
+                        .monospacedDigit()
+                )
+                .foregroundStyle(LiveActivityStyle.secondaryText)
+                .frame(maxWidth: .infinity)
+
+            Text(summary)
+                .font(.system(size: compact ? 9 : 10, weight: .medium))
+                .foregroundStyle(LiveActivityStyle.secondaryText)
+                .lineLimit(2)
+                .minimumScaleFactor(0.72)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct FinishedSessionContent: View {
+    let state: GweiloSessionActivityAttributes.ContentState
+    var compact = false
+
+    private var isCancelled: Bool {
+        state.status == "cancelled"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 8 : 10) {
+            HStack(spacing: 9) {
+                Image(
+                    systemName: isCancelled
+                        ? "xmark.circle.fill"
+                        : "checkmark.circle.fill"
+                )
+                .font(.title3)
+                .foregroundStyle(
+                    isCancelled
+                        ? LiveActivityStyle.secondaryText
+                        : LiveActivityStyle.live
+                )
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(state.headline)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(LiveActivityStyle.text)
+
+                    if let latestResult = state.latestResult {
+                        Text(latestResult)
+                            .font(.caption)
+                            .foregroundStyle(LiveActivityStyle.secondaryText)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 8)
+
+                BrandMark()
+            }
+
+            if !isCancelled {
+                PerformanceSummary(state: state)
             }
         }
         .accessibilityElement(children: .contain)
     }
 }
 
-private struct PerformanceResult: View {
-    let label: String
+private struct PerformanceSummary: View {
+    let state: GweiloSessionActivityAttributes.ContentState
+
+    var body: some View {
+        if
+            let bestName = state.bestPlayerName,
+            let bestDelta = state.bestPlayerDelta,
+            let worstName = state.worstPlayerName,
+            let worstDelta = state.worstPlayerDelta
+        {
+            HStack(spacing: 12) {
+                PerformanceValue(
+                    name: bestName,
+                    delta: bestDelta,
+                    systemImage: "arrow.up.right"
+                )
+
+                Divider()
+                    .overlay(LiveActivityStyle.fill)
+
+                PerformanceValue(
+                    name: worstName,
+                    delta: worstDelta,
+                    systemImage: "arrow.down.right"
+                )
+            }
+            .frame(height: 32)
+        }
+    }
+}
+
+private struct PerformanceValue: View {
     let name: String
     let delta: Int
-    let tint: Color
-    let compact: Bool
-
-    private var deltaLabel: String {
-        "\(delta > 0 ? "+" : "")\(delta) ELO"
-    }
+    let systemImage: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 1 : 2) {
-            Text(label)
-                .font(.system(size: compact ? 7 : 8, weight: .black))
-                .tracking(0.6)
-                .foregroundStyle(tint)
-
-            HStack(spacing: 4) {
-                Text(name)
-                    .foregroundStyle(LiveActivityStyle.bone)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-
-                Spacer(minLength: 2)
-
-                Text(deltaLabel)
-                    .monospacedDigit()
-                    .foregroundStyle(tint)
-            }
-            .font(.system(size: compact ? 9 : 11, weight: .bold))
-        }
-        .padding(.horizontal, compact ? 6 : 8)
-        .frame(maxWidth: .infinity, minHeight: compact ? 34 : 40)
-        .background(
-            LiveActivityStyle.subtle.opacity(0.7),
-            in: .rect(cornerRadius: 7)
-        )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label), \(name), \(deltaLabel)")
-    }
-}
-
-private struct ProgressSummary: View {
-    let state: GweiloSessionActivityAttributes.ContentState
-    var compact = false
-
-    private let segmentCount = 8
-
-    private var filledSegments: Int {
-        guard state.totalMatches > 0 else {
-            return 0
-        }
-        let progress = Double(state.completedMatches)
-            / Double(state.totalMatches)
-        return min(
-            segmentCount,
-            Int(ceil(progress * Double(segmentCount)))
-        )
-    }
-
-    var body: some View {
-        HStack(spacing: compact ? 7 : 9) {
-            HStack(spacing: 3) {
-                ForEach(0..<segmentCount, id: \.self) { index in
-                    Capsule()
-                        .fill(
-                            index < filledSegments
-                                ? LiveActivityStyle.lime
-                                : LiveActivityStyle.subtle
-                        )
-                        .frame(height: compact ? 3 : 4)
-                }
-            }
-
-            Text("\(state.completedMatches)/\(state.totalMatches)")
-                .font(
-                    .system(
-                        size: compact ? 9 : 10,
-                        weight: .bold
-                    )
+        HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(
+                    delta >= 0 ? LiveActivityStyle.live : .red.opacity(0.82)
                 )
+
+            Text(name)
+                .lineLimit(1)
+
+            Spacer(minLength: 2)
+
+            Text(delta > 0 ? "+\(delta)" : "\(delta)")
                 .monospacedDigit()
-                .foregroundStyle(LiveActivityStyle.muted)
+                .foregroundStyle(
+                    delta >= 0 ? LiveActivityStyle.live : .red.opacity(0.82)
+                )
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Napredak termina")
-        .accessibilityValue(
-            "\(state.completedMatches) od \(state.totalMatches) mečeva"
-        )
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(LiveActivityStyle.text)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 }
 
-private struct LiveActivityBackdrop: View {
+private struct CompactLiveMark: View {
     var body: some View {
-        ZStack {
-            RadialGradient(
-                colors: [
-                    LiveActivityStyle.purple.opacity(0.2),
-                    .clear
-                ],
-                center: .topTrailing,
-                startRadius: 0,
-                endRadius: 165
-            )
-
-            LinearGradient(
-                colors: [
-                    .clear,
-                    LiveActivityStyle.purple.opacity(0.055),
-                    .clear
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
+        HStack(spacing: 4) {
+            Circle()
+                .fill(LiveActivityStyle.live)
+                .frame(width: 6, height: 6)
+            Text("G")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(LiveActivityStyle.text)
         }
-        .accessibilityHidden(true)
+        .accessibilityLabel("Gweilo termin uživo")
     }
 }
 
-private struct GweiloRallyMark: View {
-    let size: CGFloat
-
+private struct MinimalLiveMark: View {
     var body: some View {
-        ZStack {
-            Circle()
-                .fill(LiveActivityStyle.purple.opacity(0.2))
-                .blur(radius: size * 0.14)
-                .scaleEffect(1.2)
-
-            Ellipse()
-                .trim(from: 0.08, to: 0.92)
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            LiveActivityStyle.purple.opacity(0.18),
-                            LiveActivityStyle.purple,
-                            LiveActivityStyle.lime
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    ),
-                    style: StrokeStyle(
-                        lineWidth: max(1, size * 0.045),
-                        lineCap: .round
-                    )
-                )
-                .frame(width: size, height: size * 0.55)
-                .rotationEffect(.degrees(-18))
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            .white,
-                            LiveActivityStyle.bone,
-                            LiveActivityStyle.bone.opacity(0.72)
-                        ],
-                        center: .topLeading,
-                        startRadius: 1,
-                        endRadius: size * 0.45
-                    )
-                )
-                .frame(width: size * 0.48, height: size * 0.48)
-                .shadow(
-                    color: LiveActivityStyle.purple.opacity(0.65),
-                    radius: size * 0.12
-                )
-                .overlay {
-                    MascotFace(size: size)
-                }
-
-            Circle()
-                .fill(LiveActivityStyle.lime)
-                .frame(width: size * 0.1, height: size * 0.1)
-                .offset(x: size * 0.43, y: size * 0.06)
-                .shadow(
-                    color: LiveActivityStyle.lime.opacity(0.85),
-                    radius: size * 0.11
-                )
-        }
-        .frame(width: size, height: size)
+        Circle()
+            .fill(LiveActivityStyle.live)
+            .frame(width: 10, height: 10)
+            .overlay {
+                Circle().stroke(LiveActivityStyle.accent, lineWidth: 2)
+                    .padding(-3)
+            }
+            .accessibilityLabel("Gweilo termin uživo")
     }
 }
 
-private struct MascotFace: View {
-    let size: CGFloat
-
-    var body: some View {
-        HStack(spacing: size * 0.085) {
-            Capsule()
-                .fill(LiveActivityStyle.panel)
-                .frame(width: size * 0.11, height: size * 0.035)
-                .rotationEffect(.degrees(18))
-
-            Capsule()
-                .fill(LiveActivityStyle.panel)
-                .frame(width: size * 0.11, height: size * 0.035)
-                .rotationEffect(.degrees(-18))
-        }
-        .offset(y: -size * 0.015)
+#Preview(
+    "Lock Screen",
+    as: .content,
+    using: GweiloSessionActivityAttributes.preview,
+    widget: { GweiloSessionLiveActivity() },
+    contentStates: {
+        GweiloSessionActivityAttributes.ContentState.previewActive
+        GweiloSessionActivityAttributes.ContentState.previewCompleted
     }
-}
+)
 
-private struct MinimalActivityMark: View {
-    var body: some View {
-        ZStack {
-            Circle()
-                .stroke(
-                    LiveActivityStyle.purple.opacity(0.9),
-                    lineWidth: 2
-                )
-                .frame(width: 15, height: 15)
-
-            Circle()
-                .fill(LiveActivityStyle.lime)
-                .frame(width: 7, height: 7)
-                .shadow(
-                    color: LiveActivityStyle.lime.opacity(0.8),
-                    radius: 3
-                )
-        }
-        .accessibilityLabel("Gweilo termin je uživo")
+#Preview(
+    "Dynamic Island – Expanded",
+    as: .dynamicIsland(.expanded),
+    using: GweiloSessionActivityAttributes.preview,
+    widget: { GweiloSessionLiveActivity() },
+    contentStates: {
+        GweiloSessionActivityAttributes.ContentState.previewActive
     }
-}
+)

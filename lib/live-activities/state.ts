@@ -24,6 +24,11 @@ type MatchRow = {
 	team2_score: number | null;
 };
 
+type RatingRow = {
+	player_id: string;
+	elo: number | string;
+};
+
 function sideNames(
 	playerIDs: string[],
 	names: Map<string, string>,
@@ -40,6 +45,15 @@ function roundedDelta(value: number | string | null) {
 	if (value === null) return null;
 	const delta = Number(value);
 	return Number.isFinite(delta) ? Math.round(delta) : null;
+}
+
+function ratingMap(rows: RatingRow[] | null) {
+	return new Map(
+		(rows ?? []).map((row) => [
+			row.player_id.toLowerCase(),
+			Math.round(Number(row.elo)),
+		]),
+	);
 }
 
 export async function buildSessionLiveActivitySnapshot(
@@ -80,23 +94,51 @@ export async function buildSessionLiveActivitySnapshot(
 		),
 	);
 	const names = new Map<string, string>();
+	const avatars = new Map<string, string>();
+	let singlesRatings = new Map<string, number>();
+	let doublesRatings = new Map<string, number>();
 	if (playerIDs.length > 0) {
-		const [profilesResult, placeholdersResult] = await Promise.all([
-			admin.from("profiles").select("id, display_name").in("id", playerIDs),
+		const [
+			profilesResult,
+			placeholdersResult,
+			singlesRatingsResult,
+			doublesRatingsResult,
+		] = await Promise.all([
+			admin
+				.from("profiles")
+				.select("id, display_name, avatar_url")
+				.in("id", playerIDs),
 			admin
 				.from("session_placeholders")
 				.select("id, display_name")
 				.eq("session_id", sessionID),
+			admin
+				.from("player_ratings")
+				.select("player_id, elo")
+				.in("player_id", playerIDs),
+			admin
+				.from("player_double_ratings")
+				.select("player_id, elo")
+				.in("player_id", playerIDs),
 		]);
-		if (profilesResult.error || placeholdersResult.error) {
-			throw profilesResult.error || placeholdersResult.error;
+		if (
+			profilesResult.error ||
+			placeholdersResult.error ||
+			singlesRatingsResult.error ||
+			doublesRatingsResult.error
+		) {
+			throw (
+				profilesResult.error ||
+				placeholdersResult.error ||
+				singlesRatingsResult.error ||
+				doublesRatingsResult.error
+			);
 		}
 		const profiles = profilesResult.data;
 		for (const profile of profiles ?? []) {
-			names.set(
-				String(profile.id).toLowerCase(),
-				String(profile.display_name ?? "Igrač"),
-			);
+			const id = String(profile.id).toLowerCase();
+			names.set(id, String(profile.display_name ?? "Igrač"));
+			if (profile.avatar_url) avatars.set(id, String(profile.avatar_url));
 		}
 		for (const placeholder of placeholdersResult.data ?? []) {
 			names.set(
@@ -104,6 +146,21 @@ export async function buildSessionLiveActivitySnapshot(
 				String(placeholder.display_name),
 			);
 		}
+		singlesRatings = ratingMap(singlesRatingsResult.data as RatingRow[] | null);
+		doublesRatings = ratingMap(doublesRatingsResult.data as RatingRow[] | null);
+	}
+
+	function sidePlayers(match: MatchRow, start: number, count: number) {
+		const ratings =
+			match.match_type === "doubles" ? doublesRatings : singlesRatings;
+		return (match.player_ids ?? []).slice(start, start + count).map((id) => {
+			const key = id.toLowerCase();
+			return {
+				name: names.get(key) ?? "Igrač",
+				avatarURL: avatars.get(key) ?? null,
+				elo: ratings.get(key) ?? null,
+			};
+		});
 	}
 
 	const totalRounds = matches.reduce(
@@ -156,6 +213,8 @@ export async function buildSessionLiveActivitySnapshot(
 					left: sideNames(ids, names, 0, sideSize),
 					right: sideNames(ids, names, sideSize, sideSize),
 					kind: match.match_type === "doubles" ? "DUBL" : "SINGL",
+					leftPlayers: sidePlayers(match, 0, sideSize),
+					rightPlayers: sidePlayers(match, sideSize, sideSize),
 				};
 			}),
 			playerNames: playerIDs.map((id) => names.get(id) ?? "Igrač"),

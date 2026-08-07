@@ -9,6 +9,9 @@ struct GweiloApp: App {
         WindowGroup {
             RootView()
                 .preferredColorScheme(.dark)
+                .task {
+                    await WidgetPreviewSeeder.seedIfRequested()
+                }
         }
     }
 }

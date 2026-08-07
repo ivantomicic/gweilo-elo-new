@@ -10,6 +10,7 @@
 		016B6681FC1E0C12A7A9FFEF /* SessionsHeader.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 7733DAE6890D55135B786D21 /* SessionsHeader.mp4 */; };
 		051CC29162BEDE7D6F2D922B /* ScoreEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 268C50CE55F886538AEFBFF7 /* ScoreEntryView.swift */; };
 		0BD4DE81D984B7136F367E1C /* AdminUsersClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BC5292FAE9E54AAA6FB65D5 /* AdminUsersClient.swift */; };
+		0BE4CF6EB6F639D991DC3497 /* WidgetPreviewSeeder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70CADE5ECC654C7EFD939BBF /* WidgetPreviewSeeder.swift */; };
 		1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5228EA448D3385CA3C87F404 /* GweiloTheme.swift */; };
 		190B6190904AA465A65A5C70 /* AdminActivityClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996D3A96CD475A1533426CD5 /* AdminActivityClient.swift */; };
 		20B6307C8878A58E13163217 /* GweiloLoginHero.mov in Resources */ = {isa = PBXBuildFile; fileRef = AD4D4EEBA434732E0387A39C /* GweiloLoginHero.mov */; };
@@ -128,6 +129,7 @@
 		6850C145D682436FCA5A7782 /* GweiloLiveActivityBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloLiveActivityBundle.swift; sourceTree = "<group>"; };
 		6B97913905094E27DCF42A43 /* GweiloApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloApp.swift; sourceTree = "<group>"; };
 		6BC5292FAE9E54AAA6FB65D5 /* AdminUsersClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminUsersClient.swift; sourceTree = "<group>"; };
+		70CADE5ECC654C7EFD939BBF /* WidgetPreviewSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPreviewSeeder.swift; sourceTree = "<group>"; };
 		7733DAE6890D55135B786D21 /* SessionsHeader.mp4 */ = {isa = PBXFileReference; path = SessionsHeader.mp4; sourceTree = "<group>"; };
 		7A9391F1239E602BBF63632B /* AppDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataStore.swift; sourceTree = "<group>"; };
 		7B184252000811E5ACACA38B /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
@@ -332,6 +334,7 @@
 			isa = PBXGroup;
 			children = (
 				30166A2305A5917B00BFCC74 /* GweiloSessionActivityAttributes.swift */,
+				70CADE5ECC654C7EFD939BBF /* WidgetPreviewSeeder.swift */,
 			);
 			path = LiveActivities;
 			sourceTree = "<group>";
@@ -603,6 +606,7 @@
 				67804F149A883E42F2AD0FD1 /* SignInView.swift in Sources */,
 				82EEEE3BD47986ACEB44E0E8 /* SupabaseAuthClient.swift in Sources */,
 				95E7DDC059E46F2C64B1B704 /* SupabaseDataClient.swift in Sources */,
+				0BE4CF6EB6F639D991DC3497 /* WidgetPreviewSeeder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

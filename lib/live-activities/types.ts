@@ -9,6 +9,14 @@ export type SessionLiveActivityMatchup = {
 	left: string;
 	right: string;
 	kind: "SINGL" | "DUBL";
+	leftPlayers?: SessionLiveActivityPlayer[];
+	rightPlayers?: SessionLiveActivityPlayer[];
+};
+
+export type SessionLiveActivityPlayer = {
+	name: string;
+	avatarURL: string | null;
+	elo: number | null;
 };
 
 export type SessionLiveActivityState = {

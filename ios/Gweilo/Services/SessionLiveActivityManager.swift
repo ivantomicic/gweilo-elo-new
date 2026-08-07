@@ -310,6 +310,26 @@ final class SessionLiveActivityManager {
             let names = detail.teamNames(for: match.playerIDs)
             return "\(names.0) \(teamOneScore)–\(teamTwoScore) \(names.1)"
         }
+        let participantsByID = Dictionary(
+            uniqueKeysWithValues: detail.participants.map { ($0.id, $0) }
+        )
+
+        func livePlayers(
+            _ playerIDs: ArraySlice<UUID>,
+            matchID: UUID
+        ) -> [GweiloSessionActivityAttributes.Player] {
+            playerIDs.map { playerID in
+                let participant = participantsByID[playerID]
+                let elo = detail.playerEloSnapshots.first {
+                    $0.matchID == matchID && $0.playerID == playerID
+                }?.elo
+                return GweiloSessionActivityAttributes.Player(
+                    name: participant?.name ?? "Nepoznat igrač",
+                    avatarURL: participant?.avatarURL?.absoluteString,
+                    elo: elo.map { Int($0.rounded()) }
+                )
+            }
+        }
 
         return GweiloSessionActivityAttributes.ContentState(
             currentRound: round,
@@ -322,10 +342,19 @@ final class SessionLiveActivityManager {
                 : "Runda \(round) je spremna",
             matchups: currentMatches.map { match in
                 let names = detail.teamNames(for: match.playerIDs)
+                let sideSize = match.type == .doubles ? 2 : 1
                 return GweiloSessionActivityAttributes.Matchup(
                     left: names.0,
                     right: names.1,
-                    kind: match.type.label
+                    kind: match.type.label,
+                    leftPlayers: livePlayers(
+                        match.playerIDs.prefix(sideSize),
+                        matchID: match.id
+                    ),
+                    rightPlayers: livePlayers(
+                        match.playerIDs.dropFirst(sideSize).prefix(sideSize),
+                        matchID: match.id
+                    )
                 )
             },
             playerNames: detail.participants.map(\.name),
