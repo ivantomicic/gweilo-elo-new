@@ -5,6 +5,7 @@ import WidgetKit
 struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
     let topThreeSinglesPlayers: [RankingEntry]
     let currentUserLatestSessionDelta: Double?
+    let currentUserLatestFormScore: Double?
     let currentUserFirstName: String
     let savedAt: Date
 }
@@ -96,6 +97,7 @@ final class AppDataStore {
     private(set) var missionsErrorMessage: String?
     private(set) var isLoading = false
     private(set) var hasLoaded = false
+    private(set) var hasCompletedInitialHomeLoad = false
     private(set) var errorMessage: String?
 
     private var client: SupabaseDataClient
@@ -105,6 +107,7 @@ final class AppDataStore {
     private let homeSnapshotStore: HomeDashboardSnapshotStore
     private let widgetSnapshotStore: GweiloWidgetSnapshotStore
     private var homeLatestSessionDelta: Double?
+    private var homeLatestSessionFormScore: Double?
     private var homeCurrentUserFirstName: String?
     @ObservationIgnored
     private var playerHistoryCache = ExpiringCache<UUID, PlayerEloHistory>(
@@ -159,6 +162,7 @@ final class AppDataStore {
             topThreeSinglesPlayers = snapshot.topThreeSinglesPlayers
             homeLatestSessionDelta =
                 snapshot.currentUserLatestSessionDelta
+            homeLatestSessionFormScore = snapshot.currentUserLatestFormScore
             homeCurrentUserFirstName = snapshot.currentUserFirstName
             hasLoaded = true
         }
@@ -207,6 +211,10 @@ final class AppDataStore {
 
     var currentUserLatestSessionDelta: Double? {
         homeLatestSessionDelta
+    }
+
+    var currentUserLatestSessionFormScore: Double? {
+        homeLatestSessionFormScore
     }
 
     var currentUserFirstName: String {
@@ -403,6 +411,13 @@ final class AppDataStore {
         }
     }
 
+    func loadHome(forceRefresh: Bool = false) async {
+        async let appData: Void = load(forceRefresh: forceRefresh)
+        async let missions: Void = loadMissions(forceRefresh: forceRefresh)
+        _ = await (appData, missions)
+        hasCompletedInitialHomeLoad = true
+    }
+
     private func prepareAvailableSessionPlayers(
         _ players: [SessionCreationPlayer]
     ) -> [SessionCreationPlayer] {
@@ -515,6 +530,8 @@ final class AppDataStore {
                 where: { $0.id == currentUserID }
             ) {
                 homeLatestSessionDelta = currentUser.recentForm.last
+                homeLatestSessionFormScore =
+                    currentUser.resolvedRecentFormScores.last
                 homeCurrentUserFirstName = currentUser.name
                     .split(whereSeparator: \.isWhitespace)
                     .first
@@ -575,6 +592,7 @@ final class AppDataStore {
             HomeDashboardSnapshot(
                 topThreeSinglesPlayers: topThreeSinglesPlayers,
                 currentUserLatestSessionDelta: homeLatestSessionDelta,
+                currentUserLatestFormScore: homeLatestSessionFormScore,
                 currentUserFirstName:
                     homeCurrentUserFirstName ?? currentUserFirstName,
                 savedAt: .now
@@ -596,6 +614,9 @@ final class AppDataStore {
                 recentForm: entry.recentForm.suffix(5).map {
                     Int($0.rounded())
                 },
+                recentFormScores: Array(
+                    entry.resolvedRecentFormScores.suffix(5)
+                ),
                 isCurrentUser: entry.id == currentUserID
             )
         }
@@ -610,6 +631,9 @@ final class AppDataStore {
                 recentForm: entry.recentForm.suffix(5).map {
                     Int($0.rounded())
                 },
+                recentFormScores: Array(
+                    entry.resolvedRecentFormScores.suffix(5)
+                ),
                 recentMatches: Array(
                     (history?.points ?? [])
                         .filter { $0.match > 0 }
@@ -653,6 +677,8 @@ extension AppDataStore {
             where: { $0.id == currentUserID }
         ) {
             homeLatestSessionDelta = currentUser.recentForm.last
+            homeLatestSessionFormScore =
+                currentUser.resolvedRecentFormScores.last
             homeCurrentUserFirstName = currentUser.name
                 .split(whereSeparator: \.isWhitespace)
                 .first

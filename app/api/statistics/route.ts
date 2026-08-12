@@ -24,6 +24,12 @@ import {
 	isPlayerRankingEligible,
 	STATISTICS_ELIGIBILITY,
 } from "@/lib/statistics/eligibility";
+import { calculateExpectedScore } from "@/lib/elo/calculation";
+import {
+	calculateOpportunityAdjustedForm,
+	fallbackOpportunityAdjustedForm,
+	type FormPerformanceObservation,
+} from "@/lib/elo/form";
 
 export const dynamic = "force-dynamic";
 
@@ -82,6 +88,7 @@ type PlayerStats = {
 	rank_duration_days: number | null;
 	rank_duration_capped: boolean;
 	recent_form: number[];
+	recent_form_scores: number[];
 };
 
 type TeamStats = {
@@ -107,6 +114,7 @@ type TeamStats = {
 	rank_duration_days: number | null;
 	rank_duration_capped: boolean;
 	recent_form: number[];
+	recent_form_scores: number[];
 };
 
 type FormSessionRecord = {
@@ -124,16 +132,22 @@ type FormMatchRecord = {
 	player_ids: string[] | null;
 	team_1_id: string | null;
 	team_2_id: string | null;
+	team1_score: number | null;
+	team2_score: number | null;
 };
 
 type FormHistoryRecord = {
 	match_id: string;
 	player1_id: string | null;
 	player2_id: string | null;
+	player1_elo_before: number | string | null;
+	player2_elo_before: number | string | null;
 	player1_elo_delta: number | string | null;
 	player2_elo_delta: number | string | null;
 	team1_id: string | null;
 	team2_id: string | null;
+	team1_elo_before: number | string | null;
+	team2_elo_before: number | string | null;
 	team1_elo_delta: number | string | null;
 	team2_elo_delta: number | string | null;
 };
@@ -145,10 +159,15 @@ type FormSnapshotRecord = {
 	matches_played: number | null;
 };
 
+type RecentFormCategory = {
+	deltas: Record<string, number[]>;
+	scores: Record<string, number[]>;
+};
+
 type RecentFormMaps = {
-	singles: Record<string, number[]>;
-	doublesPlayers: Record<string, number[]>;
-	doublesTeams: Record<string, number[]>;
+	singles: RecentFormCategory;
+	doublesPlayers: RecentFormCategory;
+	doublesTeams: RecentFormCategory;
 };
 
 type SessionSnapshotRecord = {
@@ -215,11 +234,34 @@ function addSessionDelta(
 	target.set(entityId, sessions);
 }
 
+function addSessionObservation(
+	target: Map<string, Map<string, FormPerformanceObservation[]>>,
+	entityId: string | null,
+	sessionId: string,
+	observation: FormPerformanceObservation,
+) {
+	if (!entityId) return;
+	const sessions = target.get(entityId) ?? new Map();
+	const observations = sessions.get(sessionId) ?? [];
+	observations.push(observation);
+	sessions.set(sessionId, observations);
+	target.set(entityId, sessions);
+}
+
+function matchActualScores(match: FormMatchRecord): [number, number] | null {
+	if (match.team1_score === null || match.team2_score === null) return null;
+	if (match.team1_score > match.team2_score) return [1, 0];
+	if (match.team1_score < match.team2_score) return [0, 1];
+	return [0.5, 0.5];
+}
+
 function finalizeRecentForm(
 	deltas: Map<string, Map<string, number>>,
+	observations: Map<string, Map<string, FormPerformanceObservation[]>>,
 	sessionOrder: Map<string, number>,
-) {
-	const result: Record<string, number[]> = {};
+): RecentFormCategory {
+	const deltaResult: Record<string, number[]> = {};
+	const scoreResult: Record<string, number[]> = {};
 
 	for (const [entityId, sessions] of deltas) {
 		const recent = Array.from(sessions.entries())
@@ -228,13 +270,22 @@ function finalizeRecentForm(
 					(sessionOrder.get(leftSessionId) ?? 0) -
 					(sessionOrder.get(rightSessionId) ?? 0),
 			)
-			.slice(-5)
-			.map(([, delta]) => Math.round((delta + Number.EPSILON) * 100) / 100);
+			.slice(-5);
 
-		result[entityId] = recent;
+		deltaResult[entityId] = recent.map(
+			([, delta]) => Math.round((delta + Number.EPSILON) * 100) / 100,
+		);
+		scoreResult[entityId] = recent.map(([sessionId, delta]) => {
+			const sessionObservations = observations.get(entityId)?.get(sessionId) ?? [];
+			const score =
+				sessionObservations.length > 0
+					? calculateOpportunityAdjustedForm(sessionObservations)
+					: fallbackOpportunityAdjustedForm(delta);
+			return Math.round((score + Number.EPSILON) * 1000) / 1000;
+		});
 	}
 
-	return result;
+	return { deltas: deltaResult, scores: scoreResult };
 }
 
 const getCachedRecentFormMaps = unstable_cache(
@@ -250,14 +301,14 @@ const getCachedRecentFormMaps = unstable_cache(
 				adminClient
 					.from("session_matches")
 					.select(
-						"id, session_id, match_type, round_number, match_order, player_ids, team_1_id, team_2_id",
+						"id, session_id, match_type, round_number, match_order, player_ids, team_1_id, team_2_id, team1_score, team2_score",
 					)
 					.eq("status", "completed")
 					.eq("is_rated", true),
 				adminClient
 					.from("match_elo_history")
 					.select(
-						"match_id, player1_id, player2_id, player1_elo_delta, player2_elo_delta, team1_id, team2_id, team1_elo_delta, team2_elo_delta",
+						"match_id, player1_id, player2_id, player1_elo_before, player2_elo_before, player1_elo_delta, player2_elo_delta, team1_id, team2_id, team1_elo_before, team2_elo_before, team1_elo_delta, team2_elo_delta",
 					),
 				adminClient
 					.from("elo_snapshots")
@@ -281,10 +332,19 @@ const getCachedRecentFormMaps = unstable_cache(
 
 		const singlesDeltas = new Map<string, Map<string, number>>();
 		const doublesTeamDeltas = new Map<string, Map<string, number>>();
+		const singlesObservations = new Map<
+			string,
+			Map<string, FormPerformanceObservation[]>
+		>();
+		const doublesTeamObservations = new Map<
+			string,
+			Map<string, FormPerformanceObservation[]>
+		>();
 
 		for (const history of (historyResult.data || []) as FormHistoryRecord[]) {
 			const match = matchMap.get(history.match_id);
 			if (!match) continue;
+			const actualScores = matchActualScores(match);
 
 			if (match.match_type === "singles") {
 				addSessionDelta(
@@ -299,6 +359,42 @@ const getCachedRecentFormMaps = unstable_cache(
 					match.session_id,
 					history.player2_elo_delta,
 				);
+				const player1Before = toNumber(
+					history.player1_elo_before,
+					Number.NaN,
+				);
+				const player2Before = toNumber(
+					history.player2_elo_before,
+					Number.NaN,
+				);
+				if (
+					actualScores &&
+					Number.isFinite(player1Before) &&
+					Number.isFinite(player2Before)
+				) {
+					const player1Expected = calculateExpectedScore(
+						player1Before,
+						player2Before,
+					);
+					addSessionObservation(
+						singlesObservations,
+						history.player1_id,
+						match.session_id,
+						{
+							actualScore: actualScores[0],
+							expectedScore: player1Expected,
+						},
+					);
+					addSessionObservation(
+						singlesObservations,
+						history.player2_id,
+						match.session_id,
+						{
+							actualScore: actualScores[1],
+							expectedScore: 1 - player1Expected,
+						},
+					);
+				}
 			} else {
 				addSessionDelta(
 					doublesTeamDeltas,
@@ -312,6 +408,42 @@ const getCachedRecentFormMaps = unstable_cache(
 					match.session_id,
 					history.team2_elo_delta,
 				);
+				const team1Before = toNumber(
+					history.team1_elo_before,
+					Number.NaN,
+				);
+				const team2Before = toNumber(
+					history.team2_elo_before,
+					Number.NaN,
+				);
+				if (
+					actualScores &&
+					Number.isFinite(team1Before) &&
+					Number.isFinite(team2Before)
+				) {
+					const team1Expected = calculateExpectedScore(
+						team1Before,
+						team2Before,
+					);
+					addSessionObservation(
+						doublesTeamObservations,
+						history.team1_id,
+						match.session_id,
+						{
+							actualScore: actualScores[0],
+							expectedScore: team1Expected,
+						},
+					);
+					addSessionObservation(
+						doublesTeamObservations,
+						history.team2_id,
+						match.session_id,
+						{
+							actualScore: actualScores[1],
+							expectedScore: 1 - team1Expected,
+						},
+					);
+				}
 			}
 		}
 
@@ -333,8 +465,14 @@ const getCachedRecentFormMaps = unstable_cache(
 			});
 
 		const doublesPlayerDeltas = new Map<string, Map<string, number>>();
+		const doublesPlayerObservations = new Map<
+			string,
+			Map<string, FormPerformanceObservation[]>
+		>();
 		const previousPlayerElo = new Map<string, number>();
 		const unknownBaselineSession = new Map<string, string>();
+		const unscorablePlayerSessions = new Set<string>();
+		const playerBeforeByMatch = new Map<string, Map<string, number>>();
 
 		for (const snapshot of orderedDoublesSnapshots) {
 			const match = matchMap.get(snapshot.match_id);
@@ -348,6 +486,9 @@ const getCachedRecentFormMaps = unstable_cache(
 				previousElo === undefined && (snapshot.matches_played ?? 0) <= 1;
 			if (previousElo === undefined && !canUseInitialBaseline) {
 				unknownBaselineSession.set(snapshot.player_id, match.session_id);
+				unscorablePlayerSessions.add(
+					`${snapshot.player_id}:${match.session_id}`,
+				);
 			}
 
 			const baselineUnknownForThisSession =
@@ -356,6 +497,9 @@ const getCachedRecentFormMaps = unstable_cache(
 				(previousElo !== undefined || canUseInitialBaseline) &&
 				!baselineUnknownForThisSession
 			) {
+				const players = playerBeforeByMatch.get(snapshot.match_id) ?? new Map();
+				players.set(snapshot.player_id, previousElo ?? 1500);
+				playerBeforeByMatch.set(snapshot.match_id, players);
 				addSessionDelta(
 					doublesPlayerDeltas,
 					snapshot.player_id,
@@ -372,13 +516,61 @@ const getCachedRecentFormMaps = unstable_cache(
 			}
 		}
 
+		for (const match of matches) {
+			if (match.match_type !== "doubles") continue;
+			const playerIds = match.player_ids ?? [];
+			const beforeRatings = playerBeforeByMatch.get(match.id);
+			const actualScores = matchActualScores(match);
+			if (playerIds.length !== 4 || !beforeRatings || !actualScores) continue;
+			const ratings = playerIds.map((playerId) => beforeRatings.get(playerId));
+			if (ratings.some((rating) => rating === undefined)) continue;
+
+			const team1Average = (ratings[0]! + ratings[1]!) / 2;
+			const team2Average = (ratings[2]! + ratings[3]!) / 2;
+			const team1Expected = calculateExpectedScore(
+				team1Average,
+				team2Average,
+			);
+			playerIds.forEach((playerId, index) => {
+				if (
+					unscorablePlayerSessions.has(`${playerId}:${match.session_id}`)
+				) {
+					return;
+				}
+				const isTeam1 = index < 2;
+				addSessionObservation(
+					doublesPlayerObservations,
+					playerId,
+					match.session_id,
+					{
+						actualScore: actualScores[isTeam1 ? 0 : 1],
+						expectedScore: isTeam1
+							? team1Expected
+							: 1 - team1Expected,
+					},
+				);
+			});
+		}
+
 		return {
-			singles: finalizeRecentForm(singlesDeltas, sessionOrder),
-			doublesPlayers: finalizeRecentForm(doublesPlayerDeltas, sessionOrder),
-			doublesTeams: finalizeRecentForm(doublesTeamDeltas, sessionOrder),
+			singles: finalizeRecentForm(
+				singlesDeltas,
+				singlesObservations,
+				sessionOrder,
+			),
+			doublesPlayers: finalizeRecentForm(
+				doublesPlayerDeltas,
+				doublesPlayerObservations,
+				sessionOrder,
+			),
+			doublesTeams: finalizeRecentForm(
+				doublesTeamDeltas,
+				doublesTeamObservations,
+				sessionOrder,
+			),
 		};
 	},
-	["statistics-recent-session-form-v1"],
+	["statistics-recent-session-form-v2"],
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] },
 );
 
@@ -654,7 +846,10 @@ async function getFreshSinglesStats(
 					rank_movement: 0,
 					rank_duration_days: null,
 					rank_duration_capped: false,
-					recent_form: recentForms.singles[rating.player_id] ?? [],
+					recent_form:
+						recentForms.singles.deltas[rating.player_id] ?? [],
+					recent_form_scores:
+						recentForms.singles.scores[rating.player_id] ?? [],
 				};
 			});
 
@@ -776,7 +971,9 @@ async function getFreshDoublesPlayerStats(
 					rank_duration_days: null,
 					rank_duration_capped: false,
 					recent_form:
-						recentForms.doublesPlayers[rating.player_id] ?? [],
+						recentForms.doublesPlayers.deltas[rating.player_id] ?? [],
+					recent_form_scores:
+						recentForms.doublesPlayers.scores[rating.player_id] ?? [],
 				};
 			});
 
@@ -924,7 +1121,9 @@ async function getFreshDoublesTeamStats(
 					rank_duration_days: null,
 					rank_duration_capped: false,
 					recent_form:
-						recentForms.doublesTeams[rating.team_id] ?? [],
+						recentForms.doublesTeams.deltas[rating.team_id] ?? [],
+					recent_form_scores:
+						recentForms.doublesTeams.scores[rating.team_id] ?? [],
 				};
 			})
 			.filter((team): team is TeamStats => team !== null);

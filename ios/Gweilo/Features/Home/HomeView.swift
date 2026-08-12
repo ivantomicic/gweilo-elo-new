@@ -19,7 +19,9 @@ struct HomeView: View {
                     LazyVStack(alignment: .leading, spacing: 26) {
                         HomeHeader(
                             playerName: dataStore.currentUserFirstName,
-                            lastSessionDelta: dataStore.currentUserLatestSessionDelta
+                            lastSessionDelta: dataStore.currentUserLatestSessionDelta,
+                            lastSessionFormScore:
+                                dataStore.currentUserLatestSessionFormScore
                         )
                         TopThreeStandings(players: topSinglesPlayers)
                             .padding(.top, 18)
@@ -27,10 +29,6 @@ struct HomeView: View {
                         if let snapshot = dataStore.missionSnapshot,
                            !snapshot.missions.isEmpty {
                             RivalryMissionsSection(snapshot: snapshot)
-                                .padding(.top, -36)
-                        } else if dataStore.isMissionsLoading,
-                                  !dataStore.hasLoadedMissions {
-                            HomeMissionsLoadingView()
                                 .padding(.top, -36)
                         } else if let errorMessage =
                                     dataStore.missionsErrorMessage {
@@ -70,11 +68,7 @@ struct HomeView: View {
                     .padding(.bottom, 40)
                 }
                 .refreshable {
-                    async let appData: Void = dataStore.load()
-                    async let missions: Void = dataStore.loadMissions(
-                        forceRefresh: true
-                    )
-                    _ = await (appData, missions)
+                    await dataStore.loadHome(forceRefresh: true)
                 }
                 .scrollIndicators(.hidden)
                 .floatingTabBarAccessory(
@@ -113,31 +107,11 @@ struct HomeView: View {
                 self.pendingCreatedSession = nil
                 navigationPath.append(pendingCreatedSession)
             }
-            .task {
-                await dataStore.loadMissions()
-            }
         }
     }
 
     private func startSession() {
         showsStartSession = true
-    }
-}
-
-private struct HomeMissionsLoadingView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeading(title: "Moje misije")
-            HStack(spacing: 10) {
-                ProgressView()
-                    .tint(GweiloTheme.accentBright)
-                Text("Učitavam tvoje izazove…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.vertical, 8)
-        }
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -169,6 +143,7 @@ struct DataErrorNotice: View {
 private struct HomeHeader: View {
     let playerName: String
     let lastSessionDelta: Double?
+    let lastSessionFormScore: Double?
 
     var body: some View {
         HStack(alignment: .top) {
@@ -196,7 +171,10 @@ private struct HomeHeader: View {
 
             Spacer()
 
-            LastSessionMascot(delta: lastSessionDelta)
+            LastSessionMascot(
+                delta: lastSessionDelta,
+                formScore: lastSessionFormScore
+            )
         }
         .padding(.top, 18)
     }
@@ -206,9 +184,12 @@ private struct LastSessionMascot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     let delta: Double?
+    let formScore: Double?
 
     private var outcome: MatchOutcome {
-        switch EloPerformanceBand(delta: delta) {
+        let resolvedFormScore = formScore
+            ?? delta.map(FormPerformanceScore.fallback(for:))
+        return switch EloPerformanceBand(formScore: resolvedFormScore) {
         case .gain: .win
         case .steady: .draw
         case .loss: .loss
@@ -470,7 +451,11 @@ struct TopThreePreviewScreen: View {
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: 30) {
-                        HomeHeader(playerName: "Ivan", lastSessionDelta: 12)
+                        HomeHeader(
+                            playerName: "Ivan",
+                            lastSessionDelta: 12,
+                            lastSessionFormScore: 1
+                        )
                         TopThreeStandings(players: players)
                     }
                     .padding(.horizontal, 20)

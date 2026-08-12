@@ -25,6 +25,10 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
+import {
+	classifyOpportunityAdjustedForm,
+	fallbackOpportunityAdjustedForm,
+} from "@/lib/elo/form";
 
 const MotionTableRow = motion(TableRow);
 
@@ -48,6 +52,7 @@ type PlayerStats = {
 	rank_duration_days?: number | null;
 	rank_duration_capped?: boolean;
 	recent_form: number[];
+	recent_form_scores?: number[];
 };
 
 type TeamStats = {
@@ -73,6 +78,7 @@ type TeamStats = {
 	rank_duration_days?: number | null;
 	rank_duration_capped?: boolean;
 	recent_form: number[];
+	recent_form_scores?: number[];
 };
 
 type StatisticsData = {
@@ -106,7 +112,7 @@ const EMPTY_LOADED: StatisticsLoaded = {
 	doublesTeams: false,
 };
 
-const STATISTICS_CACHE_VERSION = 5;
+const STATISTICS_CACHE_VERSION = 6;
 const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"singles",
@@ -114,11 +120,24 @@ const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"doubles_team",
 ];
 
-function RecentFormDots({ values }: { values: number[] }) {
+function RecentFormDots({
+	values,
+	formScores,
+}: {
+	values: number[];
+	formScores?: number[];
+}) {
 	const recentValues = values.slice(-5);
+	const recentScores = formScores?.length === values.length
+		? (formScores?.slice(-5) ?? [])
+		: recentValues.map(fallbackOpportunityAdjustedForm);
 	const paddedValues: Array<number | null> = [
 		...Array(Math.max(0, 5 - recentValues.length)).fill(null),
 		...recentValues,
+	];
+	const paddedScores: Array<number | null> = [
+		...Array(Math.max(0, 5 - recentScores.length)).fill(null),
+		...recentScores,
 	];
 
 	const toneFor = (value: number | null) => {
@@ -128,16 +147,17 @@ function RecentFormDots({ values }: { values: number[] }) {
 				label: "Nema podatka",
 			};
 		}
-		if (value > 5) {
+		const band = classifyOpportunityAdjustedForm(value);
+		if (band === "good") {
 			return { color: "#10b981", label: "Dobra forma" };
 		}
-		if (value < -5) {
+		if (band === "bad") {
 			return { color: "#ef4444", label: "Loša forma" };
 		}
 		return { color: "#fbbf24", label: "Neutralna forma" };
 	};
 
-	const tones = paddedValues.map(toneFor);
+	const tones = paddedScores.map(toneFor);
 	const gradientStops = [`${tones[0].color} 0%`];
 
 	for (let index = 0; index < tones.length - 1; index += 1) {
@@ -696,6 +716,9 @@ function StatisticsPageContent() {
 																				values={
 																					team.recent_form
 																				}
+																				formScores={
+																					team.recent_form_scores
+																				}
 																			/>
 																		</TableCell>
 																		<TableCell className="text-center font-medium hidden md:table-cell">
@@ -798,6 +821,9 @@ function StatisticsPageContent() {
 																		<RecentFormDots
 																			values={
 																				player.recent_form
+																			}
+																			formScores={
+																				player.recent_form_scores
 																			}
 																		/>
 																	</TableCell>

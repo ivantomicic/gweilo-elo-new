@@ -13,10 +13,10 @@ private enum ClubWidgetStyle {
     static let fill = Color.white.opacity(0.08)
     static let background = Color(red: 0.055, green: 0.05, blue: 0.072)
 
-    static func formColor(_ value: Int?) -> Color {
-        guard let value else { return fill }
-        if value > 5 { return positive }
-        if value < -5 { return negative }
+    static func formColor(_ score: Double?) -> Color {
+        guard let score else { return fill }
+        if score >= 0.3 { return positive }
+        if score <= -0.3 { return negative }
         return neutral
     }
 }
@@ -117,7 +117,10 @@ private struct PlayerRatingWidget: View {
                         .foregroundStyle(ClubWidgetStyle.secondaryText)
                 }
 
-                FormDots(values: player.recentForm)
+                FormDots(
+                    values: player.recentForm,
+                    formScores: player.recentFormScores
+                )
                     .padding(.top, 8)
 
                 Spacer(minLength: 8)
@@ -320,7 +323,11 @@ private struct StandingRow: View {
 
             Spacer(minLength: 4)
 
-            FormDots(values: standing.recentForm, dotHeight: 5)
+            FormDots(
+                values: standing.recentForm,
+                formScores: standing.recentFormScores,
+                dotHeight: 5
+            )
                 .frame(width: 64)
 
             Text("\(standing.elo)")
@@ -353,14 +360,25 @@ private struct StandingRow: View {
 
 private struct FormDots: View {
     let values: [Int]
+    let formScores: [Double]?
     var dotHeight: CGFloat = 7
 
     private var samples: [FormSample] {
-        let recent = values.suffix(5).map(Optional.some)
-        let padded = Array(repeating: nil, count: max(0, 5 - recent.count))
-            + recent
-        return padded.enumerated().map {
-            FormSample(id: $0.offset, value: $0.element)
+        let recentValues = Array(values.suffix(5))
+        let resolvedScores = formScores?.count == values.count
+            ? Array((formScores ?? []).suffix(5))
+            : recentValues.map { min(1, max(-1, Double($0) / 5)) }
+        let paddingCount = max(0, 5 - recentValues.count)
+        let paddedValues = Array<Int?>(repeating: nil, count: paddingCount)
+            + recentValues.map(Optional.some)
+        let paddedScores = Array<Double?>(repeating: nil, count: paddingCount)
+            + resolvedScores.map(Optional.some)
+        return paddedValues.indices.map {
+            FormSample(
+                id: $0,
+                value: paddedValues[$0],
+                score: paddedScores[$0]
+            )
         }
     }
 
@@ -368,7 +386,7 @@ private struct FormDots: View {
         HStack(spacing: 3) {
             ForEach(samples) { sample in
                 Capsule()
-                    .fill(ClubWidgetStyle.formColor(sample.value))
+                    .fill(ClubWidgetStyle.formColor(sample.score))
                     .frame(maxWidth: .infinity)
                     .frame(height: dotHeight)
             }
@@ -390,6 +408,7 @@ private struct FormDots: View {
 private struct FormSample: Identifiable {
     let id: Int
     let value: Int?
+    let score: Double?
 }
 
 private struct WidgetEmptyState: View {

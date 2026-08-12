@@ -97,6 +97,7 @@ final class NotificationModelsTests: XCTestCase {
         let snapshot = HomeDashboardSnapshot(
             topThreeSinglesPlayers: [player, player, player],
             currentUserLatestSessionDelta: 11,
+            currentUserLatestFormScore: 0.75,
             currentUserFirstName: "Ivan",
             savedAt: Date(timeIntervalSince1970: 123)
         )
@@ -119,6 +120,7 @@ final class NotificationModelsTests: XCTestCase {
         let snapshot = HomeDashboardSnapshot(
             topThreeSinglesPlayers: [],
             currentUserLatestSessionDelta: -7,
+            currentUserLatestFormScore: -0.8,
             currentUserFirstName: "Ivan",
             savedAt: .now
         )
@@ -156,6 +158,7 @@ final class NotificationModelsTests: XCTestCase {
             HomeDashboardSnapshot(
                 topThreeSinglesPlayers: players,
                 currentUserLatestSessionDelta: 9,
+                currentUserLatestFormScore: 1,
                 currentUserFirstName: "Ivan",
                 savedAt: .now
             ),
@@ -184,6 +187,7 @@ final class NotificationModelsTests: XCTestCase {
         )
 
         XCTAssertTrue(dataStore.hasLoaded)
+        XCTAssertFalse(dataStore.hasCompletedInitialHomeLoad)
         XCTAssertEqual(dataStore.topThreeSinglesPlayers, players)
         XCTAssertEqual(dataStore.currentUserLatestSessionDelta, 9)
         XCTAssertEqual(dataStore.currentUserFirstName, "Ivan")

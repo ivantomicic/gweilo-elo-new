@@ -1368,7 +1368,7 @@ private struct SessionDoublesTeamBuilder: View {
             ForEach(SessionDoublesTeam.allCases) { team in
                 SessionDoublesTeamRow(
                     team: team,
-                    players: draft.doublesTeams[team.rawValue],
+                    players: draft.players(inDoublesTeam: team.rawValue),
                     namespace: namespace,
                     removePlayer: { playerIndex in
                         removePlayer(at: team.startIndex + playerIndex)

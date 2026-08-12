@@ -337,7 +337,10 @@ private struct RankingRecord: View {
 
             Spacer(minLength: 8)
 
-            RecentFormBar(values: entry.recentForm)
+            RecentFormBar(
+                values: entry.recentForm,
+                formScores: entry.resolvedRecentFormScores
+            )
                 .frame(width: 56)
 
             Text("\(entry.elo)")
@@ -435,6 +438,7 @@ private struct RankedPlayerAvatar: View {
 
 private struct RecentFormBar: View {
     let values: [Double]
+    let formScores: [Double]
 
     private var paddedValues: [Double?] {
         let recent = values.suffix(5).map(Optional.some)
@@ -442,7 +446,12 @@ private struct RecentFormBar: View {
     }
 
     private var gradient: LinearGradient {
-        let colors = paddedValues.map(color)
+        let recentScores = formScores.suffix(5).map(Optional.some)
+        let paddedScores = Array(
+            repeating: nil,
+            count: max(0, 5 - recentScores.count)
+        ) + recentScores
+        let colors = paddedScores.map(color)
         var stops = [
             Gradient.Stop(color: colors[0], location: 0)
         ]
@@ -479,11 +488,11 @@ private struct RecentFormBar: View {
             .accessibilityValue(accessibilityValue)
     }
 
-    private func color(for value: Double?) -> Color {
-        guard let value else {
+    private func color(for formScore: Double?) -> Color {
+        guard let formScore else {
             return GweiloTheme.muted.opacity(0.18)
         }
-        return EloPerformanceBand(delta: value).color
+        return EloPerformanceBand(formScore: formScore).color
     }
 
     private var accessibilityValue: String {
@@ -1356,7 +1365,10 @@ private struct PlayerProfileHeader: View {
                             .tracking(0.8)
                             .foregroundStyle(GweiloTheme.muted)
 
-                        RecentFormBar(values: player.recentForm)
+                        RecentFormBar(
+                            values: player.recentForm,
+                            formScores: player.resolvedRecentFormScores
+                        )
                             .frame(width: 58)
                     }
                     .padding(.top, 5)

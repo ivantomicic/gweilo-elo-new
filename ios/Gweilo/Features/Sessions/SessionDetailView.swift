@@ -14,6 +14,7 @@ struct SessionDetailView: View {
     @State private var errorMessage: String?
     @State private var managementErrorMessage: String?
     @State private var selectedPlayerID: UUID?
+    @State private var selectedPerformanceCategory: SessionPerformanceCategory = .singles
 
     var body: some View {
         ZStack {
@@ -67,6 +68,12 @@ struct SessionDetailView: View {
                                     } else if detail.session.status == .completed {
                                         SessionPerformanceTable(
                                             detail: detail,
+                                            selection: Binding(
+                                                get: { selectedPerformanceCategory },
+                                                set: { category in
+                                                    updatePerformanceCategory(category)
+                                                }
+                                            ),
                                             selectedPlayerID: Binding(
                                                 get: { selectedPlayerID },
                                                 set: { playerID in
@@ -85,25 +92,29 @@ struct SessionDetailView: View {
                                        let participant = detail.participant(
                                         for: selectedPlayerID
                                        ) {
+                                        let performanceCategory = activePerformanceCategory(
+                                            in: detail
+                                        )
                                         PlayerSessionMatchResults(
                                             participant: participant,
                                             matches: SessionPlayerMatchFilter.matches(
                                                 for: selectedPlayerID,
+                                                type: performanceCategory.matchType,
                                                 in: SessionCompletedMatchPresenter.matches(
                                                     playerCount: detail.session.playerCount,
                                                     rounds: detail.rounds
                                                 )
                                             ),
-                                            singlesPerformance: detail
-                                                .singlesPerformance
-                                                .first {
+                                            singlesPerformance: performanceCategory == .singles
+                                                ? detail.singlesPerformance.first {
                                                     $0.playerID == selectedPlayerID
-                                                },
-                                            doublesPerformance: detail
-                                                .doublesPlayerPerformance
-                                                .first {
+                                                }
+                                                : nil,
+                                            doublesPerformance: performanceCategory == .doublesPlayers
+                                                ? detail.doublesPlayerPerformance.first {
                                                     $0.playerID == selectedPlayerID
-                                                },
+                                                }
+                                                : nil,
                                             detail: detail,
                                             clearSelection: {
                                                 updateSelectedPlayer(nil)
@@ -263,6 +274,29 @@ struct SessionDetailView: View {
         withAnimation(playerFilterAnimation) {
             selectedPlayerID = playerID
         }
+    }
+
+    private func updatePerformanceCategory(
+        _ category: SessionPerformanceCategory
+    ) {
+        guard selectedPerformanceCategory != category else { return }
+        withAnimation(playerFilterAnimation) {
+            selectedPerformanceCategory = category
+            if category == .doublesTeams {
+                selectedPlayerID = nil
+            }
+        }
+    }
+
+    private func activePerformanceCategory(
+        in detail: SessionDetail
+    ) -> SessionPerformanceCategory {
+        let availableCategories = SessionPerformanceCategory.allCases.filter {
+            $0.isAvailable(in: detail)
+        }
+        return availableCategories.contains(selectedPerformanceCategory)
+            ? selectedPerformanceCategory
+            : availableCategories.first ?? .singles
     }
 
     private func manageActiveSession() async {
@@ -441,21 +475,12 @@ private struct ReadOnlyCurrentRound: View {
 
 private struct SessionPerformanceTable: View {
     let detail: SessionDetail
+    @Binding var selection: SessionPerformanceCategory
     @Binding var selectedPlayerID: UUID?
-    @State private var selection: SessionPerformanceCategory = .singles
     @Namespace private var selectionIndicator
 
     private var availableCategories: [SessionPerformanceCategory] {
-        SessionPerformanceCategory.allCases.filter { category in
-            switch category {
-            case .singles:
-                !detail.singlesPerformance.isEmpty
-            case .doublesPlayers:
-                !detail.doublesPlayerPerformance.isEmpty
-            case .doublesTeams:
-                !detail.doublesTeamPerformance.isEmpty
-            }
-        }
+        SessionPerformanceCategory.allCases.filter { $0.isAvailable(in: detail) }
     }
 
     private var activeCategory: SessionPerformanceCategory {
@@ -516,6 +541,7 @@ private struct SessionPerformanceTable: View {
                 performance: performance,
                 isSelected: selectedPlayerID == performance.playerID,
                 action: {
+                    selection = activeCategory
                     selectedPlayerID = selectedPlayerID == performance.playerID
                         ? nil
                         : performance.playerID
@@ -562,6 +588,28 @@ private enum SessionPerformanceCategory: String, CaseIterable, Identifiable {
             "Dublovi"
         case .doublesTeams:
             "Timovi"
+        }
+    }
+
+    var matchType: SessionMatchType? {
+        switch self {
+        case .singles:
+            .singles
+        case .doublesPlayers:
+            .doubles
+        case .doublesTeams:
+            nil
+        }
+    }
+
+    func isAvailable(in detail: SessionDetail) -> Bool {
+        switch self {
+        case .singles:
+            !detail.singlesPerformance.isEmpty
+        case .doublesPlayers:
+            !detail.doublesPlayerPerformance.isEmpty
+        case .doublesTeams:
+            !detail.doublesTeamPerformance.isEmpty
         }
     }
 }

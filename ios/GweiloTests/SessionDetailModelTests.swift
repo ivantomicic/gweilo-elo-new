@@ -2,6 +2,33 @@ import XCTest
 @testable import Gweilo
 
 final class SessionDetailModelTests: XCTestCase {
+
+    @MainActor
+    func testOpportunityAdjustedFormUsesThirtyPercentBoundary() {
+        XCTAssertEqual(EloPerformanceBand(formScore: 0.3), .gain)
+        XCTAssertEqual(EloPerformanceBand(formScore: 0.299), .steady)
+        XCTAssertEqual(EloPerformanceBand(formScore: -0.299), .steady)
+        XCTAssertEqual(EloPerformanceBand(formScore: -0.3), .loss)
+    }
+
+    @MainActor
+    func testRankingEntryFallsBackWhenFormScoresAreUnavailable() {
+        let entry = RankingEntry(
+            id: UUID(),
+            name: "Ivan",
+            avatarURL: nil,
+            elo: 1_800,
+            matches: 100,
+            wins: 70,
+            losses: 25,
+            draws: 5,
+            rankDays: nil,
+            recentForm: [4, 0, -4]
+        )
+
+        XCTAssertEqual(entry.resolvedRecentFormScores, [0.8, 0, -0.8])
+    }
+
     private let ivanID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     private let garaID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
     private let leoID = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!
@@ -216,6 +243,38 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(profileResult.outcome, .win)
         XCTAssertEqual(profileResult.elo, 1_542)
         XCTAssertEqual(profileResult.delta, 12)
+    }
+
+    @MainActor
+    func testPlayerMatchFilterLimitsResultsToSelectedMatchType() {
+        let singles = SessionMatch(
+            id: UUID(),
+            roundNumber: 1,
+            type: .singles,
+            order: 0,
+            playerIDs: [ivanID, garaID],
+            isCompleted: true,
+            teamOneScore: 11,
+            teamTwoScore: 7
+        )
+        let doubles = SessionMatch(
+            id: UUID(),
+            roundNumber: 2,
+            type: .doubles,
+            order: 0,
+            playerIDs: [ivanID, garaID, leoID, miladinID],
+            isCompleted: true,
+            teamOneScore: 3,
+            teamTwoScore: 1
+        )
+
+        let filtered = SessionPlayerMatchFilter.matches(
+            for: ivanID,
+            type: .singles,
+            in: [singles, doubles]
+        )
+
+        XCTAssertEqual(filtered.map(\.id), [singles.id])
     }
 
     @MainActor
@@ -1033,13 +1092,17 @@ final class SessionDetailModelTests: XCTestCase {
     func testSixPlayerSinglesDraftDoesNotBuildDoublesTeams() {
         var draft = SessionCreationDraft()
         draft.setPlayerCount(6)
-        draft.sixPlayerFormat = .singles
-
         makeCreationPlayers(count: 6).forEach { draft.toggle($0) }
+
+        XCTAssertEqual(draft.doublesTeams.count, 3)
+
+        draft.sixPlayerFormat = .singles
 
         XCTAssertTrue(draft.canPreview)
         XCTAssertFalse(draft.usesDoublesTeams)
         XCTAssertTrue(draft.doublesTeams.isEmpty)
+        XCTAssertTrue(draft.players(inDoublesTeam: 0).isEmpty)
+        XCTAssertTrue(draft.players(inDoublesTeam: 2).isEmpty)
         XCTAssertEqual(draft.selectedFormat, .singles)
     }
 

@@ -29,6 +29,11 @@ private final class ConnectivityMonitor {
     }
 }
 
+private struct AppLoadIdentity: Hashable {
+    let accessToken: String?
+    let isRestoringSession: Bool
+}
+
 struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var authStore = AuthStore()
@@ -70,7 +75,8 @@ struct RootView: View {
                     .background(ArenaBackground())
             } else if authStore.session == nil {
                 SignInView(authStore: authStore)
-            } else if let appDataStore, appDataStore.hasLoaded {
+            } else if let appDataStore,
+                      appDataStore.hasCompletedInitialHomeLoad {
                 MainTabView(
                     dataStore: appDataStore,
                     authStore: authStore,
@@ -82,8 +88,9 @@ struct RootView: View {
                     .background(ArenaBackground())
             }
         }
-        .task(id: authStore.session?.accessToken) {
+        .task(id: appLoadIdentity) {
             guard
+                !authStore.isRestoringSession,
                 let session = authStore.session,
                 let configuration = authStore.configuration
             else {
@@ -99,39 +106,64 @@ struct RootView: View {
 
             if let appDataStore {
                 appDataStore.updateSession(session)
-                await appDataStore.load()
+                await appDataStore.loadHome()
             } else {
                 let store = AppDataStore(
                     configuration: configuration,
                     session: session
                 )
                 appDataStore = store
-                await store.load()
+                await store.loadHome()
             }
         }
         .task {
             await authStore.restoreSession()
         }
-        .task(id: authStore.session?.accessToken) {
+        .task(id: appLoadIdentity) {
+            guard !authStore.isRestoringSession else { return }
             await authStore.refreshBeforeExpiry()
         }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             Task {
+                let previousAccessToken = authStore.session?.accessToken
                 await authStore.refreshIfNeeded()
                 await pushNotifications.refreshAuthorizationStatus()
-                await appDataStore?.load()
+                guard
+                    let session = authStore.session,
+                    session.accessToken == previousAccessToken,
+                    !session.needsRefresh()
+                else {
+                    return
+                }
+                await appDataStore?.loadHome()
             }
         }
         .onChange(of: connectivity.isConnected) { wasConnected, isConnected in
             guard wasConnected == false, isConnected == true else { return }
             Task {
-                await appDataStore?.load(forceRefresh: true)
+                let previousAccessToken = authStore.session?.accessToken
+                await authStore.refreshIfNeeded()
+                guard
+                    let session = authStore.session,
+                    session.accessToken == previousAccessToken,
+                    !session.needsRefresh()
+                else {
+                    return
+                }
+                await appDataStore?.loadHome(forceRefresh: true)
             }
         }
         .onOpenURL { url in
             pushNotifications.handleDeepLink(url)
         }
+    }
+
+    private var appLoadIdentity: AppLoadIdentity {
+        AppLoadIdentity(
+            accessToken: authStore.session?.accessToken,
+            isRestoringSession: authStore.isRestoringSession
+        )
     }
 
     private var isSessionDetailPreview: Bool {

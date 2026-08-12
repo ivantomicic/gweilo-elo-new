@@ -69,6 +69,7 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
     let draws: Int
     let rankDays: Int?
     let recentForm: [Double]
+    let recentFormScores: [Double]?
 
     init(
         id: UUID,
@@ -80,7 +81,8 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
         losses: Int,
         draws: Int,
         rankDays: Int?,
-        recentForm: [Double] = []
+        recentForm: [Double] = [],
+        recentFormScores: [Double]? = nil
     ) {
         self.id = id
         self.name = name
@@ -92,6 +94,17 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
         self.draws = draws
         self.rankDays = rankDays
         self.recentForm = recentForm
+        self.recentFormScores = recentFormScores
+    }
+
+    var resolvedRecentFormScores: [Double] {
+        guard
+            let recentFormScores,
+            recentFormScores.count == recentForm.count
+        else {
+            return recentForm.map(FormPerformanceScore.fallback(for:))
+        }
+        return recentFormScores
     }
 
     var initials: String {
@@ -196,6 +209,7 @@ enum EloPerformanceBand: String, Hashable, Sendable {
     case loss
 
     static let threshold = 5.0
+    static let formThreshold = 0.3
 
     init(delta: Double?) {
         guard let delta else {
@@ -210,6 +224,27 @@ enum EloPerformanceBand: String, Hashable, Sendable {
         } else {
             self = .steady
         }
+    }
+
+    init(formScore: Double?) {
+        guard let formScore else {
+            self = .steady
+            return
+        }
+
+        if formScore >= Self.formThreshold {
+            self = .gain
+        } else if formScore <= -Self.formThreshold {
+            self = .loss
+        } else {
+            self = .steady
+        }
+    }
+}
+
+enum FormPerformanceScore {
+    static func fallback(for eloDelta: Double) -> Double {
+        min(1, max(-1, eloDelta / 5))
     }
 }
 
@@ -663,9 +698,18 @@ struct SessionCreationDraft: Equatable, Sendable {
 
     var doublesTeams: [[SessionCreationPlayer]] {
         guard usesDoublesTeams else { return [] }
-        return stride(from: 0, to: 6, by: 2).map { startIndex in
-            Array(selectedPlayers.dropFirst(startIndex).prefix(2))
+        return (0..<3).map { teamIndex in
+            players(inDoublesTeam: teamIndex)
         }
+    }
+
+    func players(inDoublesTeam teamIndex: Int) -> [SessionCreationPlayer] {
+        guard usesDoublesTeams, (0..<3).contains(teamIndex) else { return [] }
+        return Array(
+            selectedPlayers
+                .dropFirst(teamIndex * 2)
+                .prefix(2)
+        )
     }
 
     mutating func setPlayerCount(_ count: Int) {
@@ -1463,10 +1507,12 @@ enum SessionHalfResultGrouper {
 enum SessionPlayerMatchFilter {
     static func matches(
         for playerID: UUID,
+        type: SessionMatchType? = nil,
         in matches: [SessionMatch]
     ) -> [SessionMatch] {
         matches.compactMap { match in
-            orient(match, selectedPlayerID: playerID)
+            guard type == nil || match.type == type else { return nil }
+            return orient(match, selectedPlayerID: playerID)
         }
     }
 

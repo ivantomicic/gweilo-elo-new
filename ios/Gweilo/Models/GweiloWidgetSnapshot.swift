@@ -12,6 +12,7 @@ struct GweiloWidgetPlayer: Codable, Hashable, Sendable {
     let elo: Int
     let rank: Int
     let recentForm: [Int]
+    let recentFormScores: [Double]?
     let recentMatches: [GweiloWidgetMatch]
 }
 
@@ -20,6 +21,7 @@ struct GweiloWidgetStanding: Codable, Hashable, Sendable {
     let name: String
     let elo: Int
     let recentForm: [Int]
+    let recentFormScores: [Double]?
     let isCurrentUser: Bool
 }
 
@@ -44,6 +46,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
             elo: 1_718,
             rank: 1,
             recentForm: [8, -4, 11, 3, -7],
+            recentFormScores: [0.8, -0.4, 1, 0.3, -0.7],
             recentMatches: [
                 GweiloWidgetMatch(
                     opponent: "Gara",
@@ -71,6 +74,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
                 name: "Ivan",
                 elo: 1_718,
                 recentForm: [8, -4, 11, 3, -7],
+                recentFormScores: [0.8, -0.4, 1, 0.3, -0.7],
                 isCurrentUser: true
             ),
             GweiloWidgetStanding(
@@ -78,6 +82,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
                 name: "Gara",
                 elo: 1_626,
                 recentForm: [4, 8, -7, 6, 2],
+                recentFormScores: [0.8, 1, -1, 1, 0.2],
                 isCurrentUser: false
             ),
             GweiloWidgetStanding(
@@ -85,6 +90,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
                 name: "Leo",
                 elo: 1_624,
                 recentForm: [-3, 7, 9, -8, 5],
+                recentFormScores: [-0.6, 1, 1, -1, 1],
                 isCurrentUser: false
             ),
             GweiloWidgetStanding(
@@ -92,6 +98,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
                 name: "Miladin",
                 elo: 1_568,
                 recentForm: [6, -6, 3, 8, -4],
+                recentFormScores: [1, -1, 0.6, 1, -0.8],
                 isCurrentUser: false
             ),
             GweiloWidgetStanding(
@@ -99,6 +106,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
                 name: "Andrej",
                 elo: 1_495,
                 recentForm: [-7, 4, -2, 6, 8],
+                recentFormScores: [-1, 0.8, -0.4, 1, 1],
                 isCurrentUser: false
             )
         ]
