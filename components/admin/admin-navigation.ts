@@ -1,6 +1,7 @@
 import {
 	ClipboardListIcon,
 	BellRingIcon,
+	ChartNoAxesCombinedIcon,
 	LanguagesIcon,
 	ListIcon,
 	SettingsIcon,
@@ -12,6 +13,7 @@ export type AdminNavigationItem = {
 	value:
 		| "users"
 		| "activity"
+		| "formAudit"
 		| "missions"
 		| "nameCases"
 		| "notifications"
@@ -33,6 +35,12 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 		title: "Activity Log",
 		url: "/admin/activity",
 		icon: ListIcon,
+	},
+	{
+		value: "formAudit",
+		title: "Form Audit",
+		url: "/admin/form-audit",
+		icon: ChartNoAxesCombinedIcon,
 	},
 	{
 		value: "missions",

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
 	calculateOpportunityAdjustedForm,
+	calculateOpportunityAdjustedFormBreakdown,
 	classifyOpportunityAdjustedForm,
 	fallbackOpportunityAdjustedForm,
 } from "../../lib/elo/form";
@@ -56,4 +57,17 @@ test("classifies adjusted scores at the shared thirty-percent boundary", () => {
 	assert.equal(classifyOpportunityAdjustedForm(0.299), "neutral");
 	assert.equal(classifyOpportunityAdjustedForm(-0.299), "neutral");
 	assert.equal(classifyOpportunityAdjustedForm(-0.3), "bad");
+});
+
+test("exposes the same calculation as an inspectable audit breakdown", () => {
+	const breakdown = calculateOpportunityAdjustedFormBreakdown([
+		{ actualScore: 1, expectedScore: 0.75 },
+		{ actualScore: 0, expectedScore: 0.25 },
+	]);
+
+	assert.equal(breakdown.actualScore, 1);
+	assert.equal(breakdown.expectedScore, 1);
+	assert.equal(breakdown.performanceAboveExpectation, 0);
+	assert.equal(breakdown.availableOpportunity, 1);
+	assert.equal(breakdown.score, 0);
 });
