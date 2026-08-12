@@ -30,6 +30,11 @@ import {
 	fallbackOpportunityAdjustedForm,
 	type FormPerformanceObservation,
 } from "@/lib/elo/form";
+import {
+	detectTwoHalfSinglesSession,
+	getEffectiveTwoHalfSinglesScore,
+	type TwoHalfSinglesConfig,
+} from "@/lib/sessions/two-half-singles";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +126,7 @@ type FormSessionRecord = {
 	id: string;
 	created_at: string;
 	completed_at: string | null;
+	player_count: number;
 };
 
 type FormMatchRecord = {
@@ -255,6 +261,27 @@ function matchActualScores(match: FormMatchRecord): [number, number] | null {
 	return [0.5, 0.5];
 }
 
+function singlesActualScores(
+	match: FormMatchRecord,
+	sessionMatches: FormMatchRecord[],
+	twoHalfConfig: TwoHalfSinglesConfig | null,
+): [number, number] | null {
+	if (!match.player_ids) return null;
+	const matchesWithPlayers = sessionMatches.filter(
+		(candidate): candidate is FormMatchRecord & { player_ids: string[] } =>
+			candidate.player_ids !== null,
+	);
+	const score = getEffectiveTwoHalfSinglesScore(
+		{ ...match, player_ids: match.player_ids },
+		matchesWithPlayers,
+		twoHalfConfig,
+	);
+	if (!score) return null;
+	if (score.team1Score > score.team2Score) return [1, 0];
+	if (score.team1Score < score.team2Score) return [0, 1];
+	return [0.5, 0.5];
+}
+
 function finalizeRecentForm(
 	deltas: Map<string, Map<string, number>>,
 	observations: Map<string, Map<string, FormPerformanceObservation[]>>,
@@ -295,7 +322,7 @@ const getCachedRecentFormMaps = unstable_cache(
 			await Promise.all([
 				adminClient
 					.from("sessions")
-					.select("id, created_at, completed_at")
+					.select("id, created_at, completed_at, player_count")
 					.eq("status", "completed")
 					.order("created_at", { ascending: true }),
 				adminClient
@@ -303,8 +330,7 @@ const getCachedRecentFormMaps = unstable_cache(
 					.select(
 						"id, session_id, match_type, round_number, match_order, player_ids, team_1_id, team_2_id, team1_score, team2_score",
 					)
-					.eq("status", "completed")
-					.eq("is_rated", true),
+					.eq("status", "completed"),
 				adminClient
 					.from("match_elo_history")
 					.select(
@@ -326,6 +352,32 @@ const getCachedRecentFormMaps = unstable_cache(
 			(match) => completedSessionIds.has(match.session_id),
 		);
 		const matchMap = new Map(matches.map((match) => [match.id, match]));
+		const matchesBySession = new Map<string, FormMatchRecord[]>();
+		for (const match of matches) {
+			const sessionMatches = matchesBySession.get(match.session_id) ?? [];
+			sessionMatches.push(match);
+			matchesBySession.set(match.session_id, sessionMatches);
+		}
+		const twoHalfConfigBySession = new Map<
+			string,
+			TwoHalfSinglesConfig | null
+		>();
+		for (const session of sessions) {
+			const sessionMatches = matchesBySession.get(session.id) ?? [];
+			const matchesWithPlayers = sessionMatches.filter(
+				(match): match is FormMatchRecord & { player_ids: string[] } =>
+					match.player_ids !== null,
+			);
+			twoHalfConfigBySession.set(
+				session.id,
+				matchesWithPlayers.length === sessionMatches.length
+					? detectTwoHalfSinglesSession(
+							session.player_count,
+							matchesWithPlayers,
+						)
+					: null,
+			);
+		}
 		const sessionOrder = new Map(
 			sessions.map((session, index) => [session.id, index]),
 		);
@@ -344,7 +396,14 @@ const getCachedRecentFormMaps = unstable_cache(
 		for (const history of (historyResult.data || []) as FormHistoryRecord[]) {
 			const match = matchMap.get(history.match_id);
 			if (!match) continue;
-			const actualScores = matchActualScores(match);
+			const actualScores =
+				match.match_type === "singles"
+					? singlesActualScores(
+							match,
+							matchesBySession.get(match.session_id) ?? [],
+							twoHalfConfigBySession.get(match.session_id) ?? null,
+						)
+					: matchActualScores(match);
 
 			if (match.match_type === "singles") {
 				addSessionDelta(
@@ -570,7 +629,7 @@ const getCachedRecentFormMaps = unstable_cache(
 			),
 		};
 	},
-	["statistics-recent-session-form-v2"],
+	["statistics-recent-session-form-v3"],
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] },
 );
 

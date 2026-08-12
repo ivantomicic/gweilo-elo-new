@@ -48,7 +48,7 @@ struct SignInView: View {
                     resourceName: "GweiloLoginHero",
                     resourceExtension: "mov",
                     isPlaying: scenePhase == .active && !reduceMotion,
-                    playbackRate: 1.50513,
+                    playbackRate: 3.01026,
                     onProgress: updateVideoProgress,
                     videoGravity: .resizeAspect
                 )
