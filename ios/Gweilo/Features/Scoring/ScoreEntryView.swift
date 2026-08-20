@@ -9,11 +9,15 @@ struct ScoreEntryView: View {
 
     let round: SessionRound
     let detail: SessionDetail
+    let isSelected: Bool
+    let roundNumbers: [Int]
+    let onRoundSelected: ((Int) -> Void)?
     let submit: ([RoundMatchScoreSubmission]) async throws -> RoundSubmissionResult
     let onSubmitted: () async -> Void
     let onFocusedMatchChanged: (UUID) -> Void
 
-    @State private var draft = RoundScoreDraft(matches: [])
+    private let suppliedDraft: Binding<RoundScoreDraft>?
+    @State private var ownedDraft = RoundScoreDraft(matches: [])
     @State private var showsSubmitConfirmation = false
     @State private var isSubmitting = false
     @State private var submissionSucceeded = false
@@ -23,12 +27,21 @@ struct ScoreEntryView: View {
     init(
         round: SessionRound,
         detail: SessionDetail,
+        draft: Binding<RoundScoreDraft>? = nil,
+        isSelected: Bool = true,
+        roundNumbers: [Int]? = nil,
+        onRoundSelected: ((Int) -> Void)? = nil,
         submit: @escaping ([RoundMatchScoreSubmission]) async throws -> RoundSubmissionResult,
         onSubmitted: @escaping () async -> Void = {},
         onFocusedMatchChanged: @escaping (UUID) -> Void = { _ in }
     ) {
         self.round = round
         self.detail = detail
+        suppliedDraft = draft
+        self.isSelected = isSelected
+        self.roundNumbers = roundNumbers
+            ?? Array(1...max(detail.session.totalRounds, 1))
+        self.onRoundSelected = onRoundSelected
         self.submit = submit
         self.onSubmitted = onSubmitted
         self.onFocusedMatchChanged = onFocusedMatchChanged
@@ -38,7 +51,9 @@ struct ScoreEntryView: View {
         VStack(alignment: .leading, spacing: 18) {
             RoundHeader(
                 round: round,
-                detail: detail
+                detail: detail,
+                roundNumbers: roundNumbers,
+                selectRound: onRoundSelected
             )
 
             if let nextRound {
@@ -92,7 +107,9 @@ struct ScoreEntryView: View {
             )
         }
         .task(id: round.id) {
-            draft = RoundScoreDraft(matches: round.matches)
+            if suppliedDraft == nil {
+                draft = RoundScoreDraft(matches: round.matches)
+            }
             errorMessage = nil
             submissionSucceeded = false
             focusedScore = nil
@@ -100,6 +117,11 @@ struct ScoreEntryView: View {
         .onChange(of: focusedScore?.matchID) { _, matchID in
             guard let matchID else { return }
             onFocusedMatchChanged(matchID)
+        }
+        .onChange(of: isSelected) { _, isSelected in
+            if !isSelected {
+                focusedScore = nil
+            }
         }
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -126,6 +148,17 @@ struct ScoreEntryView: View {
         detail.rounds
             .filter { $0.number > round.number }
             .min { $0.number < $1.number }
+    }
+
+    private var draft: RoundScoreDraft {
+        get { suppliedDraft?.wrappedValue ?? ownedDraft }
+        nonmutating set {
+            if let suppliedDraft {
+                suppliedDraft.wrappedValue = newValue
+            } else {
+                ownedDraft = newValue
+            }
+        }
     }
 
     private func scoreBinding(for matchID: UUID, team: Int) -> Binding<Int?> {
@@ -227,51 +260,44 @@ private struct NextRoundPreview: View {
     let detail: SessionDetail
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 7) {
-                Image(systemName: "forward.fill")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(GweiloTheme.lime)
+        GweiloCard(style: .neutral, contentPadding: 14) {
+            VStack(alignment: .leading, spacing: 11) {
+                HStack(spacing: 7) {
+                    Image(systemName: "forward.fill")
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(GweiloTheme.lime)
 
-                Text("SLEDEĆA")
-                    .font(
-                        GweiloTheme.labelFont(
-                            size: 11,
-                            relativeTo: .caption2
+                    Text("SLEDEĆA")
+                        .font(
+                            GweiloTheme.labelFont(
+                                size: 11,
+                                relativeTo: .caption2
+                            )
                         )
-                    )
-                    .tracking(1.1)
-                    .foregroundStyle(GweiloTheme.lime)
+                        .tracking(1.1)
+                        .foregroundStyle(GweiloTheme.lime)
 
-                Spacer()
+                    Spacer()
 
-                Text("RUNDA \(round.number)")
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
-            }
-
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) {
-                    ForEach(round.matches) { match in
-                        NextRoundMatchup(match: match, detail: detail)
-                    }
+                    Text("RUNDA \(round.number)")
+                        .font(.caption2.monospacedDigit().weight(.semibold))
+                        .foregroundStyle(.secondary)
                 }
 
-                VStack(alignment: .leading, spacing: 7) {
-                    ForEach(round.matches) { match in
-                        NextRoundMatchup(match: match, detail: detail)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 12) {
+                        ForEach(round.matches) { match in
+                            NextRoundMatchup(match: match, detail: detail)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 7) {
+                        ForEach(round.matches) { match in
+                            NextRoundMatchup(match: match, detail: detail)
+                        }
                     }
                 }
             }
-        }
-        .padding(12)
-        .background(
-            GweiloTheme.raisedSurface,
-            in: .rect(cornerRadius: 12)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(GweiloTheme.lime.opacity(0.24), lineWidth: 0.8)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Sledeća, runda \(round.number)")
@@ -415,6 +441,8 @@ private struct ScoreField: Hashable {
 private struct RoundHeader: View {
     let round: SessionRound
     let detail: SessionDetail
+    let roundNumbers: [Int]
+    let selectRound: ((Int) -> Void)?
 
     private var matchSummary: String {
         let singles = round.matches.filter { $0.type == .singles }.count
@@ -434,8 +462,9 @@ private struct RoundHeader: View {
                 .foregroundStyle(GweiloTheme.bone)
 
             RoundProgress(
-                currentRound: round.number,
-                totalRounds: detail.session.totalRounds
+                selectedRound: round.number,
+                roundNumbers: roundNumbers,
+                selectRound: selectRound
             )
 
             HStack {
@@ -453,25 +482,43 @@ private struct RoundHeader: View {
     }
 }
 
-private struct RoundProgress: View {
-    let currentRound: Int
-    let totalRounds: Int
+struct RoundProgress: View {
+    let selectedRound: Int
+    let roundNumbers: [Int]
+    let selectRound: ((Int) -> Void)?
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(1...max(totalRounds, 1), id: \.self) { round in
-                Capsule()
-                    .fill(
-                        round <= currentRound
-                            ? GweiloTheme.accentBright
-                            : GweiloTheme.raisedSurface
-                    )
+            ForEach(roundNumbers, id: \.self) { roundNumber in
+                Button {
+                    selectRound?(roundNumber)
+                } label: {
+                    ZStack {
+                        Color.clear
+
+                        Capsule()
+                            .fill(
+                                roundNumber <= selectedRound
+                                    ? GweiloTheme.accentBright
+                                    : GweiloTheme.raisedSurface
+                            )
+                            .frame(height: 3)
+                    }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 3)
+                    .frame(height: 44)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .padding(.vertical, -20.5)
+                .disabled(selectRound == nil)
+                .accessibilityLabel("Prikaži rundu \(roundNumber)")
+                .accessibilityAddTraits(
+                    roundNumber == selectedRound ? .isSelected : []
+                )
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Runda \(currentRound) od \(totalRounds)")
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Runda \(selectedRound) od \(roundNumbers.count)")
     }
 }
 
@@ -509,45 +556,28 @@ private struct MatchScoreEditor: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(match.type.label)
-                    .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption2))
-                    .tracking(1.1)
-                    .foregroundStyle(GweiloTheme.accentBright)
+        GweiloCard(style: .neutral, contentPadding: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                MatchSide(
+                    name: names.0,
+                    participants: teamOneParticipants,
+                    prediction: match.eloPrediction?.team1,
+                    score: $teamOneScore,
+                    focus: teamOneFocus,
+                    focusedScore: focusedScore
+                )
 
-                Spacer()
+                VersusDivider()
 
-                Text("MEČ \(match.order + 1)")
-                    .font(.caption2.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
+                MatchSide(
+                    name: names.1,
+                    participants: teamTwoParticipants,
+                    prediction: match.eloPrediction?.team2,
+                    score: $teamTwoScore,
+                    focus: teamTwoFocus,
+                    focusedScore: focusedScore
+                )
             }
-
-            MatchSide(
-                name: names.0,
-                participants: teamOneParticipants,
-                prediction: match.eloPrediction?.team1,
-                score: $teamOneScore,
-                focus: teamOneFocus,
-                focusedScore: focusedScore
-            )
-
-            VersusDivider()
-
-            MatchSide(
-                name: names.1,
-                participants: teamTwoParticipants,
-                prediction: match.eloPrediction?.team2,
-                score: $teamTwoScore,
-                focus: teamTwoFocus,
-                focusedScore: focusedScore
-            )
-        }
-        .padding(14)
-        .background(GweiloTheme.surface, in: .rect(cornerRadius: 14))
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(GweiloTheme.hairline, lineWidth: 0.8)
         }
     }
 }

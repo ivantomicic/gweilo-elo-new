@@ -9,6 +9,7 @@ private struct SessionRecord: Decodable, Sendable {
     let bestPlayerDelta: Double?
     let worstPlayerDisplayName: String?
     let worstPlayerDelta: Double?
+    let sessionMatches: [SessionSummaryMatchRecord]?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -19,17 +20,16 @@ private struct SessionRecord: Decodable, Sendable {
         case bestPlayerDelta = "best_player_delta"
         case worstPlayerDisplayName = "worst_player_display_name"
         case worstPlayerDelta = "worst_player_delta"
+        case sessionMatches = "session_matches"
     }
 }
 
-private struct MatchRecord: Decodable, Sendable {
-    let sessionID: UUID
+private struct SessionSummaryMatchRecord: Decodable, Sendable {
     let matchType: String
     let roundNumber: Int
     let status: String?
 
     private enum CodingKeys: String, CodingKey {
-        case sessionID = "session_id"
         case matchType = "match_type"
         case roundNumber = "round_number"
         case status
@@ -91,6 +91,32 @@ private struct SessionPlayerEloSnapshotRecord: Decodable, Sendable {
         case matchID = "match_id"
         case playerID = "player_id"
         case elo
+    }
+}
+
+private struct SessionDetailEnvelopeRecord: Decodable, Sendable {
+    let playerCount: Int
+    let createdAt: Date
+    let status: SessionStatus
+    let bestPlayerDisplayName: String?
+    let bestPlayerDelta: Double?
+    let worstPlayerDisplayName: String?
+    let worstPlayerDelta: Double?
+    let sessionPlayers: [SessionPlayerRecord]
+    let sessionPlaceholders: [SessionPlaceholderRecord]
+    let sessionMatches: [SessionDetailMatchRecord]
+
+    private enum CodingKeys: String, CodingKey {
+        case playerCount = "player_count"
+        case createdAt = "created_at"
+        case status
+        case bestPlayerDisplayName = "best_player_display_name"
+        case bestPlayerDelta = "best_player_delta"
+        case worstPlayerDisplayName = "worst_player_display_name"
+        case worstPlayerDelta = "worst_player_delta"
+        case sessionPlayers = "session_players"
+        case sessionPlaceholders = "session_placeholders"
+        case sessionMatches = "session_matches"
     }
 }
 
@@ -189,12 +215,12 @@ struct SupabaseDataClient: Sendable {
     var session: URLSession = .shared
 
     func fetchSessionDetail(session summary: SessionSummary) async throws -> SessionDetail {
-        async let sessionRecordRequest: [SessionRecord] = get(
+        async let sessionRecordRequest: [SessionDetailEnvelopeRecord] = get(
             table: "sessions",
             queryItems: [
                 .init(
                     name: "select",
-                    value: "id,player_count,created_at,status,best_player_display_name,best_player_delta,worst_player_display_name,worst_player_delta"
+                    value: "player_count,created_at,status,best_player_display_name,best_player_delta,worst_player_display_name,worst_player_delta,session_players(player_id,team),session_placeholders(id,display_name,team),session_matches(id,round_number,match_type,match_order,player_ids,status,team1_score,team2_score,is_rated)"
                 ),
                 .init(name: "id", value: "eq.\(summary.id.uuidString)"),
                 .init(name: "limit", value: "1")
@@ -206,39 +232,17 @@ struct SupabaseDataClient: Sendable {
         async let sessionSummaryRequest = fetchSessionSummary(
             sessionID: summary.id
         )
-        async let sessionPlayersRequest: [SessionPlayerRecord] = get(
-            table: "session_players",
-            queryItems: [
-                .init(name: "select", value: "player_id,team"),
-                .init(name: "session_id", value: "eq.\(summary.id.uuidString)")
-            ]
-        )
-        async let sessionPlaceholdersRequest: [SessionPlaceholderRecord] = get(
-            table: "session_placeholders",
-            queryItems: [
-                .init(name: "select", value: "id,display_name,team"),
-                .init(name: "session_id", value: "eq.\(summary.id.uuidString)")
-            ]
-        )
-        async let matchesRequest: [SessionDetailMatchRecord] = get(
-            table: "session_matches",
-            queryItems: [
-                .init(
-                    name: "select",
-                    value: "id,round_number,match_type,match_order,player_ids,status,team1_score,team2_score,is_rated"
-                ),
-                .init(name: "session_id", value: "eq.\(summary.id.uuidString)"),
-                .init(name: "order", value: "round_number.asc,match_order.asc")
-            ]
-        )
 
-        let (sessionRecords, sessionPlayers, sessionPlaceholders, matchRecords) = try await (
-            sessionRecordRequest,
-            sessionPlayersRequest,
-            sessionPlaceholdersRequest,
-            matchesRequest
-        )
+        let sessionRecords = try await sessionRecordRequest
         let latestSession = sessionRecords.first
+        let sessionPlayers = latestSession?.sessionPlayers ?? []
+        let sessionPlaceholders = latestSession?.sessionPlaceholders ?? []
+        let matchRecords = (latestSession?.sessionMatches ?? []).sorted {
+            if $0.roundNumber != $1.roundNumber {
+                return $0.roundNumber < $1.roundNumber
+            }
+            return $0.matchOrder < $1.matchOrder
+        }
         let eloPredictions = (try? await eloPredictionsRequest)?.predictions ?? []
         let sessionSummary = try? await sessionSummaryRequest
         let eloPredictionsByMatchID = Dictionary(
@@ -251,32 +255,10 @@ struct SupabaseDataClient: Sendable {
         )
         let matchIDs = matchRecords.map(\.id)
 
-        let profiles: [ProfileRecord]
-        let snapshotRecords: [SessionPlayerEloSnapshotRecord]
-        if participantIDs.isEmpty {
-            profiles = []
-        } else {
-            let ids = participantIDs.map(\.uuidString).joined(separator: ",")
-            profiles = try await get(
-                table: "profiles",
-                queryItems: [
-                    .init(name: "select", value: "id,display_name,avatar_url"),
-                    .init(name: "id", value: "in.(\(ids))")
-                ]
-            )
-        }
-        if matchIDs.isEmpty {
-            snapshotRecords = []
-        } else {
-            let ids = matchIDs.map(\.uuidString).joined(separator: ",")
-            snapshotRecords = (try? await get(
-                table: "elo_snapshots",
-                queryItems: [
-                    .init(name: "select", value: "match_id,player_id,elo"),
-                    .init(name: "match_id", value: "in.(\(ids))")
-                ]
-            )) ?? []
-        }
+        async let profilesRequest = fetchProfiles(ids: participantIDs)
+        async let snapshotsRequest = fetchEloSnapshots(matchIDs: matchIDs)
+        let profiles = (try? await profilesRequest) ?? []
+        let snapshotRecords = (try? await snapshotsRequest) ?? []
 
         var names = Dictionary(
             uniqueKeysWithValues: profiles.map { ($0.id, $0.displayName ?? "User") }
@@ -393,6 +375,34 @@ struct SupabaseDataClient: Sendable {
         )
     }
 
+    private func fetchProfiles(
+        ids: Set<UUID>
+    ) async throws -> [ProfileRecord] {
+        guard !ids.isEmpty else { return [] }
+        let value = ids.map(\.uuidString).joined(separator: ",")
+        return try await get(
+            table: "profiles",
+            queryItems: [
+                .init(name: "select", value: "id,display_name,avatar_url"),
+                .init(name: "id", value: "in.(\(value))")
+            ]
+        )
+    }
+
+    private func fetchEloSnapshots(
+        matchIDs: [UUID]
+    ) async throws -> [SessionPlayerEloSnapshotRecord] {
+        guard !matchIDs.isEmpty else { return [] }
+        let value = matchIDs.map(\.uuidString).joined(separator: ",")
+        return try await get(
+            table: "elo_snapshots",
+            queryItems: [
+                .init(name: "select", value: "match_id,player_id,elo"),
+                .init(name: "match_id", value: "in.(\(value))")
+            ]
+        )
+    }
+
     private func fetchSessionSummary(
         sessionID: UUID
     ) async throws -> SessionSummaryResponse {
@@ -492,27 +502,15 @@ struct SupabaseDataClient: Sendable {
             queryItems: [
                 .init(
                     name: "select",
-                    value: "id,player_count,created_at,status,best_player_display_name,best_player_delta,worst_player_display_name,worst_player_delta"
+                    value: "id,player_count,created_at,status,best_player_display_name,best_player_delta,worst_player_display_name,worst_player_delta,session_matches(match_type,round_number,status)"
                 ),
                 .init(name: "order", value: "created_at.desc"),
                 .init(name: "limit", value: "30")
             ]
         )
 
-        guard !records.isEmpty else { return [] }
-
-        let ids = records.map(\.id.uuidString).joined(separator: ",")
-        let matches: [MatchRecord] = try await get(
-            table: "session_matches",
-            queryItems: [
-                .init(name: "select", value: "session_id,match_type,round_number,status"),
-                .init(name: "session_id", value: "in.(\(ids))")
-            ]
-        )
-        let matchesBySession = Dictionary(grouping: matches, by: \.sessionID)
-
         return records.map { record in
-            let sessionMatches = matchesBySession[record.id] ?? []
+            let sessionMatches = record.sessionMatches ?? []
             let completedMatches = sessionMatches.filter { $0.status == "completed" }
             let pendingRounds = sessionMatches
                 .filter { $0.status != "completed" }
@@ -628,6 +626,12 @@ private struct RoundSubmissionRequest: Encodable {
             )
         }
     }
+}
+
+private struct MatchResultEditRequest: Encodable {
+    let team1Score: Int
+    let team2Score: Int
+    let reason: String?
 }
 
 private struct APIErrorResponse: Decodable {
@@ -886,6 +890,12 @@ struct RoundSubmissionResult: Decodable, Sendable {
     let combinedWithRound: Int?
 }
 
+struct MatchResultEditResult: Decodable, Sendable {
+    let success: Bool
+    let message: String?
+    let ratingsDeferred: Bool?
+}
+
 enum BackendAPIError: LocalizedError {
     case invalidResponse
     case rejected(String)
@@ -959,6 +969,26 @@ struct GweiloAPIClient: Sendable {
         return try JSONDecoder().decode(RoundSubmissionResult.self, from: data)
     }
 
+    func editMatchResult(
+        sessionID: UUID,
+        matchID: UUID,
+        teamOneScore: Int,
+        teamTwoScore: Int,
+        reason: String?
+    ) async throws -> MatchResultEditResult {
+        let request = try makeEditMatchResultRequest(
+            sessionID: sessionID,
+            matchID: matchID,
+            teamOneScore: teamOneScore,
+            teamTwoScore: teamTwoScore,
+            reason: reason
+        )
+        return try await perform(
+            request,
+            fallbackMessage: "Rezultat meča nije mogao da se izmeni."
+        )
+    }
+
     func makeSubmitRoundRequest(
         sessionID: UUID,
         roundNumber: Int,
@@ -974,6 +1004,29 @@ struct GweiloAPIClient: Sendable {
         request.setValue("ios", forHTTPHeaderField: "X-Gweilo-Client")
         request.httpBody = try JSONEncoder().encode(
             RoundSubmissionRequest(matchScores: scores)
+        )
+        return request
+    }
+
+    func makeEditMatchResultRequest(
+        sessionID: UUID,
+        matchID: UUID,
+        teamOneScore: Int,
+        teamTwoScore: Int,
+        reason: String?
+    ) throws -> URLRequest {
+        var request = makeAuthenticatedRequest(
+            path: "api/sessions/\(sessionID.uuidString.lowercased())/matches/\(matchID.uuidString.lowercased())/edit"
+        )
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("ios", forHTTPHeaderField: "X-Gweilo-Client")
+        request.httpBody = try JSONEncoder().encode(
+            MatchResultEditRequest(
+                team1Score: teamOneScore,
+                team2Score: teamTwoScore,
+                reason: reason
+            )
         )
         return request
     }

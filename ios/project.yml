@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.ivantomicic
   deploymentTarget:
     iOS: "18.0"
+    watchOS: "11.0"
   xcodeVersion: "26.0"
 settings:
   base:
@@ -19,6 +20,8 @@ targets:
     platform: iOS
     attributes:
       SystemCapabilities:
+        com.apple.HealthKit:
+          enabled: 1
         com.apple.Push:
           enabled: 1
     configFiles:
@@ -54,6 +57,58 @@ targets:
     dependencies:
       - target: GweiloLiveActivity
         embed: true
+      - target: GweiloWatch
+        embed: true
+  GweiloWatch:
+    type: application
+    platform: watchOS
+    attributes:
+      SystemCapabilities:
+        com.apple.HealthKit:
+          enabled: 1
+    sources:
+      - path: GweiloWatch
+        excludes:
+          - Info.plist
+      - path: Gweilo/Models/GweiloWidgetSnapshot.swift
+      - path: Gweilo/Resources/GweiloIcon.icon
+        type: file
+        buildPhase: resources
+    dependencies:
+      - target: GweiloWatchWidgets
+        embed: true
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: GweiloIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: ""
+        CODE_SIGN_ENTITLEMENTS: GweiloWatch/GweiloWatch.entitlements
+        DEVELOPMENT_TEAM: 5JKSYD4AUC
+        PRODUCT_BUNDLE_IDENTIFIER: com.ivantomicic.gweilo.watchkitapp
+        PRODUCT_NAME: GweiloWatch
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: GweiloWatch/Info.plist
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        SKIP_INSTALL: YES
+    scheme: {}
+  GweiloWatchWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: GweiloWatchWidgets
+        excludes:
+          - Info.plist
+      - path: Gweilo/Models/GweiloWidgetSnapshot.swift
+    settings:
+      base:
+        APPLICATION_EXTENSION_API_ONLY: YES
+        CODE_SIGN_ENTITLEMENTS: GweiloWatchWidgets/GweiloWatchWidgets.entitlements
+        DEVELOPMENT_TEAM: 5JKSYD4AUC
+        PRODUCT_BUNDLE_IDENTIFIER: com.ivantomicic.gweilo.watchkitapp.widgets
+        PRODUCT_NAME: GweiloWatchWidgets
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: GweiloWatchWidgets/Info.plist
+        SKIP_INSTALL: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
   GweiloLiveActivity:
     type: app-extension
     platform: iOS
@@ -76,6 +131,7 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: GweiloLiveActivity/Info.plist
         SKIP_INSTALL: YES
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
         TARGETED_DEVICE_FAMILY: "1"
   GweiloTests:
     type: bundle.unit-test

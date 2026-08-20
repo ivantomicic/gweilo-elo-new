@@ -268,19 +268,17 @@ private struct ProfileAvatar: View {
     let name: String
 
     var body: some View {
-        AsyncImage(
+        CachedRemoteImage(
             url: DiceBearAvatar.resolvedURL(customURL: url, seed: name),
-            transaction: Transaction(animation: nil)
-        ) { phase in
-            if let image = phase.image {
-                image.resizable().scaledToFill()
-            } else {
-                Text(name.first.map(String.init) ?? "?")
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(GweiloTheme.bone)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(GweiloTheme.accent)
-            }
+            pointSize: 64
+        ) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Text(name.first.map(String.init) ?? "?")
+                .font(.title2.weight(.bold))
+                .foregroundStyle(GweiloTheme.bone)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(GweiloTheme.accent)
         }
         .frame(width: 64, height: 64)
         .clipShape(.circle)

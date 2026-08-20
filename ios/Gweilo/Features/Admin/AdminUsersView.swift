@@ -405,24 +405,20 @@ private struct AdminUserAvatar: View {
     let size: CGFloat
 
     var body: some View {
-        AsyncImage(
+        CachedRemoteImage(
             url: DiceBearAvatar.resolvedURL(
                 customURL: user.avatar,
                 seed: user.name
             ),
-            transaction: Transaction(animation: nil)
-        ) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Text(user.initials.isEmpty ? "?" : user.initials)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(GweiloTheme.bone)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(GweiloTheme.accent)
-            }
+            pointSize: size
+        ) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Text(user.initials.isEmpty ? "?" : user.initials)
+                .font(.headline.weight(.bold))
+                .foregroundStyle(GweiloTheme.bone)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(GweiloTheme.accent)
         }
         .frame(width: size, height: size)
         .clipShape(.circle)

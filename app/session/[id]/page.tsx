@@ -45,7 +45,10 @@ import {
 } from "@/lib/sessions/player-id";
 import { detectTwoHalfSinglesSession } from "@/lib/sessions/two-half-singles";
 import { t } from "@/lib/i18n";
-import { clearSessionDeletionCaches } from "@/lib/utils/clear-cache";
+import {
+	clearSessionDeletionCaches,
+	clearSessionsPageCaches,
+} from "@/lib/utils/clear-cache";
 import {
 	CalculationTerminal,
 	TerminalLine,
@@ -54,6 +57,21 @@ import {
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+function createTokenClient(accessToken: string) {
+	return createClient(supabaseUrl, supabaseAnonKey, {
+		global: {
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+			},
+		},
+		auth: {
+			autoRefreshToken: false,
+			persistSession: false,
+			detectSessionInUrl: false,
+		},
+	});
+}
 
 type Player = {
 	id: string;
@@ -151,6 +169,7 @@ function SessionPageContent() {
 	const [sessionData, setSessionData] = useState<SessionData | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [sessionNotFound, setSessionNotFound] = useState(false);
 	const [currentRound, setCurrentRound] = useState(1);
 	const [animateMatches, setAnimateMatches] = useState(false);
 	const [scores, setScores] = useState<Scores>({});
@@ -634,23 +653,14 @@ function SessionPageContent() {
 			try {
 				setLoading(true);
 				setError(null);
+				setSessionNotFound(false);
 
 				if (!accessToken) {
 					setError(t.sessions.session.error.notAuthenticated);
 					return;
 				}
 
-				const supabaseClient = createClient(
-					supabaseUrl,
-					supabaseAnonKey,
-					{
-						global: {
-							headers: {
-								Authorization: `Bearer ${accessToken}`,
-							},
-						},
-					},
-				);
+				const supabaseClient = createTokenClient(accessToken);
 
 				// Bootstrap page data immediately, then overlap summary prefetch
 				// with the remaining session requests for completed sessions.
@@ -658,7 +668,7 @@ function SessionPageContent() {
 					.from("sessions")
 					.select("id, player_count, created_at, status, completed_at")
 					.eq("id", sessionId)
-					.single();
+					.maybeSingle();
 				const playersPromise = fetchPlayers(accessToken);
 				const matchesPromise = supabaseClient
 					.from("session_matches")
@@ -671,8 +681,24 @@ function SessionPageContent() {
 
 				const sessionResult = await sessionPromise;
 
+				if (sessionResult.error) {
+					void playersPromise.catch(() => undefined);
+					console.error("Error fetching session:", sessionResult.error);
+					setError(t.sessions.session.loadingFailed);
+					return;
+				}
+
+				if (!sessionResult.data) {
+					void playersPromise.catch(() => undefined);
+					// A stale list cache can outlive a session deleted on another client.
+					// Drop it so returning to the list cannot show the ghost row again.
+					clearSessionsPageCaches();
+					setSessionNotFound(true);
+					setError(t.sessions.session.error.notFound);
+					return;
+				}
+
 				if (
-					!sessionResult.error &&
 					sessionResult.data?.status === "completed"
 				) {
 					for (const view of summaryPrefetchViewsRef.current) {
@@ -694,18 +720,6 @@ function SessionPageContent() {
 					playersPromise,
 					matchesPromise,
 				]);
-
-				if (sessionResult.error || !sessionResult.data) {
-					console.error("Error fetching session:", sessionResult.error);
-					setError(
-						`Failed to load session: ${
-							sessionResult.error?.message ||
-							"Session not found"
-						}`,
-					);
-					setLoading(false);
-					return;
-				}
 
 				const players = playersResult;
 
@@ -1602,16 +1616,8 @@ function SessionPageContent() {
 				// For Round 5 of 6-player sessions, also refetch matches
 				let allMatches: Match[] | undefined;
 				if (currentRound === 5 && sessionData.session.player_count === 6) {
-					const supabaseClient = createClient(
-						supabaseUrl,
-						supabaseAnonKey,
-						{
-							global: {
-								headers: {
-									Authorization: `Bearer ${session.access_token}`,
-								},
-							},
-						},
+					const supabaseClient = createTokenClient(
+						session.access_token,
 					);
 
 					const { data: matchesData, error: matchesError } =
@@ -2169,6 +2175,21 @@ function SessionPageContent() {
 						variant="error"
 						size="lg"
 						title={error || t.sessions.session.loadingFailed}
+						description={
+							sessionNotFound
+								? t.sessions.session.notFoundDescription
+								: undefined
+						}
+						action={
+							sessionNotFound ? (
+								<Button
+									variant="outline"
+									onClick={() => router.replace("/sessions")}
+								>
+									{t.sessions.session.backToSessions}
+								</Button>
+							) : undefined
+						}
 					/>
 				</motion.div>
 			</AppShell>

@@ -203,6 +203,7 @@ final class AuthStore {
     func signOut() {
         vault.delete()
         GweiloWidgetSnapshotStore().clear()
+        IPhoneWatchSyncService.shared.send(.empty)
         WidgetCenter.shared.reloadTimelines(
             ofKind: GweiloWidgetSnapshot.widgetKind
         )

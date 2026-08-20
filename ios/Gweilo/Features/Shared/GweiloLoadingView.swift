@@ -2,20 +2,20 @@ import SwiftUI
 
 private enum GweiloLoadingQuote {
     static let all = [
-        "Ping-pong — ili, kako ga Kinezi zovu, ping-pong.",
-        "Manje priče, više ping-ponga.",
-        "Koji deo „iznenadne smrti” nisi razumeo?",
-        "Zbogom, dame, gospodo i sportisti.",
-        "Ko ti je rekao da mi uzmeš cvrčka iz ruke?",
-        "Ne udaraj muve — udaraj pčele!",
-        "Ja sam Boggle majstor!",
-        "Stani — ovo je dosadno. Eliminiši obojicu.",
-        "Dobro došli u opasno podzemlje ping-ponga.",
-        "Poraz je toliko blizu da miriše na tvoju jeftinu kolonjsku vodu."
+        "Ping-pong—or, as the Chinese call it, ping-pong.",
+        "Less talking, more ping-pong.",
+        "What didn’t you understand about “sudden death”?",
+        "Farewell, ladies, gentlemen, and athletes.",
+        "Who told you to grab the cricket from my hand?",
+        "Don’t hit flies—hit bees!",
+        "I’m the Boggle master!",
+        "Stop—this is boring. Eliminate them both.",
+        "Welcome to ping-pong’s dangerous underworld.",
+        "Defeat is so close, it smells like your cheap cologne."
     ]
 
     static func random() -> String {
-        all.randomElement() ?? "Manje priče, više ping-ponga."
+        all.randomElement() ?? "Less talking, more ping-pong."
     }
 }
 

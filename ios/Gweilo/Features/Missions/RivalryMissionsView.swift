@@ -15,9 +15,25 @@ struct RivalryMissionsSection: View {
 
 struct RivalryMissionList: View {
     let missions: [RivalryMission]
+    let leadingContentMargin: CGFloat
+    let trailingContentMargin: CGFloat
+
+    init(
+        missions: [RivalryMission],
+        leadingContentMargin: CGFloat = 20,
+        trailingContentMargin: CGFloat = 20
+    ) {
+        self.missions = missions
+        self.leadingContentMargin = leadingContentMargin
+        self.trailingContentMargin = trailingContentMargin
+    }
 
     var body: some View {
-        GweiloCardCarousel(itemCount: missions.count) {
+        GweiloCardCarousel(
+            itemCount: missions.count,
+            leadingContentMargin: leadingContentMargin,
+            trailingContentMargin: trailingContentMargin
+        ) {
             ForEach(
                 Array(missions.enumerated()),
                 id: \.element.id

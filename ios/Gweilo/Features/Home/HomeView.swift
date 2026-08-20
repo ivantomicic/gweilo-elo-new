@@ -72,8 +72,7 @@ struct HomeView: View {
                 }
                 .scrollIndicators(.hidden)
                 .floatingTabBarAccessory(
-                    isPresented: dataStore.activeSession == nil
-                        && dataStore.canManageSessions
+                    isPresented: dataStore.canStartNewSession
                 ) {
                     HomeStartSessionButton(action: startSession)
                 }
@@ -182,6 +181,7 @@ private struct HomeHeader: View {
 
 private struct LastSessionMascot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isActiveAppTab) private var isActiveAppTab
     @Environment(\.scenePhase) private var scenePhase
     let delta: Double?
     let formScore: Double?
@@ -217,7 +217,7 @@ private struct LastSessionMascot: View {
             } else {
                 LoopingBundleVideo(
                     resourceName: videoResourceName,
-                    isPlaying: scenePhase == .active
+                    isPlaying: scenePhase == .active && isActiveAppTab
                 )
                 .frame(width: 124, height: 124)
                 .blendMode(.screen)
@@ -307,6 +307,7 @@ private struct TopThreeStandings: View {
 
 private struct PodiumPlayer: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isActiveAppTab) private var isActiveAppTab
     @Environment(\.scenePhase) private var scenePhase
     let rank: Int
     let player: RankingEntry
@@ -354,7 +355,7 @@ private struct PodiumPlayer: View {
                 if rank == 1 && !reduceMotion {
                     LoopingBundleVideo(
                         resourceName: "PodiumGoldFrame",
-                        isPlaying: scenePhase == .active,
+                        isPlaying: scenePhase == .active && isActiveAppTab,
                         videoGravity: .resizeAspect
                     )
                     .frame(width: 132, height: 176)

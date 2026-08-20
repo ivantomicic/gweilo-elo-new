@@ -141,7 +141,7 @@ final class OneShotBundlePlayerView: UIView {
     private func installProgressObserverIfNeeded() {
         guard progressObserver == nil else { return }
 
-        let interval = CMTime(seconds: 1.0 / 30.0, preferredTimescale: 600)
+        let interval = CMTime(seconds: 1.0 / 12.0, preferredTimescale: 600)
         progressObserver = player.addPeriodicTimeObserver(
             forInterval: interval,
             queue: .main
@@ -163,7 +163,7 @@ final class OneShotBundlePlayerView: UIView {
 
         let progress = min(max(currentTime.seconds / duration, 0), 1)
         guard
-            abs(progress - lastReportedProgress) >= 0.002
+            abs(progress - lastReportedProgress) >= 0.012
                 || progress == 1
         else {
             return

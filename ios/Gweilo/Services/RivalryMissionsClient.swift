@@ -45,8 +45,7 @@ struct RivalryMissionsClient: Sendable {
         method: String = "GET"
     ) async throws -> Response {
         var request = URLRequest(
-            url: configuration.apiBaseURL.appending(path: path),
-            cachePolicy: .reloadIgnoringLocalCacheData
+            url: configuration.apiBaseURL.appending(path: path)
         )
         request.httpMethod = method
         request.setValue(
@@ -54,7 +53,6 @@ struct RivalryMissionsClient: Sendable {
             forHTTPHeaderField: "Authorization"
         )
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
 
         let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
@@ -81,4 +79,3 @@ struct RivalryMissionsClient: Sendable {
         }
     }
 }
-

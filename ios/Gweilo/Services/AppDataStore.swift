@@ -8,6 +8,15 @@ struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
     let currentUserLatestFormScore: Double?
     let currentUserFirstName: String
     let savedAt: Date
+    var sessions: [SessionSummary]? = nil
+    var singlesRankings: [RankingEntry]? = nil
+    var doublesPlayerRankings: [RankingEntry]? = nil
+    var doublesTeamRankings: [RankingEntry]? = nil
+    var rankingEligibility: RankingEligibility? = nil
+    var availableSessionPlayers: [SessionCreationPlayer]? = nil
+    var missionSnapshot: RivalryMissionSnapshot? = nil
+    var primaryLoadedAt: Date? = nil
+    var missionLoadedAt: Date? = nil
 }
 
 struct HomeDashboardSnapshotStore {
@@ -70,12 +79,19 @@ struct ExpiringCache<Key: Hashable, Value> {
     mutating func removeAll() {
         entries.removeAll(keepingCapacity: true)
     }
+
+    mutating func removeValue(for key: Key) {
+        entries.removeValue(forKey: key)
+    }
 }
 
 @Observable
 @MainActor
 final class AppDataStore {
     private static let profileCacheLifetime: TimeInterval = 5 * 60
+    private static let sessionDetailCacheLifetime: TimeInterval = 2 * 60
+    private static let primaryRefreshLifetime: TimeInterval = 90
+    private static let missionRefreshLifetime: TimeInterval = 5 * 60
 
     private(set) var sessions: [SessionSummary] = []
     private(set) var singlesRankings: [RankingEntry] = []
@@ -126,7 +142,31 @@ final class AppDataStore {
         lifetime: profileCacheLifetime
     )
     @ObservationIgnored
+    private var sessionDetailCache = ExpiringCache<UUID, SessionDetail>(
+        lifetime: sessionDetailCacheLifetime
+    )
+    @ObservationIgnored
+    private var sessionDetailRequests: [UUID: Task<SessionDetail, Error>] = [:]
+    @ObservationIgnored
+    private var availablePlayersRequest: Task<
+        [SessionCreationPlayer], Error
+    >?
+    @ObservationIgnored
+    private var loadWaiters: [CheckedContinuation<Void, Never>] = []
+    @ObservationIgnored
+    private var needsFollowupRefresh = false
+    @ObservationIgnored
+    private var isCurrentLoadForced = false
+    @ObservationIgnored
+    private var isRefreshingAuxiliaryData = false
+    @ObservationIgnored
+    private var lastSuccessfulLoadAt: Date?
+    @ObservationIgnored
+    private var lastMissionLoadAt: Date?
+    @ObservationIgnored
     private var loadGeneration = 0
+    @ObservationIgnored
+    private var locallyStartedSessionID: UUID?
     let currentUserID: UUID
     private(set) var authenticatedUserFallbackName: String
 
@@ -160,15 +200,32 @@ final class AppDataStore {
 
         if let snapshot = homeSnapshotStore.load(for: session.user.id) {
             topThreeSinglesPlayers = snapshot.topThreeSinglesPlayers
+            sessions = snapshot.sessions ?? []
+            singlesRankings = snapshot.singlesRankings ?? []
+            doublesPlayerRankings = snapshot.doublesPlayerRankings ?? []
+            doublesTeamRankings = snapshot.doublesTeamRankings ?? []
+            rankingEligibility = snapshot.rankingEligibility ?? .fallback
+            cachedAvailableSessionPlayers =
+                snapshot.availableSessionPlayers ?? []
+            hasLoadedAvailableSessionPlayers =
+                snapshot.availableSessionPlayers != nil
+            missionSnapshot = snapshot.missionSnapshot
+            hasLoadedMissions = snapshot.missionLoadedAt != nil
+                || snapshot.missionSnapshot != nil
             homeLatestSessionDelta =
                 snapshot.currentUserLatestSessionDelta
             homeLatestSessionFormScore = snapshot.currentUserLatestFormScore
             homeCurrentUserFirstName = snapshot.currentUserFirstName
+            lastSuccessfulLoadAt = snapshot.primaryLoadedAt
+                ?? snapshot.savedAt
+            lastMissionLoadAt = snapshot.missionLoadedAt
+                ?? (snapshot.missionSnapshot == nil ? nil : snapshot.savedAt)
             hasLoaded = true
         }
     }
 
     func updateSession(_ session: AuthSession) {
+        loadGeneration += 1
         authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
         isAdmin = session.user.isAdmin
@@ -189,6 +246,13 @@ final class AppDataStore {
             accessToken: session.accessToken
         )
         hasLoadedMissions = false
+        lastSuccessfulLoadAt = nil
+        lastMissionLoadAt = nil
+        sessionDetailRequests.values.forEach { $0.cancel() }
+        sessionDetailRequests.removeAll()
+        sessionDetailCache.removeAll()
+        availablePlayersRequest?.cancel()
+        availablePlayersRequest = nil
     }
 
     var activeSession: SessionSummary? {
@@ -196,7 +260,8 @@ final class AppDataStore {
     }
 
     var canStartNewSession: Bool {
-        canManageSessions
+        hasCheckedActiveSession
+            && canManageSessions
             && activeSession == nil
             && clubActiveSessionID == nil
     }
@@ -251,8 +316,27 @@ final class AppDataStore {
         }
     }
 
-    func sessionDetail(for session: SessionSummary) async throws -> SessionDetail {
-        try await client.fetchSessionDetail(session: session)
+    func sessionDetail(
+        for session: SessionSummary,
+        forceRefresh: Bool = false
+    ) async throws -> SessionDetail {
+        if !forceRefresh,
+           let detail = sessionDetailCache.freshValue(for: session.id) {
+            return detail
+        }
+        if let request = sessionDetailRequests[session.id] {
+            return try await request.value
+        }
+
+        let client = client
+        let request = Task {
+            try await client.fetchSessionDetail(session: session)
+        }
+        sessionDetailRequests[session.id] = request
+        defer { sessionDetailRequests[session.id] = nil }
+        let detail = try await request.value
+        sessionDetailCache.insert(detail, for: session.id)
+        return detail
     }
 
     func submitRound(
@@ -266,6 +350,7 @@ final class AppDataStore {
                 roundNumber: roundNumber,
                 scores: scores
             )
+            sessionDetailCache.removeValue(for: sessionID)
             invalidateProfileCaches()
             await load(forceRefresh: true)
             await loadMissions(forceRefresh: true)
@@ -287,6 +372,33 @@ final class AppDataStore {
         } catch {
             throw error
         }
+    }
+
+    func editMatchResult(
+        sessionID: UUID,
+        matchID: UUID,
+        teamOneScore: Int,
+        teamTwoScore: Int,
+        reason: String?
+    ) async throws -> MatchResultEditResult {
+        guard isAdmin else {
+            throw BackendAPIError.rejected(
+                "Samo administrator može da menja sačuvane rezultate."
+            )
+        }
+
+        let result = try await apiClient.editMatchResult(
+            sessionID: sessionID,
+            matchID: matchID,
+            teamOneScore: teamOneScore,
+            teamTwoScore: teamTwoScore,
+            reason: reason
+        )
+        sessionDetailCache.removeValue(for: sessionID)
+        invalidateProfileCaches()
+        await load(forceRefresh: true)
+        await loadMissions(forceRefresh: true)
+        return result
     }
 
     func cachedPlayerEloHistory(for playerID: UUID) -> PlayerEloHistory? {
@@ -366,9 +478,18 @@ final class AppDataStore {
         if hasLoadedAvailableSessionPlayers, !forceRefresh {
             return cachedAvailableSessionPlayers
         }
+        if let availablePlayersRequest {
+            return try await availablePlayersRequest.value
+        }
 
-        let players = try await apiClient.fetchAvailableSessionPlayers()
-        let preparedPlayers = prepareAvailableSessionPlayers(players)
+        let apiClient = apiClient
+        let request = Task {
+            let players = try await apiClient.fetchAvailableSessionPlayers()
+            return prepareAvailableSessionPlayers(players)
+        }
+        availablePlayersRequest = request
+        defer { availablePlayersRequest = nil }
+        let preparedPlayers = try await request.value
         cachedAvailableSessionPlayers = preparedPlayers
         hasLoadedAvailableSessionPlayers = true
         return preparedPlayers
@@ -395,7 +516,12 @@ final class AppDataStore {
 
     func loadMissions(forceRefresh: Bool = false) async {
         guard !isMissionsLoading else { return }
-        guard forceRefresh || !hasLoadedMissions else { return }
+        let hasFreshSnapshot = lastMissionLoadAt.map {
+            Date.now.timeIntervalSince($0) < Self.missionRefreshLifetime
+        } ?? false
+        guard forceRefresh || !hasLoadedMissions || !hasFreshSnapshot else {
+            return
+        }
 
         isMissionsLoading = true
         missionsErrorMessage = nil
@@ -406,16 +532,18 @@ final class AppDataStore {
 
         do {
             missionSnapshot = try await missionsClient.playerSnapshot()
+            lastMissionLoadAt = .now
+            saveHomeSnapshotIfPossible()
         } catch {
             missionsErrorMessage = error.localizedDescription
         }
     }
 
     func loadHome(forceRefresh: Bool = false) async {
-        async let appData: Void = load(forceRefresh: forceRefresh)
         async let missions: Void = loadMissions(forceRefresh: forceRefresh)
-        _ = await (appData, missions)
+        await load(forceRefresh: forceRefresh)
         hasCompletedInitialHomeLoad = true
+        await missions
     }
 
     private func prepareAvailableSessionPlayers(
@@ -459,7 +587,18 @@ final class AppDataStore {
             from: draft,
             preview: preview
         )
+        locallyStartedSessionID = result.sessionId
         clubActiveSessionID = result.sessionId
+        let createdRounds = result.rounds.isEmpty
+            ? preview.rounds
+            : result.rounds
+        if let activeSession = makeWatchActiveSession(
+            sessionID: result.sessionId,
+            rounds: createdRounds
+        ) {
+            syncWatchActiveSession(activeSession)
+        }
+        IPhoneWorkoutLaunchService.shared.requestWorkoutPromptOnWatch()
         await load(forceRefresh: true)
         return sessions.first { $0.id == result.sessionId }
             ?? result.makeSummary(for: draft)
@@ -467,6 +606,8 @@ final class AppDataStore {
 
     func cancelSession(sessionID: UUID) async throws {
         try await apiClient.cancelSession(sessionID: sessionID)
+        sessionDetailCache.removeValue(for: sessionID)
+        locallyStartedSessionID = nil
         clubActiveSessionID = nil
         invalidateProfileCaches()
         await load(forceRefresh: true)
@@ -474,6 +615,8 @@ final class AppDataStore {
 
     func forceCloseSession(sessionID: UUID) async throws {
         try await apiClient.forceCloseSession(sessionID: sessionID)
+        sessionDetailCache.removeValue(for: sessionID)
+        locallyStartedSessionID = nil
         clubActiveSessionID = nil
         invalidateProfileCaches()
         await load(forceRefresh: true)
@@ -481,54 +624,78 @@ final class AppDataStore {
     }
 
     func load(forceRefresh: Bool = false) async {
-        guard !isLoading || forceRefresh else { return }
+        let hasFreshPrimaryData = lastSuccessfulLoadAt.map {
+            Date.now.timeIntervalSince($0) < Self.primaryRefreshLifetime
+        } ?? false
+        if !forceRefresh, hasLoaded, hasFreshPrimaryData {
+            return
+        }
+
+        if isLoading {
+            needsFollowupRefresh = needsFollowupRefresh
+                || (forceRefresh && !isCurrentLoadForced)
+            await withCheckedContinuation { continuation in
+                loadWaiters.append(continuation)
+            }
+            return
+        }
+
+        var nextLoadIsForced = forceRefresh
+        repeat {
+            isCurrentLoadForced = nextLoadIsForced
+            needsFollowupRefresh = false
+            isLoading = true
+            await performPrimaryLoad()
+            isLoading = false
+            hasLoaded = true
+            nextLoadIsForced = needsFollowupRefresh
+        } while needsFollowupRefresh
+        isCurrentLoadForced = false
+
+        let waiters = loadWaiters
+        loadWaiters.removeAll(keepingCapacity: true)
+        waiters.forEach { $0.resume() }
+
+        Task { [weak self] in
+            await self?.refreshAuxiliaryData()
+        }
+    }
+
+    private func performPrimaryLoad() async {
         loadGeneration += 1
         let generation = loadGeneration
-        isLoading = true
-        hasCheckedActiveSession = false
-        errorMessage = nil
-        defer {
-            if generation == loadGeneration {
-                isLoading = false
-                hasLoaded = true
-            }
+        if !hasLoaded {
+            hasCheckedActiveSession = false
         }
+        errorMessage = nil
 
         async let sessionsRequest = client.fetchSessions()
         async let rankingsRequest = apiClient.fetchRankings()
         async let activeSessionRequest = apiClient.fetchActiveSessionID()
-        async let sessionPlayersRequest =
-            apiClient.fetchAvailableSessionPlayers()
-        async let widgetHistoryRequest =
-            apiClient.fetchPlayerEloHistory(playerID: currentUserID)
         var firstError: Error?
-        var widgetHistory: PlayerEloHistory?
 
         do {
-            let loadedSessions = try await sessionsRequest
-            guard generation == loadGeneration else { return }
-            sessions = loadedSessions
+            sessions = try await sessionsRequest
         } catch {
             firstError = error
         }
+        guard generation == loadGeneration else { return }
 
         do {
             let rankings = try await rankingsRequest
-            guard generation == loadGeneration else { return }
             singlesRankings = rankings.singles
             doublesPlayerRankings = rankings.doublesPlayers
             doublesTeamRankings = rankings.doublesTeams
             rankingEligibility = rankings.eligibility
 
             let freshTopThree = Array(rankings.singles.prefix(3))
-            if freshTopThree.count == 3
-                || topThreeSinglesPlayers.isEmpty {
+            if freshTopThree.count == 3 || topThreeSinglesPlayers.isEmpty {
                 topThreeSinglesPlayers = freshTopThree
             }
 
-            if let currentUser = rankings.singles.first(
-                where: { $0.id == currentUserID }
-            ) {
+            if let currentUser = rankings.singles.first(where: {
+                $0.id == currentUserID
+            }) {
                 homeLatestSessionDelta = currentUser.recentForm.last
                 homeLatestSessionFormScore =
                     currentUser.resolvedRecentFormScores.last
@@ -537,46 +704,87 @@ final class AppDataStore {
                     .first
                     .map(String.init)
             }
-            saveHomeSnapshotIfPossible()
         } catch {
             firstError = firstError ?? error
         }
+        guard generation == loadGeneration else { return }
 
         do {
-            let activeSessionID = try await activeSessionRequest
-            guard generation == loadGeneration else { return }
-            clubActiveSessionID = activeSessionID
+            let fetchedActiveSessionID = try await activeSessionRequest
+            let listedActiveSessionID = sessions.first {
+                $0.status == .active
+            }?.id
+            if let confirmedSessionID = fetchedActiveSessionID
+                ?? listedActiveSessionID {
+                clubActiveSessionID = confirmedSessionID
+                if locallyStartedSessionID == confirmedSessionID {
+                    locallyStartedSessionID = nil
+                }
+            } else if let locallyStartedSessionID,
+                      !sessions.contains(where: {
+                          $0.id == locallyStartedSessionID
+                              && $0.status == .completed
+                      }) {
+                clubActiveSessionID = locallyStartedSessionID
+            } else {
+                locallyStartedSessionID = nil
+                clubActiveSessionID = nil
+            }
             hasCheckedActiveSession = true
         } catch {
             firstError = firstError ?? error
         }
+        guard generation == loadGeneration else { return }
+
+        errorMessage = firstError?.localizedDescription
+        if firstError == nil {
+            lastSuccessfulLoadAt = .now
+        }
+        saveHomeSnapshotIfPossible()
+    }
+
+    private func refreshAuxiliaryData() async {
+        guard !isRefreshingAuxiliaryData else { return }
+        isRefreshingAuxiliaryData = true
+        defer { isRefreshingAuxiliaryData = false }
+
+        async let sessionPlayersRequest =
+            availableSessionPlayers(forceRefresh: true)
+        async let widgetHistoryRequest =
+            apiClient.fetchPlayerEloHistory(playerID: currentUserID)
+
+        var widgetActiveSession = widgetSnapshotStore.load()?.activeSession
+        if let activeSessionID = clubActiveSessionID,
+           let activeSummary = sessions.first(where: {
+               $0.id == activeSessionID
+           }),
+           let detail = try? await sessionDetail(for: activeSummary) {
+            widgetActiveSession = makeWatchActiveSession(from: detail)
+        } else if clubActiveSessionID == nil {
+            widgetActiveSession = nil
+        }
 
         do {
             let players = try await sessionPlayersRequest
-            guard generation == loadGeneration else { return }
-            cachedAvailableSessionPlayers =
-                prepareAvailableSessionPlayers(players)
-            hasLoadedAvailableSessionPlayers = true
+            cachedAvailableSessionPlayers = players
+            saveHomeSnapshotIfPossible()
         } catch {
-            hasLoadedAvailableSessionPlayers = false
+            // Keep persisted players available while offline.
         }
 
+        let widgetHistory: PlayerEloHistory?
         do {
             let history = try await widgetHistoryRequest
-            guard generation == loadGeneration else { return }
-            widgetHistory = history
             playerHistoryCache.insert(history, for: currentUserID)
+            widgetHistory = history
         } catch {
-            // Rankings still provide a useful form bar and table.
+            widgetHistory = playerHistoryCache.cachedValue(for: currentUserID)
         }
 
-        if generation == loadGeneration {
-            saveWidgetSnapshot(history: widgetHistory)
-        }
-
-        if generation == loadGeneration {
-            errorMessage = firstError?.localizedDescription
-        }
+        saveWidgetSnapshot(
+            history: widgetHistory,
+            activeSession: widgetActiveSession
+        )
     }
 
     private func invalidateProfileCaches() {
@@ -595,13 +803,51 @@ final class AppDataStore {
                 currentUserLatestFormScore: homeLatestSessionFormScore,
                 currentUserFirstName:
                     homeCurrentUserFirstName ?? currentUserFirstName,
-                savedAt: .now
+                savedAt: .now,
+                sessions: sessions,
+                singlesRankings: singlesRankings,
+                doublesPlayerRankings: doublesPlayerRankings,
+                doublesTeamRankings: doublesTeamRankings,
+                rankingEligibility: rankingEligibility,
+                availableSessionPlayers: hasLoadedAvailableSessionPlayers
+                    ? cachedAvailableSessionPlayers
+                    : nil,
+                missionSnapshot: missionSnapshot,
+                primaryLoadedAt: lastSuccessfulLoadAt,
+                missionLoadedAt: lastMissionLoadAt
             ),
             for: currentUserID
         )
     }
 
-    private func saveWidgetSnapshot(history: PlayerEloHistory?) {
+    func syncWatchActiveSession(detail: SessionDetail) {
+        guard detail.session.id == clubActiveSessionID else { return }
+
+        guard let activeSession = makeWatchActiveSession(from: detail) else {
+            return
+        }
+        syncWatchActiveSession(activeSession)
+    }
+
+    private func syncWatchActiveSession(
+        _ activeSession: GweiloWatchActiveSession
+    ) {
+
+        let existing = widgetSnapshotStore.load()
+        let snapshot = GweiloWidgetSnapshot(
+            savedAt: .now,
+            player: existing?.player,
+            standings: existing?.standings ?? [],
+            activeSessionID: activeSession.id,
+            activeSession: activeSession
+        )
+        persistWidgetSnapshot(snapshot)
+    }
+
+    private func saveWidgetSnapshot(
+        history: PlayerEloHistory?,
+        activeSession: GweiloWatchActiveSession?
+    ) {
         guard !singlesRankings.isEmpty else { return }
 
         let standings = singlesRankings.prefix(5).enumerated().map {
@@ -628,11 +874,11 @@ final class AppDataStore {
                 name: entry.name,
                 elo: entry.elo,
                 rank: index + 1,
-                recentForm: entry.recentForm.suffix(5).map {
+                recentForm: entry.recentForm.suffix(7).map {
                     Int($0.rounded())
                 },
                 recentFormScores: Array(
-                    entry.resolvedRecentFormScores.suffix(5)
+                    entry.resolvedRecentFormScores.suffix(7)
                 ),
                 recentMatches: Array(
                     (history?.points ?? [])
@@ -646,18 +892,159 @@ final class AppDataStore {
                         eloDelta: $0.delta.map { Int($0.rounded()) },
                         outcome: $0.resolvedOutcome?.rawValue
                     )
-                }
+                },
+                recentElo: Array(
+                    (history?.points ?? [])
+                        .filter { $0.match > 0 }
+                        .suffix(7)
+                ).map { Int($0.elo.rounded()) },
+                eloHistory: (history?.points ?? [])
+                    .filter { $0.match > 0 }
+                    .suffix(80)
+                    .map {
+                        GweiloWidgetEloPoint(
+                            elo: Int($0.elo.rounded()),
+                            delta: $0.delta.map { Int($0.rounded()) }
+                        )
+                    }
             )
         }
 
         let snapshot = GweiloWidgetSnapshot(
             savedAt: .now,
             player: currentPlayer,
-            standings: standings
+            standings: standings,
+            activeSessionID: clubActiveSessionID,
+            activeSession: activeSession
         )
+        persistWidgetSnapshot(snapshot)
+    }
+
+    private func persistWidgetSnapshot(_ snapshot: GweiloWidgetSnapshot) {
+        if let existing = widgetSnapshotStore.load(),
+           existing.hasSameContent(as: snapshot) {
+            return
+        }
         widgetSnapshotStore.save(snapshot)
+        IPhoneWatchSyncService.shared.send(snapshot)
         WidgetCenter.shared.reloadTimelines(
             ofKind: GweiloWidgetSnapshot.widgetKind
+        )
+    }
+
+    private func makeWatchActiveSession(
+        from detail: SessionDetail
+    ) -> GweiloWatchActiveSession? {
+        guard detail.session.status == .active else { return nil }
+
+        let pendingMatches = detail.rounds
+            .flatMap(\.matches)
+            .filter { !$0.isCompleted }
+            .sorted {
+                if $0.roundNumber != $1.roundNumber {
+                    return $0.roundNumber < $1.roundNumber
+                }
+                return $0.order < $1.order
+            }
+        guard let firstPendingMatch = pendingMatches.first else { return nil }
+
+        let currentRound = detail.session.currentRound
+            ?? firstPendingMatch.roundNumber
+        let nextRound = pendingMatches
+            .map(\.roundNumber)
+            .first { $0 > currentRound }
+        let playingNow = pendingMatches.filter {
+            $0.roundNumber == currentRound
+        }
+        let upNext = nextRound.map { round in
+            pendingMatches.filter { $0.roundNumber == round }
+        } ?? []
+
+        return GweiloWatchActiveSession(
+            id: detail.session.id,
+            currentRound: currentRound,
+            nextRound: nextRound,
+            playingNow: playingNow.map {
+                makeWatchMatchup(from: $0, detail: detail)
+            },
+            upNext: upNext.map {
+                makeWatchMatchup(from: $0, detail: detail)
+            }
+        )
+    }
+
+    private func makeWatchActiveSession(
+        sessionID: UUID,
+        rounds: [SessionScheduleRound]
+    ) -> GweiloWatchActiveSession? {
+        let sortedRounds = rounds.sorted {
+            $0.roundNumber < $1.roundNumber
+        }
+        guard let currentRound = sortedRounds.first else { return nil }
+        let nextRound = sortedRounds.dropFirst().first
+
+        func watchMatchups(
+            in round: SessionScheduleRound
+        ) -> [GweiloWatchMatchup] {
+            round.matches.map { match in
+                let sideSize = match.type == .doubles ? 2 : 1
+
+                func players(
+                    _ values: ArraySlice<SessionCreationPlayer>
+                ) -> [GweiloWatchSessionPlayer] {
+                    values.map { player in
+                        GweiloWatchSessionPlayer(
+                            id: player.id,
+                            name: player.name,
+                            avatarURL: player.avatarURL?.absoluteString
+                        )
+                    }
+                }
+
+                return GweiloWatchMatchup(
+                    id: UUID(),
+                    leftPlayers: players(match.players.prefix(sideSize)),
+                    rightPlayers: players(
+                        match.players.dropFirst(sideSize).prefix(sideSize)
+                    )
+                )
+            }
+        }
+
+        return GweiloWatchActiveSession(
+            id: sessionID,
+            currentRound: currentRound.roundNumber,
+            nextRound: nextRound?.roundNumber,
+            playingNow: watchMatchups(in: currentRound),
+            upNext: nextRound.map(watchMatchups(in:)) ?? []
+        )
+    }
+
+    private func makeWatchMatchup(
+        from match: SessionMatch,
+        detail: SessionDetail
+    ) -> GweiloWatchMatchup {
+        let sideSize = match.type == .doubles ? 2 : 1
+        let leftIDs = match.playerIDs.prefix(sideSize)
+        let rightIDs = match.playerIDs.dropFirst(sideSize).prefix(sideSize)
+
+        func watchPlayers(
+            _ playerIDs: some Sequence<UUID>
+        ) -> [GweiloWatchSessionPlayer] {
+            playerIDs.map { playerID in
+                let participant = detail.participant(for: playerID)
+                return GweiloWatchSessionPlayer(
+                    id: playerID,
+                    name: participant?.name ?? "Unknown player",
+                    avatarURL: participant?.avatarURL?.absoluteString
+                )
+            }
+        }
+
+        return GweiloWatchMatchup(
+            id: match.id,
+            leftPlayers: watchPlayers(leftIDs),
+            rightPlayers: watchPlayers(rightIDs)
         )
     }
 }

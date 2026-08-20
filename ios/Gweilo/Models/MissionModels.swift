@@ -1,6 +1,6 @@
 import Foundation
 
-enum RivalryMissionType: String, Decodable, Sendable {
+enum RivalryMissionType: String, Codable, Sendable {
     case climbRank = "climb_rank"
     case defendRank = "defend_rank"
     case settleScore = "settle_score"
@@ -8,7 +8,7 @@ enum RivalryMissionType: String, Decodable, Sendable {
     case closeGap = "close_gap"
 }
 
-enum RivalryPlayerTier: String, Decodable, Sendable {
+enum RivalryPlayerTier: String, Codable, Sendable {
     case provisional
     case top
     case mid
@@ -24,7 +24,7 @@ enum RivalryPlayerTier: String, Decodable, Sendable {
     }
 }
 
-enum RivalryMissionMetricValue: Hashable, Decodable, Sendable {
+enum RivalryMissionMetricValue: Hashable, Codable, Sendable {
     case number(Double)
     case string(String)
     case boolean(Bool)
@@ -54,6 +54,20 @@ enum RivalryMissionMetricValue: Hashable, Decodable, Sendable {
         }
     }
 
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case let .number(value):
+            try container.encode(value)
+        case let .string(value):
+            try container.encode(value)
+        case let .boolean(value):
+            try container.encode(value)
+        case .null:
+            try container.encodeNil()
+        }
+    }
+
     var number: Double? {
         switch self {
         case let .number(value): value
@@ -70,7 +84,7 @@ enum RivalryMissionMetricValue: Hashable, Decodable, Sendable {
     }
 }
 
-struct RivalryMission: Identifiable, Hashable, Decodable, Sendable {
+struct RivalryMission: Identifiable, Hashable, Codable, Sendable {
     let id: String
     let type: RivalryMissionType
     let title: String
@@ -89,7 +103,7 @@ struct RivalryMission: Identifiable, Hashable, Decodable, Sendable {
     }
 }
 
-struct RivalryMissionSnapshot: Identifiable, Hashable, Decodable, Sendable {
+struct RivalryMissionSnapshot: Identifiable, Hashable, Codable, Sendable {
     let playerId: UUID
     let playerName: String
     let playerAvatarUrl: URL?

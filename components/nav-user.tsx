@@ -48,7 +48,7 @@ export function NavUser({
     // Clear all caches (localStorage + sessionStorage)
     clearAllCaches();
     // Sign out from Supabase
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: "local" })
     // Redirect to home page which will show login screen via useAuth hook
     router.push("/")
   }

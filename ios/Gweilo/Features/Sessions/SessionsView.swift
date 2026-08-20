@@ -88,6 +88,7 @@ struct SessionsView: View {
 
 private struct SessionsHeader: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isActiveAppTab) private var isActiveAppTab
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -120,8 +121,10 @@ private struct SessionsHeader: View {
                 .frame(width: 112, height: 104)
                 .overlay(alignment: .topTrailing) {
                     LoopingBundleVideo(
-                        resourceName: "SessionsHeader",
-                        isPlaying: scenePhase == .active && !reduceMotion
+                            resourceName: "SessionsHeader",
+                            isPlaying: scenePhase == .active
+                                && isActiveAppTab
+                                && !reduceMotion
                     )
                     .frame(width: 148, height: 148)
                     .blendMode(.screen)
@@ -1151,12 +1154,15 @@ private struct SessionPlayerCountPicker: View {
 
 private struct SessionPlayerCountPlaceholder: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isActiveAppTab) private var isActiveAppTab
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         LoopingBundleVideo(
             resourceName: "SessionPlayerCountPlaceholder",
-            isPlaying: scenePhase == .active && !reduceMotion
+            isPlaying: scenePhase == .active
+                && isActiveAppTab
+                && !reduceMotion
         )
         .frame(maxWidth: .infinity)
         .aspectRatio(1, contentMode: .fit)

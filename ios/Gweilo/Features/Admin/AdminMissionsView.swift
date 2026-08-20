@@ -67,32 +67,44 @@ struct AdminMissionsView: View {
                     size: 172
                 )
             } else {
-                List {
-                    if let errorMessage = model.errorMessage {
-                        Section {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 26) {
+                        if let errorMessage = model.errorMessage {
                             Label(
                                 errorMessage,
                                 systemImage: "exclamationmark.triangle.fill"
                             )
+                            .font(.footnote)
                             .foregroundStyle(GweiloTheme.coral)
+                            .padding(.horizontal, 20)
                         }
-                    }
 
-                    Section {
-                        AdminMissionsSummary(snapshots: model.snapshots)
-                    }
+                        GweiloCard(style: .neutral, contentPadding: 14) {
+                            AdminMissionsSummary(snapshots: model.snapshots)
+                        }
+                        .padding(.horizontal, 20)
 
-                    Section("IGRAČI") {
-                        ForEach(model.snapshots) { snapshot in
-                            NavigationLink {
-                                AdminPlayerMissionsView(snapshot: snapshot)
-                            } label: {
-                                AdminMissionPlayerRow(snapshot: snapshot)
+                        if !model.snapshots.isEmpty {
+                            Text("IGRAČI")
+                                .font(
+                                    GweiloTheme.labelFont(
+                                        size: 11,
+                                        relativeTo: .caption2
+                                    )
+                                )
+                                .tracking(1.4)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 20)
+
+                            ForEach(model.snapshots) { snapshot in
+                                AdminPlayerMissionsSection(snapshot: snapshot)
                             }
                         }
                     }
+                    .padding(.top, 12)
+                    .padding(.bottom, 110)
                 }
-                .scrollContentBackground(.hidden)
+                .scrollIndicators(.hidden)
                 .overlay {
                     if model.snapshots.isEmpty && model.errorMessage == nil {
                         ContentUnavailableView(
@@ -181,16 +193,54 @@ private struct AdminMissionsSummary: View {
     }
 }
 
-private struct AdminMissionPlayerRow: View {
+private struct AdminPlayerMissionsSection: View {
     let snapshot: RivalryMissionSnapshot
 
+    private let avatarSize: CGFloat = 42
+    private let headerSpacing: CGFloat = 12
+
+    private var missionIndent: CGFloat {
+        avatarSize + headerSpacing
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
+            AdminMissionPlayerHeader(
+                snapshot: snapshot,
+                avatarSize: avatarSize,
+                spacing: headerSpacing
+            )
+            .padding(.horizontal, 20)
+
+            if snapshot.missions.isEmpty {
+                Label("Nema aktivnih misija", systemImage: "scope")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 20 + missionIndent)
+                    .padding(.trailing, 20)
+            } else {
+                RivalryMissionList(
+                    missions: snapshot.missions,
+                    leadingContentMargin: 20 + missionIndent
+                )
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct AdminMissionPlayerHeader: View {
+    let snapshot: RivalryMissionSnapshot
+    let avatarSize: CGFloat
+    let spacing: CGFloat
+
+    var body: some View {
+        HStack(spacing: spacing) {
             PlayerIdentityAvatar(
                 name: snapshot.playerName,
                 initials: initials,
                 avatarURL: snapshot.playerAvatarUrl,
-                size: 42,
+                size: avatarSize,
                 showsBorder: true
             )
 
@@ -216,62 +266,10 @@ private struct AdminMissionPlayerRow: View {
         }
         .padding(.vertical, 3)
         .accessibilityElement(children: .combine)
-    }
-
-    private var initials: String {
-        snapshot.playerName
-            .split(separator: " ")
-            .prefix(2)
-            .compactMap(\.first)
-            .map(String.init)
-            .joined()
-            .uppercased()
-    }
-}
-
-private struct AdminPlayerMissionsView: View {
-    let snapshot: RivalryMissionSnapshot
-
-    var body: some View {
-        ZStack {
-            ArenaBackground()
-
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 14) {
-                        PlayerIdentityAvatar(
-                            name: snapshot.playerName,
-                            initials: initials,
-                            avatarURL: snapshot.playerAvatarUrl,
-                            size: 58,
-                            showsBorder: true
-                        )
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(snapshot.playerName)
-                                .font(.title3.weight(.bold))
-                            Text(
-                                "#\(snapshot.playerRank) · \(Int(snapshot.playerElo.rounded())) Elo · \(snapshot.matchesPlayed) mečeva"
-                            )
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.bottom, 6)
-
-                    RivalryMissionList(missions: snapshot.missions)
-
-                    if snapshot.missions.isEmpty {
-                        ContentUnavailableView(
-                            "Nema aktivnih misija",
-                            systemImage: "scope"
-                        )
-                    }
-                }
-                .padding(20)
-            }
-        }
-        .navigationTitle("Misije igrača")
-        .navigationBarTitleDisplayMode(.inline)
+        .accessibilityLabel(
+            "\(snapshot.playerName), rang \(snapshot.playerRank), "
+                + "\(snapshot.missions.count) misija"
+        )
     }
 
     private var initials: String {

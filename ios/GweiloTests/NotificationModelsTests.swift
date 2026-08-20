@@ -176,7 +176,8 @@ final class NotificationModelsTests: XCTestCase {
             expiresAt: nil,
             user: AuthenticatedUser(
                 id: userID,
-                email: "ivan@example.com"
+                email: "ivan@example.com",
+                role: "admin"
             )
         )
 
@@ -188,6 +189,8 @@ final class NotificationModelsTests: XCTestCase {
 
         XCTAssertTrue(dataStore.hasLoaded)
         XCTAssertFalse(dataStore.hasCompletedInitialHomeLoad)
+        XCTAssertTrue(dataStore.canManageSessions)
+        XCTAssertFalse(dataStore.canStartNewSession)
         XCTAssertEqual(dataStore.topThreeSinglesPlayers, players)
         XCTAssertEqual(dataStore.currentUserLatestSessionDelta, 9)
         XCTAssertEqual(dataStore.currentUserFirstName, "Ivan")
@@ -265,5 +268,25 @@ final class NotificationModelsTests: XCTestCase {
             object["bundleId"] as? String,
             "com.ivantomicic.gweilo"
         )
+    }
+
+    @MainActor
+    func testWidgetSnapshotContentComparisonIgnoresSaveTime() {
+        let first = GweiloWidgetSnapshot(
+            savedAt: Date(timeIntervalSince1970: 100),
+            player: nil,
+            standings: [],
+            activeSessionID: nil,
+            activeSession: nil
+        )
+        let second = GweiloWidgetSnapshot(
+            savedAt: Date(timeIntervalSince1970: 200),
+            player: nil,
+            standings: [],
+            activeSessionID: nil,
+            activeSession: nil
+        )
+
+        XCTAssertTrue(first.hasSameContent(as: second))
     }
 }

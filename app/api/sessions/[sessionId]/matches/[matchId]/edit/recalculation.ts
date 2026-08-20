@@ -19,6 +19,12 @@ import {
 } from "@/lib/elo/calculation";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import { calculateBestWorstPlayer } from "@/lib/elo/best-worst-player";
+import {
+	countsAsFinalSinglesResult,
+	getEffectiveTwoHalfSinglesScore,
+	type TwoHalfScore,
+	type TwoHalfSinglesConfig,
+} from "@/lib/sessions/two-half-singles";
 
 type RunMatchEditRecalculationParams = {
 	adminClient: ReturnType<typeof createAdminClient>;
@@ -28,6 +34,7 @@ type RunMatchEditRecalculationParams = {
 	team2Score: number;
 	reason?: string;
 	userId: string;
+	twoHalfSinglesConfig?: TwoHalfSinglesConfig | null;
 };
 
 export async function runMatchEditRecalculation({
@@ -38,6 +45,7 @@ export async function runMatchEditRecalculation({
 	team2Score,
 	reason,
 	userId,
+	twoHalfSinglesConfig = null,
 }: RunMatchEditRecalculationParams) {
 	try {
 		// Step 2: Fetch ONLY matches from current session (Session N)
@@ -134,15 +142,16 @@ export async function runMatchEditRecalculation({
 		}
 
 		const matchToEdit = allMatches[matchIndex] as any;
-		// Note: Both singles and doubles matches can be edited
-		// The replay logic will only recalculate matches of the same type
-
-		// Note: We replay only matches of the same type as the edited match
-		// This ensures we only recalculate the relevant Elo system (singles or doubles)
-		// The actual filtering happens in the replay loop below
-		const matchIdsToReplay = allMatches
-			.filter((m: any) => m.match_type === matchToEdit.match_type)
-			.map((m: any) => m.id);
+		const matchesToReplay = allMatches.filter(
+			(match: any) =>
+				match.match_type === matchToEdit.match_type &&
+				(match.match_type !== "singles" ||
+					countsAsFinalSinglesResult(match, twoHalfSinglesConfig)),
+		);
+		const matchIdsToReplay = matchesToReplay.map((match: any) => match.id);
+		const scoreOverrides = new Map<string, TwoHalfScore>([
+			[matchId, { team1Score, team2Score }],
+		]);
 
 		// Preserve scores before resetting (needed for replay)
 		const preservedScores = new Map<
@@ -158,6 +167,22 @@ export async function runMatchEditRecalculation({
 				});
 			}
 		}
+
+		const getReplayScore = (
+			match: any,
+			overrides?: ReadonlyMap<string, TwoHalfScore>,
+		): TwoHalfScore | null => {
+			if (match.match_type === "singles") {
+				return getEffectiveTwoHalfSinglesScore(
+					match,
+					allMatches as any[],
+					twoHalfSinglesConfig,
+					overrides,
+				);
+			}
+
+			return overrides?.get(match.id) ?? preservedScores.get(match.id) ?? null;
+		};
 
 		// CRITICAL: Calculate baseline BEFORE deleting history
 		// We need match_elo_history to reverse session changes for baseline calculation
@@ -288,9 +313,7 @@ export async function runMatchEditRecalculation({
 					);
 
 				// Get session matches to count wins/losses/draws
-				const sessionMatchesForBaseline = allMatches.filter(
-					(m: any) => m.match_type === matchToEdit.match_type,
-				);
+				const sessionMatchesForBaseline = matchesToReplay;
 
 				let sessionEloDelta = 0;
 				let sessionMatchesPlayed = 0;
@@ -321,15 +344,17 @@ export async function runMatchEditRecalculation({
 				for (const match of sessionMatchesForBaseline) {
 					const playerIds = (match as any).player_ids as string[];
 					if (playerIds.includes(playerId)) {
+						const replayScore = getReplayScore(match);
+						if (!replayScore) continue;
 						const playerIndex = playerIds.indexOf(playerId);
 						const playerScore =
 							playerIndex === 0
-								? match.team1_score
-								: match.team2_score;
+								? replayScore.team1Score
+								: replayScore.team2Score;
 						const opponentScore =
 							playerIndex === 0
-								? match.team2_score
-								: match.team1_score;
+								? replayScore.team2Score
+								: replayScore.team1Score;
 
 						if (
 							playerScore !== null &&
@@ -845,7 +870,7 @@ export async function runMatchEditRecalculation({
 		// Log which players are in replay vs all players
 		// NOTE: Baseline was already loaded above (before history deletion)
 		const playersInReplay = new Set<string>();
-		for (const match of allMatches) {
+		for (const match of matchesToReplay) {
 			const playerIds = (match as any).player_ids as string[];
 			const matchType = (match as any).match_type as string;
 			// Only count players in matches of the same type as edited match
@@ -1006,8 +1031,8 @@ export async function runMatchEditRecalculation({
 		// This ensures we recalculate only the relevant Elo system
 		// We do NOT replay matches from earlier sessions
 		// We do NOT replay matches of a different type
-		for (let i = 0; i < allMatches.length; i++) {
-			const match = allMatches[i] as any;
+		for (let i = 0; i < matchesToReplay.length; i++) {
+			const match = matchesToReplay[i] as any;
 			const playerIds = match.player_ids as string[];
 			const matchType = (match as any).match_type as
 				| "singles"
@@ -1042,35 +1067,17 @@ export async function runMatchEditRecalculation({
 			}
 			replayedMatchIds.add(match.id);
 
-			// Get scores: use new scores for edited match, existing scores for others
-			let score1: number;
-			let score2: number;
-
-			if (match.id === matchId) {
-				// Edited match - use new scores
-				score1 = team1Score;
-				score2 = team2Score;
-			} else {
-				// Other matches in current session - use preserved scores
-				const preserved = preservedScores.get(match.id);
-				if (!preserved) {
-					// If no preserved scores, use stored scores
-					if (
-						match.team1_score === null ||
-						match.team2_score === null
-					) {
-						console.warn(
-							`Match ${match.id} has no scores, skipping`,
-						);
-						continue;
-					}
-					score1 = match.team1_score;
-					score2 = match.team2_score;
-				} else {
-					score1 = preserved.team1Score;
-					score2 = preserved.team2Score;
-				}
+			const replayScore = getReplayScore(match, scoreOverrides);
+			if (!replayScore) {
+				console.warn(`Match ${match.id} has no effective score, skipping`);
+				continue;
 			}
+			const score1 = replayScore.team1Score;
+			const score2 = replayScore.team2Score;
+			const storedScore =
+				scoreOverrides.get(match.id) ??
+				preservedScores.get(match.id) ??
+				replayScore;
 
 			// Handle singles vs doubles matches
 			if (matchType === "singles") {
@@ -1260,8 +1267,8 @@ export async function runMatchEditRecalculation({
 					.from("session_matches")
 					.update({
 						status: "completed",
-						team1_score: score1,
-						team2_score: score2,
+						team1_score: storedScore.team1Score,
+						team2_score: storedScore.team2Score,
 						is_edited:
 							match.id === matchId
 								? true
@@ -1833,8 +1840,8 @@ export async function runMatchEditRecalculation({
 					.from("session_matches")
 					.update({
 						status: "completed",
-						team1_score: score1,
-						team2_score: score2,
+						team1_score: storedScore.team1Score,
+						team2_score: storedScore.team2Score,
 						team_1_id: team1Id,
 						team_2_id: team2Id,
 						is_edited:
@@ -1865,6 +1872,30 @@ export async function runMatchEditRecalculation({
 					}),
 				);
 				continue;
+			}
+		}
+
+		// A settled two-half fixture is rated on its second-half record. If the
+		// edited raw score belongs to the hidden first-half record, persist that
+		// correction separately while keeping Elo history on the settlement match.
+		if (twoHalfSinglesConfig && !matchIdsToReplay.includes(matchId)) {
+			const { error: editedHalfUpdateError } = await adminClient
+				.from("session_matches")
+				.update({
+					team1_score: team1Score,
+					team2_score: team2Score,
+					is_edited: true,
+					edited_at: new Date().toISOString(),
+					edited_by: userId,
+					edit_reason: reason,
+				})
+				.eq("id", matchId)
+				.eq("session_id", sessionId);
+
+			if (editedHalfUpdateError) {
+				throw new Error(
+					`Failed to update edited half score: ${editedHalfUpdateError.message}`,
+				);
 			}
 		}
 

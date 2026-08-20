@@ -2,6 +2,17 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
+private struct ActiveAppTabEnvironmentKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var isActiveAppTab: Bool {
+        get { self[ActiveAppTabEnvironmentKey.self] }
+        set { self[ActiveAppTabEnvironmentKey.self] = newValue }
+    }
+}
+
 struct LoopingBundleVideo: UIViewRepresentable {
     let resourceName: String
     let isPlaying: Bool
@@ -39,6 +50,7 @@ final class LoopingBundlePlayerView: UIView {
     private let player = AVQueuePlayer()
     private var looper: AVPlayerLooper?
     private var configuredResourceName: String?
+    private var isCurrentlyPlaying = false
 
     override class var layerClass: AnyClass {
         AVPlayerLayer.self
@@ -85,6 +97,9 @@ final class LoopingBundlePlayerView: UIView {
     }
 
     func setPlaying(_ isPlaying: Bool) {
+        guard isCurrentlyPlaying != isPlaying else { return }
+        isCurrentlyPlaying = isPlaying
+
         if isPlaying {
             player.play()
         } else {
@@ -94,6 +109,7 @@ final class LoopingBundlePlayerView: UIView {
 
     func stop() {
         configuredResourceName = nil
+        isCurrentlyPlaying = false
         player.pause()
         player.removeAllItems()
         looper = nil

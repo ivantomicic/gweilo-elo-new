@@ -41,7 +41,8 @@ type Session = {
 };
 
 const PAGE_SIZE = 5;
-const SESSIONS_CACHE_VERSION = 2;
+// Version 3 drops lists that may still contain sessions deleted on another client.
+const SESSIONS_CACHE_VERSION = 3;
 const SESSIONS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 type SessionsCache = {

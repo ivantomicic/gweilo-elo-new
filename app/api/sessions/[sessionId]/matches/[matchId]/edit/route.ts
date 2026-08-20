@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
 	detectTwoHalfSinglesSession,
 	findPairedMatch,
+	type TwoHalfSinglesConfig,
 } from "@/lib/sessions/two-half-singles";
 import { runMatchEditRecalculation } from "./recalculation";
 import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
@@ -193,6 +194,7 @@ export async function POST(
 			});
 		}
 
+		let twoHalfSinglesConfig: TwoHalfSinglesConfig | null = null;
 		if (
 			session.player_count === 4 ||
 			session.player_count === 5 ||
@@ -214,7 +216,7 @@ export async function POST(
 				);
 			}
 
-			const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
+			twoHalfSinglesConfig = detectTwoHalfSinglesSession(
 				session.player_count,
 				(sessionMatches ?? []) as any[],
 			);
@@ -292,13 +294,9 @@ export async function POST(
 					});
 				}
 
-				return NextResponse.json(
-					{
-						error:
-							"This paired result has already been rated. Edit an unsettled pair before submitting its second-half round.",
-					},
-					{ status: 409 },
-				);
+				// Rated two-half fixtures continue into the normal session replay below.
+				// The replay receives the aggregate-session configuration so it rates
+				// only settlement records and combines each saved pair exactly once.
 			}
 		}
 
@@ -356,6 +354,7 @@ export async function POST(
 			team2Score,
 			reason,
 			userId: user.id,
+			twoHalfSinglesConfig,
 		});
 
 		if (response.ok) {

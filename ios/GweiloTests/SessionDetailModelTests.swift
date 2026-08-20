@@ -35,6 +35,54 @@ final class SessionDetailModelTests: XCTestCase {
     private let miladinID = UUID(uuidString: "00000000-0000-0000-0000-000000000004")!
 
     @MainActor
+    func testRoundSelectionStartsOnCurrentRound() {
+        let selection = SessionRoundSelectionResolver.resolve(
+            previousSelection: nil,
+            previousCurrentRound: nil,
+            loadedCurrentRound: 2,
+            availableRounds: [1, 2, 3]
+        )
+
+        XCTAssertEqual(selection, 2)
+    }
+
+    @MainActor
+    func testRoundSelectionAdvancesWhenViewedRoundWasCurrent() {
+        let selection = SessionRoundSelectionResolver.resolve(
+            previousSelection: 2,
+            previousCurrentRound: 2,
+            loadedCurrentRound: 3,
+            availableRounds: [1, 2, 3]
+        )
+
+        XCTAssertEqual(selection, 3)
+    }
+
+    @MainActor
+    func testRoundSelectionPreservesBrowsedRoundAcrossRefresh() {
+        let selection = SessionRoundSelectionResolver.resolve(
+            previousSelection: 1,
+            previousCurrentRound: 2,
+            loadedCurrentRound: 3,
+            availableRounds: [1, 2, 3]
+        )
+
+        XCTAssertEqual(selection, 1)
+    }
+
+    @MainActor
+    func testRoundSelectionFallsBackWhenBrowsedRoundDisappears() {
+        let selection = SessionRoundSelectionResolver.resolve(
+            previousSelection: 4,
+            previousCurrentRound: 3,
+            loadedCurrentRound: 2,
+            availableRounds: [1, 2, 3]
+        )
+
+        XCTAssertEqual(selection, 2)
+    }
+
+    @MainActor
     func testSinglesNamesFollowStoredPlayerOrder() {
         let detail = makeDetail()
 
@@ -76,6 +124,43 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(reversedMatch.playerIDs, [garaID, ivanID])
         XCTAssertEqual(reversedMatch.teamOneScore, 3)
         XCTAssertEqual(reversedMatch.teamTwoScore, 6)
+    }
+
+    @MainActor
+    func testHalfSessionEditUsesStoredSecondHalfAndAlignedFirstHalf() throws {
+        let fixture = makeHalfSessionRounds()
+        let detail = makeDetail(rounds: fixture.rounds)
+        let displayedMatches = try XCTUnwrap(
+            SessionHalfResultGrouper.groupedMatches(
+                playerCount: 4,
+                rounds: fixture.rounds
+            )
+        )
+        let displayedMatch = try XCTUnwrap(
+            displayedMatches.first { $0.id == fixture.secondHalfIDs[0] }
+        )
+
+        let context = try XCTUnwrap(
+            SessionMatchEditContext(
+                displayedMatch: displayedMatch,
+                detail: detail
+            )
+        )
+        let firstHalf = try XCTUnwrap(context.pairedFirstHalfScore)
+        let combined = context.combinedScore(
+            teamOneScore: 4,
+            teamTwoScore: 2
+        )
+
+        XCTAssertEqual(context.match.id, fixture.secondHalfIDs[0])
+        XCTAssertEqual(context.match.playerIDs, [garaID, ivanID])
+        XCTAssertEqual(context.match.teamOneScore, 2)
+        XCTAssertEqual(context.match.teamTwoScore, 3)
+        XCTAssertEqual(firstHalf.roundNumber, 1)
+        XCTAssertEqual(firstHalf.teamOneScore, 1)
+        XCTAssertEqual(firstHalf.teamTwoScore, 3)
+        XCTAssertEqual(combined.teamOne, 5)
+        XCTAssertEqual(combined.teamTwo, 5)
     }
 
     @MainActor
@@ -649,6 +734,32 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testEloCurveSamplingStaysWithinLargeHistoryBudget() {
+        XCTAssertEqual(
+            EloCurveSampler.adaptiveSamplesPerSegment(pointCount: 20),
+            6
+        )
+        XCTAssertEqual(
+            EloCurveSampler.adaptiveSamplesPerSegment(pointCount: 500),
+            1
+        )
+
+        let points = (0..<500).map { match in
+            PlayerEloHistoryPoint(
+                match: match,
+                elo: Double(1_500 + match),
+                date: .now,
+                opponent: nil,
+                delta: nil
+            )
+        }
+        let sampled = EloCurveSampler.downsample(points: points)
+        XCTAssertEqual(sampled.count, 180)
+        XCTAssertEqual(sampled.first?.match, 0)
+        XCTAssertEqual(sampled.last?.match, 499)
+    }
+
+    @MainActor
     func testAuthSessionRefreshLeeway() {
         let session = AuthSession(
             accessToken: "access",
@@ -759,6 +870,42 @@ final class SessionDetailModelTests: XCTestCase {
             matches[0].id.uuidString.lowercased()
         )
         XCTAssertEqual(scores[1]["team2Score"] as? Int, 11)
+    }
+
+    @MainActor
+    func testMatchResultEditRequestCarriesRawScoreToProductionAPI() throws {
+        let sessionID = UUID()
+        let matchID = UUID()
+        let client = makeAPIClient()
+
+        let request = try client.makeEditMatchResultRequest(
+            sessionID: sessionID,
+            matchID: matchID,
+            teamOneScore: 4,
+            teamTwoScore: 2,
+            reason: "Pogrešno unet drugi deo"
+        )
+        let body = try XCTUnwrap(request.httpBody)
+        let json = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: body) as? [String: Any]
+        )
+
+        XCTAssertEqual(
+            request.url?.absoluteString,
+            "https://www.gweilo.lol/api/sessions/\(sessionID.uuidString.lowercased())/matches/\(matchID.uuidString.lowercased())/edit"
+        )
+        XCTAssertEqual(request.httpMethod, "POST")
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "Authorization"),
+            "Bearer member-access-token"
+        )
+        XCTAssertEqual(
+            request.value(forHTTPHeaderField: "X-Gweilo-Client"),
+            "ios"
+        )
+        XCTAssertEqual(json["team1Score"] as? Int, 4)
+        XCTAssertEqual(json["team2Score"] as? Int, 2)
+        XCTAssertEqual(json["reason"] as? String, "Pogrešno unet drugi deo")
     }
 
     @MainActor

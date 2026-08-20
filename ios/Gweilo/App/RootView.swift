@@ -76,7 +76,7 @@ struct RootView: View {
             } else if authStore.session == nil {
                 SignInView(authStore: authStore)
             } else if let appDataStore,
-                      appDataStore.hasCompletedInitialHomeLoad {
+                      appDataStore.hasLoaded {
                 MainTabView(
                     dataStore: appDataStore,
                     authStore: authStore,
@@ -99,22 +99,24 @@ struct RootView: View {
                 return
             }
 
-            await pushNotifications.configure(
-                configuration: configuration,
-                session: session
-            )
-
+            let store: AppDataStore
             if let appDataStore {
                 appDataStore.updateSession(session)
-                await appDataStore.loadHome()
+                store = appDataStore
             } else {
-                let store = AppDataStore(
+                store = AppDataStore(
                     configuration: configuration,
                     session: session
                 )
                 appDataStore = store
-                await store.loadHome()
             }
+
+            async let homeData: Void = store.loadHome()
+            async let notifications: Void = pushNotifications.configure(
+                configuration: configuration,
+                session: session
+            )
+            _ = await (homeData, notifications)
         }
         .task {
             await authStore.restoreSession()
@@ -331,6 +333,10 @@ private struct MainTabView: View {
                     openSession: openActiveSession
                 ) {
                     HomeView(dataStore: dataStore)
+                        .environment(
+                            \.isActiveAppTab,
+                            selectedTab == .home
+                        )
                 }
             }
 
@@ -351,6 +357,10 @@ private struct MainTabView: View {
                             $isActiveSessionDetailPresented,
                         didOpenRequestedSession: didOpenRequestedSession
                     )
+                    .environment(
+                        \.isActiveAppTab,
+                        selectedTab == .sessions
+                    )
                 }
             }
 
@@ -365,6 +375,10 @@ private struct MainTabView: View {
                     openSession: openActiveSession
                 ) {
                     RankingsView(dataStore: dataStore)
+                        .environment(
+                            \.isActiveAppTab,
+                            selectedTab == .rankings
+                        )
                 }
             }
 

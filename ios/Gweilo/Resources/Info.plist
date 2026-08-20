@@ -37,6 +37,10 @@
 	<true/>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Gweilo launches table tennis workouts on your Apple Watch.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Gweilo starts table tennis workouts that your Apple Watch saves to Health.</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SUPABASE_URL</key>

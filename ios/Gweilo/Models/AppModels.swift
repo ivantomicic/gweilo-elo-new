@@ -24,12 +24,12 @@ enum RankingCategory: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
-struct RankingEligibilityRule: Decodable, Hashable, Sendable {
+struct RankingEligibilityRule: Codable, Hashable, Sendable {
     let minimumMatches: Int
     let maximumInactivityDays: Int
 }
 
-struct RankingEligibility: Decodable, Hashable, Sendable {
+struct RankingEligibility: Codable, Hashable, Sendable {
     let singles: RankingEligibilityRule
     let doublesPlayers: RankingEligibilityRule
     let doublesTeams: RankingEligibilityRule
@@ -268,6 +268,86 @@ struct EloCurveSegment: Identifiable, Hashable, Sendable {
 enum EloCurveSampler {
     static let defaultSamplesPerSegment = 6
 
+    static func adaptiveSamplesPerSegment(
+        pointCount: Int,
+        sampleBudget: Int = 360
+    ) -> Int {
+        let segmentCount = max(pointCount - 1, 1)
+        return max(
+            1,
+            min(
+                defaultSamplesPerSegment,
+                (sampleBudget / segmentCount) - 1
+            )
+        )
+    }
+
+    static func downsample(
+        points: [PlayerEloHistoryPoint],
+        maxPointCount: Int = 180
+    ) -> [PlayerEloHistoryPoint] {
+        let limit = max(maxPointCount, 2)
+        guard points.count > limit else { return points }
+
+        let bucketSize = Double(points.count - 2) / Double(limit - 2)
+        var sampled = [points[0]]
+        var selectedIndex = 0
+
+        for bucket in 0..<(limit - 2) {
+            let averageStart = min(
+                Int(floor(Double(bucket + 1) * bucketSize)) + 1,
+                points.count - 1
+            )
+            let averageEnd = min(
+                Int(floor(Double(bucket + 2) * bucketSize)) + 1,
+                points.count
+            )
+            let averageRange = points[averageStart..<averageEnd]
+            let averageMatch = averageRange.isEmpty
+                ? Double(points.last?.match ?? 0)
+                : averageRange.reduce(0) { $0 + Double($1.match) }
+                    / Double(averageRange.count)
+            let averageElo = averageRange.isEmpty
+                ? points.last?.elo ?? 0
+                : averageRange.reduce(0) { $0 + $1.elo }
+                    / Double(averageRange.count)
+
+            let rangeStart = min(
+                Int(floor(Double(bucket) * bucketSize)) + 1,
+                points.count - 2
+            )
+            let rangeEnd = min(
+                max(
+                    Int(floor(Double(bucket + 1) * bucketSize)) + 1,
+                    rangeStart + 1
+                ),
+                points.count - 1
+            )
+            let selected = points[selectedIndex]
+            var largestArea = -Double.infinity
+            var nextSelectedIndex = rangeStart
+
+            for candidateIndex in rangeStart..<rangeEnd {
+                let candidate = points[candidateIndex]
+                let area = abs(
+                    (Double(selected.match) - averageMatch)
+                        * (candidate.elo - selected.elo)
+                        - (Double(selected.match) - Double(candidate.match))
+                        * (averageElo - selected.elo)
+                )
+                if area > largestArea {
+                    largestArea = area
+                    nextSelectedIndex = candidateIndex
+                }
+            }
+
+            sampled.append(points[nextSelectedIndex])
+            selectedIndex = nextSelectedIndex
+        }
+        sampled.append(points[points.count - 1])
+        return sampled
+    }
+
     static func segments(
         points: [PlayerEloHistoryPoint],
         samplesPerSegment: Int = defaultSamplesPerSegment
@@ -490,7 +570,7 @@ enum SessionStatus: String, Codable, Hashable, Sendable {
     var label: String { rawValue.uppercased() }
 }
 
-struct SessionSummary: Identifiable, Hashable, Sendable {
+struct SessionSummary: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     let createdAt: Date
     let playerCount: Int
@@ -1197,6 +1277,34 @@ struct SessionRound: Identifiable, Hashable, Sendable {
     let restingPlayers: [SessionParticipant]
 }
 
+enum SessionRoundSelectionResolver {
+    static func resolve(
+        previousSelection: Int?,
+        previousCurrentRound: Int?,
+        loadedCurrentRound: Int?,
+        availableRounds: [Int]
+    ) -> Int? {
+        let availableRounds = Set(availableRounds)
+        let fallback = loadedCurrentRound ?? availableRounds.min()
+
+        if previousSelection == nil {
+            return fallback
+        }
+
+        if previousSelection == previousCurrentRound,
+           loadedCurrentRound != previousCurrentRound {
+            return fallback
+        }
+
+        if let previousSelection,
+           availableRounds.contains(previousSelection) {
+            return previousSelection
+        }
+
+        return fallback
+    }
+}
+
 struct SessionPlayerEloSnapshot: Hashable, Sendable {
     let matchID: UUID
     let playerID: UUID
@@ -1382,6 +1490,56 @@ struct SessionDetail: Hashable, Sendable {
     }
 }
 
+struct SessionPairedHalfScore: Hashable, Sendable {
+    let roundNumber: Int
+    let teamOneScore: Int
+    let teamTwoScore: Int
+}
+
+struct SessionMatchEditContext: Identifiable, Hashable, Sendable {
+    var id: UUID { match.id }
+
+    let sessionID: UUID
+    let match: SessionMatch
+    let teamOneName: String
+    let teamTwoName: String
+    let pairedFirstHalfScore: SessionPairedHalfScore?
+
+    init?(displayedMatch: SessionMatch, detail: SessionDetail) {
+        guard let storedMatch = detail.rounds
+            .lazy
+            .flatMap(\.matches)
+            .first(where: { $0.id == displayedMatch.id })
+        else {
+            return nil
+        }
+
+        let names = detail.teamNames(for: storedMatch.playerIDs)
+        sessionID = detail.session.id
+        match = storedMatch
+        teamOneName = names.0
+        teamTwoName = names.1
+        pairedFirstHalfScore = SessionHalfResultGrouper.pairedFirstHalfScore(
+            for: storedMatch,
+            playerCount: detail.session.playerCount,
+            rounds: detail.rounds
+        )
+    }
+
+    func combinedScore(
+        teamOneScore: Int,
+        teamTwoScore: Int
+    ) -> (teamOne: Int, teamTwo: Int) {
+        guard let pairedFirstHalfScore else {
+            return (teamOneScore, teamTwoScore)
+        }
+        return (
+            pairedFirstHalfScore.teamOneScore + teamOneScore,
+            pairedFirstHalfScore.teamTwoScore + teamTwoScore
+        )
+    }
+}
+
 enum SessionHalfResultGrouper {
     private struct Configuration {
         let halfRoundCount: Int
@@ -1448,6 +1606,52 @@ enum SessionHalfResultGrouper {
                         )
                     }
             }
+    }
+
+    static func pairedFirstHalfScore(
+        for settlementMatch: SessionMatch,
+        playerCount: Int,
+        rounds: [SessionRound]
+    ) -> SessionPairedHalfScore? {
+        guard
+            let configuration = configuration(for: playerCount),
+            settlementMatch.type == .singles,
+            settlementMatch.roundNumber > configuration.halfRoundCount
+        else {
+            return nil
+        }
+
+        let firstHalfRoundNumber =
+            settlementMatch.roundNumber - configuration.halfRoundCount
+        guard
+            let firstHalfMatch = rounds
+                .first(where: { $0.number == firstHalfRoundNumber })?
+                .matches
+                .first(where: {
+                    $0.order == settlementMatch.order
+                        && pairKey($0.playerIDs) == pairKey(settlementMatch.playerIDs)
+                }),
+            let firstTeamOneScore = firstHalfMatch.teamOneScore,
+            let firstTeamTwoScore = firstHalfMatch.teamTwoScore
+        else {
+            return nil
+        }
+
+        if firstHalfMatch.playerIDs == settlementMatch.playerIDs {
+            return SessionPairedHalfScore(
+                roundNumber: firstHalfRoundNumber,
+                teamOneScore: firstTeamOneScore,
+                teamTwoScore: firstTeamTwoScore
+            )
+        }
+        if firstHalfMatch.playerIDs == Array(settlementMatch.playerIDs.reversed()) {
+            return SessionPairedHalfScore(
+                roundNumber: firstHalfRoundNumber,
+                teamOneScore: firstTeamTwoScore,
+                teamTwoScore: firstTeamOneScore
+            )
+        }
+        return nil
     }
 
     private static func configuration(

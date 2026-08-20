@@ -39,7 +39,7 @@ export function DashboardView() {
 		// Clear all caches (localStorage + sessionStorage)
 		clearAllCaches();
 		// Sign out from Supabase
-		await supabase.auth.signOut();
+		await supabase.auth.signOut({ scope: "local" });
 		// On logout, parent component will detect auth change and render auth screen
 	};
 
@@ -74,4 +74,3 @@ export function DashboardView() {
 		</Stack>
 	);
 }
-

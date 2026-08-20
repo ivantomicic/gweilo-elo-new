@@ -502,24 +502,20 @@ private struct ActivityUserAvatar: View {
     let visit: AdminActivityVisit
 
     var body: some View {
-        AsyncImage(
+        CachedRemoteImage(
             url: DiceBearAvatar.resolvedURL(
                 customURL: visit.user?.avatar,
                 seed: visit.userName
             ),
-            transaction: Transaction(animation: nil)
-        ) { phase in
-            if let image = phase.image {
-                image
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Text(initials)
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(GweiloTheme.bone)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(GweiloTheme.accent)
-            }
+            pointSize: 42
+        ) { image in
+            image.resizable().scaledToFill()
+        } placeholder: {
+            Text(initials)
+                .font(.caption.weight(.bold))
+                .foregroundStyle(GweiloTheme.bone)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(GweiloTheme.accent)
         }
         .frame(width: 42, height: 42)
         .clipShape(.circle)

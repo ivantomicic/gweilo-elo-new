@@ -69,7 +69,7 @@ struct NotificationSettingsSection: View {
                 }
             } else {
                 Button("Učitaj ponovo", systemImage: "arrow.clockwise") {
-                    Task { await manager.loadPreferences() }
+                    Task { await manager.loadPreferences(forceRefresh: true) }
                 }
             }
 

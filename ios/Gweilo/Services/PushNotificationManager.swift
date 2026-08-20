@@ -125,10 +125,16 @@ private struct DeviceRegistrationResponse: Decodable, Sendable {
     let registered: Bool
 }
 
+private struct CachedPushPreferences: Codable {
+    let preferences: PushNotificationPreferences
+    let savedAt: Date
+}
+
 @Observable
 @MainActor
 final class PushNotificationManager {
     static let shared = PushNotificationManager()
+    private static let preferenceCacheLifetime: TimeInterval = 10 * 60
 
     private(set) var authorizationStatus: UNAuthorizationStatus = .notDetermined
     private(set) var preferences: PushNotificationPreferences?
@@ -147,6 +153,10 @@ final class PushNotificationManager {
     private var apiClient: PushNotificationAPIClient?
     @ObservationIgnored
     private var deviceToken: String?
+    @ObservationIgnored
+    private var preferenceCacheKey: String?
+    @ObservationIgnored
+    private var preferencesLoadedAt: Date?
 
     private init() {}
 
@@ -174,6 +184,16 @@ final class PushNotificationManager {
         configuration: AppConfiguration,
         session: AuthSession
     ) async {
+        preferenceCacheKey = "push-preferences-\(session.user.id.uuidString)"
+        if let preferenceCacheKey,
+           let data = UserDefaults.standard.data(forKey: preferenceCacheKey),
+           let cached = try? JSONDecoder().decode(
+               CachedPushPreferences.self,
+               from: data
+           ) {
+            preferences = cached.preferences
+            preferencesLoadedAt = cached.savedAt
+        }
         apiClient = PushNotificationAPIClient(
             configuration: configuration,
             accessToken: session.accessToken
@@ -208,6 +228,8 @@ final class PushNotificationManager {
     func clearConfiguration() {
         apiClient = nil
         preferences = nil
+        preferenceCacheKey = nil
+        preferencesLoadedAt = nil
         SessionLiveActivityManager.shared.clearConfiguration()
     }
 
@@ -234,12 +256,18 @@ final class PushNotificationManager {
         authorizationStatus = settings.authorizationStatus
     }
 
-    func loadPreferences() async {
+    func loadPreferences(forceRefresh: Bool = false) async {
         guard let apiClient, !isLoadingPreferences else { return }
+        let isFresh = preferencesLoadedAt.map {
+            Date.now.timeIntervalSince($0) < Self.preferenceCacheLifetime
+        } ?? false
+        guard forceRefresh || preferences == nil || !isFresh else { return }
         isLoadingPreferences = true
         defer { isLoadingPreferences = false }
         do {
-            preferences = try await apiClient.fetchPreferences()
+            let loadedPreferences = try await apiClient.fetchPreferences()
+            preferences = loadedPreferences
+            savePreferencesToCache(loadedPreferences)
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -310,6 +338,8 @@ final class PushNotificationManager {
         self.deviceToken = nil
         self.apiClient = nil
         preferences = nil
+        preferenceCacheKey = nil
+        preferencesLoadedAt = nil
         await SessionLiveActivityManager.shared.setEnabled(false)
     }
 
@@ -379,7 +409,9 @@ final class PushNotificationManager {
         statusMessage = nil
         defer { isSavingPreference = false }
         do {
-            preferences = try await apiClient.updatePreferences(patch)
+            let updatedPreferences = try await apiClient.updatePreferences(patch)
+            preferences = updatedPreferences
+            savePreferencesToCache(updatedPreferences)
         } catch {
             statusMessage = error.localizedDescription
         }
@@ -411,6 +443,21 @@ final class PushNotificationManager {
         } catch {
             statusMessage = error.localizedDescription
         }
+    }
+
+    private func savePreferencesToCache(
+        _ preferences: PushNotificationPreferences
+    ) {
+        guard let preferenceCacheKey else { return }
+        let savedAt = Date.now
+        preferencesLoadedAt = savedAt
+        guard let data = try? JSONEncoder().encode(
+            CachedPushPreferences(
+                preferences: preferences,
+                savedAt: savedAt
+            )
+        ) else { return }
+        UserDefaults.standard.set(data, forKey: preferenceCacheKey)
     }
 
     private static var bundleID: String {

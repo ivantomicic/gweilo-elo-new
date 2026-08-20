@@ -28,11 +28,16 @@ function clearLocalStorageByPrefix(cacheKeys: string[]): void {
 	keysToRemove.forEach((key) => localStorage.removeItem(key));
 }
 
+/** Clear cached session-list rows, including sessions deleted on another client. */
+export function clearSessionsPageCaches(): void {
+	clearLocalStorageByPrefix(["sessions-page:"]);
+}
+
 /** Clear data that becomes stale after a completed session is deleted. */
 export function clearSessionDeletionCaches(): void {
+	clearSessionsPageCaches();
 	clearLocalStorageByPrefix([
 		"elo_history_",
-		"sessions-page:",
 		"no_show_alert_cache",
 		"noshow_alert_cache",
 		"noshow_distribution_cache",

@@ -92,4 +92,82 @@ describe("two-half singles sessions", () => {
 			),
 		);
 	});
+
+	it("recalculates the aggregate when either saved half is edited", () => {
+		const matches = recordsFor(4, "singles");
+		const config = detectTwoHalfSinglesSession(4, matches)!;
+		const secondHalfMatch = matches.find(
+			(match) => match.round_number === 4 && match.match_order === 0,
+		)!;
+		const firstHalfMatch = findPairedMatch(secondHalfMatch, matches, config)!;
+		const editedSecondHalf = { team1Score: 3, team2Score: 0 };
+		const secondHalfOverrides = new Map([
+			[secondHalfMatch.id, editedSecondHalf],
+		]);
+
+		assert.deepEqual(
+			getEffectiveTwoHalfSinglesScore(
+				secondHalfMatch,
+				matches,
+				config,
+				secondHalfOverrides,
+			),
+			combineTwoHalfSinglesScore(
+				firstHalfMatch,
+				secondHalfMatch,
+				editedSecondHalf,
+			),
+		);
+
+		const editedFirstHalf = { team1Score: 0, team2Score: 3 };
+		const firstHalfOverrides = new Map([
+			[firstHalfMatch.id, editedFirstHalf],
+		]);
+		assert.deepEqual(
+			getEffectiveTwoHalfSinglesScore(
+				secondHalfMatch,
+				matches,
+				config,
+				firstHalfOverrides,
+			),
+			combineTwoHalfSinglesScore(
+				{
+					...firstHalfMatch,
+					team1_score: editedFirstHalf.team1Score,
+					team2_score: editedFirstHalf.team2Score,
+				},
+				secondHalfMatch,
+				{
+					team1Score: secondHalfMatch.team1_score,
+					team2Score: secondHalfMatch.team2_score,
+				},
+			),
+		);
+	});
+
+	it("keeps the edited aggregate aligned when the second-half order is reversed", () => {
+		const matches = recordsFor(4, "singles");
+		const secondHalfIndex = matches.findIndex(
+			(match) => match.round_number === 4 && match.match_order === 0,
+		);
+		const reversedSecondHalf = {
+			...matches[secondHalfIndex],
+			player_ids: [...matches[secondHalfIndex].player_ids].reverse(),
+		};
+		matches[secondHalfIndex] = reversedSecondHalf;
+		const config = detectTwoHalfSinglesSession(4, matches)!;
+		const overrides = new Map([
+			[reversedSecondHalf.id, { team1Score: 2, team2Score: 0 }],
+		]);
+
+		assert.deepEqual(
+			getEffectiveTwoHalfSinglesScore(
+				reversedSecondHalf,
+				matches,
+				config,
+				overrides,
+			),
+			{ team1Score: 3, team2Score: 3 },
+		);
+	});
 });

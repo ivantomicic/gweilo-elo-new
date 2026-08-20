@@ -186,6 +186,9 @@ export const sr = {
 			title: "Termin",
 			loading: "Učitavanje termina...",
 			loadingFailed: "Greška pri učitavanju termina",
+			notFoundDescription:
+				"Termin je verovatno obrisan. Osvežena lista termina više ga neće prikazivati.",
+			backToSessions: "Nazad na termine",
 			results: "Rezultati termina",
 			completedOn: "Završeno",
 			live: "U toku",
@@ -252,6 +255,7 @@ export const sr = {
 			},
 			error: {
 				notAuthenticated: "Niste prijavljeni",
+				notFound: "Termin više ne postoji",
 				fetchFailed: "Greška pri učitavanju termina",
 				submitFailed: "Greška pri slanju runde",
 				deleteFailed: "Greška pri brisanju termina",

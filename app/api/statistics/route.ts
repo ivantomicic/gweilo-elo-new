@@ -297,7 +297,7 @@ function finalizeRecentForm(
 					(sessionOrder.get(leftSessionId) ?? 0) -
 					(sessionOrder.get(rightSessionId) ?? 0),
 			)
-			.slice(-5);
+			.slice(-7);
 
 		deltaResult[entityId] = recent.map(
 			([, delta]) => Math.round((delta + Number.EPSILON) * 100) / 100,
@@ -629,7 +629,7 @@ const getCachedRecentFormMaps = unstable_cache(
 			),
 		};
 	},
-	["statistics-recent-session-form-v3"],
+	["statistics-recent-session-form-v4"],
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] },
 );
 

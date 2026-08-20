@@ -201,13 +201,19 @@ struct GweiloCardCarousel<Content: View>: View {
     @State private var scrollPhase = ScrollPhase.idle
 
     let itemCount: Int
+    let leadingContentMargin: CGFloat
+    let trailingContentMargin: CGFloat
     @ViewBuilder let content: Content
 
     init(
         itemCount: Int,
+        leadingContentMargin: CGFloat = 20,
+        trailingContentMargin: CGFloat = 20,
         @ViewBuilder content: () -> Content
     ) {
         self.itemCount = itemCount
+        self.leadingContentMargin = leadingContentMargin
+        self.trailingContentMargin = trailingContentMargin
         self.content = content()
     }
 
@@ -235,7 +241,8 @@ struct GweiloCardCarousel<Content: View>: View {
             .scrollTargetLayout()
             .background(FastScrollDecelerationConfigurator())
         }
-        .contentMargins(.horizontal, 20, for: .scrollContent)
+        .contentMargins(.leading, leadingContentMargin, for: .scrollContent)
+        .contentMargins(.trailing, trailingContentMargin, for: .scrollContent)
         .defaultScrollAnchor(.leading)
         .scrollTargetBehavior(
             CenteredViewAlignedScrollTargetBehavior(itemCount: itemCount)

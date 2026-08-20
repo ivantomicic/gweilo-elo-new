@@ -15,6 +15,8 @@ struct SessionDetailView: View {
     @State private var managementErrorMessage: String?
     @State private var selectedPlayerID: UUID?
     @State private var selectedPerformanceCategory: SessionPerformanceCategory = .singles
+    @State private var selectedMatchForEdit: SessionMatchEditContext?
+    @State private var selectedRoundNumber: Int?
 
     var body: some View {
         ZStack {
@@ -22,141 +24,82 @@ struct SessionDetailView: View {
 
             if detail == nil, isLoading {
                 GweiloFullScreenLoadingView("Učitavam termin…")
+            } else if let detail,
+                      shouldShowScorekeeper(for: detail),
+                      let currentRoundNumber = detail.session.currentRound,
+                      let selectedRoundNumber = resolvedSelectedRound(in: detail) {
+                ActiveSessionRoundPager(
+                    detail: detail,
+                    currentRoundNumber: currentRoundNumber,
+                    selectedRoundNumber: Binding(
+                        get: { resolvedSelectedRound(in: detail) ?? selectedRoundNumber },
+                        set: { self.selectedRoundNumber = $0 }
+                    ),
+                    submit: { round, scores in
+                        try await dataStore.submitRound(
+                            sessionID: detail.session.id,
+                            roundNumber: round.number,
+                            scores: scores
+                        )
+                    },
+                    reload: {
+                        await load(forceRefresh: true)
+                    }
+                )
             } else {
-                ScrollViewReader { scrollProxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 30) {
-                            if let detail {
-                                if shouldShowScorekeeper(for: detail),
-                                   let currentRound = currentRound(in: detail) {
-                                    ScoreEntryView(
-                                        round: currentRound,
-                                        detail: detail,
-                                        submit: { scores in
-                                            try await dataStore.submitRound(
-                                                sessionID: detail.session.id,
-                                                roundNumber: currentRound.number,
-                                                scores: scores
-                                            )
-                                        },
-                                        onSubmitted: {
-                                            await load()
-                                        },
-                                        onFocusedMatchChanged: { matchID in
-                                            withAnimation(.smooth(duration: 0.24)) {
-                                                scrollProxy.scrollTo(
-                                                    matchID,
-                                                    anchor: .center
-                                                )
-                                            }
-                                        }
-                                    )
-                                    .id(currentRound.id)
-                                } else {
-                                    SessionHero(
-                                        session: detail.session,
-                                        totalMatchCount: detail.rounds.reduce(0) {
-                                            $0 + $1.matches.count
-                                        }
-                                    )
-
-                                    if let currentRound = currentRound(in: detail) {
-                                        ReadOnlyCurrentRound(
-                                            round: currentRound,
-                                            detail: detail
-                                        )
-                                    } else if detail.session.status == .completed {
-                                        SessionPerformanceTable(
-                                            detail: detail,
-                                            selection: Binding(
-                                                get: { selectedPerformanceCategory },
-                                                set: { category in
-                                                    updatePerformanceCategory(category)
-                                                }
-                                            ),
-                                            selectedPlayerID: Binding(
-                                                get: { selectedPlayerID },
-                                                set: { playerID in
-                                                    updateSelectedPlayer(playerID)
-                                                }
-                                            )
-                                        )
-                                    }
-
-                                    if detail.session.status == .active {
-                                        PlayerRoster(participants: detail.participants)
-                                    }
-
-                                    if detail.session.status == .completed,
-                                       let selectedPlayerID,
-                                       let participant = detail.participant(
-                                        for: selectedPlayerID
-                                       ) {
-                                        let performanceCategory = activePerformanceCategory(
-                                            in: detail
-                                        )
-                                        PlayerSessionMatchResults(
-                                            participant: participant,
-                                            matches: SessionPlayerMatchFilter.matches(
-                                                for: selectedPlayerID,
-                                                type: performanceCategory.matchType,
-                                                in: SessionCompletedMatchPresenter.matches(
-                                                    playerCount: detail.session.playerCount,
-                                                    rounds: detail.rounds
-                                                )
-                                            ),
-                                            singlesPerformance: performanceCategory == .singles
-                                                ? detail.singlesPerformance.first {
-                                                    $0.playerID == selectedPlayerID
-                                                }
-                                                : nil,
-                                            doublesPerformance: performanceCategory == .doublesPlayers
-                                                ? detail.doublesPlayerPerformance.first {
-                                                    $0.playerID == selectedPlayerID
-                                                }
-                                                : nil,
-                                            detail: detail,
-                                            clearSelection: {
-                                                updateSelectedPlayer(nil)
-                                            }
-                                        )
-                                        .transition(playerFilterTransition)
-                                    } else if detail.session.status == .completed,
-                                       let matches = SessionHalfResultGrouper
-                                        .groupedMatches(
-                                            playerCount: detail.session.playerCount,
-                                            rounds: detail.rounds
-                                        ) {
-                                        HalfSessionMatchResults(
-                                            matches: matches,
-                                            detail: detail
-                                        )
-                                        .transition(playerFilterTransition)
-                                    } else {
-                                        RoundTimeline(
-                                            detail: detail,
-                                            expandedRounds: expandedRounds,
-                                            toggleRound: toggleRound
-                                        )
-                                        .transition(playerFilterTransition)
-                                    }
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 30) {
+                        if let detail {
+                            SessionHero(
+                                session: detail.session,
+                                totalMatchCount: detail.rounds.reduce(0) {
+                                    $0 + $1.matches.count
                                 }
-                            } else if let errorMessage {
-                                SessionDetailError(
-                                    message: errorMessage,
-                                    retry: load
+                            )
+
+                            if let currentRound = currentRound(in: detail) {
+                                ReadOnlyCurrentRound(
+                                    round: currentRound,
+                                    detail: detail
+                                )
+                            } else if detail.session.status == .completed {
+                                SessionPerformanceTable(
+                                    detail: detail,
+                                    selection: Binding(
+                                        get: { selectedPerformanceCategory },
+                                        set: { category in
+                                            updatePerformanceCategory(category)
+                                        }
+                                    ),
+                                    selectedPlayerID: Binding(
+                                        get: { selectedPlayerID },
+                                        set: { playerID in
+                                            updateSelectedPlayer(playerID)
+                                        }
+                                    )
                                 )
                             }
+
+                            if detail.session.status == .active {
+                                PlayerRoster(participants: detail.participants)
+                            }
+
+                            matchResults(for: detail)
+                        } else if let errorMessage {
+                            SessionDetailError(
+                                message: errorMessage,
+                                retry: { await load() }
+                            )
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 48)
                     }
-                    .refreshable {
-                        await load()
-                    }
-                    .scrollDismissesKeyboard(.interactively)
-                    .scrollIndicators(.hidden)
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 48)
                 }
+                .refreshable {
+                    await load(forceRefresh: true)
+                }
+                .scrollDismissesKeyboard(.interactively)
+                .scrollIndicators(.hidden)
             }
         }
         .navigationTitle("Termin")
@@ -182,6 +125,7 @@ struct SessionDetailView: View {
             }
         }
         .task(id: session.id) {
+            selectedRoundNumber = nil
             await load()
         }
         .onChange(of: dataStore.sessions.map(\.id)) { _, sessionIDs in
@@ -205,6 +149,18 @@ struct SessionDetailView: View {
                 Button("U redu", role: .cancel) {}
         } message: {
             Text(managementErrorMessage ?? "Pokušaj ponovo.")
+        }
+        .sheet(
+            item: $selectedMatchForEdit,
+            onDismiss: {
+                Task { await load(forceRefresh: true) }
+            }
+        ) { context in
+            MatchResultEditSheet(
+                context: context,
+                dataStore: dataStore
+            )
+            .presentationDetents([.medium, .large])
         }
     }
 
@@ -245,6 +201,20 @@ struct SessionDetailView: View {
         return detail.rounds.first { $0.number == currentRoundNumber }
     }
 
+    private func resolvedSelectedRound(in detail: SessionDetail) -> Int? {
+        if let selectedRoundNumber,
+           detail.rounds.contains(where: { $0.number == selectedRoundNumber }) {
+            return selectedRoundNumber
+        }
+
+        if let currentRoundNumber = detail.session.currentRound,
+           detail.rounds.contains(where: { $0.number == currentRoundNumber }) {
+            return currentRoundNumber
+        }
+
+        return detail.rounds.min { $0.number < $1.number }?.number
+    }
+
     private func hasCompletedMatches(in detail: SessionDetail) -> Bool {
         detail.rounds.contains { round in
             round.matches.contains(where: \.isCompleted)
@@ -274,6 +244,100 @@ struct SessionDetailView: View {
         withAnimation(playerFilterAnimation) {
             selectedPlayerID = playerID
         }
+    }
+
+    private func beginEditingMatch(_ displayedMatch: SessionMatch) {
+        guard let detail else { return }
+        selectedMatchForEdit = SessionMatchEditContext(
+            displayedMatch: displayedMatch,
+            detail: detail
+        )
+    }
+
+    @ViewBuilder
+    private func matchResults(for detail: SessionDetail) -> some View {
+        if detail.session.status == .completed,
+           let selectedPlayerID,
+           let participant = detail.participant(for: selectedPlayerID) {
+            let performanceCategory = activePerformanceCategory(in: detail)
+            let completedMatches = SessionCompletedMatchPresenter.matches(
+                playerCount: detail.session.playerCount,
+                rounds: detail.rounds
+            )
+            let playerMatches = SessionPlayerMatchFilter.matches(
+                for: selectedPlayerID,
+                type: performanceCategory.matchType,
+                in: completedMatches
+            )
+            PlayerSessionMatchResults(
+                participant: participant,
+                matches: playerMatches,
+                singlesPerformance: selectedSinglesPerformance(
+                    for: selectedPlayerID,
+                    category: performanceCategory,
+                    detail: detail
+                ),
+                doublesPerformance: selectedDoublesPerformance(
+                    for: selectedPlayerID,
+                    category: performanceCategory,
+                    detail: detail
+                ),
+                detail: detail,
+                editMatch: matchEditAction(for: detail),
+                clearSelection: {
+                    updateSelectedPlayer(nil)
+                }
+            )
+            .transition(playerFilterTransition)
+        } else if detail.session.status == .completed,
+                  let matches = SessionHalfResultGrouper.groupedMatches(
+                    playerCount: detail.session.playerCount,
+                    rounds: detail.rounds
+                  ) {
+            HalfSessionMatchResults(
+                matches: matches,
+                detail: detail,
+                editMatch: matchEditAction(for: detail)
+            )
+            .transition(playerFilterTransition)
+        } else {
+            RoundTimeline(
+                detail: detail,
+                expandedRounds: expandedRounds,
+                toggleRound: toggleRound,
+                editMatch: matchEditAction(for: detail)
+            )
+            .transition(playerFilterTransition)
+        }
+    }
+
+    private func matchEditAction(
+        for detail: SessionDetail
+    ) -> ((SessionMatch) -> Void)? {
+        guard dataStore.isAdmin, detail.session.status == .completed else {
+            return nil
+        }
+        return { match in
+            beginEditingMatch(match)
+        }
+    }
+
+    private func selectedSinglesPerformance(
+        for playerID: UUID,
+        category: SessionPerformanceCategory,
+        detail: SessionDetail
+    ) -> SessionPlayerPerformance? {
+        guard category == .singles else { return nil }
+        return detail.singlesPerformance.first { $0.playerID == playerID }
+    }
+
+    private func selectedDoublesPerformance(
+        for playerID: UUID,
+        category: SessionPerformanceCategory,
+        detail: SessionDetail
+    ) -> SessionPlayerPerformance? {
+        guard category == .doublesPlayers else { return nil }
+        return detail.doublesPlayerPerformance.first { $0.playerID == playerID }
     }
 
     private func updatePerformanceCategory(
@@ -308,7 +372,7 @@ struct SessionDetailView: View {
         do {
             if hasCompletedMatches(in: detail) {
                 try await dataStore.forceCloseSession(sessionID: detail.session.id)
-                await load()
+                await load(forceRefresh: true)
             } else {
                 try await dataStore.cancelSession(sessionID: detail.session.id)
                 dismiss()
@@ -328,18 +392,30 @@ struct SessionDetailView: View {
         }
     }
 
-    private func load() async {
+    private func load(forceRefresh: Bool = false) async {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
         defer { isLoading = false }
 
         do {
+            let previousCurrentRound = detail?.session.currentRound
+            let previousSelection = selectedRoundNumber
             let currentSummary = dataStore.sessions.first {
                 $0.id == session.id
             } ?? session
-            let loadedDetail = try await dataStore.sessionDetail(for: currentSummary)
+            let loadedDetail = try await dataStore.sessionDetail(
+                for: currentSummary,
+                forceRefresh: forceRefresh
+            )
             detail = loadedDetail
+            selectedRoundNumber = SessionRoundSelectionResolver.resolve(
+                previousSelection: previousSelection,
+                previousCurrentRound: previousCurrentRound,
+                loadedCurrentRound: loadedDetail.session.currentRound,
+                availableRounds: loadedDetail.rounds.map(\.number)
+            )
+            dataStore.syncWatchActiveSession(detail: loadedDetail)
             await SessionLiveActivityManager.shared.sync(detail: loadedDetail)
 
             if loadedDetail.session.status == .completed {
@@ -347,6 +423,224 @@ struct SessionDetailView: View {
             }
         } catch {
             errorMessage = error.localizedDescription
+        }
+    }
+
+}
+
+private struct ActiveSessionRoundPager: View {
+    @State private var roundDrafts: [Int: RoundScoreDraft] = [:]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    let detail: SessionDetail
+    let currentRoundNumber: Int
+    @Binding var selectedRoundNumber: Int
+    let submit: (
+        SessionRound,
+        [RoundMatchScoreSubmission]
+    ) async throws -> RoundSubmissionResult
+    let reload: () async -> Void
+
+    private var rounds: [SessionRound] {
+        detail.rounds.sorted { $0.number < $1.number }
+    }
+
+    private var roundNumbers: [Int] {
+        rounds.map(\.number)
+    }
+
+    var body: some View {
+        TabView(selection: $selectedRoundNumber) {
+            ForEach(rounds) { round in
+                ActiveSessionRoundPage(
+                    round: round,
+                    detail: detail,
+                    draft: draftBinding(for: round),
+                    currentRoundNumber: currentRoundNumber,
+                    isSelected: round.number == selectedRoundNumber,
+                    roundNumbers: roundNumbers,
+                    selectRound: selectRound,
+                    submit: { scores in
+                        try await submit(round, scores)
+                    },
+                    reload: reload
+                )
+                .tag(round.number)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .ignoresSafeArea(.container, edges: .bottom)
+    }
+
+    private func draftBinding(
+        for round: SessionRound
+    ) -> Binding<RoundScoreDraft> {
+        Binding(
+            get: {
+                roundDrafts[round.number]
+                    ?? RoundScoreDraft(matches: round.matches)
+            },
+            set: { roundDrafts[round.number] = $0 }
+        )
+    }
+
+    private func selectRound(_ roundNumber: Int) {
+        guard roundNumber != selectedRoundNumber else { return }
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.2, extraBounce: 0)) {
+            selectedRoundNumber = roundNumber
+        }
+    }
+}
+
+private struct ActiveSessionRoundPage: View {
+    let round: SessionRound
+    let detail: SessionDetail
+    @Binding var draft: RoundScoreDraft
+    let currentRoundNumber: Int
+    let isSelected: Bool
+    let roundNumbers: [Int]
+    let selectRound: (Int) -> Void
+    let submit: (
+        [RoundMatchScoreSubmission]
+    ) async throws -> RoundSubmissionResult
+    let reload: () async -> Void
+
+    var body: some View {
+        ScrollViewReader { scrollProxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 18) {
+                    if round.number == currentRoundNumber {
+                        ScoreEntryView(
+                            round: round,
+                            detail: detail,
+                            draft: $draft,
+                            isSelected: isSelected,
+                            roundNumbers: roundNumbers,
+                            onRoundSelected: selectRound,
+                            submit: submit,
+                            onSubmitted: reload,
+                            onFocusedMatchChanged: { matchID in
+                                withAnimation(.smooth(duration: 0.24)) {
+                                    scrollProxy.scrollTo(
+                                        matchID,
+                                        anchor: .center
+                                    )
+                                }
+                            }
+                        )
+                        .id(round.id)
+                    } else {
+                        BrowsableSessionRound(
+                            round: round,
+                            detail: detail,
+                            currentRoundNumber: currentRoundNumber,
+                            roundNumbers: roundNumbers,
+                            selectRound: selectRound
+                        )
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 110)
+            }
+            .refreshable {
+                await reload()
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+
+private struct BrowsableSessionRound: View {
+    let round: SessionRound
+    let detail: SessionDetail
+    let currentRoundNumber: Int
+    let roundNumbers: [Int]
+    let selectRound: (Int) -> Void
+
+    private var isPast: Bool {
+        round.number < currentRoundNumber
+    }
+
+    private var matchSummary: String {
+        let singles = round.matches.filter { $0.type == .singles }.count
+        let doubles = round.matches.count - singles
+        return [
+            doubles > 0 ? "\(doubles) \(doubles == 1 ? "dubl" : "dubla")" : nil,
+            singles > 0 ? "\(singles) \(singles == 1 ? "singl" : "singla")" : nil
+        ]
+        .compactMap { $0 }
+        .joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Runda \(round.number)")
+                        .font(
+                            GweiloTheme.displayFont(
+                                size: 31,
+                                relativeTo: .title2
+                            )
+                        )
+                        .foregroundStyle(GweiloTheme.bone)
+
+                    Spacer()
+
+                    Label(
+                        isPast ? "ZAVRŠENA" : "PREDSTOJI",
+                        systemImage: isPast
+                            ? "checkmark.circle.fill"
+                            : "clock.fill"
+                    )
+                    .font(.caption2.weight(.bold))
+                    .tracking(0.7)
+                    .foregroundStyle(
+                        isPast ? GweiloTheme.muted : GweiloTheme.lime
+                    )
+                }
+
+                RoundProgress(
+                    selectedRound: round.number,
+                    roundNumbers: roundNumbers,
+                    selectRound: selectRound
+                )
+
+                HStack {
+                    Text(matchSummary)
+                    Spacer()
+                    Text("\(round.number) od \(detail.session.totalRounds)")
+                        .monospacedDigit()
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            }
+
+            if !isPast {
+                Label(
+                    "Pregled rasporeda — rezultati se unose kada runda postane aktivna.",
+                    systemImage: "eye.fill"
+                )
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    GweiloTheme.lime.opacity(0.07),
+                    in: .rect(cornerRadius: 10)
+                )
+            }
+
+            ForEach(round.matches) { match in
+                ScoreboardMatch(
+                    match: match,
+                    detail: detail,
+                    emphasis: false
+                )
+            }
+
+            RestingLine(players: round.restingPlayers)
         }
     }
 }
@@ -1111,16 +1405,19 @@ private struct RoundTimeline: View {
     let detail: SessionDetail
     let expandedRounds: Set<Int>
     let toggleRound: (Int) -> Void
+    let editMatch: ((SessionMatch) -> Void)?
     let rounds: [SessionRound]
 
     init(
         detail: SessionDetail,
         expandedRounds: Set<Int>,
-        toggleRound: @escaping (Int) -> Void
+        toggleRound: @escaping (Int) -> Void,
+        editMatch: ((SessionMatch) -> Void)? = nil
     ) {
         self.detail = detail
         self.expandedRounds = expandedRounds
         self.toggleRound = toggleRound
+        self.editMatch = editMatch
 
         if detail.session.status == .active,
            let currentRound = detail.session.currentRound {
@@ -1151,7 +1448,8 @@ private struct RoundTimeline: View {
                             round: round,
                             detail: detail,
                             isExpanded: expandedRounds.contains(round.number),
-                            action: { toggleRound(round.number) }
+                            action: { toggleRound(round.number) },
+                            editMatch: editMatch
                         )
 
                         if round.id != rounds.last?.id {
@@ -1167,6 +1465,7 @@ private struct RoundTimeline: View {
 private struct HalfSessionMatchResults: View {
     let matches: [SessionMatch]
     let detail: SessionDetail
+    let editMatch: ((SessionMatch) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -1177,10 +1476,11 @@ private struct HalfSessionMatchResults: View {
 
             LazyVStack(spacing: 10) {
                 ForEach(matches) { match in
-                    ScoreboardMatch(
+                    EditableScoreboardMatch(
                         match: match,
                         detail: detail,
-                        emphasis: false
+                        emphasis: false,
+                        editMatch: editMatch
                     )
                 }
             }
@@ -1196,6 +1496,7 @@ private struct PlayerSessionMatchResults: View {
     let singlesPerformance: SessionPlayerPerformance?
     let doublesPerformance: SessionPlayerPerformance?
     let detail: SessionDetail
+    let editMatch: ((SessionMatch) -> Void)?
     let clearSelection: () -> Void
     private let profileResultsByMatchID: [UUID: PlayerEloHistoryPoint]
 
@@ -1205,6 +1506,7 @@ private struct PlayerSessionMatchResults: View {
         singlesPerformance: SessionPlayerPerformance?,
         doublesPerformance: SessionPlayerPerformance?,
         detail: SessionDetail,
+        editMatch: ((SessionMatch) -> Void)? = nil,
         clearSelection: @escaping () -> Void
     ) {
         self.participant = participant
@@ -1212,6 +1514,7 @@ private struct PlayerSessionMatchResults: View {
         self.singlesPerformance = singlesPerformance
         self.doublesPerformance = doublesPerformance
         self.detail = detail
+        self.editMatch = editMatch
         self.clearSelection = clearSelection
         profileResultsByMatchID = detail.playerProfileResults(
             for: matches,
@@ -1241,9 +1544,13 @@ private struct PlayerSessionMatchResults: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(matches) { match in
-                        PlayerProfileMatchResultRow(
-                            result: profileResult(for: match)
-                        )
+                        HStack(spacing: 10) {
+                            PlayerProfileMatchResultRow(
+                                result: profileResult(for: match)
+                            )
+
+                            MatchEditButton(match: match, editMatch: editMatch)
+                        }
 
                         if match.id != matches.last?.id {
                             Divider()
@@ -1342,6 +1649,7 @@ private struct RoundTimelineRow: View {
     let detail: SessionDetail
     let isExpanded: Bool
     let action: () -> Void
+    let editMatch: ((SessionMatch) -> Void)?
 
     private var isComplete: Bool {
         round.matches.allSatisfy(\.isCompleted)
@@ -1417,10 +1725,11 @@ private struct RoundTimelineRow: View {
             if isExpanded {
                 VStack(spacing: 12) {
                     ForEach(round.matches) { match in
-                        ScoreboardMatch(
+                        EditableScoreboardMatch(
                             match: match,
                             detail: detail,
-                            emphasis: false
+                            emphasis: false,
+                            editMatch: editMatch
                         )
                     }
                     RestingLine(players: round.restingPlayers)
@@ -1428,6 +1737,46 @@ private struct RoundTimelineRow: View {
                 .padding(.bottom, 16)
                 .transition(.opacity.combined(with: .scale(scale: 0.985, anchor: .top)))
             }
+        }
+    }
+}
+
+private struct EditableScoreboardMatch: View {
+    let match: SessionMatch
+    let detail: SessionDetail
+    let emphasis: Bool
+    let editMatch: ((SessionMatch) -> Void)?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            ScoreboardMatch(
+                match: match,
+                detail: detail,
+                emphasis: emphasis
+            )
+            .frame(maxWidth: .infinity)
+
+            MatchEditButton(match: match, editMatch: editMatch)
+        }
+    }
+}
+
+private struct MatchEditButton: View {
+    let match: SessionMatch
+    let editMatch: ((SessionMatch) -> Void)?
+
+    var body: some View {
+        if let editMatch {
+            Button {
+                editMatch(match)
+            } label: {
+                Image(systemName: "pencil")
+                    .frame(width: 20, height: 20)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .accessibilityLabel("Izmeni rezultat")
+            .accessibilityHint("Otvara unos ispravljenog rezultata meča")
         }
     }
 }
@@ -1554,6 +1903,216 @@ private struct ScoreboardMatch: View {
         if score > opponentScore { return .win }
         if score < opponentScore { return .loss }
         return .draw
+    }
+}
+
+private struct MatchResultEditSheet: View {
+    private enum Field: Hashable {
+        case teamOne
+        case teamTwo
+        case reason
+    }
+
+    @Environment(\.dismiss) private var dismiss
+
+    let context: SessionMatchEditContext
+    let dataStore: AppDataStore
+
+    @State private var teamOneScoreText: String
+    @State private var teamTwoScoreText: String
+    @State private var reason = ""
+    @State private var isSaving = false
+    @State private var errorMessage: String?
+    @FocusState private var focusedField: Field?
+
+    init(context: SessionMatchEditContext, dataStore: AppDataStore) {
+        self.context = context
+        self.dataStore = dataStore
+        _teamOneScoreText = State(
+            initialValue: context.match.teamOneScore.map(String.init) ?? ""
+        )
+        _teamTwoScoreText = State(
+            initialValue: context.match.teamTwoScore.map(String.init) ?? ""
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Meč") {
+                    LabeledContent("Runda", value: "\(context.match.roundNumber)")
+                    LabeledContent("Par") {
+                        Text("\(context.teamOneName) – \(context.teamTwoName)")
+                            .multilineTextAlignment(.trailing)
+                    }
+                }
+
+                if let firstHalf = context.pairedFirstHalfScore {
+                    Section("Dva dela") {
+                        LabeledContent("Prvi deo · runda \(firstHalf.roundNumber)") {
+                            Text("\(firstHalf.teamOneScore) : \(firstHalf.teamTwoScore)")
+                                .monospacedDigit()
+                        }
+
+                        if let scores {
+                            let total = context.combinedScore(
+                                teamOneScore: scores.teamOne,
+                                teamTwoScore: scores.teamTwo
+                            )
+                            LabeledContent("Novi ukupan rezultat") {
+                                Text("\(total.teamOne) : \(total.teamTwo)")
+                                    .font(.headline.monospacedDigit())
+                                    .foregroundStyle(GweiloTheme.lime)
+                            }
+                        }
+                    }
+                }
+
+                Section {
+                    scoreField(
+                        name: context.teamOneName,
+                        text: $teamOneScoreText,
+                        field: .teamOne
+                    )
+                    scoreField(
+                        name: context.teamTwoName,
+                        text: $teamTwoScoreText,
+                        field: .teamTwo
+                    )
+                } header: {
+                    Text(
+                        context.pairedFirstHalfScore == nil
+                            ? "Rezultat"
+                            : "Drugi deo"
+                    )
+                } footer: {
+                    Text(
+                        context.match.isRated
+                            ? "Posle čuvanja Elo i statistika termina biće ponovo izračunati."
+                            : "Ovaj meč ne utiče na Elo."
+                    )
+                }
+
+                Section("Razlog · opciono") {
+                    TextField("Na primer: pogrešno unet rezultat", text: $reason)
+                        .focused($focusedField, equals: .reason)
+                        .submitLabel(.done)
+                }
+
+                if let errorMessage {
+                    Section {
+                        Label(
+                            errorMessage,
+                            systemImage: "exclamationmark.triangle.fill"
+                        )
+                        .font(.footnote)
+                        .foregroundStyle(GweiloTheme.coral)
+                    }
+                }
+            }
+            .navigationTitle("Izmeni rezultat")
+            .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isSaving)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Odustani") {
+                        dismiss()
+                    }
+                    .disabled(isSaving)
+                }
+
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        Task { await save() }
+                    } label: {
+                        if isSaving {
+                            ProgressView()
+                        } else {
+                            Text("Sačuvaj")
+                        }
+                    }
+                    .disabled(!canSave)
+                    .accessibilityLabel(
+                        isSaving ? "Čuvanje rezultata" : "Sačuvaj rezultat"
+                    )
+                }
+
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Gotovo") {
+                        focusedField = nil
+                    }
+                }
+            }
+        }
+    }
+
+    private var scores: (teamOne: Int, teamTwo: Int)? {
+        guard
+            let teamOne = Int(teamOneScoreText),
+            let teamTwo = Int(teamTwoScoreText),
+            (0...999).contains(teamOne),
+            (0...999).contains(teamTwo)
+        else {
+            return nil
+        }
+        return (teamOne, teamTwo)
+    }
+
+    private var canSave: Bool {
+        guard let scores, !isSaving else { return false }
+        return scores.teamOne != context.match.teamOneScore
+            || scores.teamTwo != context.match.teamTwoScore
+    }
+
+    private func scoreField(
+        name: String,
+        text: Binding<String>,
+        field: Field
+    ) -> some View {
+        HStack(spacing: 12) {
+            Text(name)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+
+            Spacer()
+
+            TextField("0", text: text)
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.center)
+                .font(.title3.monospacedDigit().weight(.semibold))
+                .frame(minWidth: 56, maxWidth: 74)
+                .focused($focusedField, equals: field)
+                .accessibilityLabel("Rezultat za \(name)")
+        }
+    }
+
+    private func save() async {
+        guard let scores, !isSaving else {
+            errorMessage = "Unesi oba rezultata brojevima od 0 do 999."
+            return
+        }
+
+        focusedField = nil
+        isSaving = true
+        errorMessage = nil
+        defer { isSaving = false }
+
+        do {
+            let trimmedReason = reason.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            )
+            _ = try await dataStore.editMatchResult(
+                sessionID: context.sessionID,
+                matchID: context.match.id,
+                teamOneScore: scores.teamOne,
+                teamTwoScore: scores.teamTwo,
+                reason: trimmedReason.isEmpty ? nil : trimmedReason
+            )
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

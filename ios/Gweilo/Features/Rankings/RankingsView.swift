@@ -106,6 +106,7 @@ struct RankingsView: View {
 
 private struct RankingsHeader: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isActiveAppTab) private var isActiveAppTab
     @Environment(\.scenePhase) private var scenePhase
 
     let category: RankingCategory
@@ -134,7 +135,9 @@ private struct RankingsHeader: View {
                     .overlay(alignment: .topTrailing) {
                         LoopingBundleVideo(
                             resourceName: "RankingsHeader",
-                            isPlaying: scenePhase == .active && !reduceMotion
+                            isPlaying: scenePhase == .active
+                                && isActiveAppTab
+                                && !reduceMotion
                         )
                         .frame(width: 148, height: 148)
                         .blendMode(.screen)
@@ -1389,31 +1392,28 @@ private struct PlayerProfilePortrait: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            AsyncImage(
+            CachedRemoteImage(
                 url: DiceBearAvatar.resolvedURL(
                     customURL: player.avatarURL,
                     seed: player.name
                 ),
-                transaction: Transaction(animation: nil)
-            ) { phase in
-                switch phase {
-                case let .success(image):
-                    image
-                        .resizable()
-                        .interpolation(.high)
-                        .scaledToFill()
-                default:
-                    Text(player.initials)
-                        .font(
-                            GweiloTheme.displayFont(
-                                size: 34,
-                                relativeTo: .title2
-                            )
+                pointSize: 112
+            ) { image in
+                image
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFill()
+            } placeholder: {
+                Text(player.initials)
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 34,
+                            relativeTo: .title2
                         )
-                        .foregroundStyle(GweiloTheme.bone)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(GweiloTheme.raisedSurface)
-                }
+                    )
+                    .foregroundStyle(GweiloTheme.bone)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(GweiloTheme.raisedSurface)
             }
             .frame(width: 112, height: 112)
             .clipShape(.rect(cornerRadius: 22))
@@ -1569,7 +1569,10 @@ private struct EloHistoryChart: View {
     let history: PlayerEloHistory
     let accessibilityTitle: String
     let initialVisibleMatchSpan: Double?
+    private let orderedPoints: [PlayerEloHistoryPoint]
     private let segments: [EloCurveSegment]
+    private let viewport: EloChartViewport
+    private let domain: ClosedRange<Double>
 
     @State private var selectedMatch: Double?
     @State private var visibleMatchSpan: Double?
@@ -1584,26 +1587,45 @@ private struct EloHistoryChart: View {
         self.history = history
         self.accessibilityTitle = accessibilityTitle
         self.initialVisibleMatchSpan = initialVisibleMatchSpan
-        segments = EloCurveSampler.segments(points: history.points)
-    }
-
-    private var viewport: EloChartViewport {
-        EloChartViewport(points: history.points)
-    }
-
-    private var domain: ClosedRange<Double> {
-        let values = history.points.map(\.elo)
+        let points = history.points.sorted { $0.match < $1.match }
+        orderedPoints = points
+        viewport = EloChartViewport(points: points)
+        let chartPoints = EloCurveSampler.downsample(points: points)
+        let samplesPerSegment = EloCurveSampler.adaptiveSamplesPerSegment(
+            pointCount: chartPoints.count
+        )
+        segments = EloCurveSampler.segments(
+            points: chartPoints,
+            samplesPerSegment: samplesPerSegment
+        )
+        let values = points.map(\.elo)
         let minimum = values.min() ?? history.currentElo
         let maximum = values.max() ?? history.currentElo
-        return (minimum - 25)...(maximum + 25)
+        domain = (minimum - 25)...(maximum + 25)
     }
 
     private var selectedPoint: PlayerEloHistoryPoint? {
         guard let selectedMatch else { return nil }
-        return history.points.min {
-            abs(Double($0.match) - selectedMatch)
-                < abs(Double($1.match) - selectedMatch)
+        guard !orderedPoints.isEmpty else { return nil }
+
+        var lower = 0
+        var upper = orderedPoints.count
+        while lower < upper {
+            let middle = (lower + upper) / 2
+            if Double(orderedPoints[middle].match) < selectedMatch {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
         }
+        if lower == 0 { return orderedPoints[0] }
+        if lower == orderedPoints.count { return orderedPoints[lower - 1] }
+        let before = orderedPoints[lower - 1]
+        let after = orderedPoints[lower]
+        return abs(Double(before.match) - selectedMatch)
+            <= abs(Double(after.match) - selectedMatch)
+            ? before
+            : after
     }
 
     private var currentVisibleSpan: Double {
@@ -1630,7 +1652,7 @@ private struct EloHistoryChart: View {
     }
 
     var body: some View {
-        if history.points.count <= 1 {
+        if orderedPoints.count <= 1 {
             ContentUnavailableView(
                 "Još nema Elo istorije",
                 systemImage: "chart.xyaxis.line",
@@ -1657,7 +1679,7 @@ private struct EloHistoryChart: View {
                         }
                     }
 
-                    if let latestPoint = history.points.last,
+                    if let latestPoint = orderedPoints.last,
                        latestPoint.id != selectedPoint?.id {
                         PointMark(
                             x: .value("Meč", Double(latestPoint.match)),
@@ -1728,7 +1750,7 @@ private struct EloHistoryChart: View {
 
                 ChartViewportControls(
                     visibleMatchCount: visibleMatchCount,
-                    totalMatchCount: history.points.count,
+                    totalMatchCount: orderedPoints.count,
                     isZoomed: isZoomed,
                     reset: resetZoom
                 )
@@ -1743,7 +1765,7 @@ private struct EloHistoryChart: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
-            .task(id: history.points.last?.match) {
+            .task(id: orderedPoints.last?.match) {
                 configureInitialViewport()
             }
         }
@@ -1751,7 +1773,7 @@ private struct EloHistoryChart: View {
 
     private var visibleMatchCount: Int {
         min(
-            history.points.count,
+            orderedPoints.count,
             max(2, Int(currentVisibleSpan.rounded(.down)) + 1)
         )
     }

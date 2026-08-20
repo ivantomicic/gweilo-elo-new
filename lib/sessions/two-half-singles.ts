@@ -174,26 +174,40 @@ export function getEffectiveTwoHalfSinglesScore<
 	match: T,
 	allMatches: T[],
 	config: TwoHalfSinglesConfig | null,
+	scoreOverrides?: ReadonlyMap<string, TwoHalfScore>,
 ): TwoHalfScore | null {
+	const matchScore = scoreOverrides?.get(match.id) ?? {
+		team1Score: match.team1_score,
+		team2Score: match.team2_score,
+	};
+
 	if (
-		!Number.isInteger(match.team1_score) ||
-		!Number.isInteger(match.team2_score)
+		!Number.isInteger(matchScore.team1Score) ||
+		!Number.isInteger(matchScore.team2Score)
 	) {
 		return null;
 	}
 
 	if (!config || match.round_number <= config.halfRoundCount) {
 		return {
-			team1Score: match.team1_score!,
-			team2Score: match.team2_score!,
+			team1Score: matchScore.team1Score!,
+			team2Score: matchScore.team2Score!,
 		};
 	}
 
 	const firstHalfMatch = findPairedMatch(match, allMatches, config);
 	if (!firstHalfMatch) return null;
+	const firstHalfScore = scoreOverrides?.get(firstHalfMatch.id);
+	const firstHalfMatchWithOverride = firstHalfScore
+		? {
+				...firstHalfMatch,
+				team1_score: firstHalfScore.team1Score,
+				team2_score: firstHalfScore.team2Score,
+			}
+		: firstHalfMatch;
 
-	return combineTwoHalfSinglesScore(firstHalfMatch, match, {
-		team1Score: match.team1_score!,
-		team2Score: match.team2_score!,
+	return combineTwoHalfSinglesScore(firstHalfMatchWithOverride, match, {
+		team1Score: matchScore.team1Score!,
+		team2Score: matchScore.team2Score!,
 	});
 }
