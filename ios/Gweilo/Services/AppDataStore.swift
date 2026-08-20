@@ -627,7 +627,10 @@ final class AppDataStore {
         let hasFreshPrimaryData = lastSuccessfulLoadAt.map {
             Date.now.timeIntervalSince($0) < Self.primaryRefreshLifetime
         } ?? false
-        if !forceRefresh, hasLoaded, hasFreshPrimaryData {
+        if !forceRefresh,
+           hasLoaded,
+           hasFreshPrimaryData,
+           hasCheckedActiveSession {
             return
         }
 
@@ -673,9 +676,11 @@ final class AppDataStore {
         async let rankingsRequest = apiClient.fetchRankings()
         async let activeSessionRequest = apiClient.fetchActiveSessionID()
         var firstError: Error?
+        var didRefreshSessions = false
 
         do {
             sessions = try await sessionsRequest
+            didRefreshSessions = true
         } catch {
             firstError = error
         }
@@ -711,21 +716,15 @@ final class AppDataStore {
 
         do {
             let fetchedActiveSessionID = try await activeSessionRequest
-            let listedActiveSessionID = sessions.first {
-                $0.status == .active
-            }?.id
+            let listedActiveSessionID = didRefreshSessions
+                ? sessions.first { $0.status == .active }?.id
+                : nil
             if let confirmedSessionID = fetchedActiveSessionID
                 ?? listedActiveSessionID {
                 clubActiveSessionID = confirmedSessionID
                 if locallyStartedSessionID == confirmedSessionID {
                     locallyStartedSessionID = nil
                 }
-            } else if let locallyStartedSessionID,
-                      !sessions.contains(where: {
-                          $0.id == locallyStartedSessionID
-                              && $0.status == .completed
-                      }) {
-                clubActiveSessionID = locallyStartedSessionID
             } else {
                 locallyStartedSessionID = nil
                 clubActiveSessionID = nil

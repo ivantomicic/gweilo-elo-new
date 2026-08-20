@@ -41,6 +41,7 @@ type Session = {
 };
 
 const PAGE_SIZE = 5;
+const SESSIONS_REFRESH_INTERVAL_MS = 15_000;
 // Version 3 drops lists that may still contain sessions deleted on another client.
 const SESSIONS_CACHE_VERSION = 3;
 const SESSIONS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -321,6 +322,32 @@ function SessionsPageContent() {
 			fetchSessions(0, false, { showLoading: !cached });
 		}
 	}, [userId, fetchSessions]);
+
+	// A database restore or a change from another client can invalidate the
+	// hydrated list while this tab remains mounted. Refresh quietly whenever the
+	// tab becomes visible and periodically while it stays visible.
+	useEffect(() => {
+		if (!userId) return;
+
+		const refreshIfVisible = () => {
+			if (document.visibilityState === "visible") {
+				void fetchSessions(0, false, { showLoading: false });
+			}
+		};
+
+		window.addEventListener("focus", refreshIfVisible);
+		document.addEventListener("visibilitychange", refreshIfVisible);
+		const intervalID = window.setInterval(
+			refreshIfVisible,
+			SESSIONS_REFRESH_INTERVAL_MS,
+		);
+
+		return () => {
+			window.clearInterval(intervalID);
+			window.removeEventListener("focus", refreshIfVisible);
+			document.removeEventListener("visibilitychange", refreshIfVisible);
+		};
+	}, [fetchSessions, userId]);
 
 	useEffect(() => {
 		const latestSession = sessions[0];
