@@ -721,11 +721,18 @@ final class AppDataStore {
                 : nil
             if let confirmedSessionID = fetchedActiveSessionID
                 ?? listedActiveSessionID {
+                sessions.removeAll {
+                    $0.status == .active && $0.id != confirmedSessionID
+                }
                 clubActiveSessionID = confirmedSessionID
                 if locallyStartedSessionID == confirmedSessionID {
                     locallyStartedSessionID = nil
                 }
             } else {
+                // The authenticated active-session endpoint is authoritative.
+                // Remove an active row restored from the on-device snapshot
+                // even when the broader sessions refresh failed.
+                sessions.removeAll { $0.status == .active }
                 locallyStartedSessionID = nil
                 clubActiveSessionID = nil
             }

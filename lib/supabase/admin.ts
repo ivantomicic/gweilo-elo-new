@@ -31,6 +31,17 @@ export function createAdminClient() {
 	}
 
 	return createClient(supabaseUrl, supabaseServiceRoleKey, {
+		global: {
+			// Next.js can cache the internal GET requests made by supabase-js even
+			// when the enclosing route response is marked no-store. That becomes
+			// especially visible after a database restore, when a removed row can
+			// otherwise survive in the server data cache.
+			fetch: (input, init) =>
+				fetch(input, {
+					...init,
+					cache: "no-store",
+				}),
+		},
 		auth: {
 			autoRefreshToken: false,
 			persistSession: false,

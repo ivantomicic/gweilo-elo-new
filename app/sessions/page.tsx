@@ -70,7 +70,11 @@ function SessionsPageContent() {
 	const { session: authSession } = useAuth();
 	const router = useRouter();
 	const shouldReduceMotion = useReducedMotion();
-	const { activeSession } = useActiveSession();
+	const {
+		activeSession,
+		loading: loadingActiveSession,
+		error: activeSessionError,
+	} = useActiveSession();
 	const userId = authSession?.user.id;
 	const cachedSessions = readCachedSessions(userId);
 	const [sessions, setSessions] = useState<Session[]>(
@@ -80,8 +84,17 @@ function SessionsPageContent() {
 	const [loadingMore, setLoadingMore] = useState(false);
 	const [hasMore, setHasMore] = useState(() => cachedSessions?.hasMore ?? true);
 	const [error, setError] = useState<string | null>(null);
+	const reconciledSessions =
+		!loadingActiveSession && !activeSessionError
+			? sessions.filter(
+					(session) =>
+						session.status !== "active" ||
+						session.id === activeSession?.id,
+			  )
+			: sessions;
 	const visibleSessions =
-		activeSession && !sessions.some((session) => session.id === activeSession.id)
+		activeSession &&
+		!reconciledSessions.some((session) => session.id === activeSession.id)
 			? [
 					{
 						...activeSession,
@@ -89,9 +102,9 @@ function SessionsPageContent() {
 						doubles_match_count: 0,
 						best_worst_player: null,
 					},
-					...sessions,
+					...reconciledSessions,
 			  ]
-			: sessions;
+			: reconciledSessions;
 
 	// Fetch sessions with pagination
 	const fetchSessions = useCallback(

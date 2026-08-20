@@ -1,10 +1,6 @@
 "use client";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 type TrackEventOptions = {
 	page?: string;
@@ -12,25 +8,6 @@ type TrackEventOptions = {
 	userId?: string | null;
 	accessToken?: string | null;
 };
-
-function getTrackingClient(accessToken?: string | null): SupabaseClient {
-	if (!accessToken || !supabaseUrl || !supabaseAnonKey) {
-		return supabase;
-	}
-
-	return createClient(supabaseUrl, supabaseAnonKey, {
-		global: {
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-			},
-		},
-		auth: {
-			autoRefreshToken: false,
-			persistSession: false,
-			detectSessionInUrl: false,
-		},
-	});
-}
 
 /**
  * Track a client-side event to Supabase analytics_events table
@@ -50,7 +27,6 @@ export async function trackEvent(
 	options?: TrackEventOptions,
 ): Promise<void> {
 	try {
-		const trackingClient = getTrackingClient(options?.accessToken);
 		let userId = options?.userId ?? null;
 
 		if (userId === null && !options?.accessToken) {
@@ -68,7 +44,7 @@ export async function trackEvent(
 			: options?.page || null;
 
 		// Insert event (fire-and-forget, non-blocking)
-		await trackingClient.from("analytics_events").insert({
+		await supabase.from("analytics_events").insert({
 			user_id: userId,
 			event_name: eventName,
 			page: pageValue,
