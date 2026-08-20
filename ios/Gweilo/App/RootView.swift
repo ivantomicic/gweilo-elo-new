@@ -129,7 +129,10 @@ struct RootView: View {
             guard newPhase == .active else { return }
             Task {
                 let previousAccessToken = authStore.session?.accessToken
-                await authStore.refreshIfNeeded()
+                // Validate the server-side auth session on every foreground.
+                // This recovers immediately after a database restore rolls
+                // back refresh-token state.
+                await authStore.refreshIfNeeded(force: true)
                 await pushNotifications.refreshAuthorizationStatus()
                 guard
                     let session = authStore.session,
@@ -145,7 +148,7 @@ struct RootView: View {
             guard wasConnected == false, isConnected == true else { return }
             Task {
                 let previousAccessToken = authStore.session?.accessToken
-                await authStore.refreshIfNeeded()
+                await authStore.refreshIfNeeded(force: true)
                 guard
                     let session = authStore.session,
                     session.accessToken == previousAccessToken,

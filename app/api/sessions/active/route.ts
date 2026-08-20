@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 
 const NO_STORE_HEADERS = {
 	"Cache-Control": "no-store, no-cache, max-age=0, must-revalidate",
+	Vary: "Authorization",
 };
 
 /**
@@ -20,7 +21,7 @@ export async function GET(request: NextRequest) {
 		if (!auth) {
 			return NextResponse.json(
 				{ error: "Unauthorized. Authentication required." },
-				{ status: 401 },
+				{ status: 401, headers: NO_STORE_HEADERS },
 			);
 		}
 
@@ -40,7 +41,7 @@ export async function GET(request: NextRequest) {
 			console.error("Error fetching active session:", error);
 			return NextResponse.json(
 				{ error: "Failed to fetch active session" },
-				{ status: 500 },
+				{ status: 500, headers: NO_STORE_HEADERS },
 			);
 		}
 
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
 		console.error("Unexpected error in GET /api/sessions/active:", error);
 		return NextResponse.json(
 			{ error: "Internal server error" },
-			{ status: 500 },
+			{ status: 500, headers: NO_STORE_HEADERS },
 		);
 	}
 }

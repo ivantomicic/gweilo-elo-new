@@ -89,7 +89,9 @@ final class AuthStore {
         do {
             guard let storedSession = try vault.load() else { return }
             session = storedSession
-            await refreshIfNeeded()
+            // A database restore can invalidate a refresh token while the
+            // locally stored access token still appears unexpired.
+            await refreshIfNeeded(force: true)
         } catch {
             vault.delete()
             errorMessage = "Sačuvana prijava nije mogla da se vrati. Prijavi se ponovo."

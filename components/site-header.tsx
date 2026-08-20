@@ -48,15 +48,10 @@ export function SiteHeader({
 	const pathname = usePathname();
 	const { trigger } = useWebHaptics();
 	const { role } = useAuth();
-	const {
-		activeSession,
-		loading: loadingActiveSession,
-		error: activeSessionError,
-	} = useActiveSession();
+	const { activeSession, loading: loadingActiveSession } = useActiveSession();
 	const canStartSession =
 		(role === "admin" || role === "mod") &&
 		!loadingActiveSession &&
-		!activeSessionError &&
 		!activeSession;
 
 	const handleActionClick = () => {

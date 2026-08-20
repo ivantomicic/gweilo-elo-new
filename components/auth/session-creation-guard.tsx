@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { StateBlock } from "@/components/ui/state-block";
 import { useAuth } from "@/lib/auth/useAuth";
+import { supabase } from "@/lib/supabase/client";
+import { clearAllCaches } from "@/lib/utils/clear-cache";
 
 export function SessionCreationGuard({
 	children,
@@ -13,7 +15,6 @@ export function SessionCreationGuard({
 	const router = useRouter();
 	const { role, session } = useAuth();
 	const [isChecking, setIsChecking] = useState(true);
-	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (!session || role === null) return;
@@ -21,6 +22,7 @@ export function SessionCreationGuard({
 			router.replace("/");
 			return;
 		}
+		setIsChecking(true);
 
 		let cancelled = false;
 		const checkActiveSession = async () => {
@@ -31,8 +33,17 @@ export function SessionCreationGuard({
 					},
 					cache: "no-store",
 				});
+				if (response.status === 401) {
+					if (cancelled) return;
+					clearAllCaches();
+					await supabase.auth.signOut({ scope: "local" });
+					return;
+				}
 				if (!response.ok) {
-					throw new Error("Could not check the active session.");
+					// Session creation is guarded atomically on the server. A temporary
+					// preflight failure must not permanently hide the creation flow.
+					if (!cancelled) setIsChecking(false);
+					return;
 				}
 				const body = (await response.json()) as {
 					session?: { id: string } | null;
@@ -43,13 +54,8 @@ export function SessionCreationGuard({
 					return;
 				}
 				setIsChecking(false);
-			} catch (checkError) {
+			} catch {
 				if (cancelled) return;
-				setError(
-					checkError instanceof Error
-						? checkError.message
-						: "Could not check the active session.",
-				);
 				setIsChecking(false);
 			}
 		};
@@ -62,9 +68,6 @@ export function SessionCreationGuard({
 
 	if (isChecking) {
 		return <StateBlock variant="loading" size="lg" title="Checking session…" />;
-	}
-	if (error) {
-		return <StateBlock variant="error" size="lg" title={error} />;
 	}
 	return <>{children}</>;
 }

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth/useAuth";
+import { supabase } from "@/lib/supabase/client";
+import { clearAllCaches } from "@/lib/utils/clear-cache";
 
 export type ActiveSession = {
 	id: string;
@@ -42,6 +44,15 @@ export function useActiveSession() {
 					signal: options?.signal,
 				});
 
+				if (response.status === 401) {
+					if (requestID !== latestRequestID.current) return;
+					setActiveSession(null);
+					setError(null);
+					clearAllCaches();
+					await supabase.auth.signOut({ scope: "local" });
+					return;
+				}
+
 				if (!response.ok) {
 					throw new Error("Could not check the active session.");
 				}
@@ -59,6 +70,7 @@ export function useActiveSession() {
 				) {
 					return;
 				}
+				setActiveSession(null);
 				setError(
 					refreshError instanceof Error
 						? refreshError.message
