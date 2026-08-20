@@ -1544,12 +1544,23 @@ private struct PlayerSessionMatchResults: View {
             } else {
                 VStack(spacing: 0) {
                     ForEach(matches) { match in
-                        HStack(spacing: 10) {
+                        if let editMatch {
+                            Button {
+                                editMatch(match)
+                            } label: {
+                                PlayerProfileMatchResultRow(
+                                    result: profileResult(for: match)
+                                )
+                                .contentShape(.rect)
+                            }
+                            .buttonStyle(ResponsiveButtonStyle())
+                            .accessibilityHint(
+                                "Otvara unos ispravljenog rezultata meča"
+                            )
+                        } else {
                             PlayerProfileMatchResultRow(
                                 result: profileResult(for: match)
                             )
-
-                            MatchEditButton(match: match, editMatch: editMatch)
                         }
 
                         if match.id != matches.last?.id {
@@ -1748,36 +1759,29 @@ private struct EditableScoreboardMatch: View {
     let editMatch: ((SessionMatch) -> Void)?
 
     var body: some View {
-        HStack(spacing: 10) {
-            ScoreboardMatch(
-                match: match,
-                detail: detail,
-                emphasis: emphasis
-            )
-            .frame(maxWidth: .infinity)
-
-            MatchEditButton(match: match, editMatch: editMatch)
-        }
-    }
-}
-
-private struct MatchEditButton: View {
-    let match: SessionMatch
-    let editMatch: ((SessionMatch) -> Void)?
-
-    var body: some View {
         if let editMatch {
             Button {
                 editMatch(match)
             } label: {
-                Image(systemName: "pencil")
-                    .frame(width: 20, height: 20)
+                scoreboard
+                    .contentShape(.rect)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
-            .accessibilityLabel("Izmeni rezultat")
-            .accessibilityHint("Otvara unos ispravljenog rezultata meča")
+            .buttonStyle(ResponsiveButtonStyle())
+            .accessibilityHint(
+                "Otvara unos ispravljenog rezultata meča"
+            )
+        } else {
+            scoreboard
         }
+    }
+
+    private var scoreboard: some View {
+        ScoreboardMatch(
+            match: match,
+            detail: detail,
+            emphasis: emphasis
+        )
+        .frame(maxWidth: .infinity)
     }
 }
 
