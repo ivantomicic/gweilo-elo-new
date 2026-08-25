@@ -316,7 +316,9 @@ function finalizeRecentForm(
 }
 
 const getCachedRecentFormMaps = unstable_cache(
-	async (): Promise<RecentFormMaps> => {
+	async (
+		_latestCompletedSessionId: string | null,
+	): Promise<RecentFormMaps> => {
 		const adminClient = createAdminClient();
 		const [sessionsResult, matchesResult, historyResult, snapshotsResult] =
 			await Promise.all([
@@ -629,7 +631,7 @@ const getCachedRecentFormMaps = unstable_cache(
 			),
 		};
 	},
-	["statistics-recent-session-form-v4"],
+	["statistics-recent-session-form-v5"],
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] },
 );
 
@@ -831,13 +833,13 @@ async function getActiveDoublesPlayerIdsFresh(): Promise<string[]> {
 
 async function getFreshSinglesStats(
 	rankedPlayerIds: ReadonlySet<string>,
+	latestSessionId: string | null,
 ): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
 			ratingsResult,
 			profiles,
-			[latestSessionId],
 			activeSinglesPlayerIds,
 			recentForms,
 		] =
@@ -849,9 +851,8 @@ async function getFreshSinglesStats(
 					)
 					.order("elo", { ascending: false }),
 				getCachedProfiles(),
-				getLatestCompletedSessionsFresh(),
 				getActiveSinglesPlayerIdsFresh(),
-				getCachedRecentFormMaps(),
+				getCachedRecentFormMaps(latestSessionId),
 			]);
 
 		if (ratingsResult.error) {
@@ -952,13 +953,13 @@ async function getFreshSinglesStats(
 
 async function getFreshDoublesPlayerStats(
 	rankedPlayerIds: ReadonlySet<string>,
+	latestSessionId: string | null,
 ): Promise<PlayerStats[]> {
 		const adminClient = createAdminClient();
 
 		const [
 			ratingsResult,
 			profiles,
-			[latestSessionId],
 			activeDoublesPlayerIds,
 			recentForms,
 		] =
@@ -970,9 +971,8 @@ async function getFreshDoublesPlayerStats(
 					)
 					.order("elo", { ascending: false }),
 				getCachedProfiles(),
-				getLatestCompletedSessionsFresh(),
 				getActiveDoublesPlayerIdsFresh(),
-				getCachedRecentFormMaps(),
+				getCachedRecentFormMaps(latestSessionId),
 			]);
 
 		if (ratingsResult.error) {
@@ -1076,6 +1076,7 @@ async function getFreshDoublesPlayerStats(
 
 async function getFreshDoublesTeamStats(
 	rankedPlayerIds: ReadonlySet<string>,
+	latestSessionId: string | null,
 ): Promise<TeamStats[]> {
 		const adminClient = createAdminClient();
 
@@ -1083,7 +1084,6 @@ async function getFreshDoublesTeamStats(
 			ratingsResult,
 			teams,
 			profiles,
-			[latestSessionId],
 			activeDoublesTeamIds,
 			recentForms,
 		] = await Promise.all([
@@ -1095,9 +1095,8 @@ async function getFreshDoublesTeamStats(
 				.order("elo", { ascending: false }),
 			getCachedDoubleTeams(),
 			getCachedProfiles(),
-			getLatestCompletedSessionsFresh(),
 			getActiveDoublesTeamIdsFresh(),
-			getCachedRecentFormMaps(),
+			getCachedRecentFormMaps(latestSessionId),
 		]);
 
 		if (ratingsResult.error) {
@@ -1278,28 +1277,41 @@ export async function GET(request: NextRequest) {
 		} = {
 			eligibility: STATISTICS_ELIGIBILITY,
 		};
+		const [rankedUsers, [latestSessionId]] = await Promise.all([
+			listAllAuthUsers(createAdminClient()),
+			getLatestCompletedSessionsFresh(),
+		]);
 		const rankedPlayerIds = new Set(
-			(await listAllAuthUsers(createAdminClient()))
+			rankedUsers
 				.filter(isRankedPlayerAccount)
 				.map((rankedUser) => rankedUser.id),
 		);
 
 		if (viewParam === "all") {
 			const [singles, doublesPlayers, doublesTeams] = await Promise.all([
-				getFreshSinglesStats(rankedPlayerIds),
-				getFreshDoublesPlayerStats(rankedPlayerIds),
-				getFreshDoublesTeamStats(rankedPlayerIds),
+				getFreshSinglesStats(rankedPlayerIds, latestSessionId),
+				getFreshDoublesPlayerStats(rankedPlayerIds, latestSessionId),
+				getFreshDoublesTeamStats(rankedPlayerIds, latestSessionId),
 			]);
 
 			responseBody.singles = singles;
 			responseBody.doublesPlayers = doublesPlayers;
 			responseBody.doublesTeams = doublesTeams;
 		} else if (viewParam === "singles") {
-			responseBody.singles = await getFreshSinglesStats(rankedPlayerIds);
+			responseBody.singles = await getFreshSinglesStats(
+				rankedPlayerIds,
+				latestSessionId,
+			);
 		} else if (viewParam === "doubles_player") {
-			responseBody.doublesPlayers = await getFreshDoublesPlayerStats(rankedPlayerIds);
+			responseBody.doublesPlayers = await getFreshDoublesPlayerStats(
+				rankedPlayerIds,
+				latestSessionId,
+			);
 		} else {
-			responseBody.doublesTeams = await getFreshDoublesTeamStats(rankedPlayerIds);
+			responseBody.doublesTeams = await getFreshDoublesTeamStats(
+				rankedPlayerIds,
+				latestSessionId,
+			);
 		}
 
 		return jsonNoStore(responseBody);

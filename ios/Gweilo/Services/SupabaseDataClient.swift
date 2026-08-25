@@ -687,6 +687,7 @@ private struct PlayerEloHistoryPointResponse: Decodable {
     let match: Int
     let elo: Double
     let date: String
+    let sessionId: UUID?
     let opponent: String?
     let opponentId: UUID?
     let delta: Double?
@@ -1357,6 +1358,7 @@ struct GweiloAPIClient: Sendable {
                 match: point.match,
                 elo: point.elo,
                 date: date,
+                sessionID: point.sessionId,
                 opponent: point.opponent,
                 opponentID: point.opponentId,
                 delta: point.delta,

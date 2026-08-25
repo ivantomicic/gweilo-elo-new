@@ -7,6 +7,7 @@ private enum RankingDestination: Hashable {
 }
 
 struct RankingsView: View {
+    @Environment(\.isActiveAppTab) private var isActiveAppTab
     let dataStore: AppDataStore
     @State private var category = RankingCategory.singles
     @State private var pageDirection = 1.0
@@ -36,7 +37,11 @@ struct RankingsView: View {
                                 isLoading: dataStore.isLoading,
                                 errorMessage: dataStore.errorMessage,
                                 retry: {
-                                    Task { await dataStore.load() }
+                                    Task {
+                                        await dataStore.load(
+                                            forceRefresh: true
+                                        )
+                                    }
                                 }
                             )
                             .id(category)
@@ -48,7 +53,7 @@ struct RankingsView: View {
                     .padding(.bottom, 40)
                 }
                 .refreshable {
-                    await dataStore.load()
+                    await dataStore.load(forceRefresh: true)
                 }
                 .scrollIndicators(.hidden)
             }
@@ -67,6 +72,10 @@ struct RankingsView: View {
                     )
                 }
             }
+        }
+        .task(id: isActiveAppTab) {
+            guard isActiveAppTab else { return }
+            await dataStore.load(forceRefresh: true)
         }
     }
 

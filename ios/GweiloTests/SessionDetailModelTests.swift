@@ -29,6 +29,171 @@ final class SessionDetailModelTests: XCTestCase {
         XCTAssertEqual(entry.resolvedRecentFormScores, [0.8, 0, -0.8])
     }
 
+    @MainActor
+    func testHomeEloTrendReconstructsImmediateHistoryFromRecentForm() {
+        let player = makeHomeTrendPlayer(
+            elo: 1_500,
+            recentForm: [8, -4, 11]
+        )
+
+        let trend = HomeEloTrend.make(player: player, history: nil)
+
+        XCTAssertEqual(trend.matchCount, 3)
+        XCTAssertNil(trend.sessionCount)
+        XCTAssertEqual(trend.delta, 15)
+        XCTAssertEqual(trend.points.map(\.elo), [1_485, 1_493, 1_489, 1_500])
+        XCTAssertEqual(trend.points.compactMap(\.delta), [8, -4, 11])
+    }
+
+    @MainActor
+    func testHomeEloTrendUsesEveryMatchFromLatestEightSessions() {
+        let player = makeHomeTrendPlayer(elo: 1_500, recentForm: [99])
+        let sessionIDs = (0..<10).map { _ in UUID() }
+        let startDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let historyPoints = (1...30).map { match in
+            let sessionIndex = (match - 1) / 3
+            return PlayerEloHistoryPoint(
+                match: match,
+                elo: Double(1_400 + (match * 5)),
+                date: startDate.addingTimeInterval(Double(sessionIndex)),
+                sessionID: sessionIDs[sessionIndex],
+                opponent: "Igrač \(match)",
+                delta: 5
+            )
+        }
+        let history = PlayerEloHistory(
+            points: historyPoints,
+            currentElo: 1_550
+        )
+
+        let trend = HomeEloTrend.make(player: player, history: history)
+
+        XCTAssertEqual(trend.sessionCount, 8)
+        XCTAssertEqual(trend.matchCount, 24)
+        XCTAssertEqual(trend.points.count, 25)
+        XCTAssertEqual(trend.points.first?.elo, 1_430)
+        XCTAssertEqual(trend.points.last?.elo, 1_550)
+        XCTAssertEqual(trend.delta, 120)
+        XCTAssertEqual(trend.rangeLabel, "POSLEDNJIH 8 TERMINA · 24 MEČA")
+    }
+
+    @MainActor
+    func testHomeEloTrendGroupsLegacyHistoryBySharedSessionDate() {
+        let player = makeHomeTrendPlayer(elo: 1_500, recentForm: [99])
+        let startDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let historyPoints = (1...20).map { match in
+            let sessionIndex = (match - 1) / 2
+            return PlayerEloHistoryPoint(
+                match: match,
+                elo: Double(1_400 + match),
+                date: startDate.addingTimeInterval(Double(sessionIndex)),
+                opponent: "Igrač \(match)",
+                delta: 1
+            )
+        }
+        let history = PlayerEloHistory(
+            points: historyPoints,
+            currentElo: 1_420
+        )
+
+        let trend = HomeEloTrend.make(player: player, history: history)
+
+        XCTAssertEqual(trend.sessionCount, 8)
+        XCTAssertEqual(trend.matchCount, 16)
+        XCTAssertEqual(trend.points.first?.elo, 1_404)
+        XCTAssertEqual(trend.points.last?.elo, 1_420)
+    }
+
+    @MainActor
+    func testHomeEloTrendHandlesPlayerWithoutHistory() {
+        let player = makeHomeTrendPlayer(elo: 1_500, recentForm: [])
+
+        let trend = HomeEloTrend.make(player: player, history: nil)
+
+        XCTAssertEqual(trend.matchCount, 0)
+        XCTAssertNil(trend.sessionCount)
+        XCTAssertEqual(
+            trend.points,
+            [HomeEloTrendPoint(elo: 1_500, delta: nil)]
+        )
+        XCTAssertNil(trend.delta)
+    }
+
+    @MainActor
+    func testLatestSessionPerformanceOverridesStaleCachedStatistics() {
+        let oldSessionID = UUID()
+        let latestSessionID = UUID()
+        let history = PlayerEloHistory(
+            points: [
+                PlayerEloHistoryPoint(
+                    match: 1,
+                    elo: 1_490,
+                    date: Date(timeIntervalSince1970: 1_000),
+                    sessionID: oldSessionID,
+                    opponent: "Leo",
+                    delta: -10
+                ),
+                PlayerEloHistoryPoint(
+                    match: 2,
+                    elo: 1_496,
+                    date: Date(timeIntervalSince1970: 2_000),
+                    sessionID: latestSessionID,
+                    opponent: "Andrej",
+                    delta: 6
+                ),
+                PlayerEloHistoryPoint(
+                    match: 3,
+                    elo: 1_509,
+                    date: Date(timeIntervalSince1970: 2_000),
+                    sessionID: latestSessionID,
+                    opponent: "Mile",
+                    delta: 13
+                )
+            ],
+            currentElo: 1_509
+        )
+
+        let performance = HomeLatestSessionPerformance.resolve(
+            cachedDelta: -10,
+            cachedFormScore: -0.7,
+            history: history
+        )
+
+        XCTAssertEqual(performance.delta, 19)
+        XCTAssertNil(performance.formScore)
+    }
+
+    @MainActor
+    func testLatestSessionPerformanceKeepsCacheWithoutHistory() {
+        let performance = HomeLatestSessionPerformance.resolve(
+            cachedDelta: -10,
+            cachedFormScore: -0.7,
+            history: nil
+        )
+
+        XCTAssertEqual(performance.delta, -10)
+        XCTAssertEqual(performance.formScore, -0.7)
+    }
+
+    @MainActor
+    private func makeHomeTrendPlayer(
+        elo: Int,
+        recentForm: [Double]
+    ) -> RankingEntry {
+        RankingEntry(
+            id: UUID(),
+            name: "Ivan",
+            avatarURL: nil,
+            elo: elo,
+            matches: recentForm.count,
+            wins: 0,
+            losses: 0,
+            draws: 0,
+            rankDays: nil,
+            recentForm: recentForm
+        )
+    }
+
     private let ivanID = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
     private let garaID = UUID(uuidString: "00000000-0000-0000-0000-000000000002")!
     private let leoID = UUID(uuidString: "00000000-0000-0000-0000-000000000003")!

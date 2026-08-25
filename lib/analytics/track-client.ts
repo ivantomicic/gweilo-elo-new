@@ -48,7 +48,6 @@ export async function trackEvent(
 			user_id: userId,
 			event_name: eventName,
 			page: pageValue,
-			created_at: new Date().toISOString(),
 		});
 	} catch (error) {
 		// Fail silently - tracking should never break the app

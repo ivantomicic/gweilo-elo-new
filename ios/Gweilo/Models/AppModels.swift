@@ -124,6 +124,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
     let match: Int
     let elo: Double
     let date: Date
+    let sessionID: UUID?
     let opponent: String?
     let opponentID: UUID?
     let delta: Double?
@@ -135,6 +136,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
         match: Int,
         elo: Double,
         date: Date,
+        sessionID: UUID? = nil,
         opponent: String?,
         opponentID: UUID? = nil,
         delta: Double?,
@@ -145,6 +147,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
         self.match = match
         self.elo = elo
         self.date = date
+        self.sessionID = sessionID
         self.opponent = opponent
         self.opponentID = opponentID
         self.delta = delta

@@ -19,6 +19,46 @@ struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
     var missionLoadedAt: Date? = nil
 }
 
+struct HomeLatestSessionPerformance: Equatable, Sendable {
+    let delta: Double?
+    let formScore: Double?
+
+    static func resolve(
+        cachedDelta: Double?,
+        cachedFormScore: Double?,
+        history: PlayerEloHistory?
+    ) -> HomeLatestSessionPerformance {
+        guard let historyDelta = history?.latestSessionDelta else {
+            return HomeLatestSessionPerformance(
+                delta: cachedDelta,
+                formScore: cachedFormScore
+            )
+        }
+
+        return HomeLatestSessionPerformance(
+            delta: historyDelta,
+            formScore: nil
+        )
+    }
+}
+
+private extension PlayerEloHistory {
+    var latestSessionDelta: Double? {
+        let matchPoints = points.filter { $0.match > 0 }
+        guard let latestPoint = matchPoints.last else { return nil }
+
+        let latestSessionPoints = matchPoints.reversed().prefix { point in
+            if let latestSessionID = latestPoint.sessionID {
+                return point.sessionID == latestSessionID
+            }
+            return point.sessionID == nil && point.date == latestPoint.date
+        }
+        let deltas = latestSessionPoints.compactMap(\.delta)
+        guard !deltas.isEmpty else { return nil }
+        return deltas.reduce(0, +)
+    }
+}
+
 struct HomeDashboardSnapshotStore {
     private let defaults: UserDefaults
     private let keyPrefix = "home-dashboard-snapshot-v1"
@@ -111,6 +151,7 @@ final class AppDataStore {
     private(set) var isMissionsLoading = false
     private(set) var hasLoadedMissions = false
     private(set) var missionsErrorMessage: String?
+    private(set) var currentUserEloHistory: PlayerEloHistory?
     private(set) var isLoading = false
     private(set) var hasLoaded = false
     private(set) var hasCompletedInitialHomeLoad = false
@@ -151,6 +192,8 @@ final class AppDataStore {
     private var availablePlayersRequest: Task<
         [SessionCreationPlayer], Error
     >?
+    @ObservationIgnored
+    private var currentUserHistoryRequest: Task<PlayerEloHistory, Error>?
     @ObservationIgnored
     private var loadWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored
@@ -246,6 +289,7 @@ final class AppDataStore {
             accessToken: session.accessToken
         )
         hasLoadedMissions = false
+        currentUserEloHistory = nil
         lastSuccessfulLoadAt = nil
         lastMissionLoadAt = nil
         sessionDetailRequests.values.forEach { $0.cancel() }
@@ -253,6 +297,8 @@ final class AppDataStore {
         sessionDetailCache.removeAll()
         availablePlayersRequest?.cancel()
         availablePlayersRequest = nil
+        currentUserHistoryRequest?.cancel()
+        currentUserHistoryRequest = nil
     }
 
     var activeSession: SessionSummary? {
@@ -411,10 +457,16 @@ final class AppDataStore {
     ) async throws -> PlayerEloHistory {
         if !forceRefresh,
            let cached = playerHistoryCache.freshValue(for: playerID) {
+            if playerID == currentUserID {
+                applyCurrentUserEloHistory(cached)
+            }
             return cached
         }
         let history = try await apiClient.fetchPlayerEloHistory(playerID: playerID)
         playerHistoryCache.insert(history, for: playerID)
+        if playerID == currentUserID {
+            applyCurrentUserEloHistory(history)
+        }
         return history
     }
 
@@ -541,9 +593,11 @@ final class AppDataStore {
 
     func loadHome(forceRefresh: Bool = false) async {
         async let missions: Void = loadMissions(forceRefresh: forceRefresh)
+        async let currentUserHistory: PlayerEloHistory? =
+            refreshCurrentUserEloHistory()
         await load(forceRefresh: forceRefresh)
         hasCompletedInitialHomeLoad = true
-        await missions
+        _ = await (missions, currentUserHistory)
     }
 
     private func prepareAvailableSessionPlayers(
@@ -756,8 +810,8 @@ final class AppDataStore {
 
         async let sessionPlayersRequest =
             availableSessionPlayers(forceRefresh: true)
-        async let widgetHistoryRequest =
-            apiClient.fetchPlayerEloHistory(playerID: currentUserID)
+        async let widgetHistoryRequest: PlayerEloHistory? =
+            refreshCurrentUserEloHistory()
 
         var widgetActiveSession = widgetSnapshotStore.load()?.activeSession
         if let activeSessionID = clubActiveSessionID,
@@ -778,19 +832,51 @@ final class AppDataStore {
             // Keep persisted players available while offline.
         }
 
-        let widgetHistory: PlayerEloHistory?
-        do {
-            let history = try await widgetHistoryRequest
-            playerHistoryCache.insert(history, for: currentUserID)
-            widgetHistory = history
-        } catch {
-            widgetHistory = playerHistoryCache.cachedValue(for: currentUserID)
-        }
+        let widgetHistory = await widgetHistoryRequest
 
         saveWidgetSnapshot(
             history: widgetHistory,
             activeSession: widgetActiveSession
         )
+    }
+
+    private func refreshCurrentUserEloHistory() async -> PlayerEloHistory? {
+        if let currentUserHistoryRequest {
+            return try? await currentUserHistoryRequest.value
+        }
+
+        let apiClient = apiClient
+        let currentUserID = currentUserID
+        let request = Task {
+            try await apiClient.fetchPlayerEloHistory(playerID: currentUserID)
+        }
+        currentUserHistoryRequest = request
+        defer { currentUserHistoryRequest = nil }
+
+        do {
+            let history = try await request.value
+            playerHistoryCache.insert(history, for: currentUserID)
+            applyCurrentUserEloHistory(history)
+            return history
+        } catch {
+            let cachedHistory = playerHistoryCache.cachedValue(for: currentUserID)
+            if currentUserEloHistory == nil, let cachedHistory {
+                applyCurrentUserEloHistory(cachedHistory)
+            }
+            return cachedHistory
+        }
+    }
+
+    private func applyCurrentUserEloHistory(_ history: PlayerEloHistory) {
+        let performance = HomeLatestSessionPerformance.resolve(
+            cachedDelta: homeLatestSessionDelta,
+            cachedFormScore: homeLatestSessionFormScore,
+            history: history
+        )
+        currentUserEloHistory = history
+        homeLatestSessionDelta = performance.delta
+        homeLatestSessionFormScore = performance.formScore
+        saveHomeSnapshotIfPossible()
     }
 
     private func invalidateProfileCaches() {

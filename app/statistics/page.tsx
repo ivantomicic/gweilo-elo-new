@@ -112,8 +112,9 @@ const EMPTY_LOADED: StatisticsLoaded = {
 	doublesTeams: false,
 };
 
-const STATISTICS_CACHE_VERSION = 6;
+const STATISTICS_CACHE_VERSION = 7;
 const STATISTICS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const STATISTICS_REFRESH_INTERVAL_MS = 15_000;
 const STATISTICS_VIEWS: StatisticsRankingView[] = [
 	"singles",
 	"doubles_player",
@@ -449,6 +450,39 @@ function StatisticsPageContent() {
 
 		return () => window.clearTimeout(timeoutId);
 	}, [accessToken, activeRankingView, fetchStatistics, loaded]);
+
+	// Statistics can change while this route is retained by client navigation or
+	// while another device completes a session. Reconcile the visible category
+	// quietly instead of leaving the hydrated local snapshot on screen.
+	useEffect(() => {
+		if (!accessToken) {
+			return;
+		}
+
+		const refreshIfVisible = () => {
+			if (document.visibilityState === "visible") {
+				void fetchStatistics(activeRankingView, {
+					force: true,
+					showLoading: false,
+				});
+			}
+		};
+
+		window.addEventListener("focus", refreshIfVisible);
+		window.addEventListener("pageshow", refreshIfVisible);
+		document.addEventListener("visibilitychange", refreshIfVisible);
+		const intervalId = window.setInterval(
+			refreshIfVisible,
+			STATISTICS_REFRESH_INTERVAL_MS,
+		);
+
+		return () => {
+			window.clearInterval(intervalId);
+			window.removeEventListener("focus", refreshIfVisible);
+			window.removeEventListener("pageshow", refreshIfVisible);
+			document.removeEventListener("visibilitychange", refreshIfVisible);
+		};
+	}, [accessToken, activeRankingView, fetchStatistics]);
 
 	const isInitialLoading =
 		loading[getViewKey(activeRankingView)] &&

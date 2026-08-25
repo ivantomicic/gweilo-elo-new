@@ -36,6 +36,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Icon } from "@/components/ui/icon";
 import { supabase } from "@/lib/supabase/client";
 import { AdminTabs } from "@/components/admin/admin-tabs";
+import {
+	formatBelgradeDate,
+	formatBelgradeDayMonth,
+	formatBelgradeTime,
+	getBelgradeDayBounds,
+	parseStoredUTCTimestamp,
+} from "@/lib/date-time/belgrade";
 
 type AnalyticsEvent = {
 	id: string;
@@ -126,14 +133,12 @@ const extractSessionIdFromPath = (pagePath: string | null): string | null => {
 };
 
 const formatSessionShortDate = (dateString: string): string => {
-	const date = new Date(dateString);
+	const date = parseStoredUTCTimestamp(dateString);
 	if (Number.isNaN(date.getTime())) {
 		return "Session";
 	}
 
-	const day = String(date.getDate()).padStart(2, "0");
-	const month = String(date.getMonth() + 1).padStart(2, "0");
-	return `Session ${day}.${month}.`;
+	return `Session ${formatBelgradeDayMonth(dateString)}`;
 };
 
 const getReadablePathLabel = (
@@ -436,12 +441,15 @@ function AdminActivityPageContent() {
 					query = query.eq("event_name", filters.eventName);
 				}
 				if (filters.dateFrom) {
-					query = query.gte("created_at", filters.dateFrom);
+					query = query.gte(
+						"created_at",
+						getBelgradeDayBounds(filters.dateFrom).start,
+					);
 				}
 				if (filters.dateTo) {
-					query = query.lte(
+					query = query.lt(
 						"created_at",
-						filters.dateTo + "T23:59:59",
+						getBelgradeDayBounds(filters.dateTo).endExclusive,
 					);
 				}
 
@@ -763,29 +771,14 @@ function AdminActivityPageContent() {
 				}.`;
 
 	// Format date: DD.MM.YYYY
-	const formatDate = (dateString: string): string => {
-		const date = new Date(dateString);
-		const day = String(date.getDate()).padStart(2, "0");
-		const month = String(date.getMonth() + 1).padStart(2, "0");
-		const year = date.getFullYear();
-		return `${day}.${month}.${year}`;
-	};
+	const formatDate = formatBelgradeDate;
 
 	// Format time: HH:MM:SS
-	const formatTime = (dateString: string): string => {
-		const date = new Date(dateString);
-		const hours = String(date.getHours()).padStart(2, "0");
-		const minutes = String(date.getMinutes()).padStart(2, "0");
-		const seconds = String(date.getSeconds()).padStart(2, "0");
-		return `${hours}:${minutes}:${seconds}`;
-	};
+	const formatTime = (dateString: string): string =>
+		formatBelgradeTime(dateString);
 
-	const formatShortTime = (dateString: string): string => {
-		const date = new Date(dateString);
-		const hours = String(date.getHours()).padStart(2, "0");
-		const minutes = String(date.getMinutes()).padStart(2, "0");
-		return `${hours}:${minutes}`;
-	};
+	const formatShortTime = (dateString: string): string =>
+		formatBelgradeTime(dateString, false);
 
 	const formatTimeRange = (startedAt: string, endedAt: string): string => {
 		const start = formatShortTime(startedAt);
@@ -820,7 +813,8 @@ function AdminActivityPageContent() {
 
 		const sortedEvents = [...events].sort(
 			(a, b) =>
-				new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+				parseStoredUTCTimestamp(a.created_at).getTime() -
+				parseStoredUTCTimestamp(b.created_at).getTime(),
 		);
 		const eventsByUser = new Map<string, AnalyticsEvent[]>();
 
@@ -840,8 +834,12 @@ function AdminActivityPageContent() {
 
 			const firstEvent = sessionEvents[0];
 			const lastEvent = sessionEvents[sessionEvents.length - 1];
-			const startMs = new Date(firstEvent.created_at).getTime();
-			const endMs = new Date(lastEvent.created_at).getTime();
+			const startMs = parseStoredUTCTimestamp(
+				firstEvent.created_at,
+			).getTime();
+			const endMs = parseStoredUTCTimestamp(
+				lastEvent.created_at,
+			).getTime();
 			const compactFlow = sessionEvents
 				.filter(
 					(event) => !SYSTEM_EVENT_NAMES.has(event.event_name),
@@ -881,9 +879,11 @@ function AdminActivityPageContent() {
 			for (const event of userEvents) {
 				const previousEvent = currentSession[currentSession.length - 1];
 				const previousMs = previousEvent
-					? new Date(previousEvent.created_at).getTime()
+					? parseStoredUTCTimestamp(previousEvent.created_at).getTime()
 					: null;
-				const currentMs = new Date(event.created_at).getTime();
+				const currentMs = parseStoredUTCTimestamp(
+					event.created_at,
+				).getTime();
 				const splitByAppReload =
 					currentSession.length > 0 &&
 					event.event_name === "app_loaded" &&
@@ -913,7 +913,8 @@ function AdminActivityPageContent() {
 
 		return sessions.sort(
 			(a, b) =>
-				new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime(),
+				parseStoredUTCTimestamp(b.startedAt).getTime() -
+				parseStoredUTCTimestamp(a.startedAt).getTime(),
 		);
 	}, [events, sessionLabelMap]);
 

@@ -38,7 +38,6 @@ export async function trackServerEvent(
 			user_id: userId,
 			event_name: eventName,
 			page: null, // Server-side events don't have pages
-			created_at: new Date().toISOString(),
 		});
 	} catch (error) {
 		// Fail silently - tracking should never break the request
