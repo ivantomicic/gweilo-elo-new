@@ -6,302 +6,191 @@ import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SessionCreationGuard } from "@/components/auth/session-creation-guard";
 import { AppShell } from "@/components/app-shell";
-import { Stack } from "@/components/ui/stack";
-import { Box } from "@/components/ui/box";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { SurfaceCard } from "@/components/ui/surface-card";
 import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
+type SessionFormat = "singles" | "mixed";
+
+const PLAYER_OPTIONS = [2, 3, 4, 5, 6] as const;
+const FORMAT_OPTIONS = ["singles", "mixed"] as const;
+
 function StartSessionPageContent() {
-	const router = useRouter();
-	const { trigger } = useWebHaptics();
-	const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
-	const [fourPlayerFormat, setFourPlayerFormat] = useState<
-		"singles" | "mixed" | null
-	>(null);
-	const [sixPlayerFormat, setSixPlayerFormat] = useState<
-		"singles" | "mixed" | null
-	>(null);
-	const playerOptions = [2, 3, 4, 5, 6];
+  const router = useRouter();
+  const { trigger } = useWebHaptics();
+  const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
+  const [fourPlayerFormat, setFourPlayerFormat] =
+    useState<SessionFormat>("mixed");
+  const [sixPlayerFormat, setSixPlayerFormat] =
+    useState<SessionFormat>("mixed");
 
-	return (
-		<AppShell title={t.startSession.title}>
-			{/* Step Indicator */}
-			<Box className="flex justify-end">
-				<Box className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
-					{t.startSession.stepIndicator}
-				</Box>
-			</Box>
+  const selectedFormat =
+    selectedPlayers === 4
+      ? fourPlayerFormat
+      : selectedPlayers === 6
+      ? sixPlayerFormat
+      : null;
+  const formatCopy =
+    selectedPlayers === 6
+      ? t.startSession.sixPlayerFormat
+      : t.startSession.fourPlayerFormat;
 
-			{/* Subtitle */}
-			<p className="text-muted-foreground">
-				{t.startSession.subtitle}
-			</p>
+  const selectPlayerCount = (count: number) => {
+    void trigger();
+    setSelectedPlayers(count);
+  };
 
-			{/* Number of Players Section */}
-			<Box>
-				<h3 className="text-lg font-bold text-foreground mb-4 px-1">
-					{t.startSession.numberOfPlayers}
-				</h3>
-				<Box className="grid grid-cols-2 gap-4">
-					{playerOptions.map((num) => {
-						const isSelected =
-							selectedPlayers === num;
-						return (
-							<SurfaceCard
-								key={num}
-								component="button"
-								variant="interactive"
-								clipped
-									onClick={() => {
-										void trigger();
-										setSelectedPlayers(num);
-										if (num !== 4) setFourPlayerFormat(null);
-										if (num !== 6) setSixPlayerFormat(null);
-									}}
-									className={cn(
-										"flex flex-col items-center justify-center gap-2",
-										isSelected
-											? "bg-primary border-2 border-primary shadow-[0_0_20px_rgba(59,130,246,0.3)]"
-											: undefined,
-									)}
-							>
-								{isSelected && (
-									<Box className="absolute top-0 right-0 p-2">
-										<Icon
-											icon="solar:check-circle-bold"
-											className="size-5 text-primary-foreground"
-										/>
-									</Box>
-								)}
-								<span
-									className={cn(
-										"text-4xl font-bold font-heading",
-										isSelected
-											? "text-primary-foreground"
-											: "text-foreground"
-									)}
-								>
-									{num}
-								</span>
-								<span
-									className={cn(
-										"text-xs font-bold uppercase tracking-widest",
-										isSelected
-											? "text-primary-foreground"
-											: "text-muted-foreground"
-									)}
-								>
-									{t.startSession.players}
-								</span>
-							</SurfaceCard>
-						);
-					})}
-				</Box>
-				{selectedPlayers === 4 && (
-					<Box className="mt-6">
-						<h3 className="text-lg font-bold text-foreground mb-4 px-1">
-							{t.startSession.fourPlayerFormat.title}
-						</h3>
-						<Box className="grid grid-cols-2 gap-4">
-							{(["singles", "mixed"] as const).map((format) => {
-								const option =
-									t.startSession.fourPlayerFormat[format];
-								const isSelected = fourPlayerFormat === format;
+  const selectFormat = (format: SessionFormat) => {
+    void trigger();
+    if (selectedPlayers === 6) {
+      setSixPlayerFormat(format);
+    } else {
+      setFourPlayerFormat(format);
+    }
+  };
 
-								return (
-									<SurfaceCard
-										key={format}
-										component="button"
-										variant="interactive"
-										clipped
-										onClick={() => {
-											void trigger();
-											setFourPlayerFormat(format);
-										}}
-										className={cn(
-											"items-start text-left gap-2",
-											isSelected
-												? "bg-primary border-2 border-primary"
-												: undefined,
-										)}
-									>
-										<Icon
-											icon={
-												format === "singles"
-													? "solar:user-bold"
-													: "solar:users-group-rounded-bold"
-											}
-											className={cn(
-												"size-6",
-												isSelected
-													? "text-primary-foreground"
-													: "text-primary",
-											)}
-										/>
-										<p
-											className={cn(
-												"font-bold",
-												isSelected
-													? "text-primary-foreground"
-													: "text-foreground",
-											)}
-										>
-											{option.title}
-										</p>
-										<p
-											className={cn(
-												"text-xs leading-relaxed",
-												isSelected
-													? "text-primary-foreground/80"
-													: "text-muted-foreground",
-											)}
-										>
-											{option.description}
-										</p>
-									</SurfaceCard>
-								);
-							})}
-						</Box>
-					</Box>
-				)}
-				{selectedPlayers === 6 && (
-					<Box className="mt-6">
-						<h3 className="text-lg font-bold text-foreground mb-4 px-1">
-							{t.startSession.sixPlayerFormat.title}
-						</h3>
-						<Box className="grid grid-cols-2 gap-4">
-							{(["singles", "mixed"] as const).map((format) => {
-								const option =
-									t.startSession.sixPlayerFormat[format];
-								const isSelected = sixPlayerFormat === format;
+  const continueToPlayers = () => {
+    if (selectedPlayers === null) return;
 
-								return (
-									<SurfaceCard
-										key={format}
-										component="button"
-										variant="interactive"
-										clipped
-										onClick={() => {
-											void trigger();
-											setSixPlayerFormat(format);
-										}}
-										className={cn(
-											"items-start text-left gap-2",
-											isSelected
-												? "bg-primary border-2 border-primary"
-												: undefined,
-										)}
-									>
-										<Icon
-											icon={
-												format === "singles"
-													? "solar:user-bold"
-													: "solar:users-group-rounded-bold"
-											}
-											className={cn(
-												"size-6",
-												isSelected
-													? "text-primary-foreground"
-													: "text-primary",
-											)}
-										/>
-										<p
-											className={cn(
-												"font-bold",
-												isSelected
-													? "text-primary-foreground"
-													: "text-foreground",
-											)}
-										>
-											{option.title}
-										</p>
-										<p
-											className={cn(
-												"text-xs leading-relaxed",
-												isSelected
-													? "text-primary-foreground/80"
-													: "text-muted-foreground",
-											)}
-										>
-											{option.description}
-										</p>
-									</SurfaceCard>
-								);
-							})}
-						</Box>
-					</Box>
-				)}
-				<Box className="mt-6 bg-secondary/30 rounded-2xl p-4 border border-border/30">
-					<Stack
-						direction="row"
-						alignItems="start"
-						spacing={3}
-					>
-						<Icon
-							icon="solar:info-circle-bold"
-							className="size-5 text-primary shrink-0 mt-0.5"
-						/>
-						<p className="text-sm text-muted-foreground leading-relaxed">
-							{t.startSession.info}
-						</p>
-					</Stack>
-				</Box>
-			</Box>
-			{/* Continue Button */}
-			<Box className="pt-4">
-				<Button
-					disabled={
-						selectedPlayers === null ||
-						(selectedPlayers === 4 && fourPlayerFormat === null) ||
-						(selectedPlayers === 6 && sixPlayerFormat === null)
-					}
-					onClick={() => {
-						if (
-							selectedPlayers !== null &&
-							(selectedPlayers !== 4 || fourPlayerFormat !== null) &&
-							(selectedPlayers !== 6 || sixPlayerFormat !== null)
-						) {
-							void trigger();
-							const formatParam =
-								selectedPlayers === 4
-									? `&format=${fourPlayerFormat}`
-									: selectedPlayers === 6
-										? `&format=${sixPlayerFormat}`
-									: "";
-							router.push(
-								`/start-session/players?count=${selectedPlayers}${formatParam}`
-							);
-						}
-					}}
-					className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
-				>
-					<Stack
-						direction="row"
-						alignItems="center"
-						justifyContent="center"
-						spacing={2}
-					>
-						<span>{t.startSession.continue}</span>
-						<Icon
-							icon="solar:arrow-right-linear"
-							className="size-5"
-						/>
-					</Stack>
-				</Button>
-			</Box>
-		</AppShell>
-	);
+    void trigger();
+    const formatParam = selectedFormat ? `&format=${selectedFormat}` : "";
+    router.push(
+      `/start-session/players?count=${selectedPlayers}${formatParam}`,
+    );
+  };
+
+  return (
+    <AppShell
+      title={t.startSession.title}
+      contentClassName="mx-auto w-full max-w-xl md:pt-10"
+    >
+      <div className="flex flex-col gap-8">
+        <header className="space-y-2">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9c61ff]">
+              {t.startSession.stepIndicator}
+            </p>
+            <p className="text-xs font-semibold tabular-nums text-muted-foreground">
+              {selectedPlayers === null
+                ? "Izaberi 2–6"
+                : `${selectedPlayers} igrača`}
+            </p>
+          </div>
+          <p className="max-w-sm text-sm leading-6 text-muted-foreground">
+            {t.startSession.subtitle}
+          </p>
+        </header>
+
+        <section aria-labelledby="player-count-title" className="space-y-3">
+          <h2
+            id="player-count-title"
+            className="text-xs font-black uppercase tracking-[0.16em] text-[#9c61ff]"
+          >
+            {t.startSession.numberOfPlayers}
+          </h2>
+
+          <div
+            role="radiogroup"
+            aria-label={t.startSession.numberOfPlayers}
+            className="grid grid-cols-5 gap-1 rounded-full border border-white/[0.13] bg-[#14121b] p-1 shadow-[0_12px_30px_rgba(0,0,0,0.24)]"
+          >
+            {PLAYER_OPTIONS.map((count) => {
+              const isSelected = selectedPlayers === count;
+
+              return (
+                <button
+                  key={count}
+                  type="button"
+                  role="radio"
+                  aria-checked={isSelected}
+                  aria-label={`${count} igrača`}
+                  onClick={() => selectPlayerCount(count)}
+                  className={cn(
+                    "touch-safe h-12 rounded-full font-heading text-lg font-bold tabular-nums outline-none transition-[transform,background-color,color,box-shadow] duration-150 ease-out active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-[#c2ff1f] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                    isSelected
+                      ? "bg-[#c2ff1f] text-[#050506] shadow-[0_5px_16px_rgba(194,255,31,0.18)]"
+                      : "text-foreground hover:bg-white/[0.06]",
+                  )}
+                >
+                  {count}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {selectedFormat && (
+          <section aria-labelledby="session-format-title" className="space-y-3">
+            <h2
+              id="session-format-title"
+              className="text-xs font-black uppercase tracking-[0.16em] text-[#9c61ff]"
+            >
+              {formatCopy.title}
+            </h2>
+
+            <div
+              role="radiogroup"
+              aria-label={formatCopy.title}
+              className="grid grid-cols-2 gap-1 rounded-full border border-white/[0.13] bg-[#14121b] p-1"
+            >
+              {FORMAT_OPTIONS.map((format) => {
+                const option = formatCopy[format];
+                const isSelected = selectedFormat === format;
+
+                return (
+                  <button
+                    key={format}
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    onClick={() => selectFormat(format)}
+                    className={cn(
+                      "touch-safe min-h-12 rounded-full px-3 text-sm font-bold outline-none transition-[transform,background-color,color,box-shadow] duration-150 ease-out active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-[#9c61ff] focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+                      isSelected
+                        ? "bg-[#2b2637] text-foreground shadow-sm"
+                        : "text-muted-foreground hover:bg-white/[0.04] hover:text-foreground",
+                    )}
+                  >
+                    {option.title}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="px-1 text-sm leading-6 text-muted-foreground">
+              {formatCopy[selectedFormat].description}
+            </p>
+          </section>
+        )}
+
+        <div className="flex items-start gap-3 px-1 text-sm leading-6 text-muted-foreground">
+          <Icon
+            icon="solar:info-circle-bold"
+            className="mt-0.5 size-5 shrink-0 text-[#9c61ff]"
+          />
+          <p>{t.startSession.info}</p>
+        </div>
+
+        <Button
+          disabled={selectedPlayers === null}
+          onClick={continueToPlayers}
+          className="touch-safe h-14 w-full rounded-full bg-[#c2ff1f] px-6 text-base font-bold text-[#050506] shadow-[0_10px_28px_rgba(194,255,31,0.16)] transition-[transform,background-color,opacity] duration-150 ease-out hover:bg-[#d0ff51] active:scale-[0.97] disabled:bg-[#14121b] disabled:text-muted-foreground disabled:shadow-none"
+        >
+          <span>{t.startSession.continue}</span>
+          <Icon icon="solar:arrow-right-linear" className="size-5" />
+        </Button>
+      </div>
+    </AppShell>
+  );
 }
 
 export default function StartSessionPage() {
-	return (
-		<AuthGuard>
-			<SessionCreationGuard>
-				<StartSessionPageContent />
-			</SessionCreationGuard>
-		</AuthGuard>
-	);
+  return (
+    <AuthGuard>
+      <SessionCreationGuard>
+        <StartSessionPageContent />
+      </SessionCreationGuard>
+    </AuthGuard>
+  );
 }
