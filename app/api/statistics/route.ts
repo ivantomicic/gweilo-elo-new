@@ -35,6 +35,7 @@ import {
 	getEffectiveTwoHalfSinglesScore,
 	type TwoHalfSinglesConfig,
 } from "@/lib/sessions/two-half-singles";
+import { fetchAllQueryPages } from "@/lib/supabase/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -320,37 +321,47 @@ const getCachedRecentFormMaps = unstable_cache(
 		_latestCompletedSessionId: string | null,
 	): Promise<RecentFormMaps> => {
 		const adminClient = createAdminClient();
-		const [sessionsResult, matchesResult, historyResult, snapshotsResult] =
-			await Promise.all([
-				adminClient
-					.from("sessions")
-					.select("id, created_at, completed_at, player_count")
-					.eq("status", "completed")
-					.order("created_at", { ascending: true }),
+		const sessions = await fetchAllQueryPages<FormSessionRecord>((from, to) =>
+			adminClient
+				.from("sessions")
+				.select("id, created_at, completed_at, player_count")
+				.eq("status", "completed")
+				.order("created_at", { ascending: true })
+				.order("id", { ascending: true })
+				.range(from, to),
+		);
+		const [allMatches, history, snapshots] = await Promise.all([
+			fetchAllQueryPages<FormMatchRecord>((from, to) =>
 				adminClient
 					.from("session_matches")
 					.select(
 						"id, session_id, match_type, round_number, match_order, player_ids, team_1_id, team_2_id, team1_score, team2_score",
 					)
-					.eq("status", "completed"),
+					.eq("status", "completed")
+					.order("id", { ascending: true })
+					.range(from, to),
+			),
+			fetchAllQueryPages<FormHistoryRecord>((from, to) =>
 				adminClient
 					.from("match_elo_history")
 					.select(
 						"match_id, player1_id, player2_id, player1_elo_before, player2_elo_before, player1_elo_delta, player2_elo_delta, team1_id, team2_id, team1_elo_before, team2_elo_before, team1_elo_delta, team2_elo_delta",
-					),
+					)
+					.order("match_id", { ascending: true })
+					.range(from, to),
+			),
+			fetchAllQueryPages<FormSnapshotRecord>((from, to) =>
 				adminClient
 					.from("elo_snapshots")
-					.select("match_id, player_id, elo, matches_played"),
-			]);
+					.select("match_id, player_id, elo, matches_played")
+					.order("match_id", { ascending: true })
+					.order("player_id", { ascending: true })
+					.range(from, to),
+			),
+		]);
 
-		if (sessionsResult.error) throw sessionsResult.error;
-		if (matchesResult.error) throw matchesResult.error;
-		if (historyResult.error) throw historyResult.error;
-		if (snapshotsResult.error) throw snapshotsResult.error;
-
-		const sessions = (sessionsResult.data || []) as FormSessionRecord[];
 		const completedSessionIds = new Set(sessions.map((session) => session.id));
-		const matches = ((matchesResult.data || []) as FormMatchRecord[]).filter(
+		const matches = allMatches.filter(
 			(match) => completedSessionIds.has(match.session_id),
 		);
 		const matchMap = new Map(matches.map((match) => [match.id, match]));
@@ -395,8 +406,8 @@ const getCachedRecentFormMaps = unstable_cache(
 			Map<string, FormPerformanceObservation[]>
 		>();
 
-		for (const history of (historyResult.data || []) as FormHistoryRecord[]) {
-			const match = matchMap.get(history.match_id);
+		for (const historyEntry of history) {
+			const match = matchMap.get(historyEntry.match_id);
 			if (!match) continue;
 			const actualScores =
 				match.match_type === "singles"
@@ -410,22 +421,22 @@ const getCachedRecentFormMaps = unstable_cache(
 			if (match.match_type === "singles") {
 				addSessionDelta(
 					singlesDeltas,
-					history.player1_id,
+					historyEntry.player1_id,
 					match.session_id,
-					history.player1_elo_delta,
+					historyEntry.player1_elo_delta,
 				);
 				addSessionDelta(
 					singlesDeltas,
-					history.player2_id,
+					historyEntry.player2_id,
 					match.session_id,
-					history.player2_elo_delta,
+					historyEntry.player2_elo_delta,
 				);
 				const player1Before = toNumber(
-					history.player1_elo_before,
+					historyEntry.player1_elo_before,
 					Number.NaN,
 				);
 				const player2Before = toNumber(
-					history.player2_elo_before,
+					historyEntry.player2_elo_before,
 					Number.NaN,
 				);
 				if (
@@ -439,7 +450,7 @@ const getCachedRecentFormMaps = unstable_cache(
 					);
 					addSessionObservation(
 						singlesObservations,
-						history.player1_id,
+						historyEntry.player1_id,
 						match.session_id,
 						{
 							actualScore: actualScores[0],
@@ -448,7 +459,7 @@ const getCachedRecentFormMaps = unstable_cache(
 					);
 					addSessionObservation(
 						singlesObservations,
-						history.player2_id,
+						historyEntry.player2_id,
 						match.session_id,
 						{
 							actualScore: actualScores[1],
@@ -459,22 +470,22 @@ const getCachedRecentFormMaps = unstable_cache(
 			} else {
 				addSessionDelta(
 					doublesTeamDeltas,
-					history.team1_id,
+					historyEntry.team1_id,
 					match.session_id,
-					history.team1_elo_delta,
+					historyEntry.team1_elo_delta,
 				);
 				addSessionDelta(
 					doublesTeamDeltas,
-					history.team2_id,
+					historyEntry.team2_id,
 					match.session_id,
-					history.team2_elo_delta,
+					historyEntry.team2_elo_delta,
 				);
 				const team1Before = toNumber(
-					history.team1_elo_before,
+					historyEntry.team1_elo_before,
 					Number.NaN,
 				);
 				const team2Before = toNumber(
-					history.team2_elo_before,
+					historyEntry.team2_elo_before,
 					Number.NaN,
 				);
 				if (
@@ -488,7 +499,7 @@ const getCachedRecentFormMaps = unstable_cache(
 					);
 					addSessionObservation(
 						doublesTeamObservations,
-						history.team1_id,
+						historyEntry.team1_id,
 						match.session_id,
 						{
 							actualScore: actualScores[0],
@@ -497,7 +508,7 @@ const getCachedRecentFormMaps = unstable_cache(
 					);
 					addSessionObservation(
 						doublesTeamObservations,
-						history.team2_id,
+						historyEntry.team2_id,
 						match.session_id,
 						{
 							actualScore: actualScores[1],
@@ -508,9 +519,7 @@ const getCachedRecentFormMaps = unstable_cache(
 			}
 		}
 
-		const orderedDoublesSnapshots = (
-			(snapshotsResult.data || []) as FormSnapshotRecord[]
-		)
+		const orderedDoublesSnapshots = snapshots
 			.filter((snapshot) => matchMap.get(snapshot.match_id)?.match_type === "doubles")
 			.sort((left, right) => {
 				const leftMatch = matchMap.get(left.match_id)!;
@@ -631,7 +640,7 @@ const getCachedRecentFormMaps = unstable_cache(
 			),
 		};
 	},
-	["statistics-recent-session-form-v5"],
+	["statistics-recent-session-form-v6"],
 	{ revalidate: STATISTICS_REVALIDATE_SECONDS, tags: ["statistics"] },
 );
 
