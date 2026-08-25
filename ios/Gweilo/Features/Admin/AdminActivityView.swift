@@ -205,9 +205,14 @@ struct AdminActivityView: View {
 }
 
 private struct ActivityVisitCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let visit: AdminActivityVisit
     let journeySteps: [ActivityJourneyStep]
-    let systemEvents: [AdminActivityEvent]
+
+    @State private var showsDetails = false
+
+    private static let collapsedStepCount = 4
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -221,97 +226,90 @@ private struct ActivityVisitCard: View {
         return formatter
     }()
 
+    private static let shortTimeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
     init(visit: AdminActivityVisit) {
         self.visit = visit
-        systemEvents = visit.events.filter(\.isSystemEvent)
-        journeySteps = ActivityJourneyStep.grouped(
-            events: visit.events.filter { !$0.isSystemEvent }
-        )
+        journeySteps = ActivityJourneyStep.grouped(events: visit.events)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                ActivityUserAvatar(visit: visit)
+        VStack(alignment: .leading, spacing: 16) {
+            header
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(visit.userName)
-                        .font(.headline)
-                        .lineLimit(1)
-
-                    Text(visit.user?.email ?? userSubtitle)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-
-            HStack(spacing: 6) {
-                Label(
-                    Self.dateFormatter.string(from: visit.startedAt),
-                    systemImage: "calendar"
+            if journeySteps.count == 1, let step = journeySteps.first {
+                ActivitySingleStep(
+                    step: step,
+                    timeFormatter: Self.timeFormatter
                 )
-
-                Text("·")
-
-                Label(timeRange, systemImage: "clock")
-                    .foregroundStyle(.primary)
-
-                Text("·")
-                Text(durationText)
-                Text("·")
-                Text("\(visit.events.count) događaja")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-
-            if !systemEvents.isEmpty {
-                Label(systemEventsSummary, systemImage: "gearshape")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .accessibilityLabel(
-                        "Sistemski događaji: \(systemEventsSummary)"
-                    )
+            } else if !journeySteps.isEmpty {
+                ActivityJourneyTimeline(
+                    steps: visibleJourneySteps,
+                    timeFormatter: Self.timeFormatter
+                )
             }
 
-            if !journeySteps.isEmpty {
-                ActivityFlowLayout(
-                    horizontalSpacing: 7,
-                    verticalSpacing: 7
-                ) {
-                    ForEach(journeySteps) { step in
-                        ActivityJourneyChip(
-                            step: step,
-                            timeFormatter: Self.timeFormatter
-                        )
-                    }
-                }
+            if canShowDetails {
+                detailsButton
             }
         }
         .padding(16)
         .background(
             GweiloTheme.surface,
-            in: .rect(cornerRadius: 14)
+            in: .rect(cornerRadius: 18)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(GweiloTheme.hairline)
-        }
         .accessibilityElement(children: .contain)
     }
 
-    private var userSubtitle: String {
-        visit.userID == nil
-            ? "Korisnik nije prijavljen"
-            : visit.userID?.uuidString ?? ""
+    private var header: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ActivityUserAvatar(visit: visit)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(visit.userName)
+                    .font(.headline)
+                    .foregroundStyle(GweiloTheme.bone)
+                    .lineLimit(1)
+
+                Text("\(dayText) · \(shortTimeRange)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(GweiloTheme.muted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(durationText)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(GweiloTheme.bone)
+
+                Text(eventCountText)
+                    .font(.caption2)
+                    .foregroundStyle(GweiloTheme.muted)
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
-    private var timeRange: String {
-        let start = Self.timeFormatter.string(from: visit.startedAt)
-        let end = Self.timeFormatter.string(from: visit.endedAt)
+    private var dayText: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(visit.startedAt) {
+            return "Danas"
+        }
+        if calendar.isDateInYesterday(visit.startedAt) {
+            return "Juče"
+        }
+        return Self.dateFormatter.string(from: visit.startedAt)
+    }
+
+    private var shortTimeRange: String {
+        let start = Self.shortTimeFormatter.string(from: visit.startedAt)
+        let end = Self.shortTimeFormatter.string(from: visit.endedAt)
         return start == end ? start : "\(start)–\(end)"
     }
 
@@ -330,11 +328,68 @@ private struct ActivityVisitCard: View {
             : "\(hours) č \(minutes) min"
     }
 
-    private var systemEventsSummary: String {
-        systemEvents.map {
-            "\(Self.timeFormatter.string(from: $0.createdAt)) \($0.readableLabel)"
+    private var eventCountText: String {
+        let count = journeySteps.reduce(0) { $0 + $1.count }
+        return count == 1 ? "1 pregled" : "\(count) pregleda"
+    }
+
+    private var visibleJourneySteps: [ActivityJourneyStep] {
+        if showsDetails {
+            return journeySteps
         }
-        .joined(separator: " · ")
+        return Array(journeySteps.prefix(Self.collapsedStepCount))
+    }
+
+    private var hiddenStepCount: Int {
+        max(0, journeySteps.count - Self.collapsedStepCount)
+    }
+
+    private var canShowDetails: Bool {
+        journeySteps.count > Self.collapsedStepCount
+    }
+
+    private var detailsButton: some View {
+        Button {
+            withAnimation(
+                reduceMotion ? nil : .easeOut(duration: 0.2)
+            ) {
+                showsDetails.toggle()
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(detailsButtonTitle)
+                    .font(.caption.weight(.semibold))
+
+                Image(
+                    systemName: showsDetails
+                        ? "chevron.up"
+                        : "chevron.down"
+                )
+                .font(.caption2.weight(.bold))
+            }
+            .foregroundStyle(GweiloTheme.accentBright)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
+        }
+        .buttonStyle(ResponsiveButtonStyle())
+        .accessibilityLabel(
+            showsDetails
+                ? "Sakrij detalje posete"
+                : "Prikaži detalje posete"
+        )
+    }
+
+    private var detailsButtonTitle: String {
+        if showsDetails {
+            return "Sakrij detalje"
+        }
+        if hiddenStepCount == 1 {
+            return "Prikaži još 1 korak"
+        }
+        if hiddenStepCount > 1 {
+            return "Prikaži još \(hiddenStepCount) koraka"
+        }
+        return "Prikaži detalje"
     }
 }
 
@@ -376,41 +431,106 @@ private struct ActivityJourneyStep: Identifiable {
     }
 }
 
-private struct ActivityJourneyChip: View {
+private struct ActivitySingleStep: View {
     let step: ActivityJourneyStep
     let timeFormatter: DateFormatter
 
     var body: some View {
-        HStack(spacing: 6) {
-            Text(timeText)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-
-            Image(systemName: "chevron.right")
-                .font(.caption2.weight(.bold))
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.turn.down.right")
+                .font(.caption.weight(.bold))
                 .foregroundStyle(GweiloTheme.accentBright)
+                .frame(width: 28, height: 28)
+                .background(
+                    GweiloTheme.accent.opacity(0.14),
+                    in: .circle
+                )
                 .accessibilityHidden(true)
 
-            Text(step.label)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(step.label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(GweiloTheme.bone)
+                    .lineLimit(2)
 
-            if step.count > 1 {
-                Text("×\(step.count)")
-                    .font(.caption2.weight(.bold))
-                    .foregroundStyle(GweiloTheme.lime)
+                Text("Otvoreno u \(timeText)")
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(GweiloTheme.muted)
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 7)
-        .background(
-            GweiloTheme.background.opacity(0.52),
-            in: .rect(cornerRadius: 9)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(GweiloTheme.hairline)
+        .padding(.leading, 7)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(step.label), otvoreno u \(timeText)")
+    }
+
+    private var timeText: String {
+        let start = timeFormatter.string(from: step.startedAt)
+        let end = timeFormatter.string(from: step.endedAt)
+        return start == end ? start : "\(start)–\(end)"
+    }
+}
+
+private struct ActivityJourneyTimeline: View {
+    let steps: [ActivityJourneyStep]
+    let timeFormatter: DateFormatter
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                ActivityJourneyTimelineRow(
+                    step: step,
+                    isLast: index == steps.count - 1,
+                    timeFormatter: timeFormatter
+                )
+            }
+        }
+        .padding(.leading, 16)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Tok posete")
+    }
+}
+
+private struct ActivityJourneyTimelineRow: View {
+    let step: ActivityJourneyStep
+    let isLast: Bool
+    let timeFormatter: DateFormatter
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(GweiloTheme.accentBright)
+                .frame(width: 8, height: 8)
+                .frame(width: 10)
+                .shadow(
+                    color: GweiloTheme.accent.opacity(0.45),
+                    radius: 4
+                )
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(step.label)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(GweiloTheme.bone)
+                    .lineLimit(2)
+
+                Text(metadataText)
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(GweiloTheme.muted)
+            }
+            .padding(.bottom, isLast ? 0 : 14)
+
+            Spacer(minLength: 0)
+        }
+        .frame(minHeight: isLast ? 30 : 48, alignment: .top)
+        .background(alignment: .topLeading) {
+            if !isLast {
+                Rectangle()
+                    .fill(GweiloTheme.accent.opacity(0.34))
+                    .frame(width: 1)
+                    .frame(maxHeight: .infinity)
+                    .offset(x: 4.5, y: 4)
+                    .accessibilityHidden(true)
+            }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
@@ -422,79 +542,16 @@ private struct ActivityJourneyChip: View {
         return start == end ? start : "\(start)–\(end)"
     }
 
+    private var metadataText: String {
+        step.count == 1
+            ? timeText
+            : "\(timeText) · \(step.count) pregleda"
+    }
+
     private var accessibilityText: String {
         step.count == 1
             ? "\(step.label), \(timeText)"
-            : "\(step.label), \(step.count) događaja, \(timeText)"
-    }
-}
-
-private struct ActivityFlowLayout: Layout {
-    let horizontalSpacing: CGFloat
-    let verticalSpacing: CGFloat
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        let availableWidth = proposal.width ?? .infinity
-        var rowWidth: CGFloat = 0
-        var rowHeight: CGFloat = 0
-        var totalWidth: CGFloat = 0
-        var totalHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            let nextWidth = rowWidth == 0
-                ? size.width
-                : rowWidth + horizontalSpacing + size.width
-
-            if rowWidth > 0, nextWidth > availableWidth {
-                totalWidth = max(totalWidth, rowWidth)
-                totalHeight += rowHeight + verticalSpacing
-                rowWidth = size.width
-                rowHeight = size.height
-            } else {
-                rowWidth = nextWidth
-                rowHeight = max(rowHeight, size.height)
-            }
-        }
-
-        totalWidth = max(totalWidth, rowWidth)
-        totalHeight += rowHeight
-        return CGSize(
-            width: proposal.width ?? totalWidth,
-            height: totalHeight
-        )
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        var x = bounds.minX
-        var y = bounds.minY
-        var rowHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + size.width > bounds.maxX {
-                x = bounds.minX
-                y += rowHeight + verticalSpacing
-                rowHeight = 0
-            }
-
-            subview.place(
-                at: CGPoint(x: x, y: y),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(size)
-            )
-            x += size.width + horizontalSpacing
-            rowHeight = max(rowHeight, size.height)
-        }
+            : "\(step.label), \(step.count) pregleda, \(timeText)"
     }
 }
 

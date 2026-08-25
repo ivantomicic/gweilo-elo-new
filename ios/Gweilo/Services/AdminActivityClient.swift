@@ -6,6 +6,7 @@ struct AdminActivityEvent: Identifiable, Hashable, Sendable {
     let eventName: String
     let page: String?
     let createdAt: Date
+    let sessionStartedAt: Date?
 }
 
 extension AdminActivityEvent: Decodable {
@@ -36,6 +37,7 @@ extension AdminActivityEvent: Decodable {
         eventName = try container.decode(String.self, forKey: .eventName)
         page = try container.decodeIfPresent(String.self, forKey: .page)
         self.createdAt = createdAt
+        sessionStartedAt = nil
     }
 }
 
@@ -72,7 +74,12 @@ extension AdminActivityEvent {
         case "user_logged_in":
             return "Prijava"
         case "page_viewed":
-            return page.map(ActivityPageLabel.label) ?? "Pregled stranice"
+            return page.map {
+                ActivityPageLabel.label(
+                    for: $0,
+                    sessionStartedAt: sessionStartedAt
+                )
+            } ?? "Pregled stranice"
         case "player_viewed":
             return "Profil igrača"
         default:
@@ -84,6 +91,21 @@ extension AdminActivityEvent {
 
     var isSystemEvent: Bool {
         eventName == "app_loaded" || eventName == "user_logged_in"
+    }
+
+    var sessionID: UUID? {
+        page.flatMap(ActivityPageLabel.sessionID)
+    }
+
+    func withSessionStartedAt(_ date: Date?) -> AdminActivityEvent {
+        AdminActivityEvent(
+            id: id,
+            userID: userID,
+            eventName: eventName,
+            page: page,
+            createdAt: createdAt,
+            sessionStartedAt: date
+        )
     }
 }
 
@@ -106,24 +128,75 @@ private enum ActivityPageLabel {
         "/admin/settings": "Administratorska podešavanja"
     ]
 
-    static func label(for path: String) -> String {
-        let normalized = path
-            .split(separator: "?", maxSplits: 1)
-            .first?
-            .split(separator: "#", maxSplits: 1)
-            .first
-            .map(String.init) ?? path
+    private static let sessionDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "sr_Latn_RS")
+        formatter.timeZone = TimeZone(identifier: "Europe/Belgrade")
+        formatter.dateFormat = "dd.MM."
+        return formatter
+    }()
+
+    static func label(
+        for path: String,
+        sessionStartedAt: Date? = nil
+    ) -> String {
+        let normalized = normalizedPath(path)
 
         if let label = labels[normalized] {
             return label
         }
         if normalized.hasPrefix("/session/") {
-            return "Termin"
+            guard let sessionStartedAt else { return "Termin" }
+            return "Termin (\(sessionDateFormatter.string(from: sessionStartedAt)))"
         }
         if normalized.hasPrefix("/player/") {
             return "Profil igrača"
         }
         return normalized
+    }
+
+    static func sessionID(for path: String) -> UUID? {
+        let normalized = normalizedPath(path)
+        guard normalized.hasPrefix("/session/") else { return nil }
+        return normalized
+            .split(separator: "/")
+            .last
+            .flatMap { UUID(uuidString: String($0)) }
+    }
+
+    private static func normalizedPath(_ path: String) -> String {
+        path
+            .split(separator: "?", maxSplits: 1)
+            .first?
+            .split(separator: "#", maxSplits: 1)
+            .first
+            .map(String.init) ?? path
+    }
+}
+
+private struct ActivitySessionRecord: Decodable {
+    let id: UUID
+    let createdAt: Date
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case createdAt = "created_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let dateValue = try container.decode(String.self, forKey: .createdAt)
+        guard let createdAt = ActivityDateParser.date(from: dateValue) else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .createdAt,
+                in: container,
+                debugDescription: "Invalid session timestamp."
+            )
+        }
+
+        id = try container.decode(UUID.self, forKey: .id)
+        self.createdAt = createdAt
     }
 }
 
@@ -175,7 +248,12 @@ struct AdminActivityClient: Sendable {
             session: session
         ).users()
 
-        let (events, users) = try await (eventsRequest, usersRequest)
+        let (rawEvents, users) = try await (eventsRequest, usersRequest)
+        let sessionIDs = Set(rawEvents.compactMap(\.sessionID))
+        let sessionStarts = try await sessionStarts(for: sessionIDs)
+        let events = rawEvents.map {
+            $0.withSessionStartedAt($0.sessionID.flatMap { sessionStarts[$0] })
+        }
         return makeVisits(events: events, users: users)
     }
 
@@ -243,6 +321,57 @@ struct AdminActivityClient: Sendable {
         }
     }
 
+    private func sessionStarts(
+        for sessionIDs: Set<UUID>
+    ) async throws -> [UUID: Date] {
+        guard !sessionIDs.isEmpty else { return [:] }
+
+        let idFilter = sessionIDs
+            .map(\.uuidString)
+            .sorted()
+            .joined(separator: ",")
+        let endpoint = configuration.supabaseURL
+            .appending(path: "rest/v1/sessions")
+            .appending(queryItems: [
+                .init(name: "select", value: "id,created_at"),
+                .init(name: "id", value: "in.(\(idFilter))")
+            ])
+        var request = URLRequest(url: endpoint)
+        request.setValue(
+            configuration.supabaseAnonKey,
+            forHTTPHeaderField: "apikey"
+        )
+        request.setValue(
+            "Bearer \(accessToken)",
+            forHTTPHeaderField: "Authorization"
+        )
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else {
+            throw BackendAPIError.invalidResponse
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            let serverError = try? JSONDecoder().decode(
+                SupabaseErrorResponse.self,
+                from: data
+            )
+            throw BackendAPIError.rejected(
+                serverError?.message
+                    ?? serverError?.errorDescription
+                    ?? "Datumi termina nisu mogli da se učitaju."
+            )
+        }
+
+        let records = try JSONDecoder().decode(
+            [ActivitySessionRecord].self,
+            from: data
+        )
+        return Dictionary(
+            uniqueKeysWithValues: records.map { ($0.id, $0.createdAt) }
+        )
+    }
+
     private func makeVisits(
         events: [AdminActivityEvent],
         users: [AdminUser]
@@ -301,13 +430,14 @@ struct AdminActivityClient: Sendable {
         usersByID: [UUID: AdminUser],
         to visits: inout [AdminActivityVisit]
     ) {
-        guard let first = events.first else { return }
+        let journeyEvents = events.filter { !$0.isSystemEvent }
+        guard let first = journeyEvents.first else { return }
         visits.append(
             AdminActivityVisit(
                 id: first.id,
                 userID: first.userID,
                 user: first.userID.flatMap { usersByID[$0] },
-                events: events
+                events: journeyEvents
             )
         )
     }

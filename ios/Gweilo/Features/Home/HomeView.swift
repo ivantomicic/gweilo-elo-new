@@ -31,14 +31,17 @@ struct HomeView: View {
                                 dataStore.currentUserLatestSessionFormScore
                         )
 
-                        TopThreeStandings(players: topSinglesPlayers)
+                        VStack(alignment: .leading, spacing: -10) {
+                            TopThreeStandings(players: topSinglesPlayers)
 
-                        if let standing = currentUserStanding {
-                            MyStandingSection(
-                                player: standing.player,
-                                rank: standing.rank,
-                                history: dataStore.currentUserEloHistory
-                            )
+                            if let standing = currentUserStanding {
+                                MyStandingSection(
+                                    player: standing.player,
+                                    rank: standing.rank,
+                                    history: dataStore.currentUserEloHistory
+                                )
+                                .zIndex(1)
+                            }
                         }
 
                         if let snapshot = dataStore.missionSnapshot,
@@ -850,12 +853,15 @@ struct TopThreePreviewScreen: View {
                             lastSessionDelta: 12,
                             lastSessionFormScore: 1
                         )
-                        TopThreeStandings(players: players)
-                        MyStandingSection(
-                            player: players[0],
-                            rank: 1,
-                            history: nil
-                        )
+                        VStack(alignment: .leading, spacing: -10) {
+                            TopThreeStandings(players: players)
+                            MyStandingSection(
+                                player: players[0],
+                                rank: 1,
+                                history: nil
+                            )
+                            .zIndex(1)
+                        }
                     }
                     .padding(.horizontal, 20)
                 }
