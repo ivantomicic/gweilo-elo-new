@@ -72,7 +72,11 @@ export function getActiveAdminNavigationValue(
 	pathname: string,
 ): AdminNavigationItem["value"] {
 	return (
-		adminNavigationItems.find((item) => item.url === pathname)?.value ??
+		adminNavigationItems.find((item) =>
+			item.url === "/admin"
+				? pathname === item.url
+				: pathname === item.url || pathname.startsWith(`${item.url}/`),
+		)?.value ??
 		"users"
 	);
 }
