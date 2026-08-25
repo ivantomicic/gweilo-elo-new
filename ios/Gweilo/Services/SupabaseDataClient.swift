@@ -743,6 +743,7 @@ private struct StatisticsPlayerResponse: Decodable {
     let draws: Int
     let elo: Double
     let rankDurationDays: Int?
+    let rankMovement: Int?
     let recentForm: [Double]
     let recentFormScores: [Double]?
 
@@ -756,6 +757,7 @@ private struct StatisticsPlayerResponse: Decodable {
         case draws
         case elo
         case rankDurationDays = "rank_duration_days"
+        case rankMovement = "rank_movement"
         case recentForm = "recent_form"
         case recentFormScores = "recent_form_scores"
     }
@@ -781,6 +783,7 @@ private struct StatisticsTeamResponse: Decodable {
     let draws: Int
     let elo: Double
     let rankDurationDays: Int?
+    let rankMovement: Int?
     let recentForm: [Double]
     let recentFormScores: [Double]?
 
@@ -794,6 +797,7 @@ private struct StatisticsTeamResponse: Decodable {
         case draws
         case elo
         case rankDurationDays = "rank_duration_days"
+        case rankMovement = "rank_movement"
         case recentForm = "recent_form"
         case recentFormScores = "recent_form_scores"
     }
@@ -1101,6 +1105,7 @@ struct GweiloAPIClient: Sendable {
                         losses: team.losses,
                         draws: team.draws,
                         rankDays: team.rankDurationDays,
+                        rankMovement: team.rankMovement,
                         recentForm: team.recentForm,
                         recentFormScores: team.recentFormScores
                     )
@@ -1335,6 +1340,7 @@ struct GweiloAPIClient: Sendable {
             losses: player.losses,
             draws: player.draws,
             rankDays: player.rankDurationDays,
+            rankMovement: player.rankMovement,
             recentForm: player.recentForm,
             recentFormScores: player.recentFormScores
         )

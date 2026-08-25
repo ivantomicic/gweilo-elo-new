@@ -68,6 +68,7 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
     let losses: Int
     let draws: Int
     let rankDays: Int?
+    let rankMovement: Int?
     let recentForm: [Double]
     let recentFormScores: [Double]?
 
@@ -81,6 +82,7 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
         losses: Int,
         draws: Int,
         rankDays: Int?,
+        rankMovement: Int? = nil,
         recentForm: [Double] = [],
         recentFormScores: [Double]? = nil
     ) {
@@ -93,6 +95,7 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
         self.losses = losses
         self.draws = draws
         self.rankDays = rankDays
+        self.rankMovement = rankMovement
         self.recentForm = recentForm
         self.recentFormScores = recentFormScores
     }

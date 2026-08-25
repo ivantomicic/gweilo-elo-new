@@ -339,9 +339,16 @@ private struct RankingRecord: View {
                     .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(entry.name)
-                            .font(.body.weight(.semibold))
-                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(entry.name)
+                                .font(.body.weight(.semibold))
+                                .lineLimit(1)
+
+                            if let movement = entry.rankMovement,
+                               movement != 0 {
+                                RankMovementIndicator(movement: movement)
+                            }
+                        }
                         matchSummary
                     }
                 }
@@ -375,7 +382,17 @@ private struct RankingRecord: View {
             "Pozicija \(rank), \(entry.name), \(entry.elo) Elo, "
                 + "\(entry.wins) pobeda, \(entry.draws) nerešenih, "
                 + "\(entry.losses) poraza"
+                + rankMovementAccessibilityText
         )
+    }
+
+    private var rankMovementAccessibilityText: String {
+        guard let movement = entry.rankMovement, movement != 0 else {
+            return ""
+        }
+        return movement > 0
+            ? ", napredovao za \(movement) mesta"
+            : ", pao za \(abs(movement)) mesta"
     }
 
     private var matchSummary: some View {
@@ -395,6 +412,30 @@ private struct RankingRecord: View {
         }
         .font(.caption2.monospacedDigit())
         .lineLimit(1)
+    }
+}
+
+private struct RankMovementIndicator: View {
+    let movement: Int
+
+    private var color: Color {
+        movement > 0 ? GweiloTheme.lime : GweiloTheme.coral
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            Image(systemName: movement > 0 ? "arrow.up" : "arrow.down")
+                .font(.system(size: 8, weight: .black))
+
+            Text("\(abs(movement))")
+                .font(.caption2.monospacedDigit().weight(.bold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 5)
+        .frame(minWidth: 27, minHeight: 18)
+        .background(color.opacity(0.12), in: .capsule)
+        .fixedSize()
+        .accessibilityHidden(true)
     }
 }
 
@@ -953,6 +994,7 @@ struct RankingsPreviewScreen: View {
                     losses: $0.losses,
                     draws: $0.draws,
                     rankDays: nil,
+                    rankMovement: $0.rankMovement.map { -$0 },
                     recentForm: Array($0.recentForm.reversed())
                 )
             },
@@ -967,6 +1009,7 @@ struct RankingsPreviewScreen: View {
                     losses: $0.losses / 2,
                     draws: $0.draws,
                     rankDays: nil,
+                    rankMovement: $0.rankMovement,
                     recentForm: Array($0.recentForm.dropFirst()) + [8]
                 )
             }
@@ -1010,8 +1053,19 @@ struct RankingsPreviewScreen: View {
             losses: losses,
             draws: draws,
             rankDays: nil,
+            rankMovement: previewRankMovement(for: suffix),
             recentForm: previewForm(for: suffix)
         )
+    }
+
+    private static func previewRankMovement(for suffix: Int) -> Int? {
+        switch suffix {
+        case 1: 2
+        case 2: -1
+        case 3: 1
+        case 4: -2
+        default: nil
+        }
     }
 
     private static func previewForm(for suffix: Int) -> [Double] {
