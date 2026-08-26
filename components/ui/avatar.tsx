@@ -12,6 +12,8 @@ const DICEBEAR_WAVES_URL = "https://api.dicebear.com/10.x/waves/svg";
 type AvatarImageProps = React.ComponentPropsWithoutRef<typeof BaseAvatarImage> & {
 	/** A stable identifier is preferred; the image alt text is used by default. */
 	fallbackSeed?: string;
+	/** Disable generated images when a consumer deliberately wants its fallback UI. */
+	generateFallback?: boolean;
 };
 
 export function getGeneratedAvatarUrl(seed: string) {
@@ -21,8 +23,10 @@ export function getGeneratedAvatarUrl(seed: string) {
 const AvatarImage = React.forwardRef<
 	React.ElementRef<typeof BaseAvatarImage>,
 	AvatarImageProps
->(({ src, alt, fallbackSeed, ...props }, ref) => {
-	const generatedSeed = (fallbackSeed || alt || "").trim();
+>(({ src, alt, fallbackSeed, generateFallback = true, ...props }, ref) => {
+	const generatedSeed = generateFallback
+		? (fallbackSeed || alt || "").trim()
+		: "";
 	const resolvedSrc = src ||
 		(generatedSeed ? getGeneratedAvatarUrl(generatedSeed) : undefined);
 

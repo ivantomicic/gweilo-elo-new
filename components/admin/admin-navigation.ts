@@ -4,6 +4,7 @@ import {
 	ChartNoAxesCombinedIcon,
 	LanguagesIcon,
 	ListIcon,
+	PaletteIcon,
 	SettingsIcon,
 	UsersIcon,
 	type LucideIcon,
@@ -17,10 +18,12 @@ export type AdminNavigationItem = {
 		| "missions"
 		| "nameCases"
 		| "notifications"
-		| "settings";
+		| "settings"
+		| "designSystem";
 	title: string;
 	url: string;
 	icon: LucideIcon;
+	mobileFullWidth?: boolean;
 };
 
 export const adminNavigationItems: AdminNavigationItem[] = [
@@ -65,6 +68,14 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 		title: "Settings",
 		url: "/admin/settings",
 		icon: SettingsIcon,
+		mobileFullWidth: true,
+	},
+	{
+		value: "designSystem",
+		title: "Design System",
+		url: "/admin/design-system",
+		icon: PaletteIcon,
+		mobileFullWidth: true,
 	},
 ];
 

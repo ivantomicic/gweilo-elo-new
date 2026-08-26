@@ -7,12 +7,12 @@ type SurfaceCardVariant = "default" | "elevated" | "interactive" | "modal";
 type SurfaceCardPadding = "none" | "sm" | "md" | "lg";
 
 const variantClasses: Record<SurfaceCardVariant, string> = {
-	default: "bg-card rounded-[24px] border border-border/50",
-	elevated: "bg-card rounded-[24px] border border-border/50 shadow-sm",
+	default: "rounded-card border border-border/50 bg-card",
+	elevated: "rounded-card border border-border/50 bg-card shadow-sm",
 	interactive:
-		"group relative bg-card rounded-[24px] border border-border/50 shadow-sm touch-safe hover-only active:scale-[0.98] transition-all cursor-pointer",
+		"group relative cursor-pointer touch-safe rounded-card border border-border/50 bg-card shadow-sm transition-[transform,border-color,background-color,box-shadow] active:scale-[0.98] hover-only",
 	modal:
-		"bg-card rounded-[24px] border border-border/50 max-w-sm w-full mx-4 shadow-2xl",
+		"mx-4 w-full max-w-sm rounded-card border border-border/50 bg-card shadow-2xl",
 };
 
 const paddingClasses: Record<SurfaceCardPadding, string> = {

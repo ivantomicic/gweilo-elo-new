@@ -13,7 +13,9 @@ export interface InputProps extends React.ComponentProps<'input'> {
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-	({ className, label, labelAction, icon, rightAction, ...props }, ref) => {
+	({ className, label, labelAction, icon, rightAction, id, ...props }, ref) => {
+		const generatedId = React.useId()
+		const inputId = id ?? (label ? generatedId : undefined)
 		const hasIcon = !!icon
 		const hasRightAction = !!rightAction
 
@@ -28,6 +30,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 					</div>
 				)}
 				<BaseInput
+					id={inputId}
 					ref={ref}
 					className={cn(
 						hasIcon && 'pl-12',
@@ -50,7 +53,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 					{labelAction ? (
 						<div className="flex justify-between items-center ml-1">
 							{label && (
-								<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+								<label htmlFor={inputId} className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
 									{label}
 								</label>
 							)}
@@ -58,7 +61,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 						</div>
 					) : (
 						label && (
-							<label className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
+							<label htmlFor={inputId} className="text-xs font-bold uppercase tracking-widest text-muted-foreground ml-1">
 								{label}
 							</label>
 						)
@@ -74,4 +77,3 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
 Input.displayName = 'Input'
 
 export { Input }
-

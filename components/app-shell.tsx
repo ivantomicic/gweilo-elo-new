@@ -6,7 +6,7 @@ import { SiteHeader } from "@/components/site-header";
 import {
 	SidebarInset,
 	SidebarProvider,
-} from "@/components/vendor/shadcn/sidebar";
+} from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
 type SiteHeaderProps = ComponentProps<typeof SiteHeader>;

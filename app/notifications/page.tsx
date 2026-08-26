@@ -9,15 +9,15 @@ import {
 } from "lucide-react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
-import { Button } from "@/components/vendor/shadcn/button";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/vendor/shadcn/card";
-import { Switch } from "@/components/vendor/shadcn/switch";
+} from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth/useAuth";
 
 type Preferences = {

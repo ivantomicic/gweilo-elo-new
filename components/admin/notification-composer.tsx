@@ -2,24 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BellRingIcon, SendIcon, UsersIcon } from "lucide-react";
-import { Button } from "@/components/vendor/shadcn/button";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/vendor/shadcn/card";
-import { Checkbox } from "@/components/vendor/shadcn/checkbox";
-import { Input } from "@/components/vendor/shadcn/input";
-import { Label } from "@/components/vendor/shadcn/label";
+} from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/vendor/shadcn/select";
+} from "@/components/ui/select";
 import { useAuth } from "@/lib/auth/useAuth";
 
 type AudienceType = "all" | "session" | "users";
@@ -248,4 +248,3 @@ export function NotificationComposer() {
 		</Card>
 	);
 }
-

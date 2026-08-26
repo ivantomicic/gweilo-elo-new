@@ -65,9 +65,8 @@ export function AdminTabs() {
 					aria-label="Admin sections"
 					className="grid grid-cols-2 gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
 				>
-					{adminNavigationItems.map((item, index) => {
+					{adminNavigationItems.map((item) => {
 						const isActive = item.value === activeValue;
-						const isFinalItem = index === adminNavigationItems.length - 1;
 						const ItemIcon = item.icon;
 
 						return (
@@ -80,7 +79,7 @@ export function AdminTabs() {
 										isActive
 											? "border-primary/35 bg-primary/10 text-foreground"
 											: "border-border/45 bg-card/60 text-muted-foreground hover:border-border hover:bg-card hover:text-foreground",
-										isFinalItem && "col-span-2 mt-1",
+										item.mobileFullWidth && "col-span-2 mt-1",
 									)}
 								>
 									<span

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWebHaptics } from "web-haptics/react";
-import { Separator } from "@/components/vendor/shadcn/separator";
-import { SidebarTrigger } from "@/components/vendor/shadcn/sidebar";
+import { Separator } from "@/components/ui/separator";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { useAuth } from "@/lib/auth/useAuth";

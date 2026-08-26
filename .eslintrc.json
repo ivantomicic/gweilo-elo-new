@@ -1,5 +1,25 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@/components/vendor/shadcn/*"],
+            "message": "Product code must import the app-owned component boundary from @/components/ui instead."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["components/ui/**/*", "components/vendor/**/*"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ]
 }
-
 

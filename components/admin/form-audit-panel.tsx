@@ -22,7 +22,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/vendor/shadcn/badge";
+import { Badge } from "@/components/ui/badge";
 import { getSessionSafely } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 

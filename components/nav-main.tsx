@@ -3,14 +3,13 @@
 import { MailIcon, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 
-import { Button } from "@/components/vendor/shadcn/button";
 import {
 	SidebarGroup,
 	SidebarGroupContent,
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
-} from "@/components/vendor/shadcn/sidebar";
+} from "@/components/ui/sidebar";
 
 export function NavMain({
 	items,

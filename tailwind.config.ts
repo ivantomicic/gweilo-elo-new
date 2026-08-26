@@ -20,6 +20,12 @@ export default {
   			]
   		},
   		colors: {
+			'ds-surface-raised': 'rgb(var(--ds-surface-raised) / <alpha-value>)',
+			'ds-surface-selected': 'rgb(var(--ds-surface-selected) / <alpha-value>)',
+			'ds-content-on-selected': 'rgb(var(--ds-content-on-selected) / <alpha-value>)',
+			'ds-section-accent': 'rgb(var(--ds-section-accent) / <alpha-value>)',
+			'ds-control-selected': 'rgb(var(--ds-control-selected) / <alpha-value>)',
+			'ds-control-selected-hover': 'rgb(var(--ds-control-selected-hover) / <alpha-value>)',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -72,12 +78,20 @@ export default {
   			}
   		},
   		borderRadius: {
+			control: 'var(--ds-radius-control)',
+			card: 'var(--ds-radius-card)',
+			panel: 'var(--ds-radius-panel)',
+			sheet: 'var(--ds-radius-sheet)',
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
-  		}
+		},
+		boxShadow: {
+			'ds-control': 'var(--ds-shadow-control)',
+			'ds-selection': 'var(--ds-shadow-selection)',
+			'ds-primary-action': 'var(--ds-shadow-primary-action)',
+		}
   	}
   },
   plugins: [require('tailwindcss-animate')],
 } satisfies Config
-

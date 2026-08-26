@@ -10,7 +10,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-} from "@/components/vendor/shadcn/sidebar"
+} from "@/components/ui/sidebar"
 
 export function NavSecondary({
   items,

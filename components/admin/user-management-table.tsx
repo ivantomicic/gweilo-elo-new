@@ -12,7 +12,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/vendor/shadcn/badge";
+import { Badge } from "@/components/ui/badge";
 import { UserEditDrawer } from "@/components/admin/user-edit-drawer";
 import { StateBlock } from "@/components/ui/state-block";
 import { t } from "@/lib/i18n";

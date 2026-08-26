@@ -6,6 +6,35 @@
 	:root {
 		/* Font tokens are set via next/font in layout.tsx as CSS variables */
 
+		/*
+		 * Gweilo semantic design tokens.
+		 *
+		 * Keep these role-based: components should describe what a color or
+		 * measurement does, rather than where it happens to be used today.
+		 * Existing shadcn tokens below remain the compatibility layer, so this
+		 * foundation does not change the appearance of existing screens.
+		 */
+		--ds-surface-raised: 20 18 27;
+		--ds-surface-selected: 43 38 55;
+		--ds-content-on-selected: 5 5 6;
+		--ds-section-accent: 156 97 255;
+		--ds-control-selected: 194 255 31;
+		--ds-control-selected-hover: 208 255 81;
+
+		--ds-radius-control: 9999px;
+		--ds-radius-card: 1.5rem;
+		--ds-radius-panel: 1.25rem;
+		--ds-radius-sheet: 1.75rem;
+
+		--ds-shadow-control: 0 12px 30px rgb(0 0 0 / 0.24);
+		--ds-shadow-selection: 0 5px 16px rgb(194 255 31 / 0.18);
+		--ds-shadow-primary-action: 0 10px 28px rgb(194 255 31 / 0.16);
+
+		--ds-duration-fast: 150ms;
+		--ds-duration-standard: 200ms;
+		--ds-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+		--ds-tracking-label: 0.16em;
+
 		/* Color tokens - dark mode only */
 		/* App background: #0A0A0A - very dark, almost black */
 		--background: 0 0% 3.9%;

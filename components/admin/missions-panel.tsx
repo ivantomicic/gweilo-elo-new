@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/vendor/shadcn/badge";
+import { Badge } from "@/components/ui/badge";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { StateBlock } from "@/components/ui/state-block";
