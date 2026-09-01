@@ -2,7 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Loading } from "@/components/ui/loading";
+import { FullScreenLoading } from "@/components/ui/loading";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Button } from "@/components/ui/button";
@@ -70,13 +70,7 @@ function PollAnswerPageContent() {
 	}, [searchParams, router]);
 
 	if (status === "loading") {
-		return (
-			<div className="flex min-h-screen items-center justify-center bg-background">
-				<Stack direction="column" spacing={4} alignItems="center">
-					<Loading inline label="Slanje odgovora..." />
-				</Stack>
-			</div>
-		);
+		return <FullScreenLoading label="Slanje odgovora…" />;
 	}
 
 	return (
@@ -112,11 +106,7 @@ function PollAnswerPageContent() {
 export default function PollAnswerPage() {
 	return (
 		<Suspense
-			fallback={
-				<div className="flex min-h-screen items-center justify-center bg-background">
-					<Loading inline label="Učitavanje..." />
-				</div>
-			}
+			fallback={<FullScreenLoading label="Učitavanje…" />}
 		>
 			<PollAnswerPageContent />
 		</Suspense>

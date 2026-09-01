@@ -9,16 +9,62 @@ export default {
   ],
   theme: {
   	extend: {
-  		fontFamily: {
-  			heading: [
-  				'var(--font-heading)',
-  				'sans-serif'
-  			],
-  			body: [
-  				'var(--font-body)',
-  				'sans-serif'
-  			]
-  		},
+		fontFamily: {
+			heading: [
+				'var(--font-heading)',
+				'sans-serif'
+			],
+			body: [
+				'var(--font-body)',
+				'sans-serif'
+			],
+			'session-display': [
+				'"Avenir Next Condensed"',
+				'"Arial Narrow"',
+				'var(--font-heading)',
+				'sans-serif'
+			],
+			'session-heading': [
+				'"Avenir Next Condensed"',
+				'"Arial Narrow"',
+				'var(--font-heading)',
+				'sans-serif'
+			],
+			'session-label': [
+				'"Avenir Next Condensed"',
+				'"Arial Narrow"',
+				'var(--font-heading)',
+				'sans-serif'
+			]
+		},
+		fontSize: {
+			/*
+			 * Calibrated web equivalents of the native SwiftUI type scale.
+			 * The source values are iOS points; the web values below were
+			 * measured against same-device native and Safari screenshots.
+			 */
+			'ios-display-46': '43px',
+			'ios-display-40': '37px',
+			'ios-display-34': '32px',
+			'ios-display-30': '28px',
+			'ios-display-25': '23px',
+			'ios-display-24': '22px',
+			'ios-display-23': '21px',
+			'ios-display-20': '19px',
+			'ios-display-19': '18px',
+			'ios-display-18': '17px',
+			'ios-body': '16px',
+			'ios-subheadline': '14px',
+			'ios-footnote': '12px',
+			'ios-caption': '11px',
+			'ios-caption2': '10px',
+			'ios-label-15': '14px',
+			'ios-label-13': '12px',
+			'ios-label-12': '11px',
+			'ios-label-11': '10px',
+			'ios-label-10': '9px',
+			'ios-label-9': '8.5px',
+		},
   		colors: {
 			'ds-surface-raised': 'rgb(var(--ds-surface-raised) / <alpha-value>)',
 			'ds-surface-selected': 'rgb(var(--ds-surface-selected) / <alpha-value>)',
@@ -26,6 +72,16 @@ export default {
 			'ds-section-accent': 'rgb(var(--ds-section-accent) / <alpha-value>)',
 			'ds-control-selected': 'rgb(var(--ds-control-selected) / <alpha-value>)',
 			'ds-control-selected-hover': 'rgb(var(--ds-control-selected-hover) / <alpha-value>)',
+			'ds-button-primary': 'rgb(var(--ds-button-primary) / <alpha-value>)',
+			'ds-button-primary-foreground': 'rgb(var(--ds-button-primary-foreground) / <alpha-value>)',
+			'ds-button-accent': 'rgb(var(--ds-button-accent) / <alpha-value>)',
+			'ds-button-accent-bright': 'rgb(var(--ds-button-accent-bright) / <alpha-value>)',
+			'ds-button-surface': 'rgb(var(--ds-button-surface) / <alpha-value>)',
+			'ds-button-surface-hover': 'rgb(var(--ds-button-surface-hover) / <alpha-value>)',
+			'ds-button-foreground': 'rgb(var(--ds-button-foreground) / <alpha-value>)',
+			'ds-button-muted': 'rgb(var(--ds-button-muted) / <alpha-value>)',
+			'ds-button-destructive': 'rgb(var(--ds-button-destructive) / <alpha-value>)',
+			'ds-button-hairline': 'rgb(var(--ds-button-hairline) / <alpha-value>)',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -90,6 +146,12 @@ export default {
 			'ds-control': 'var(--ds-shadow-control)',
 			'ds-selection': 'var(--ds-shadow-selection)',
 			'ds-primary-action': 'var(--ds-shadow-primary-action)',
+		},
+		transitionDuration: {
+			press: 'var(--ds-duration-press)',
+		},
+		transitionTimingFunction: {
+			'ds-out': 'var(--ds-ease-out)',
 		}
   	}
   },

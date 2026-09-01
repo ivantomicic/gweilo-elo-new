@@ -17,6 +17,7 @@ import {
 import { notifySessionStarted } from "@/lib/notifications/events";
 import { startSessionLiveActivitySafely } from "@/lib/live-activities/service";
 import { createAdminClient, verifyUser } from "@/lib/supabase/admin";
+import { canStartSession } from "@/lib/auth/roles";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
 				{ status: 401 },
 			);
 		}
-		if (auth.role !== "admin" && auth.role !== "mod") {
+		if (!canStartSession(auth.role)) {
 			return NextResponse.json(
 				{ error: "Only admins and mods can start sessions." },
 				{ status: 403 },

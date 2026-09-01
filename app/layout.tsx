@@ -1,9 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import dynamic from "next/dynamic";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
-import { MaintenanceGuard } from "@/components/maintenance/maintenance-guard";
 import { AuthProvider } from "@/lib/auth/useAuth";
 
 const AppTracker = dynamic(
@@ -31,12 +30,49 @@ const manrope = Manrope({
 	display: "swap",
 });
 
+const deploymentHost =
+	process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL;
+const siteUrl =
+	process.env.NEXT_PUBLIC_SITE_URL ??
+	(deploymentHost ? `https://${deploymentHost}` : "http://localhost:3000");
+
+export const viewport: Viewport = {
+	themeColor: "#030304",
+	viewportFit: "cover",
+};
+
+// Favicon caches can outlive a deployment. Change this when the brand artwork changes.
+const iconVersion = "gweilo-purple-v2";
+
 export const metadata: Metadata = {
+	metadataBase: new URL(siteUrl),
+	applicationName: "Gweilo",
 	title: sr.meta.title,
 	description: sr.meta.description,
 	icons: {
-		icon: "/favicon.png",
-		apple: "/favicon.png",
+		icon: [
+			{
+				url: `/favicon.ico?v=${iconVersion}`,
+				type: "image/x-icon",
+				sizes: "16x16 32x32 48x48",
+			},
+			{
+				url: `/favicon-32x32.png?v=${iconVersion}`,
+				type: "image/png",
+				sizes: "32x32",
+			},
+			{
+				url: `/favicon-16x16.png?v=${iconVersion}`,
+				type: "image/png",
+				sizes: "16x16",
+			},
+		],
+		shortcut: `/favicon.ico?v=${iconVersion}`,
+		apple: {
+			url: `/apple-touch-icon.png?v=${iconVersion}`,
+			type: "image/png",
+			sizes: "180x180",
+		},
 	},
 	manifest: "/manifest.json",
 	appleWebApp: {
@@ -45,6 +81,8 @@ export const metadata: Metadata = {
 		title: "Gweilo",
 	},
 	openGraph: {
+		type: "website",
+		siteName: "Gweilo",
 		title: sr.meta.title,
 		description: sr.meta.description,
 		images: [
@@ -55,6 +93,12 @@ export const metadata: Metadata = {
 				alt: sr.meta.title,
 			},
 		],
+	},
+	twitter: {
+		card: "summary_large_image",
+		title: sr.meta.title,
+		description: sr.meta.description,
+		images: ["/og.png"],
 	},
 };
 
@@ -71,10 +115,8 @@ export default function RootLayout({
 			<body>
 				<AuthProvider>
 					<AppTracker />
-					<MaintenanceGuard>
-						{children}
-						<MobileNav />
-					</MaintenanceGuard>
+					{children}
+					<MobileNav />
 				</AuthProvider>
 			</body>
 		</html>

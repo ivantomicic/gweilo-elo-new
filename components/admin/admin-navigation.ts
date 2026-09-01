@@ -1,11 +1,8 @@
 import {
 	ClipboardListIcon,
-	BellRingIcon,
-	ChartNoAxesCombinedIcon,
 	LanguagesIcon,
 	ListIcon,
 	PaletteIcon,
-	SettingsIcon,
 	UsersIcon,
 	type LucideIcon,
 } from "lucide-react";
@@ -14,11 +11,8 @@ export type AdminNavigationItem = {
 	value:
 		| "users"
 		| "activity"
-		| "formAudit"
 		| "missions"
 		| "nameCases"
-		| "notifications"
-		| "settings"
 		| "designSystem";
 	title: string;
 	url: string;
@@ -30,20 +24,14 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 	{
 		value: "users",
 		title: "Users",
-		url: "/admin",
+		url: "/admin/users",
 		icon: UsersIcon,
 	},
 	{
 		value: "activity",
 		title: "Activity Log",
-		url: "/admin/activity",
+		url: "/admin/activity-log",
 		icon: ListIcon,
-	},
-	{
-		value: "formAudit",
-		title: "Form Audit",
-		url: "/admin/form-audit",
-		icon: ChartNoAxesCombinedIcon,
 	},
 	{
 		value: "missions",
@@ -58,19 +46,6 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 		icon: LanguagesIcon,
 	},
 	{
-		value: "notifications",
-		title: "Notifications",
-		url: "/admin/notifications",
-		icon: BellRingIcon,
-	},
-	{
-		value: "settings",
-		title: "Settings",
-		url: "/admin/settings",
-		icon: SettingsIcon,
-		mobileFullWidth: true,
-	},
-	{
 		value: "designSystem",
 		title: "Design System",
 		url: "/admin/design-system",
@@ -82,11 +57,11 @@ export const adminNavigationItems: AdminNavigationItem[] = [
 export function getActiveAdminNavigationValue(
 	pathname: string,
 ): AdminNavigationItem["value"] {
+	// Retain selection for old bookmarks while their server redirect resolves.
+	if (pathname === "/admin/activity") return "activity";
 	return (
 		adminNavigationItems.find((item) =>
-			item.url === "/admin"
-				? pathname === item.url
-				: pathname === item.url || pathname.startsWith(`${item.url}/`),
+			pathname === item.url || pathname.startsWith(`${item.url}/`),
 		)?.value ??
 		"users"
 	);

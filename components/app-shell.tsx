@@ -6,6 +6,8 @@ import { SiteHeader } from "@/components/site-header";
 import {
 	SidebarInset,
 	SidebarProvider,
+	SidebarTrigger,
+	useSidebar,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 
@@ -17,8 +19,21 @@ type AppShellProps = SiteHeaderProps & {
 	containerClassName?: string;
 	contentClassName?: string;
 	contentPadding?: boolean;
+	showHeader?: boolean;
 	insetClassName?: string;
 };
+
+/** Keep the desktop sidebar reachable without recreating a page title bar. */
+function HeaderlessSidebarToggle() {
+	const { open } = useSidebar();
+	if (open) return null;
+	return (
+		<SidebarTrigger
+			aria-label="Otvori navigaciju"
+			className="fixed bottom-4 left-4 z-50 hidden size-10 rounded-full border border-border bg-background md:inline-flex"
+		/>
+	);
+}
 
 export function AppShell({
 	children,
@@ -26,14 +41,16 @@ export function AppShell({
 	containerClassName,
 	contentClassName,
 	contentPadding = true,
+	showHeader = true,
 	insetClassName,
 	...headerProps
 }: AppShellProps) {
 	return (
 		<SidebarProvider>
-			<AppSidebar variant="inset" />
+			<AppSidebar variant="inset" showToggle={!showHeader} />
+			{!showHeader && <HeaderlessSidebarToggle />}
 			<SidebarInset className={insetClassName}>
-				<SiteHeader {...headerProps} />
+				{showHeader && <SiteHeader {...headerProps} />}
 				<div className={cn("flex flex-1 flex-col", bodyClassName)}>
 					<div
 						className={cn(

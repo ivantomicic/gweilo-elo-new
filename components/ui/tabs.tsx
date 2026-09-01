@@ -1,47 +1,51 @@
 "use client";
 
 import * as React from "react";
+import * as TabsPrimitive from "@radix-ui/react-tabs";
+
 import { cn } from "@/lib/utils";
 import {
-	Tabs as TabsPrimitive,
-	TabsList as TabsListPrimitive,
-	TabsTrigger as TabsTriggerPrimitive,
-	TabsContent as TabsContentPrimitive,
-} from "@/components/vendor/shadcn/tabs";
+	selectionControlItemStyles,
+	selectionControlListStyles,
+} from "@/components/ui/selection-control";
 
-// Re-export Tabs and TabsContent as-is
-export const Tabs = TabsPrimitive;
-export const TabsContent = TabsContentPrimitive;
+export const Tabs = TabsPrimitive.Root;
 
-// Styled TabsList with app-specific styling
 export const TabsList = React.forwardRef<
-	React.ElementRef<typeof TabsListPrimitive>,
-	React.ComponentPropsWithoutRef<typeof TabsListPrimitive>
+	React.ElementRef<typeof TabsPrimitive.List>,
+	React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
 >(({ className, ...props }, ref) => (
-	<TabsListPrimitive
+	<TabsPrimitive.List
 		ref={ref}
-		className={cn(
-			"bg-secondary/50 p-1 rounded-xl flex items-center gap-1 border border-border/30",
-			className
-		)}
+		className={cn(selectionControlListStyles(), className)}
 		{...props}
 	/>
 ));
-TabsList.displayName = TabsListPrimitive.displayName;
+TabsList.displayName = TabsPrimitive.List.displayName;
 
-// Styled TabsTrigger with app-specific styling
 export const TabsTrigger = React.forwardRef<
-	React.ElementRef<typeof TabsTriggerPrimitive>,
-	React.ComponentPropsWithoutRef<typeof TabsTriggerPrimitive>
+	React.ElementRef<typeof TabsPrimitive.Trigger>,
+	React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
 >(({ className, ...props }, ref) => (
-	<TabsTriggerPrimitive
+	<TabsPrimitive.Trigger
+		ref={ref}
+		className={cn(selectionControlItemStyles(), className)}
+		{...props}
+	/>
+));
+TabsTrigger.displayName = TabsPrimitive.Trigger.displayName;
+
+export const TabsContent = React.forwardRef<
+	React.ElementRef<typeof TabsPrimitive.Content>,
+	React.ComponentPropsWithoutRef<typeof TabsPrimitive.Content>
+>(({ className, ...props }, ref) => (
+	<TabsPrimitive.Content
 		ref={ref}
 		className={cn(
-			"flex-1 py-2 text-xs font-semibold rounded-lg text-muted-foreground hover:text-foreground transition-all data-[state=active]:font-bold data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm",
-			className
+			"mt-2 outline-none focus-visible:ring-2 focus-visible:ring-ds-section-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+			className,
 		)}
 		{...props}
 	/>
 ));
-TabsTrigger.displayName = TabsTriggerPrimitive.displayName;
-
+TabsContent.displayName = TabsPrimitive.Content.displayName;

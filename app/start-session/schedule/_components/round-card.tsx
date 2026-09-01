@@ -1,11 +1,6 @@
 "use client";
 
-import { Box } from "@/components/ui/box";
-import { Stack } from "@/components/ui/stack";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MatchRow } from "./match-row";
-import { cn } from "@/lib/utils";
-import { t } from "@/lib/i18n";
 
 type Player = {
 	id: string;
@@ -16,7 +11,7 @@ type Player = {
 
 type Match = {
 	type: "singles" | "doubles";
-	players: Player[]; // 2 for singles, 4 for doubles
+	players: Player[];
 };
 
 type RoundCardProps = {
@@ -24,7 +19,7 @@ type RoundCardProps = {
 	matches: Match[];
 	restingPlayers?: Player[];
 	isActive?: boolean;
-	isDynamic?: boolean; // Indicates this round will be determined dynamically
+	isDynamic?: boolean;
 	dynamicNote?: {
 		title: string;
 		description: string;
@@ -33,106 +28,65 @@ type RoundCardProps = {
 	shuffleKey?: number;
 };
 
+/** Native StartSessionView schedule-round translation: flat rows and dividers. */
 export function RoundCard({
 	roundNumber,
 	matches,
-	restingPlayers,
-	isActive = false,
 	isDynamic = false,
 	dynamicNote,
-	isShuffling = false,
 	shuffleKey = 0,
 }: RoundCardProps) {
+	const matchCountLabel = matches.length === 1 ? "meč" : "meča";
 	const dynamicTitle =
-		dynamicNote?.title ??
-		`Schedule will be determined after Round ${roundNumber - 1} is completed.`;
+		dynamicNote?.title ?? `Parovi se određuju nakon ${roundNumber - 1}. runde`;
 	const dynamicDescription =
 		dynamicNote?.description ??
-		`Winners from Round ${roundNumber - 1} doubles will stay in doubles and play against players from Round ${
-			roundNumber - 1
-		} singles.`;
+		"Raspored ove runde zavisi od rezultata prethodnih mečeva.";
 
 	return (
-		<Stack direction="row" spacing={4} className="relative z-10">
-			{/* Round number indicator */}
-			<Box
-				className={cn(
-					"size-12 rounded-full bg-background border-4 flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(59,130,246,0.3)]",
-					isActive ? "border-primary" : "border-border",
-				)}
-			>
-				<span
-					className={cn(
-						"text-sm font-bold",
-						isActive ? "text-foreground" : "text-muted-foreground",
-					)}
+		<article
+			className="border-b border-ds-button-hairline/[0.13] pb-[22px]"
+			aria-labelledby={`round-${roundNumber}-title`}
+		>
+			<header className="flex min-h-11 items-baseline justify-center gap-2 py-[11px]">
+				<h2
+					id={`round-${roundNumber}-title`}
+					className="font-body text-ios-body font-bold"
 				>
-					{roundNumber}
+					Runda {roundNumber}
+				</h2>
+				<span aria-hidden="true" className="text-white/25">
+					·
 				</span>
-			</Box>
+				<span
+					className={
+						isDynamic
+							? "text-ios-caption2 font-bold text-[rgb(var(--ds-native-amber))]"
+							: "text-ios-caption2 font-bold tabular-nums text-[rgb(var(--ds-native-muted))]"
+					}
+				>
+					{isDynamic ? "zavisi od rezultata" : `${matches.length} ${matchCountLabel}`}
+				</span>
+			</header>
 
-			{/* Round card */}
-			<Box className="flex-1 bg-card rounded-[20px] p-4 border border-border/50">
-				{/* Dynamic indicator badge */}
-				{isDynamic && (
-					<Box className="mb-3 flex items-center gap-2">
-						<Box className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">
-							<svg
-								className="size-3"
-								fill="none"
-								viewBox="0 0 24 24"
-								stroke="currentColor"
-							>
-								<path
-									strokeLinecap="round"
-									strokeLinejoin="round"
-									strokeWidth={2}
-									d="M13 10V3L4 14h7v7l9-11h-7z"
-								/>
-							</svg>
-							<span className="text-[10px] font-bold uppercase tracking-wider">
-								Dynamic
-							</span>
-						</Box>
-					</Box>
-				)}
-
-				{/* Matches */}
-				<Stack direction="column" spacing={3}>
-						{isDynamic ? (
-							<>
-								<Box className="text-sm text-muted-foreground py-2 space-y-1">
-									<p className="font-medium text-foreground/80">
-										{dynamicTitle}
-									</p>
-									<p className="text-xs">
-										{dynamicDescription}
-									</p>
-								</Box>
-							{/* Show placeholder matches for reference */}
-							<Box className="opacity-50">
-								{matches.map((match, index) => (
-									<MatchRow
-										key={index}
-										type={match.type}
-										players={match.players}
-									/>
-								))}
-							</Box>
-						</>
-					) : (
-						matches.map((match, index) => (
-							<MatchRow
-								key={index}
-								type={match.type}
-								players={match.players}
-								isShuffling={isShuffling}
-								shuffleKey={shuffleKey}
-							/>
-						))
-					)}
-				</Stack>
-			</Box>
-		</Stack>
+			{isDynamic ? (
+				<div className="mx-auto max-w-xs pb-3 text-center">
+					<p className="font-body text-ios-subheadline font-bold">{dynamicTitle}</p>
+					<p className="mt-1.5 text-ios-caption leading-5 text-[rgb(var(--ds-native-muted))]">
+						{dynamicDescription}
+					</p>
+				</div>
+			) : (
+				<div className="divide-y divide-ds-button-hairline/[0.13]">
+					{matches.map((match, index) => (
+						<MatchRow
+							key={`${shuffleKey}-${roundNumber}-${index}`}
+							type={match.type}
+							players={match.players}
+						/>
+					))}
+				</div>
+			)}
+		</article>
 	);
 }

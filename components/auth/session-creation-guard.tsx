@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { StateBlock } from "@/components/ui/state-block";
+import { FullScreenLoading } from "@/components/ui/loading";
 import { useAuth } from "@/lib/auth/useAuth";
+import { canStartSession } from "@/lib/auth/roles";
 import { supabase } from "@/lib/supabase/client";
 import { clearAllCaches } from "@/lib/utils/clear-cache";
 
@@ -18,7 +19,7 @@ export function SessionCreationGuard({
 
 	useEffect(() => {
 		if (!session || role === null) return;
-		if (role !== "admin" && role !== "mod") {
+		if (!canStartSession(role)) {
 			router.replace("/");
 			return;
 		}
@@ -66,8 +67,9 @@ export function SessionCreationGuard({
 		};
 	}, [role, router, session]);
 
-	if (isChecking) {
-		return <StateBlock variant="loading" size="lg" title="Checking session…" />;
+	// Also fail closed during a role change, before the redirect effect runs.
+	if (!session || !canStartSession(role) || isChecking) {
+		return <FullScreenLoading label="Checking session…" />;
 	}
 	return <>{children}</>;
 }

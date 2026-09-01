@@ -3,17 +3,21 @@ import type { MatchResult } from "@/lib/elo/calculation";
 export const RESULT_OPTIONS: ReadonlyArray<{
 	value: MatchResult;
 	label: string;
+	shortLabel: string;
 }> = [
 	{
 		value: "win",
-		label: "Win",
+		label: "Pobeda",
+		shortLabel: "P",
 	},
 	{
 		value: "draw",
-		label: "Draw",
+		label: "Nerešeno",
+		shortLabel: "N",
 	},
 	{
 		value: "loss",
-		label: "Loss",
+		label: "Poraz",
+		shortLabel: "I",
 	},
 ];

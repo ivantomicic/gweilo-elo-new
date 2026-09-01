@@ -662,7 +662,7 @@ export function createGweiloMcpServer(userId: string) {
 	server.registerTool(
 		"elo_rules",
 		{
-			title: "Gweilo Elo Rules",
+			title: "Gweilo Rating Rules",
 			description:
 				"Explain the exact Gweilo singles Elo formula, result scores, experience-based K-factors, starting rating, precision, and official leaderboard eligibility. This tool does not read another player's private data.",
 			inputSchema: z.object({}),

@@ -27,6 +27,11 @@
 		54DAC83850172B46C8769464 /* GweiloWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2EE800B1D256FCEBB04F9CA /* GweiloWatchApp.swift */; };
 		56AEF6C0D11737EB42716B50 /* GweiloIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 8FABDA5AA002D968B8801C21 /* GweiloIcon.icon */; };
 		5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B184252000811E5ACACA38B /* RankingsView.swift */; };
+		F3E42A720001000000000001 /* PlayerProfilePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720001000000000002 /* PlayerProfilePresentation.swift */; };
+		F3E42A720002000000000001 /* GweiloEntrancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720002000000000002 /* GweiloEntrancePresentation.swift */; };
+		F3E42A720002000000000003 /* RankingsEntrancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720002000000000004 /* RankingsEntrancePresentation.swift */; };
+		F3E42A720002000000000005 /* RankingsEntrancePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720002000000000006 /* RankingsEntrancePresentationTests.swift */; };
+		F3E42A720001000000000003 /* PlayerProfilePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720001000000000004 /* PlayerProfilePresentationTests.swift */; };
 		57ABE6B890359977A1FB85A8 /* SessionPlayerCountPlaceholder.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 9A8688A7F268AA1E1587BAE3 /* SessionPlayerCountPlaceholder.mp4 */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
 		5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */; };
@@ -46,6 +51,7 @@
 		88C3C819902499ADBD167ED1 /* SessionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926BC005373CE199C1266A45 /* SessionDetailView.swift */; };
 		8D1408A8F9B01648DBE61A69 /* GweiloLiveActivityBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6850C145D682436FCA5A7782 /* GweiloLiveActivityBundle.swift */; };
 		9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */; };
+		A11CE0000000000000000002 /* loading-quotes.json in Resources */ = {isa = PBXBuildFile; fileRef = A11CE0000000000000000001 /* loading-quotes.json */; };
 		9117A1CEE63B8E6C4ABD7EEC /* AuthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4226CAE4B4BE4E0ACB3DA55 /* AuthStore.swift */; };
 		91288BAE4D4C088202350361 /* AppDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A9391F1239E602BBF63632B /* AppDataStore.swift */; };
 		91782CFD6CC5EB1C2BDFB505 /* GweiloWidgetSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45EB3F3AC65922CCFD82DBBF /* GweiloWidgetSnapshot.swift */; };
@@ -189,6 +195,11 @@
 		7733DAE6890D55135B786D21 /* SessionsHeader.mp4 */ = {isa = PBXFileReference; path = SessionsHeader.mp4; sourceTree = "<group>"; };
 		7A9391F1239E602BBF63632B /* AppDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDataStore.swift; sourceTree = "<group>"; };
 		7B184252000811E5ACACA38B /* RankingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsView.swift; sourceTree = "<group>"; };
+		F3E42A720001000000000002 /* PlayerProfilePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerProfilePresentation.swift; sourceTree = "<group>"; };
+		F3E42A720002000000000002 /* GweiloEntrancePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloEntrancePresentation.swift; sourceTree = "<group>"; };
+		F3E42A720002000000000004 /* RankingsEntrancePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsEntrancePresentation.swift; sourceTree = "<group>"; };
+		F3E42A720002000000000006 /* RankingsEntrancePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsEntrancePresentationTests.swift; sourceTree = "<group>"; };
+		F3E42A720001000000000004 /* PlayerProfilePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerProfilePresentationTests.swift; sourceTree = "<group>"; };
 		7BE5ACD696CAB1A99AD1E621 /* AdminActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminActivityView.swift; sourceTree = "<group>"; };
 		7DF6A7D394A2D0829E50769F /* DemoModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModels.swift; sourceTree = "<group>"; };
 		81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthClient.swift; sourceTree = "<group>"; };
@@ -203,6 +214,7 @@
 		9A08C2057F03A679FEA20ABC /* MatchResultLoss.mp4 */ = {isa = PBXFileReference; path = MatchResultLoss.mp4; sourceTree = "<group>"; };
 		9A8688A7F268AA1E1587BAE3 /* SessionPlayerCountPlaceholder.mp4 */ = {isa = PBXFileReference; path = SessionPlayerCountPlaceholder.mp4; sourceTree = "<group>"; };
 		9EAA8F10E3536D94CFB770CE /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		A11CE0000000000000000001 /* loading-quotes.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; name = "loading-quotes.json"; path = ../shared/loading-quotes.json; sourceTree = SOURCE_ROOT; };
 		A2EE800B1D256FCEBB04F9CA /* GweiloWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloWatchApp.swift; sourceTree = "<group>"; };
 		A2F91443DFAF16B9537A6ABF /* WatchWidgetSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchWidgetSyncService.swift; sourceTree = "<group>"; };
 		A3118FC902F9D393E9F67543 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -325,6 +337,7 @@
 			children = (
 				ACEDE9089430DC537C52FE02 /* ComingSoonView.swift */,
 				AFE83D243D79C6ABF5A41BCA /* GweiloLoadingView.swift */,
+				F3E42A720002000000000002 /* GweiloEntrancePresentation.swift */,
 				0A89AD0EDDF6A5DBE39C9D28 /* LoopingBundleVideo.swift */,
 				00C47289CB71A6BA84ADB26F /* OneShotBundleVideo.swift */,
 				4F872CCF78C524B60C91A2BF /* PlayerIdentityAvatar.swift */,
@@ -393,6 +406,8 @@
 				27E4646D603B39A4A78C8FD0 /* DemoScoreboardTests.swift */,
 				E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */,
 				17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */,
+				F3E42A720001000000000004 /* PlayerProfilePresentationTests.swift */,
+				F3E42A720002000000000006 /* RankingsEntrancePresentationTests.swift */,
 			);
 			path = GweiloTests;
 			sourceTree = "<group>";
@@ -401,6 +416,8 @@
 			isa = PBXGroup;
 			children = (
 				7B184252000811E5ACACA38B /* RankingsView.swift */,
+				F3E42A720001000000000002 /* PlayerProfilePresentation.swift */,
+				F3E42A720002000000000004 /* RankingsEntrancePresentation.swift */,
 			);
 			path = Rankings;
 			sourceTree = "<group>";
@@ -465,6 +482,7 @@
 			isa = PBXGroup;
 			children = (
 				A3118FC902F9D393E9F67543 /* Assets.xcassets */,
+				A11CE0000000000000000001 /* loading-quotes.json */,
 				8FABDA5AA002D968B8801C21 /* GweiloIcon.icon */,
 				50BE1BBE42923C1E7EBBCE70 /* GweiloLoader.mp4 */,
 				AD4D4EEBA434732E0387A39C /* GweiloLoginHero.mov */,
@@ -695,6 +713,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				86BD73C990C5813C363CF084 /* Assets.xcassets in Resources */,
+				A11CE0000000000000000002 /* loading-quotes.json in Resources */,
 				81AEEF5CD87CC4533B850FC1 /* GweiloIcon.icon in Resources */,
 				5E538D8615FAC95CD084862D /* GweiloLoader.mp4 in Resources */,
 				20B6307C8878A58E13163217 /* GweiloLoginHero.mov in Resources */,
@@ -743,6 +762,8 @@
 				F57E09C0A7AA81090D62CB9A /* DemoScoreboardTests.swift in Sources */,
 				C4CA2FD844FE65E9B396338B /* NotificationModelsTests.swift in Sources */,
 				DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */,
+				F3E42A720001000000000003 /* PlayerProfilePresentationTests.swift in Sources */,
+				F3E42A720002000000000005 /* RankingsEntrancePresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -781,6 +802,9 @@
 				5A1269E3118107C569B12A1E /* PlayerIdentityAvatar.swift in Sources */,
 				B4A481FD81E27E8A7AA4256D /* PushNotificationManager.swift in Sources */,
 				5791770ED5F8AC7A350FC517 /* RankingsView.swift in Sources */,
+				F3E42A720001000000000001 /* PlayerProfilePresentation.swift in Sources */,
+				F3E42A720002000000000001 /* GweiloEntrancePresentation.swift in Sources */,
+				F3E42A720002000000000003 /* RankingsEntrancePresentation.swift in Sources */,
 				B9F54303CCCA90A8ACF98E71 /* RivalryMissionsClient.swift in Sources */,
 				237A431D6D9C09391F5F8800 /* RivalryMissionsView.swift in Sources */,
 				5999C1D880A0425F482E0121 /* RootView.swift in Sources */,

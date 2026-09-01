@@ -7,8 +7,12 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { useAuth } from "@/lib/auth/useAuth";
 import { Stack } from "@/components/ui/stack";
 import { InfiniteScroll } from "@/components/ui/infinite-scroll";
+import { PageLoading } from "@/components/ui/loading";
 import { supabase } from "@/lib/supabase/client";
-import { SessionCard } from "./_components/session-card";
+import {
+	SessionCard,
+	type SessionCardSession,
+} from "@/components/sessions/session-card";
 import { SessionsLayout, SessionsState } from "./_components/sessions-layout";
 import { t } from "@/lib/i18n";
 import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
@@ -20,36 +24,50 @@ const listTransition = {
 	ease: [0.25, 0.46, 0.45, 0.94] as const,
 };
 
-type BestWorstPlayer = {
-	best_player_id: string | null;
-	best_player_display_name: string | null;
-	best_player_delta: number | null;
-	worst_player_id: string | null;
-	worst_player_display_name: string | null;
-	worst_player_delta: number | null;
-};
-
-type Session = {
-	id: string;
-	player_count: number;
-	created_at: string;
-	status: "active" | "completed";
+type Session = SessionCardSession & {
 	completed_at?: string | null;
-	singles_match_count: number;
-	doubles_match_count: number;
-	best_worst_player?: BestWorstPlayer | null;
 };
 
 const PAGE_SIZE = 5;
 const SESSIONS_REFRESH_INTERVAL_MS = 15_000;
-// Version 3 drops lists that may still contain sessions deleted on another client.
-const SESSIONS_CACHE_VERSION = 3;
+// Version 4 adds native-parity round progress and performer avatars.
+const SESSIONS_CACHE_VERSION = 4;
 const SESSIONS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 type SessionsCache = {
 	sessions: Session[];
 	hasMore: boolean;
 };
+
+const monthFormatter = new Intl.DateTimeFormat("sr-Latn-RS", {
+	month: "long",
+	year: "numeric",
+});
+
+function groupCompletedSessions(sessions: Session[]) {
+	const groups = new Map<string, { title: string; sessions: Session[] }>();
+
+	for (const session of sessions) {
+		if (session.status !== "completed") continue;
+		const date = new Date(session.created_at);
+		const key = `${date.getFullYear()}-${date.getMonth()}`;
+		const existing = groups.get(key);
+		if (existing) {
+			existing.sessions.push(session);
+		} else {
+			groups.set(key, {
+				title: monthFormatter.format(date).toLocaleUpperCase("sr-Latn-RS"),
+				sessions: [session],
+			});
+		}
+	}
+
+	return Array.from(groups.values());
+}
+
+function sessionCountLabel(count: number) {
+	return `${count} ${count === 1 ? "termin" : "termina"}`;
+}
 
 function getSessionsCacheKey(userId: string) {
 	return `sessions-page:${userId}`;
@@ -98,9 +116,8 @@ function SessionsPageContent() {
 			? [
 					{
 						...activeSession,
-						singles_match_count: 0,
-						doubles_match_count: 0,
-						best_worst_player: null,
+						best_player: null,
+						worst_player: null,
 					},
 					...reconciledSessions,
 			  ]
@@ -177,51 +194,77 @@ function SessionsPageContent() {
 					),
 				) as string[];
 
-				const [matchCountsResult, profilesResult] = await Promise.all([
+				const [matchSummaryResult, profilesResult] = await Promise.all([
 					supabase
 						.from("session_matches")
-						.select("session_id, match_type")
-						.in("session_id", sessionIds)
-						.eq("status", "completed"),
+						.select("session_id, match_type, round_number, status")
+						.in("session_id", sessionIds),
 					bestWorstPlayerIds.length > 0
 						? supabase
 								.from("profiles")
-								.select("id, display_name")
+								.select("id, display_name, avatar_url")
 								.in("id", bestWorstPlayerIds)
 						: Promise.resolve({ data: [], error: null }),
 				]);
 
-				if (matchCountsResult.error) {
+				if (matchSummaryResult.error) {
 					console.error(
-						"Error fetching match counts:",
-						matchCountsResult.error,
+						"Error fetching session match summaries:",
+						matchSummaryResult.error,
 					);
 				}
 
-				// Aggregate match counts by session_id and match_type
+				// Mirror the native summary: all scheduled matches count, the current
+				// round is the first pending round, and total rounds is the highest one.
 				const countsMap = new Map<
 					string,
-					{ singles: number; doubles: number }
+					{
+						singles: number;
+						doubles: number;
+						totalRounds: number;
+						currentRound: number | null;
+					}
 				>();
 
 				sessionIds.forEach((sessionId) => {
-					countsMap.set(sessionId, { singles: 0, doubles: 0 });
+					countsMap.set(sessionId, {
+						singles: 0,
+						doubles: 0,
+						totalRounds: 0,
+						currentRound: null,
+					});
 				});
 
-				(matchCountsResult.data || []).forEach((match) => {
+				(matchSummaryResult.data || []).forEach((match) => {
 					const counts = countsMap.get(match.session_id) || {
 						singles: 0,
 						doubles: 0,
+						totalRounds: 0,
+						currentRound: null,
 					};
 					if (match.match_type === "singles") {
 						counts.singles += 1;
 					} else if (match.match_type === "doubles") {
 						counts.doubles += 1;
 					}
+					counts.totalRounds = Math.max(
+						counts.totalRounds,
+						match.round_number ?? 0,
+					);
+					if (
+						match.status !== "completed" &&
+						(counts.currentRound === null ||
+							match.round_number < counts.currentRound)
+					) {
+						counts.currentRound = match.round_number;
+					}
 					countsMap.set(match.session_id, counts);
 				});
 
-				const bestWorstNameMap = new Map<string, string>();
+				const profileMap = new Map<
+					string,
+					{ name: string; avatar: string | null }
+				>();
 				if (profilesResult.error) {
 					console.error(
 						"Error fetching best/worst player names:",
@@ -229,9 +272,12 @@ function SessionsPageContent() {
 					);
 				} else {
 					(profilesResult.data || []).forEach((profile: any) => {
-						bestWorstNameMap.set(
+						profileMap.set(
 							profile.id,
-							profile.display_name || "User",
+							{
+								name: profile.display_name || "User",
+								avatar: profile.avatar_url || null,
+							},
 						);
 					});
 				}
@@ -241,41 +287,49 @@ function SessionsPageContent() {
 					const counts = countsMap.get(session.id) || {
 						singles: 0,
 						doubles: 0,
+						totalRounds: 0,
+						currentRound: null,
 					};
-					
-					// Map cached best/worst player data from the session row.
-					const bestWorstPlayer =
-						session.best_player_id ||
-						session.worst_player_id
-							? {
-									best_player_id: session.best_player_id || null,
-									best_player_display_name:
-										(session.best_player_id
-											? bestWorstNameMap.get(
-													session.best_player_id,
-												)
-											: null) ||
-										session.best_player_display_name ||
-										null,
-									best_player_delta: session.best_player_delta ?? null,
-									worst_player_id: session.worst_player_id || null,
-									worst_player_display_name:
-										(session.worst_player_id
-											? bestWorstNameMap.get(
-													session.worst_player_id,
-												)
-											: null) ||
-										session.worst_player_display_name ||
-										null,
-									worst_player_delta: session.worst_player_delta ?? null,
-								}
-							: null;
+					const bestProfile = session.best_player_id
+						? profileMap.get(session.best_player_id)
+						: null;
+					const worstProfile = session.worst_player_id
+						? profileMap.get(session.worst_player_id)
+						: null;
 
 					return {
 						...session,
 						singles_match_count: counts.singles,
 						doubles_match_count: counts.doubles,
-						best_worst_player: bestWorstPlayer,
+						current_round:
+							session.status === "active"
+								? (counts.currentRound ?? (counts.totalRounds || 1))
+								: null,
+						total_rounds: counts.totalRounds,
+						best_player:
+							session.best_player_display_name || session.best_player_id
+								? {
+									id: session.best_player_id || null,
+									name:
+										bestProfile?.name ||
+										session.best_player_display_name ||
+										null,
+									avatar: bestProfile?.avatar || null,
+									delta: session.best_player_delta ?? null,
+								}
+								: null,
+						worst_player:
+							session.worst_player_display_name || session.worst_player_id
+								? {
+									id: session.worst_player_id || null,
+									name:
+										worstProfile?.name ||
+										session.worst_player_display_name ||
+										null,
+									avatar: worstProfile?.avatar || null,
+									delta: session.worst_player_delta ?? null,
+								}
+								: null,
 					};
 				});
 
@@ -387,38 +441,10 @@ function SessionsPageContent() {
 		}
 	}, [fetchSessions, loadingMore, hasMore, sessions.length]);
 
-	// Date formatting helpers (Serbian locale)
-	const formatDateWeekday = useCallback((dateString: string) => {
-		return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
-			weekday: "long",
-		});
-	}, []);
-
-	const formatDateDay = useCallback((dateString: string) => {
-		return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
-			month: "short",
-			day: "numeric",
-		});
-	}, []);
-
-	const formatDateYear = useCallback((dateString: string) => {
-		return new Date(dateString).toLocaleDateString("sr-Latn-RS", {
-			year: "numeric",
-		});
-	}, []);
-
 	if (loading) {
 		return (
 			<SessionsLayout>
-				<motion.div
-					initial={
-						shouldReduceMotion ? false : { opacity: 0, y: 8 }
-					}
-					animate={{ opacity: 1, y: 0 }}
-					transition={listTransition}
-				>
-					<SessionsState message={t.sessions.loading} variant="loading" />
-				</motion.div>
+				<PageLoading label={t.sessions.loading} />
 			</SessionsLayout>
 		);
 	}
@@ -460,30 +486,63 @@ function SessionsPageContent() {
 					loading={loadingMore}
 					onLoadMore={handleLoadMore}
 				>
-					<Stack direction="column" spacing={4}>
-						{visibleSessions.map((session, index) => (
-							<motion.div
-								key={session.id}
-								initial={
-									shouldReduceMotion
-										? false
-										: { opacity: 0, y: 12 }
-								}
-								animate={{ opacity: 1, y: 0 }}
-								transition={{
-									...listTransition,
-									delay: shouldReduceMotion ? 0 : index * 0.03,
-								}}
-							>
-								<SessionCard
-									session={session}
-									formatDateWeekday={formatDateWeekday}
-									formatDateDay={formatDateDay}
-									formatDateYear={formatDateYear}
-								/>
-							</motion.div>
+					<div className="mx-auto w-full max-w-3xl space-y-[30px]">
+						{visibleSessions.some((session) => session.status === "active") && (
+							<Stack direction="column" spacing={3}>
+								{visibleSessions
+									.filter((session) => session.status === "active")
+									.map((session, index) => (
+										<motion.div
+											key={session.id}
+											initial={
+												shouldReduceMotion
+													? false
+													: { opacity: 0, y: 12 }
+											}
+											animate={{ opacity: 1, y: 0 }}
+											transition={{
+												...listTransition,
+												delay: shouldReduceMotion ? 0 : index * 0.03,
+											}}
+										>
+											<SessionCard session={session} />
+										</motion.div>
+									))}
+							</Stack>
+						)}
+
+						{groupCompletedSessions(visibleSessions).map((group) => (
+							<section key={group.title} className="space-y-3">
+								<div className="flex items-baseline justify-between gap-4 px-0.5">
+									<h2 className="font-session-label text-ios-label-13 font-semibold tracking-[0.138em] text-ds-section-accent">
+										{group.title}
+									</h2>
+									<p className="text-ios-caption font-semibold tracking-wide text-ds-button-muted">
+										{sessionCountLabel(group.sessions.length)}
+									</p>
+								</div>
+								<Stack direction="column" spacing={3}>
+									{group.sessions.map((session, index) => (
+										<motion.div
+											key={session.id}
+											initial={
+												shouldReduceMotion
+													? false
+													: { opacity: 0, y: 12 }
+											}
+											animate={{ opacity: 1, y: 0 }}
+											transition={{
+												...listTransition,
+												delay: shouldReduceMotion ? 0 : index * 0.03,
+											}}
+										>
+											<SessionCard session={session} />
+										</motion.div>
+									))}
+								</Stack>
+							</section>
 						))}
-					</Stack>
+					</div>
 				</InfiniteScroll>
 			)}
 		</SessionsLayout>

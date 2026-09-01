@@ -1,60 +1,367 @@
 "use client";
 
-import { useId, useState } from "react";
-import Image from "next/image";
-import { motion, AnimatePresence } from "framer-motion";
-import { Icon } from "@/components/ui/icon";
-import { Input } from "@/components/ui/input";
-import { Stack } from "@/components/ui/stack";
-import { Box } from "@/components/ui/box";
+import {
+	useCallback,
+	useEffect,
+	useId,
+	useRef,
+	useState,
+	type ChangeEvent,
+	type FormEvent,
+} from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 
-/**
- * AuthScreen component
- *
- * Renders login/register UI with all auth functionality.
- * Does NOT handle routing - parent component manages auth state and rendering.
- * When auth succeeds, parent will automatically re-render via onAuthStateChange.
- */
-/**
- * Auth state management:
- * - idle: form visible, ready for input
- * - loading: request in progress, buttons disabled with spinner
- * - success: registration success message shown (only for registration)
- * - error: error message shown
- */
-type AuthState = "idle" | "loading" | "success" | "error";
+type AuthState = "idle" | "success" | "error";
+type AuthMode = "login" | "register" | "forgot";
+type FocusedField = "email" | "password" | "fullName" | null;
+type LoadingMethod = "password" | "google" | "register" | null;
 
 type AuthScreenProps = {
 	redirectPath?: string;
 };
 
+const LOGIN_VIDEO_ASPECT_RATIO = 1078 / 978;
+const LOGIN_VIDEO_RATE = 3.01026;
+
+type AuthCapsuleFieldProps = {
+	id: string;
+	type: "email" | "password" | "text";
+	name: string;
+	placeholder: string;
+	value: string;
+	disabled: boolean;
+	autoComplete: string;
+	invalid?: boolean;
+	describedBy?: string;
+	onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+	onFocus: () => void;
+	onBlur: () => void;
+};
+
+function AuthCapsuleField({
+	id,
+	type,
+	name,
+	placeholder,
+	value,
+	disabled,
+	autoComplete,
+	invalid = false,
+	describedBy,
+	onChange,
+	onFocus,
+	onBlur,
+}: AuthCapsuleFieldProps) {
+	return (
+		<label className="block">
+			<span className="sr-only">{placeholder}</span>
+			<input
+				id={id}
+				name={name}
+				type={type}
+				value={value}
+				placeholder={placeholder}
+				autoComplete={autoComplete}
+				disabled={disabled}
+				required
+				aria-invalid={invalid || undefined}
+				aria-describedby={describedBy}
+				onChange={onChange}
+				onFocus={onFocus}
+				onBlur={onBlur}
+				className="auth-lock-field h-[52px] w-full rounded-full border-[1.2px] border-white/[0.13] bg-[rgb(var(--ds-native-surface))] px-5 text-center text-base font-normal text-[rgb(var(--ds-native-bone))] caret-[rgb(var(--ds-native-purple-bright))] outline-none transition-[border-color,box-shadow,opacity] duration-press ease-ds-out placeholder:text-[rgb(var(--ds-native-muted))]/55 focus:border-[rgb(var(--ds-native-purple))] focus:shadow-[0_0_0_1px_rgb(120_48_255_/_0.12)] disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none"
+			/>
+		</label>
+	);
+}
+
+function NativeLoginHero({ isEditing }: { isEditing: boolean }) {
+	const videoRef = useRef<HTMLVideoElement>(null);
+	const fadeRef = useRef<HTMLDivElement>(null);
+	const progressFrameRef = useRef<number | null>(null);
+	const shouldReduceMotion = useReducedMotion();
+
+	const stopProgressLoop = useCallback(() => {
+		if (progressFrameRef.current !== null) {
+			window.cancelAnimationFrame(progressFrameRef.current);
+			progressFrameRef.current = null;
+		}
+	}, []);
+
+	const updateProgressFade = useCallback(() => {
+		const video = videoRef.current;
+		const fade = fadeRef.current;
+		if (!video || !fade) return;
+
+		const duration = video.duration;
+		const progress =
+			Number.isFinite(duration) && duration > 0
+				? Math.min(Math.max(video.currentTime / duration, 0), 1)
+				: 0;
+		const opacity = shouldReduceMotion
+			? 1
+			: progress <= 0.3
+				? 0
+				: Math.min((progress - 0.3) / 0.4, 1);
+
+		fade.style.opacity = String(opacity);
+
+		if (!video.paused && !video.ended) {
+			progressFrameRef.current = window.requestAnimationFrame(
+				updateProgressFade,
+			);
+		}
+	}, [shouldReduceMotion]);
+
+	const startProgressLoop = useCallback(() => {
+		stopProgressLoop();
+		updateProgressFade();
+	}, [stopProgressLoop, updateProgressFade]);
+
+	useEffect(() => {
+		const video = videoRef.current;
+		if (!video) return;
+
+		const syncPlaybackWithPage = () => {
+			if (shouldReduceMotion || document.visibilityState !== "visible") {
+				video.pause();
+				updateProgressFade();
+				return;
+			}
+
+			if (!video.ended) {
+				video.playbackRate = LOGIN_VIDEO_RATE;
+				void video.play().catch(() => {
+					// The poster is a complete visual fallback when autoplay is denied.
+				});
+			}
+		};
+
+		document.addEventListener("visibilitychange", syncPlaybackWithPage);
+		syncPlaybackWithPage();
+
+		return () => {
+			document.removeEventListener("visibilitychange", syncPlaybackWithPage);
+			stopProgressLoop();
+		};
+	}, [shouldReduceMotion, stopProgressLoop, updateProgressFade]);
+
+	return (
+		<div
+			aria-hidden="true"
+			className="relative aspect-[1078/978] w-full overflow-hidden"
+		>
+			<video
+				ref={videoRef}
+				muted
+				playsInline
+				autoPlay={!shouldReduceMotion}
+				preload="auto"
+				poster="/auth/gweilo-login-hero-poster.jpg"
+				onLoadedMetadata={(event) => {
+					event.currentTarget.defaultPlaybackRate = LOGIN_VIDEO_RATE;
+					event.currentTarget.playbackRate = LOGIN_VIDEO_RATE;
+					updateProgressFade();
+				}}
+				onPlay={startProgressLoop}
+				onPause={() => {
+					stopProgressLoop();
+					updateProgressFade();
+				}}
+				onEnded={() => {
+					stopProgressLoop();
+					updateProgressFade();
+				}}
+				className="absolute inset-0 size-full object-contain transition-[filter,opacity] [transition-duration:250ms] ease-in-out motion-reduce:transition-none"
+				style={{
+					filter: isEditing ? "blur(7px)" : "blur(0px)",
+					opacity: isEditing ? 0.66 : 1,
+				}}
+			>
+				<source
+					src="/auth/gweilo-login-hero.mov"
+					type='video/quicktime; codecs="hvc1"'
+				/>
+				<source src="/auth/gweilo-login-hero.mp4" type="video/mp4" />
+			</video>
+
+			<div
+				ref={fadeRef}
+				className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_bottom,rgb(3_3_4)_0%,rgb(3_3_4_/_0.72)_8%,transparent_20%,transparent_100%)] opacity-0"
+			/>
+			<div
+				className="pointer-events-none absolute inset-0 bg-[rgb(var(--ds-native-background))] transition-opacity [transition-duration:250ms] ease-in-out motion-reduce:transition-none"
+				style={{ opacity: isEditing ? 0.18 : 0 }}
+			/>
+		</div>
+	);
+}
+
+function FormError({ id, message }: { id: string; message: string }) {
+	return (
+		<p
+			id={id}
+			role="alert"
+			className="text-center text-[13px] leading-snug text-[rgb(var(--ds-native-coral))]"
+		>
+			{message}
+		</p>
+	);
+}
+
+function NativeDivider() {
+	return (
+		<div className="flex items-center gap-3" aria-hidden="true">
+			<span className="h-px flex-1 bg-white/[0.13]" />
+			<span className="text-[12px] font-bold text-[rgb(var(--ds-native-muted))]">
+				ILI
+			</span>
+			<span className="h-px flex-1 bg-white/[0.13]" />
+		</div>
+	);
+}
+
+function NativePrimaryButton({
+	children,
+	isLoading,
+	disabled,
+	type = "submit",
+}: {
+	children: string;
+	isLoading: boolean;
+	disabled: boolean;
+	type?: "button" | "submit";
+}) {
+	return (
+		<Button
+			type={type}
+			variant="prominent"
+			size="auth"
+			disabled={disabled}
+			isLoading={isLoading}
+			loadingLabel={children}
+			className="h-[50px] rounded-full border-[rgb(var(--ds-native-lime))] bg-[rgb(var(--ds-native-lime))] px-5 text-[17px] font-bold text-[rgb(var(--ds-native-background))] hover:border-[rgb(var(--ds-native-lime))]/90 hover:bg-[rgb(var(--ds-native-lime))]/90 disabled:border-[rgb(var(--ds-native-lime))] disabled:bg-[rgb(var(--ds-native-lime))] disabled:text-[rgb(var(--ds-native-background))] disabled:opacity-[0.72]"
+		>
+			{children}
+		</Button>
+	);
+}
+
+function NativeGoogleButton({
+	isLoading,
+	disabled,
+	onClick,
+}: {
+	isLoading: boolean;
+	disabled: boolean;
+	onClick: () => void;
+}) {
+	return (
+		<Button
+			type="button"
+			variant="secondary"
+			size="authSecondary"
+			disabled={disabled}
+			isLoading={isLoading}
+			loadingLabel="Povezivanje…"
+			onClick={onClick}
+			className="h-[50px] rounded-full border-[1.2px] border-white/[0.13] bg-[rgb(var(--ds-native-raised))] px-5 text-[17px] font-semibold text-white hover:border-white/20 hover:bg-[rgb(var(--ds-native-raised))] disabled:border-white/[0.08] disabled:bg-[rgb(var(--ds-native-raised))] disabled:text-[rgb(var(--ds-native-muted))]"
+		>
+			<span className="text-[18px] font-black" aria-hidden="true">
+				G
+			</span>
+			<span>Koristi Google</span>
+		</Button>
+	);
+}
+
 export function AuthScreen({ redirectPath = "/" }: AuthScreenProps = {}) {
-	const [isLogin, setIsLogin] = useState(true);
-	const [showPassword, setShowPassword] = useState(false);
-	const [showForgotPassword, setShowForgotPassword] = useState(false);
+	const [mode, setMode] = useState<AuthMode>("login");
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [fullName, setFullName] = useState("");
 	const [authState, setAuthState] = useState<AuthState>("idle");
 	const [error, setError] = useState<string | null>(null);
-	const [isLoading, setIsLoading] = useState(false);
+	const [loadingMethod, setLoadingMethod] =
+		useState<LoadingMethod>(null);
+	const [focusedField, setFocusedField] = useState<FocusedField>(null);
+	const [heroWidth, setHeroWidth] = useState(0);
+	const heroRef = useRef<HTMLDivElement>(null);
 	const errorMessageId = useId();
+	const shouldReduceMotion = useReducedMotion();
 
-	const handleLogin = async (e: React.FormEvent) => {
-		e.preventDefault();
+	const isLoading = loadingMethod !== null;
+	const isEditing = focusedField !== null;
+	const canLogin = email.includes("@") && password.length > 0 && !isLoading;
+	const canRegister =
+		fullName.trim().length > 0 &&
+		email.includes("@") &&
+		password.length >= 6 &&
+		!isLoading;
+	const contentStart = heroWidth / LOGIN_VIDEO_ASPECT_RATIO + 10;
+	const editingOffset =
+		isEditing && contentStart > 0 ? Math.min(0, 56 - contentStart) : 0;
+
+	useEffect(() => {
+		const hero = heroRef.current;
+		if (!hero) return;
+
+		const updateWidth = () => {
+			const nextWidth = hero.getBoundingClientRect().width;
+			setHeroWidth((currentWidth) =>
+				Math.abs(currentWidth - nextWidth) >= 0.5
+					? nextWidth
+					: currentWidth,
+			);
+		};
+
+		updateWidth();
+		const observer = new ResizeObserver(updateWidth);
+		observer.observe(hero);
+		return () => observer.disconnect();
+	}, []);
+
+	useEffect(() => {
+		if (!isEditing) return;
+
+		// Mobile Safari may scroll the field before React applies the native
+		// keyboard offset. Once the field has moved above the keyboard, restore
+		// the canvas origin so the content settles at the same 56pt anchor as iOS.
+		const frame = window.requestAnimationFrame(() => window.scrollTo(0, 0));
+		const settle = window.setTimeout(() => window.scrollTo(0, 0), 340);
+		return () => {
+			window.cancelAnimationFrame(frame);
+			window.clearTimeout(settle);
+		};
+	}, [isEditing]);
+
+	const resetFeedback = () => {
+		setAuthState("idle");
 		setError(null);
-		setAuthState("loading");
-		setIsLoading(true);
+	};
+
+	const switchMode = (nextMode: AuthMode) => {
+		setMode(nextMode);
+		resetFeedback();
+		setPassword("");
+		setFocusedField(null);
+	};
+
+	const handleLogin = async (event: FormEvent) => {
+		event.preventDefault();
+		if (!canLogin) return;
+
+		setError(null);
+		setLoadingMethod("password");
+		setFocusedField(null);
 
 		try {
-			const { data, error: signInError } =
-				await supabase.auth.signInWithPassword({
-					email,
-					password,
-				});
+			const { error: signInError } =
+				await supabase.auth.signInWithPassword({ email, password });
 
 			if (signInError) {
 				setAuthState("error");
@@ -68,31 +375,28 @@ export function AuthScreen({ redirectPath = "/" }: AuthScreenProps = {}) {
 				}
 			} else {
 				setAuthState("idle");
-				// On success, parent component will detect auth change and render dashboard
 			}
-		} catch (err) {
+		} catch {
 			setAuthState("error");
 			setError(t.auth.error.generic);
 		} finally {
-			setIsLoading(false);
+			setLoadingMethod(null);
 		}
 	};
 
-	const handleRegister = async (e: React.FormEvent) => {
-		e.preventDefault();
+	const handleRegister = async (event: FormEvent) => {
+		event.preventDefault();
+		if (!canRegister) return;
+
 		setError(null);
-		setAuthState("loading");
-		setIsLoading(true);
+		setLoadingMethod("register");
+		setFocusedField(null);
 
 		try {
 			const { error: signUpError } = await supabase.auth.signUp({
 				email,
 				password,
-				options: {
-					data: {
-						full_name: fullName,
-					},
-				},
+				options: { data: { full_name: fullName } },
 			});
 
 			if (signUpError) {
@@ -105,526 +409,282 @@ export function AuthScreen({ redirectPath = "/" }: AuthScreenProps = {}) {
 					setError(t.auth.error.generic);
 				}
 			} else {
-				// Registration successful - show success message
 				setAuthState("success");
 			}
-		} catch (err) {
+		} catch {
 			setAuthState("error");
 			setError(t.auth.error.generic);
 		} finally {
-			setIsLoading(false);
+			setLoadingMethod(null);
 		}
 	};
 
 	const handleGoogleAuth = async () => {
+		if (isLoading) return;
 		setError(null);
-		setAuthState("loading");
-		setIsLoading(true);
+		setLoadingMethod("google");
+		setFocusedField(null);
 
 		try {
-			const callbackUrl = new URL(
-				"/auth/callback",
-				window.location.origin,
-			);
+			const callbackUrl = new URL("/auth/callback", window.location.origin);
 			if (redirectPath !== "/") {
 				callbackUrl.searchParams.set("next", redirectPath);
 			}
 
 			const { error: oauthError } = await supabase.auth.signInWithOAuth({
 				provider: "google",
-				options: {
-					redirectTo: callbackUrl.toString(),
-				},
+				options: { redirectTo: callbackUrl.toString() },
 			});
 
 			if (oauthError) {
 				setAuthState("error");
 				setError(t.auth.error.oauthError);
-				setIsLoading(false);
+				setLoadingMethod(null);
 			}
-			// On success, user will be redirected to OAuth provider
-			// then back to callback route, which restores the requested page
-		} catch (err) {
+		} catch {
 			setAuthState("error");
 			setError(t.auth.error.oauthError);
-			setIsLoading(false);
+			setLoadingMethod(null);
 		}
 	};
 
+	const transition = shouldReduceMotion
+		? { duration: 0 }
+		: { duration: 0.18, ease: [0.23, 1, 0.32, 1] as const };
+
 	return (
-		<Stack
-			direction="column"
-			className="min-h-screen bg-background text-foreground selection:bg-primary/20"
+		<main
+			data-auth-mode={mode}
+			data-has-error={Boolean(error)}
+			className={`${
+				mode === "login"
+					? "auth-lock-screen relative h-[100svh] overflow-hidden"
+					: "min-h-[100svh] overflow-x-hidden"
+			} pt-[env(safe-area-inset-top)] bg-[rgb(var(--ds-native-background))] text-[rgb(var(--ds-native-bone))] selection:bg-[rgb(var(--ds-native-purple))]/30`}
 		>
-			<Stack
-				direction="column"
-				alignItems="center"
-				justifyContent="center"
-				className="flex-1 px-6 py-12"
-			>
-				<Stack
-					direction="column"
-					alignItems="center"
-					className="w-full max-w-xs mb-10"
+			<div className="relative mx-auto w-full max-w-[480px]">
+				<div
+					ref={heroRef}
+					className={
+						mode === "login"
+							? "auth-lock-hero mx-auto pt-[10px]"
+							: "w-full pt-[10px]"
+					}
 				>
-					<Box className="relative group">
-						<Box className="absolute -inset-4 bg-red-500/20 blur-3xl rounded-full opacity-50" />
-						<Box className="relative w-[60vw] max-w-[320px] h-auto">
-							<Image
-								src="/logo.png"
-								alt={t.logo.alt}
-								width={320}
-								height={320}
-								className="relative w-full h-auto drop-shadow-[0_0_15px_rgba(239,68,68,0.3)] pointer-events-none"
-								style={{ height: "auto" }}
-							/>
-						</Box>
-					</Box>
-				</Stack>
+					<NativeLoginHero isEditing={isEditing} />
+				</div>
 
-				<AnimatePresence mode="wait">
-					{showForgotPassword ? (
-						<motion.div
-							key="forgot-password"
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -10 }}
-							transition={{ duration: 0.2 }}
-							className="w-full max-w-sm"
-						>
-							<Stack direction="column" spacing={4}>
-								<Box className="text-center mb-8">
-									<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-										{t.auth.resetPassword}
-									</h1>
-									<p className="text-muted-foreground">
-										{t.auth.resetPasswordSubtitle}
-									</p>
-								</Box>
+				<div
+					className={`relative z-10 mx-auto w-[calc(100%-48px)] max-w-[440px] transition-transform [transition-duration:320ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-none ${
+						mode === "login" ? "" : "pb-6"
+					}`}
+					style={{ transform: `translateY(${editingOffset}px)` }}
+				>
+					<h1
+						className={`${
+							mode === "login"
+								? "auth-lock-title"
+								: "mb-[30px] text-[clamp(37px,10.2vw,41px)]"
+						} whitespace-pre-line text-center font-session-display font-black uppercase leading-[1.03] tracking-[-0.02em] text-[rgb(var(--ds-native-bone))]`}
+					>
+						{mode === "login"
+							? "Manje priče,\nviše ping-ponga."
+							: mode === "register"
+								? "Registruj se"
+								: "Resetuj lozinku"}
+					</h1>
 
-								<Stack direction="column" spacing={4}>
-									<Input
+					<AnimatePresence mode="wait" initial={false}>
+						{mode === "login" ? (
+							<motion.section
+								key="login"
+								initial={{ opacity: 0, transform: "translateY(8px)" }}
+								animate={{ opacity: 1, transform: "translateY(0px)" }}
+								exit={{ opacity: 0, transform: "translateY(-6px)" }}
+								transition={transition}
+							>
+								<form onSubmit={handleLogin} className="space-y-[10px]">
+									<AuthCapsuleField
+										id="auth-email"
 										type="email"
-										label={t.auth.emailAddress}
-										icon="solar:letter-bold"
-										placeholder="randy.daytona@ping.pong"
+										name="email"
+										placeholder="Email"
+										value={email}
+										disabled={isLoading}
+										autoComplete="email"
+										invalid={!!error}
+										describedBy={error ? errorMessageId : undefined}
+										onChange={(event) => setEmail(event.target.value)}
+										onFocus={() => setFocusedField("email")}
+										onBlur={() => setFocusedField(null)}
+									/>
+									<AuthCapsuleField
+										id="auth-password"
+										type="password"
+										name="password"
+										placeholder="Lozinka"
+										value={password}
+										disabled={isLoading}
+										autoComplete="current-password"
+										invalid={!!error}
+										describedBy={error ? errorMessageId : undefined}
+										onChange={(event) => setPassword(event.target.value)}
+										onFocus={() => setFocusedField("password")}
+										onBlur={() => setFocusedField(null)}
 									/>
 
-									<Button size="auth">
-										<Stack
-											direction="row"
-											alignItems="center"
-											justifyContent="center"
-											spacing={2}
-										>
-											<span>{t.auth.sendResetLink}</span>
-											<Icon
-												icon="solar:letter-opened-bold"
-												className="size-5"
-											/>
-										</Stack>
-									</Button>
+									{error && (
+										<FormError id={errorMessageId} message={error} />
+									)}
 
-									<Box className="text-center mt-4">
+									<NativePrimaryButton
+										isLoading={loadingMethod === "password"}
+										disabled={!canLogin}
+									>
+										Uloguj se
+									</NativePrimaryButton>
+									<NativeDivider />
+									<NativeGoogleButton
+										isLoading={loadingMethod === "google"}
+										disabled={isLoading}
+										onClick={handleGoogleAuth}
+									/>
+								</form>
+							</motion.section>
+						) : mode === "register" ? (
+							<motion.section
+								key="register"
+								initial={{ opacity: 0, transform: "translateY(8px)" }}
+								animate={{ opacity: 1, transform: "translateY(0px)" }}
+								exit={{ opacity: 0, transform: "translateY(-6px)" }}
+								transition={transition}
+							>
+								{authState === "success" ? (
+									<div className="space-y-[10px] text-center">
+										<div className="rounded-[20px] border border-white/[0.13] bg-[rgb(var(--ds-native-raised))] p-5">
+											<p className="font-semibold">
+												{t.auth.success.registrationSuccess}
+											</p>
+											<p className="mt-2 text-sm text-[rgb(var(--ds-native-muted))]">
+												{t.auth.success.emailConfirmationSent}{" "}
+												{t.auth.success.checkInbox}
+											</p>
+										</div>
 										<Button
 											type="button"
 											variant="ghost"
-											onClick={() =>
-												setShowForgotPassword(false)
-											}
-											className="text-sm text-muted-foreground hover:text-foreground h-auto p-0"
+											onClick={() => switchMode("login")}
+											className="min-h-11 w-full rounded-full"
 										>
 											{t.auth.backToSignIn}
 										</Button>
-									</Box>
-								</Stack>
-							</Stack>
-						</motion.div>
-					) : isLogin ? (
-						<motion.div
-							key="login"
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -10 }}
-							transition={{ duration: 0.2 }}
-							className="w-full max-w-sm"
-						>
-							<form onSubmit={handleLogin}>
-								<Stack direction="column" spacing={4}>
-									<Box className="text-center mb-8">
-										<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-											{t.auth.welcomeBack}
-										</h1>
-										<p className="text-muted-foreground">
-											{t.auth.signInSubtitle}
-										</p>
-									</Box>
-
-									{error && (
-										<Box
-											id={errorMessageId}
-											role="alert"
-											className="p-3 rounded-lg bg-destructive/10 border border-destructive/20"
-										>
-											<p className="text-sm text-destructive text-center">
-												{error}
-											</p>
-										</Box>
-									)}
-
-									<Stack direction="column" spacing={4}>
-										<Input
-											type="email"
-											label={t.auth.emailAddress}
-											icon="solar:letter-bold"
-											placeholder="randy.daytona@ping.pong"
-											value={email}
-											onChange={(e) =>
-												setEmail(e.target.value)
-											}
-											required
-											disabled={isLoading}
-											aria-invalid={!!error}
-											aria-describedby={error ? errorMessageId : undefined}
-										/>
-
-										<Input
-											type={
-												showPassword
-													? "text"
-													: "password"
-											}
-											label={t.auth.password}
-											icon="solar:lock-password-bold"
-											placeholder="••••••••••••"
-											value={password}
-											onChange={(e) =>
-												setPassword(e.target.value)
-											}
-											required
-											disabled={isLoading}
-											labelAction={
-												<button
-													type="button"
-													onClick={() =>
-														setShowForgotPassword(
-															true
-														)
-													}
-													className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
-												>
-													{t.auth.forgot}
-												</button>
-											}
-											rightAction={
-												<button
-													type="button"
-													onClick={() =>
-														setShowPassword(
-															!showPassword
-														)
-													}
-												>
-													<Icon
-														icon={
-															showPassword
-																? "solar:eye-bold"
-																: "solar:eye-closed-bold"
-														}
-														className="size-5 text-muted-foreground hover:text-foreground transition-colors"
-													/>
-												</button>
-											}
-										/>
-
-										<Button
-											type="submit"
-											size="auth"
-											disabled={isLoading}
-										>
-											<Stack
-												direction="row"
-												alignItems="center"
-												justifyContent="center"
-												spacing={2}
-											>
-												{isLoading && (
-													<Icon
-														icon="solar:refresh-bold"
-														className="size-5 animate-spin"
-													/>
-												)}
-												<span>{t.auth.signIn}</span>
-												{!isLoading && (
-													<Icon
-														icon="solar:login-2-bold"
-														className="size-5"
-													/>
-												)}
-											</Stack>
-										</Button>
-									</Stack>
-								</Stack>
-							</form>
-						</motion.div>
-					) : authState === "success" ? (
-						<motion.div
-							key="registration-success"
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -10 }}
-							transition={{ duration: 0.2 }}
-							className="w-full max-w-sm"
-						>
-							<Stack direction="column" spacing={4}>
-								<Box className="text-center mb-8">
-									<h1 className="text-3xl font-bold font-heading tracking-tight mb-4">
-										{t.auth.success.registrationSuccess}
-									</h1>
-								</Box>
-
-								<Box className="p-6 rounded-xl bg-card border border-border/50">
-									<Stack direction="column" spacing={3}>
-										<p className="text-center text-foreground">
-											{
-												t.auth.success
-													.emailConfirmationSent
-											}
-										</p>
-										<p className="text-center text-muted-foreground text-sm">
-											{t.auth.success.checkInbox}
-										</p>
-									</Stack>
-								</Box>
-
-								<Box className="text-center mt-4">
-									<Button
-										variant="link"
-										type="button"
-										onClick={() => {
-											setIsLogin(true);
-											setAuthState("idle");
-											setError(null);
-											setEmail("");
-											setPassword("");
-											setFullName("");
-										}}
-										className="text-sm text-muted-foreground hover:text-foreground h-auto p-0"
-									>
-										{t.auth.backToSignIn}
-									</Button>
-								</Box>
-							</Stack>
-						</motion.div>
-					) : (
-						<motion.div
-							key="register"
-							initial={{ opacity: 0, y: 10 }}
-							animate={{ opacity: 1, y: 0 }}
-							exit={{ opacity: 0, y: -10 }}
-							transition={{ duration: 0.2 }}
-							className="w-full max-w-sm"
-						>
-							<form onSubmit={handleRegister}>
-								<Stack direction="column" spacing={4}>
-									<Box className="text-center mb-8">
-										<h1 className="text-3xl font-bold font-heading tracking-tight mb-2">
-											{t.auth.createAccount}
-										</h1>
-										<p className="text-muted-foreground">
-											{t.auth.createAccountSubtitle}
-										</p>
-									</Box>
-
-									{error && (
-										<Box
-											id={errorMessageId}
-											role="alert"
-											className="p-3 rounded-lg bg-destructive/10 border border-destructive/20"
-										>
-											<p className="text-sm text-destructive text-center">
-												{error}
-											</p>
-										</Box>
-									)}
-
-									<Stack direction="column" spacing={4}>
-										<Input
-											type="text"
-											label={t.auth.fullName}
-											icon="solar:user-bold"
-											placeholder="Randy Daytona"
-											value={fullName}
-											onChange={(e) =>
-												setFullName(e.target.value)
-											}
-											required
-											disabled={isLoading}
-											aria-invalid={!!error}
-											aria-describedby={error ? errorMessageId : undefined}
-										/>
-
-										<Input
-											type="email"
-											label={t.auth.emailAddress}
-											icon="solar:letter-bold"
-											placeholder="randy.daytona@ping.pong"
-											value={email}
-											onChange={(e) =>
-												setEmail(e.target.value)
-											}
-											required
-											disabled={isLoading}
-										/>
-
-										<Input
-											type={
-												showPassword
-													? "text"
-													: "password"
-											}
-											label={t.auth.password}
-											icon="solar:lock-password-bold"
-											placeholder="••••••••••••"
-											value={password}
-											onChange={(e) =>
-												setPassword(e.target.value)
-											}
-											required
-											disabled={isLoading}
-											rightAction={
-												<button
-													type="button"
-													onClick={() =>
-														setShowPassword(
-															!showPassword
-														)
-													}
-												>
-													<Icon
-														icon={
-															showPassword
-																? "solar:eye-bold"
-																: "solar:eye-closed-bold"
-														}
-														className="size-5 text-muted-foreground hover:text-foreground transition-colors"
-													/>
-												</button>
-											}
-										/>
-
-										<Button
-											type="submit"
-											size="auth"
-											disabled={isLoading}
-										>
-											<Stack
-												direction="row"
-												alignItems="center"
-												justifyContent="center"
-												spacing={2}
-											>
-												{isLoading && (
-													<Icon
-														icon="solar:refresh-bold"
-														className="size-5 animate-spin"
-													/>
-												)}
-												<span>
-													{t.auth.createAccount}
-												</span>
-												{!isLoading && (
-													<Icon
-														icon="solar:user-plus-bold"
-														className="size-5"
-													/>
-												)}
-											</Stack>
-										</Button>
-									</Stack>
-								</Stack>
-							</form>
-						</motion.div>
-					)}
-				</AnimatePresence>
-
-				{/* Hide OAuth section when showing registration success */}
-				{!(authState === "success" && !isLogin) && (
-					<Box className="w-full max-w-sm mt-6">
-						<Stack
-							direction="row"
-							alignItems="center"
-							spacing={4}
-							className="py-4"
-						>
-							<Box className="flex-1 h-px bg-border/50" />
-							<span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-								{t.auth.orContinueWith}
-							</span>
-							<Box className="flex-1 h-px bg-border/50" />
-						</Stack>
-						<Button
-							variant="secondary"
-							size="authSecondary"
-							type="button"
-							onClick={handleGoogleAuth}
-							disabled={isLoading}
-						>
-							<Stack
-								direction="row"
-								alignItems="center"
-								justifyContent="center"
-								spacing={2}
-							>
-								{isLoading ? (
-									<Icon
-										icon="solar:refresh-bold"
-										className="size-5 animate-spin"
-									/>
+									</div>
 								) : (
-									<Icon
-										icon="logos:google-icon"
-										className="size-5"
-									/>
+									<form onSubmit={handleRegister} className="space-y-[10px]">
+										<AuthCapsuleField
+											id="auth-full-name"
+											type="text"
+											name="fullName"
+											placeholder={t.auth.fullName}
+											value={fullName}
+											disabled={isLoading}
+											autoComplete="name"
+											invalid={!!error}
+											describedBy={error ? errorMessageId : undefined}
+											onChange={(event) => setFullName(event.target.value)}
+											onFocus={() => setFocusedField("fullName")}
+											onBlur={() => setFocusedField(null)}
+										/>
+										<AuthCapsuleField
+											id="register-email"
+											type="email"
+											name="email"
+											placeholder="Email"
+											value={email}
+											disabled={isLoading}
+											autoComplete="email"
+											invalid={!!error}
+											describedBy={error ? errorMessageId : undefined}
+											onChange={(event) => setEmail(event.target.value)}
+											onFocus={() => setFocusedField("email")}
+											onBlur={() => setFocusedField(null)}
+										/>
+										<AuthCapsuleField
+											id="register-password"
+											type="password"
+											name="password"
+											placeholder="Lozinka"
+											value={password}
+											disabled={isLoading}
+											autoComplete="new-password"
+											invalid={!!error}
+											describedBy={error ? errorMessageId : undefined}
+											onChange={(event) => setPassword(event.target.value)}
+											onFocus={() => setFocusedField("password")}
+											onBlur={() => setFocusedField(null)}
+										/>
+
+										{error && (
+											<FormError id={errorMessageId} message={error} />
+										)}
+
+										<NativePrimaryButton
+											isLoading={loadingMethod === "register"}
+											disabled={!canRegister}
+										>
+											Registruj se
+										</NativePrimaryButton>
+										<Button
+											type="button"
+											variant="ghost"
+											onClick={() => switchMode("login")}
+											className="min-h-11 w-full rounded-full"
+										>
+											{t.auth.backToSignIn}
+										</Button>
+									</form>
 								)}
-								<span>Google</span>
-							</Stack>
-						</Button>
-					</Box>
-				)}
-
-				{/* Hide toggle when showing registration success */}
-				{!(authState === "success" && !isLogin) && (
-					<Box className="mt-auto pt-8">
-						<p className="text-sm text-muted-foreground">
-							{isLogin
-								? t.auth.dontHaveAccount
-								: t.auth.alreadyHaveAccount}
-							<Button
-								variant="link"
-								type="button"
-								onClick={() => {
-									setIsLogin(!isLogin);
-									setAuthState("idle");
-									setError(null);
-									setEmail("");
-									setPassword("");
-									setFullName("");
-								}}
-								disabled={isLoading}
-								className="ml-1 font-bold h-auto p-0"
+							</motion.section>
+						) : (
+							<motion.section
+								key="forgot"
+								initial={{ opacity: 0, transform: "translateY(8px)" }}
+								animate={{ opacity: 1, transform: "translateY(0px)" }}
+								exit={{ opacity: 0, transform: "translateY(-6px)" }}
+								transition={transition}
+								className="space-y-[10px]"
 							>
-								{isLogin ? t.auth.createAccount : t.auth.signIn}
-							</Button>
-						</p>
-					</Box>
-				)}
-			</Stack>
-
-			<Box className="fixed top-0 left-0 w-full h-full pointer-events-none -z-10 overflow-hidden">
-				<Box className="absolute -top-24 -right-24 size-64 bg-primary/10 blur-[100px] rounded-full" />
-				<Box className="absolute top-1/2 -left-32 size-96 bg-primary/5 blur-[120px] rounded-full" />
-			</Box>
-		</Stack>
+								<p className="pb-2 text-center text-sm leading-relaxed text-[rgb(var(--ds-native-muted))]">
+									{t.auth.resetPasswordSubtitle}
+								</p>
+								<AuthCapsuleField
+									id="reset-email"
+									type="email"
+									name="email"
+									placeholder="Email"
+									value={email}
+									disabled={isLoading}
+									autoComplete="email"
+									onChange={(event) => setEmail(event.target.value)}
+									onFocus={() => setFocusedField("email")}
+									onBlur={() => setFocusedField(null)}
+								/>
+								<NativePrimaryButton isLoading={false} disabled={!email.includes("@")}>
+									{t.auth.sendResetLink}
+								</NativePrimaryButton>
+								<Button
+									type="button"
+									variant="ghost"
+									onClick={() => switchMode("login")}
+									className="min-h-11 w-full rounded-full"
+								>
+									{t.auth.backToSignIn}
+								</Button>
+							</motion.section>
+						)}
+					</AnimatePresence>
+				</div>
+			</div>
+		</main>
 	);
 }

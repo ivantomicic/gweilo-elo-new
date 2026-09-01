@@ -2,11 +2,12 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { Box } from "@/components/ui/box";
 import { StateBlock } from "@/components/ui/state-block";
+import { PageLoading } from "@/components/ui/loading";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SurfaceCard } from "@/components/ui/surface-card";
@@ -23,20 +24,39 @@ import {
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { calculateEloChange } from "@/lib/elo";
-import { formatEloDelta } from "@/lib/elo/format";
 import { useAuth } from "@/lib/auth/useAuth";
 import { getUserRole } from "@/lib/auth/getUserRole";
 import { isValidVideoUrl } from "@/lib/video";
 import { cn } from "@/lib/utils";
 import { EditMatchDrawer } from "./_components/edit-match-drawer";
 import { SessionSummaryTable } from "./_components/session-summary-table";
-import { MatchHistoryCard } from "./_components/match-history-card";
+import {
+	SessionCompletedMatchResults,
+	SessionDetailHero,
+	SessionPerformanceTabs,
+	SessionPlayerMatchResults,
+	SessionResultsTimeline,
+	SessionScoreboardMatch,
+	type SessionDetailPlayer,
+	type SessionResultRound,
+	type SessionScoreboardMatchData,
+} from "@/components/sessions/session-detail";
+import {
+	ActiveSessionBrowseNotice,
+	ActiveSessionMatchEditor,
+	ActiveSessionNextRound,
+	ActiveSessionRestingLine,
+	ActiveSessionRoundCanvas,
+	ActiveSessionRoundHeader,
+	ActiveSessionSubmitBar,
+	type ActiveSessionPreviewMatch,
+	type ActiveSessionSide,
+} from "@/components/sessions/active-session";
 import {
 	clearSessionSummaryCache,
 	prefetchSessionSummary,
 	type SummaryView,
 } from "./_lib/session-summary-client";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
 import {
@@ -171,7 +191,7 @@ function SessionPageContent() {
 	const [error, setError] = useState<string | null>(null);
 	const [sessionNotFound, setSessionNotFound] = useState(false);
 	const [currentRound, setCurrentRound] = useState(1);
-	const [animateMatches, setAnimateMatches] = useState(false);
+	const [roundDirection, setRoundDirection] = useState<-1 | 0 | 1>(0);
 	const [scores, setScores] = useState<Scores>({});
 	const [submitting, setSubmitting] = useState(false);
 	const [showForceCloseModal, setShowForceCloseModal] = useState(false);
@@ -209,6 +229,9 @@ function SessionPageContent() {
 		>
 	>({});
 	const [selectedPlayerFilter, setSelectedPlayerFilter] = useState<
+		string | null
+	>(null);
+	const [selectedPlayerSummary, setSelectedPlayerSummary] = useState<
 		string | null
 	>(null);
 	const [sessionReloadKey, setSessionReloadKey] = useState(0);
@@ -260,6 +283,8 @@ function SessionPageContent() {
 	const apiCallCompleteRef = useRef(false);
 
 	useEffect(() => {
+		setSelectedPlayerFilter(null);
+		setSelectedPlayerSummary(null);
 		return () => {
 			clearSessionSummaryCache(sessionId);
 		};
@@ -1059,6 +1084,16 @@ function SessionPageContent() {
 			.map(Number)
 			.sort((a, b) => a - b);
 	}, [sessionData]);
+	const activeRoundNumber = useMemo(() => {
+		if (!sessionData || roundNumbers.length === 0) return currentRound;
+		return (
+			roundNumbers.find((roundNumber) =>
+				(sessionData.matchesByRound[roundNumber] ?? []).some(
+					(match) => match.status !== "completed",
+				),
+			) ?? roundNumbers[roundNumbers.length - 1]
+		);
+	}, [sessionData, roundNumbers, currentRound]);
 	const twoHalfSinglesConfig = useMemo(
 		() =>
 			sessionData
@@ -1071,6 +1106,9 @@ function SessionPageContent() {
 	);
 	const isTwoHalfSinglesSession =
 		sessionData?.session.status === "active" &&
+		Boolean(twoHalfSinglesConfig);
+	const usesCompletedFlatMatchList =
+		sessionData?.session.status === "completed" &&
 		Boolean(twoHalfSinglesConfig);
 	const isTwoHalfScoreOnlyEdit = useCallback(
 		(match: Match | null | undefined): boolean => {
@@ -1347,15 +1385,19 @@ function SessionPageContent() {
 	const goToRound = useCallback(
 		(round: number) => {
 			if (roundNumbers.includes(round)) {
+				setRoundDirection(
+					round > currentRound ? 1 : round < currentRound ? -1 : 0,
+				);
 				setCurrentRound(round);
 			}
 		},
-		[roundNumbers],
+		[roundNumbers, currentRound],
 	);
 
 	const goToPreviousRound = useCallback(() => {
 		const currentIndex = roundNumbers.indexOf(currentRound);
 		if (currentIndex > 0) {
+			setRoundDirection(-1);
 			setCurrentRound(roundNumbers[currentIndex - 1]);
 		}
 	}, [roundNumbers, currentRound]);
@@ -1363,6 +1405,7 @@ function SessionPageContent() {
 	const goToNextRound = useCallback(() => {
 		const currentIndex = roundNumbers.indexOf(currentRound);
 		if (currentIndex < roundNumbers.length - 1) {
+			setRoundDirection(1);
 			setCurrentRound(roundNumbers[currentIndex + 1]);
 		}
 	}, [roundNumbers, currentRound]);
@@ -1528,10 +1571,8 @@ function SessionPageContent() {
 					.sort((a, b) => a - b);
 				const currentIndex = roundNumbersList.indexOf(roundToUpdate);
 				if (currentIndex < roundNumbersList.length - 1) {
+					setRoundDirection(1);
 					setCurrentRound(roundNumbersList[currentIndex + 1]);
-					// Trigger match entrance animation
-					setAnimateMatches(true);
-					setTimeout(() => setAnimateMatches(false), 1000);
 				}
 				// Last round completed - session is now done
 			}
@@ -1672,26 +1713,6 @@ function SessionPageContent() {
 		sessionId,
 		fetchPlayers,
 		generateTerminalLines,
-	]);
-
-	const handleNextClick = useCallback(async () => {
-		if (submitting) return; // Prevent duplicate clicks during submission
-
-		if (isCurrentRoundCompleted) {
-			goToNextRound();
-		} else if (canSubmitRound) {
-			// Auto-submit the round, then advance (no confirmation modal)
-			await handleSubmitRound();
-		} else {
-			// Can't submit - just go to next if allowed
-			goToNextRound();
-		}
-	}, [
-		isCurrentRoundCompleted,
-		canSubmitRound,
-		goToNextRound,
-		submitting,
-		handleSubmitRound,
 	]);
 
 	// Delete session handler
@@ -2124,36 +2145,10 @@ function SessionPageContent() {
 		isTwoHalfScoreOnlyEdit,
 	]);
 
-	// Format session date for header title
-	const formattedSessionDate = useMemo(() => {
-		if (!sessionData) return t.sessions.session.title;
-		const date = new Date(sessionData.session.created_at);
-		return date.toLocaleDateString("sr-Latn-RS", {
-			day: "numeric",
-			month: "short",
-			year: "numeric",
-		});
-	}, [sessionData]);
-
 	if (loading) {
 		return (
-			<AppShell
-				title={t.sessions.session.loading}
-				contentPadding={false}
-				contentClassName="gap-0 py-0 md:gap-0 md:py-0"
-			>
-				<motion.div
-					className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
-					initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-					animate={{ opacity: 1, y: 0 }}
-					transition={pageTransition}
-				>
-					<StateBlock
-						variant="loading"
-						size="lg"
-						title={t.sessions.session.loading}
-					/>
-				</motion.div>
+			<AppShell title={t.sessions.session.title} showHeader={false}>
+				<PageLoading label={t.sessions.session.loading} />
 			</AppShell>
 		);
 	}
@@ -2201,402 +2196,210 @@ function SessionPageContent() {
 		const roundNumbersList = Object.keys(sessionData.matchesByRound)
 			.map(Number)
 			.sort((a, b) => a - b);
+		const performanceTabs: Array<{ value: SummaryView; label: string }> = [];
+		if (viewAvailability?.hasSingles) {
+			performanceTabs.push({
+				value: "singles",
+				label: t.sessions.session.tabs.singles,
+			});
+		}
+		if (viewAvailability?.hasDoublesPlayer) {
+			performanceTabs.push({
+				value: "doubles_player",
+				label: t.sessions.session.tabs.doublesPlayer,
+			});
+		}
+		if (viewAvailability?.hasDoublesTeam) {
+			performanceTabs.push({
+				value: "doubles_team",
+				label: t.sessions.session.tabs.doublesTeam,
+			});
+		}
 
-		// Calculate total matches
-		const totalMatches = roundNumbersList.reduce(
-			(sum, roundNum) =>
-				sum +
-				(sessionData.matchesByRound[roundNum] || []).filter(
-					(match) => !isSettledFirstHalfMatch(match),
-				).length,
-			0,
-		);
+		const toDetailPlayer = (player: Player): SessionDetailPlayer => ({
+			id: player.id,
+			name: player.name,
+			avatar: player.avatar,
+			isPlaceholder: player.isPlaceholder,
+		});
+
+		const toScoreboardMatch = (
+			match: Match,
+		): SessionScoreboardMatchData => {
+			const isSingles = match.match_type === "singles";
+			const teamOneIds = isSingles
+				? [match.player_ids[0]]
+				: [match.player_ids[0], match.player_ids[1]];
+			const teamTwoIds = isSingles
+				? [match.player_ids[1]]
+				: [match.player_ids[2], match.player_ids[3]];
+			const teamOne = teamOneIds
+				.map(getPlayer)
+				.filter((player): player is Player => Boolean(player));
+			const teamTwo = teamTwoIds
+				.map(getPlayer)
+				.filter((player): player is Player => Boolean(player));
+			const pairedFirstHalfScore = getPairedFirstHalfScore(match);
+			const displayScore = getPairedDisplayScore(match, pairedFirstHalfScore);
+			const history = matchEloHistory[match.id];
+			const teamOneEloChange =
+				activeView === "doubles_team"
+					? history?.team1EloChange
+					: history?.player1EloChange;
+			const teamTwoEloChange =
+				activeView === "doubles_team"
+					? history?.team2EloChange
+					: history?.player2EloChange;
+			const selectedPlayerIsOnlyOnTeamTwo = Boolean(
+				selectedPlayerFilter &&
+					teamTwoIds.includes(selectedPlayerFilter) &&
+					!teamOneIds.includes(selectedPlayerFilter),
+			);
+
+			return {
+				id: match.id,
+				roundNumber: match.round_number,
+				matchType: match.match_type,
+				teamOne: (selectedPlayerIsOnlyOnTeamTwo ? teamTwo : teamOne).map(
+					toDetailPlayer,
+				),
+				teamTwo: (selectedPlayerIsOnlyOnTeamTwo ? teamOne : teamTwo).map(
+					toDetailPlayer,
+				),
+				teamOneScore: selectedPlayerIsOnlyOnTeamTwo
+					? displayScore.team2Score
+					: displayScore.team1Score,
+				teamTwoScore: selectedPlayerIsOnlyOnTeamTwo
+					? displayScore.team1Score
+					: displayScore.team2Score,
+				teamOneEloChange: selectedPlayerIsOnlyOnTeamTwo
+					? teamTwoEloChange
+					: teamOneEloChange,
+				teamTwoEloChange: selectedPlayerIsOnlyOnTeamTwo
+					? teamOneEloChange
+					: teamTwoEloChange,
+				pairedFirstHalfLabel:
+					match.status === "completed" && pairedFirstHalfScore
+					? t.sessions.session.pairedFirstHalfScore(
+							pairedFirstHalfScore.roundNumber,
+							pairedFirstHalfScore.team1Score,
+							pairedFirstHalfScore.team2Score,
+						)
+					: undefined,
+				isRated: match.is_rated,
+				hasVideo: Boolean(match.video_url),
+				onActivate: isAdmin
+					? () => handleOpenVideoDrawer(match)
+					: undefined,
+			};
+		};
+
+		const resultRounds: SessionResultRound[] = roundNumbersList
+			.map((roundNumber) => ({
+				number: roundNumber,
+				matches: (sessionData.matchesByRound[roundNumber] || [])
+					.filter((match) => !isSettledFirstHalfMatch(match))
+					.map(toScoreboardMatch),
+			}))
+			.filter((round) => round.matches.length > 0);
+		const selectedPlayer = selectedPlayerFilter
+			? getPlayer(selectedPlayerFilter)
+			: undefined;
+		const selectedPlayerMatches = selectedPlayer
+			? resultRounds
+					.flatMap((round) => round.matches)
+					.filter(
+						(match) =>
+							match.matchType ===
+								(activeView === "singles" ? "singles" : "doubles") &&
+							(match.teamOne.some(
+								(player) => player.id === selectedPlayer.id,
+							) ||
+								match.teamTwo.some(
+									(player) => player.id === selectedPlayer.id,
+								)),
+					)
+			: [];
+		const completedMatches = resultRounds.flatMap((round) => round.matches);
 
 		return (
 			<>
 				<AppShell
-					title={formattedSessionDate}
-					actionLabel={
-						isAdmin && isDeletable
-							? t.sessions.session.delete.button
-							: undefined
-					}
-					actionOnClick={
-						isAdmin && isDeletable
-							? () => setShowDeleteModal(true)
-							: undefined
-					}
-					actionIcon="solar:trash-bin-trash-bold"
-					actionVariant={isAdmin && isDeletable ? "destructive" : undefined}
+					title={t.sessions.session.title}
+					showHeader={false}
 					contentPadding={false}
 					contentClassName="gap-0 py-0 md:gap-0 md:py-0"
+					insetClassName="session-detail-native-shell"
+					bodyClassName="session-detail-native-shell"
+					containerClassName="session-detail-native-shell"
 				>
 					<motion.div
-						className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
+						className="session-detail-native mx-auto flex w-full max-w-[760px] flex-col gap-[30px] px-5 pb-12 pt-[calc(1rem+env(safe-area-inset-top,0px))] md:py-8"
 						initial={
 							shouldReduceMotion ? false : { opacity: 0, y: 8 }
 						}
 						animate={{ opacity: 1, y: 0 }}
 						transition={pageTransition}
 					>
-						{/* Page-level Navigation Tabs */}
-						{showViewTabs && viewAvailability && (
-							<Box className="mb-4">
-								<Box className="mb-2">
-									<Tabs
-										value={
-											activeView ===
-											"doubles_player"
-												? "doubles-player"
-												: activeView ===
-													  "doubles_team"
-													? "doubles-team"
-													: "singles"
-										}
-										onValueChange={(value) => {
-											if (
-												value === "singles"
-											) {
-												handleViewChange(
-													"singles",
-												);
-											} else if (
-												value ===
-												"doubles-player"
-											) {
-												handleViewChange(
-													"doubles_player",
-												);
-											} else if (
-												value ===
-												"doubles-team"
-											) {
-												handleViewChange(
-													"doubles_team",
-												);
-											}
-										}}
-									>
-										<TabsList>
-											{viewAvailability.hasSingles && (
-												<TabsTrigger value="singles">
-													{
-														t.sessions
-															.session
-															.tabs
-															.singles
-													}
-												</TabsTrigger>
-											)}
-											{viewAvailability.hasDoublesPlayer && (
-												<TabsTrigger value="doubles-player">
-													{
-														t.sessions
-															.session
-															.tabs
-															.doublesPlayer
-													}
-												</TabsTrigger>
-											)}
-											{viewAvailability.hasDoublesTeam && (
-												<TabsTrigger value="doubles-team">
-													{
-														t.sessions
-															.session
-															.tabs
-															.doublesTeam
-													}
-												</TabsTrigger>
-											)}
-										</TabsList>
-									</Tabs>
-								</Box>
-							</Box>
-						)}
+						<SessionDetailHero
+							date={sessionData.session.created_at}
+							status="completed"
+						/>
 
-						{/* Performance Overview Table */}
-						<Box className="mb-6">
-							<Box className="flex items-center justify-between mb-3 px-1">
-								<h3 className="text-base font-bold font-heading">
-									{
-										t.sessions.session
-											.performanceOverview
-									}
-								</h3>
-							</Box>
-								<SessionSummaryTable
-									key={`${sessionId}:${completedMatchCount}`}
-									sessionId={sessionId}
-									activeView={activeView}
-									onPlayerClick={(playerId) => {
-										setSelectedPlayerFilter(
-											selectedPlayerFilter ===
-												playerId
+						<div className="space-y-3.5">
+							{showViewTabs && performanceTabs.length > 1 ? (
+								<SessionPerformanceTabs
+									tabs={performanceTabs}
+									value={activeView}
+									onValueChange={(value) => {
+										if (value === "doubles_team") {
+											setSelectedPlayerFilter(null);
+											setSelectedPlayerSummary(null);
+										}
+										handleViewChange(value as SummaryView);
+									}}
+								/>
+							) : null}
+							<SessionSummaryTable
+								key={`${sessionId}:${completedMatchCount}`}
+								sessionId={sessionId}
+								activeView={activeView}
+								onPlayerClick={(playerId) => {
+									setSelectedPlayerFilter(
+										selectedPlayerFilter === playerId
 											? null
 											: playerId,
 									);
 								}}
-								selectedPlayerFilter={
-									selectedPlayerFilter
+								selectedPlayerFilter={selectedPlayerFilter}
+								onSelectedPlayerSummaryChange={
+									setSelectedPlayerSummary
 								}
 							/>
-						</Box>
+						</div>
 
-						{/* Match History */}
-						<Box>
-							<Box className="flex items-center justify-between mb-3 px-1">
-								<h3 className="text-base font-bold font-heading">
-									{
-										t.sessions.session
-											.matchHistory
-									}
-								</h3>
-								{selectedPlayerFilter && (
-									<Box
-										onClick={() =>
-											setSelectedPlayerFilter(
-												null,
-											)
-										}
-										className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-semibold cursor-pointer hover:bg-primary/20 transition-colors"
-									>
-										<span>
-											{getPlayer(
-												selectedPlayerFilter,
-											)?.name || "Filtered"}
-										</span>
-										<Icon
-											icon="solar:close-circle-bold"
-											className="size-4"
-										/>
-									</Box>
-								)}
-							</Box>
-							<Stack direction="column" spacing={2.5}>
-								{roundNumbersList.flatMap(
-									(roundNumber) => {
-										const allRoundMatches =
-											sessionData
-												.matchesByRound[
-												roundNumber
-											] || [];
-
-										// Filter matches based on active view and selected player
-										const roundMatches =
-											allRoundMatches.filter(
-												(match) => {
-													// Filter by match type (view)
-													const matchesView =
-														activeView ===
-														"singles"
-															? match.match_type ===
-																"singles"
-															: match.match_type ===
-																"doubles";
-
-													if (
-														!matchesView
-													)
-														return false;
-													if (
-														isSettledFirstHalfMatch(
-															match,
-														)
-													) {
-														return false;
-													}
-
-													// Filter by selected player if applicable
-													if (
-														selectedPlayerFilter
-													) {
-														return match.player_ids.includes(
-															selectedPlayerFilter,
-														);
-													}
-
-													return true;
-												},
-											);
-
-										return roundMatches.map(
-											(match) => {
-												const isSingles =
-													match.match_type ===
-													"singles";
-
-												// Get players for each team
-												const team1PlayerIds =
-													isSingles
-														? [
-																match
-																	.player_ids[0],
-															]
-														: [
-																match
-																	.player_ids[0],
-																match
-																	.player_ids[1],
-															];
-												const team2PlayerIds =
-													isSingles
-														? [
-																match
-																	.player_ids[1],
-															]
-														: [
-																match
-																	.player_ids[2],
-																match
-																	.player_ids[3],
-															];
-
-												const team1Players =
-													team1PlayerIds
-														.map((id) =>
-															getPlayer(
-																id,
-															),
-														)
-														.filter(
-															Boolean,
-														) as Player[];
-												const team2Players =
-													team2PlayerIds
-														.map((id) =>
-															getPlayer(
-																id,
-															),
-														)
-														.filter(
-															Boolean,
-														) as Player[];
-
-												const eloHistory =
-													matchEloHistory[
-														match.id
-													];
-												const team1EloChange =
-													activeView ===
-													"doubles_team"
-														? eloHistory?.team1EloChange
-														: eloHistory?.player1EloChange;
-												const team2EloChange =
-													activeView ===
-													"doubles_team"
-														? eloHistory?.team2EloChange
-														: eloHistory?.player2EloChange;
-												const pairedFirstHalfScore =
-													getPairedFirstHalfScore(
-														match,
-													);
-												const displayScore =
-													getPairedDisplayScore(
-														match,
-														pairedFirstHalfScore,
-													);
-												const shouldPlaceSelectedPlayerLeft =
-													selectedPlayerFilter !==
-														null &&
-													team2PlayerIds.includes(
-														selectedPlayerFilter,
-													) &&
-													!team1PlayerIds.includes(
-														selectedPlayerFilter,
-													);
-												const displayTeam1Players =
-													shouldPlaceSelectedPlayerLeft
-														? team2Players
-														: team1Players;
-												const displayTeam2Players =
-													shouldPlaceSelectedPlayerLeft
-														? team1Players
-														: team2Players;
-												const displayTeam1Score =
-													shouldPlaceSelectedPlayerLeft
-														? displayScore.team2Score
-														: displayScore.team1Score;
-												const displayTeam2Score =
-													shouldPlaceSelectedPlayerLeft
-														? displayScore.team1Score
-														: displayScore.team2Score;
-												const displayPairedFirstHalfScore =
-													pairedFirstHalfScore
-														? {
-																roundNumber:
-																	pairedFirstHalfScore.roundNumber,
-																team1Score:
-																	shouldPlaceSelectedPlayerLeft
-																		? pairedFirstHalfScore.team2Score
-																		: pairedFirstHalfScore.team1Score,
-																team2Score:
-																	shouldPlaceSelectedPlayerLeft
-																		? pairedFirstHalfScore.team1Score
-																		: pairedFirstHalfScore.team2Score,
-															}
-														: undefined;
-												return (
-													<MatchHistoryCard
-														key={
-															match.id
-														}
-														matchType={
-															match.match_type
-														}
-														team1Players={displayTeam1Players.map(
-															(
-																p,
-															) => ({
-																id: p.id,
-																name: p.name,
-																avatar: p.avatar,
-															}),
-														)}
-														team2Players={displayTeam2Players.map(
-															(
-																p,
-															) => ({
-																id: p.id,
-																name: p.name,
-																avatar: p.avatar,
-															}),
-														)}
-														team1Score={
-															displayTeam1Score
-														}
-														team2Score={
-															displayTeam2Score
-														}
-														pairedFirstHalfScore={
-															displayPairedFirstHalfScore
-														}
-														team1EloChange={
-															shouldPlaceSelectedPlayerLeft
-																? team2EloChange
-																: team1EloChange
-														}
-												team2EloChange={
-													shouldPlaceSelectedPlayerLeft
-														? team1EloChange
-														: team2EloChange
-												}
-												onClick={() =>
-															isAdmin &&
-															handleOpenVideoDrawer(
-																match,
-															)
-														}
-														hasVideo={
-															!!match.video_url
-														}
-													/>
-												);
-											},
-										);
-									},
-								)}
-							</Stack>
-						</Box>
+						{selectedPlayer && activeView !== "doubles_team" ? (
+							<SessionPlayerMatchResults
+								player={toDetailPlayer(selectedPlayer)}
+								matches={selectedPlayerMatches}
+								summary={selectedPlayerSummary}
+								onClear={() => setSelectedPlayerFilter(null)}
+							/>
+						) : usesCompletedFlatMatchList ? (
+							<SessionCompletedMatchResults matches={completedMatches} />
+						) : (
+							<SessionResultsTimeline rounds={resultRounds} />
+						)}
+						{isAdmin && isDeletable ? (
+							<Button
+								variant="destructive"
+								className="self-end"
+								onClick={() => setShowDeleteModal(true)}
+							>
+								<Icon icon="solar:trash-bin-trash-bold" className="mr-1.5 size-4" />
+								{t.sessions.session.delete.button}
+							</Button>
+						) : null}
 					</motion.div>
 				</AppShell>
 
@@ -2928,8 +2731,10 @@ function SessionPageContent() {
 											>
 												{t.common.cancel}
 											</Button>
-											<Button
-												onClick={handleSaveMatchDrawer}
+										<Button
+											onClick={handleSaveMatchDrawer}
+											isLoading={isEditingMatch || savingVideoUrl}
+											loadingLabel={buttonText}
 												disabled={
 													!hasChanges ||
 													isEditingMatch ||
@@ -2942,18 +2747,7 @@ function SessionPageContent() {
 												}
 												className="flex-1"
 											>
-												{isEditingMatch ||
-												savingVideoUrl ? (
-													<>
-														<Icon
-															icon="lucide:loader-circle"
-															className="animate-spin mr-2"
-														/>
-														{buttonText}
-													</>
-												) : (
-													buttonText
-												)}
+											{buttonText}
 											</Button>
 										</Stack>
 									);
@@ -3134,1463 +2928,394 @@ function SessionPageContent() {
 		);
 	}
 
-	return (
-		<>
-			<AppShell
-				title={formattedSessionDate}
-				contentPadding={false}
-				contentClassName="gap-0 py-0 md:gap-0 md:py-0"
-			>
-				<motion.div
-					className="flex flex-col gap-4 py-4 md:gap-6 md:py-6 px-4 lg:px-6"
-					initial={
-						shouldReduceMotion ? false : { opacity: 0, y: 8 }
-					}
-					animate={{ opacity: 1, y: 0 }}
-					transition={pageTransition}
+	if (sessionData.session.status === "active") {
+		const toDetailPlayer = (player: Player): SessionDetailPlayer => ({
+			id: player.id,
+			name: player.name,
+			avatar: player.avatar,
+			isPlaceholder: player.isPlaceholder,
+		});
+		const currentRoundIndex = roundNumbers.indexOf(currentRound);
+		const nextRoundNumber =
+			currentRound === activeRoundNumber &&
+			currentRoundIndex >= 0 &&
+			currentRoundIndex < roundNumbers.length - 1
+				? roundNumbers[currentRoundIndex + 1]
+				: null;
+		const currentRoundSingles = currentRoundMatches.filter(
+			(match) => match.match_type === "singles",
+		).length;
+		const currentRoundDoubles = currentRoundMatches.length - currentRoundSingles;
+		const matchSummary = [
+			currentRoundDoubles > 0
+				? `${currentRoundDoubles} ${currentRoundDoubles === 1 ? "dubl" : "dubla"}`
+				: null,
+			currentRoundSingles > 0
+				? `${currentRoundSingles} ${currentRoundSingles === 1 ? "singl" : "singla"}`
+				: null,
+		]
+			.filter(Boolean)
+			.join(" · ");
+		const playingPlayerIds = new Set(
+			currentRoundMatches.flatMap((match) => match.player_ids),
+		);
+		const restingPlayers = sessionData.players
+			.filter((player) => !playingPlayerIds.has(player.id))
+			.map(toDetailPlayer);
+		const shortTeamName = (ids: string[]) =>
+			ids
+				.map((id) => getPlayer(id)?.name ?? "?")
+				.map((name) => name.split(" ")[0] ?? name)
+				.join(" & ");
+		const nextRoundMatches: ActiveSessionPreviewMatch[] = nextRoundNumber
+			? (sessionData.matchesByRound[nextRoundNumber] ?? []).map((match) => {
+					const isSingles = match.match_type === "singles";
+					return {
+						id: match.id,
+						teamOne: shortTeamName(
+							isSingles
+								? [match.player_ids[0]]
+								: [match.player_ids[0], match.player_ids[1]],
+						),
+						teamTwo: shortTeamName(
+							isSingles
+								? [match.player_ids[1]]
+								: [match.player_ids[2], match.player_ids[3]],
+						),
+						isRated: match.is_rated,
+					};
+				})
+			: [];
+
+		const teamRating = (match: Match, playerIds: string[]) => {
+			if (match.match_type === "singles") {
+				return getPlayer(playerIds[0])?.elo ?? 1500;
+			}
+			const normalizedPair = [...playerIds].sort().join(":");
+			const explicitTeamId =
+				playerIds[0] === match.player_ids[0] ? match.team_1_id : match.team_2_id;
+			const teamId = explicitTeamId ?? playerPairToTeamId[normalizedPair];
+			return teamId ? (teamEloRatings[teamId] ?? 1500) : 1500;
+		};
+		const sideFor = (
+			match: Match,
+			playerIds: string[],
+			opponentIds: string[],
+		): ActiveSessionSide => {
+			const players = playerIds
+				.map(getPlayer)
+				.filter((player): player is Player => Boolean(player));
+			const rating = teamRating(match, playerIds);
+			const opponentRating = teamRating(match, opponentIds);
+			const matchCount =
+				match.match_type === "singles"
+					? (players[0]?.matchCount ?? 0)
+					: Math.round(
+							players.reduce(
+								(total, player) => total + (player.matchCount ?? 0),
+								0,
+							) / Math.max(players.length, 1),
+						);
+			return {
+				name: players.map((player) => player.name).join(" + ") || "Nepoznat igrač",
+				players: players.map(toDetailPlayer),
+				...(match.is_rated
+					? {
+							rating,
+							winDelta: calculateEloChange(
+								rating,
+								opponentRating,
+								"win",
+								matchCount,
+							),
+							drawDelta: calculateEloChange(
+								rating,
+								opponentRating,
+								"draw",
+								matchCount,
+							),
+							lossDelta: calculateEloChange(
+								rating,
+								opponentRating,
+								"lose",
+								matchCount,
+							),
+						}
+					: {}),
+			};
+		};
+		const toBrowsableMatch = (match: Match): SessionScoreboardMatchData => {
+			const isSingles = match.match_type === "singles";
+			const teamOneIds = isSingles
+				? [match.player_ids[0]]
+				: [match.player_ids[0], match.player_ids[1]];
+			const teamTwoIds = isSingles
+				? [match.player_ids[1]]
+				: [match.player_ids[2], match.player_ids[3]];
+			const pairedFirstHalfScore = getPairedFirstHalfScore(match);
+			const displayScore = getPairedDisplayScore(match, pairedFirstHalfScore);
+			return {
+				id: match.id,
+				roundNumber: match.round_number,
+				matchType: match.match_type,
+				teamOne: teamOneIds
+					.map(getPlayer)
+					.filter((player): player is Player => Boolean(player))
+					.map(toDetailPlayer),
+				teamTwo: teamTwoIds
+					.map(getPlayer)
+					.filter((player): player is Player => Boolean(player))
+					.map(toDetailPlayer),
+				teamOneScore: displayScore.team1Score,
+				teamTwoScore: displayScore.team2Score,
+				isRated: match.is_rated,
+				pairedFirstHalfLabel: pairedFirstHalfScore
+					? t.sessions.session.pairedFirstHalfScore(
+							pairedFirstHalfScore.roundNumber,
+							pairedFirstHalfScore.team1Score,
+							pairedFirstHalfScore.team2Score,
+						)
+					: undefined,
+				onActivate:
+					match.status === "completed"
+						? () => {
+								setSelectedMatchForEdit(match);
+								setIsEditDrawerOpen(true);
+							}
+						: undefined,
+			};
+		};
+
+		const previousRound = () => {
+			if (currentRoundIndex > 0) goToPreviousRound();
+		};
+		const nextRound = () => {
+			if (currentRoundIndex < roundNumbers.length - 1) goToNextRound();
+		};
+		const waitingForGeneratedRound =
+			currentRound === activeRoundNumber && currentRoundMatches.length === 0;
+
+		return (
+			<>
+				<AppShell
+					title={t.sessions.session.title}
+					actionLabel={t.sessions.session.forceClose.button}
+					actionAriaLabel="Opcije termina"
+					actionOnClick={() => setShowForceCloseModal(true)}
+					actionIcon="solar:menu-dots-bold"
+					actionIconOnly
+					actionVariant="ghost"
+					centerTitleOnMobile
+					contentPadding={false}
+					contentClassName="gap-0 py-0 md:gap-0 md:py-0"
+					insetClassName="session-detail-native-shell"
+					bodyClassName="session-detail-native-shell"
+					containerClassName="session-detail-native-shell"
 				>
-					{/* Header */}
-					<Box className="flex justify-between items-end">
-						<Box>
-							<h1 className="text-3xl font-bold font-heading tracking-tight">
-								Session
-							</h1>
-						</Box>
-						{sessionData.session.status ===
-							"active" && (
-							<Stack
-								direction="row"
-								spacing={3}
-								alignItems="center"
+					<ActiveSessionRoundCanvas
+						onPrevious={currentRoundIndex > 0 ? previousRound : undefined}
+						onNext={
+							currentRoundIndex < roundNumbers.length - 1
+								? nextRound
+								: undefined
+						}
+						className="session-detail-native mx-auto w-full max-w-[760px] px-5 pb-[110px] pt-[18px] md:pt-7"
+					>
+						<AnimatePresence initial={false} mode="wait">
+							<motion.div
+								key={currentRound}
+								className="space-y-[18px]"
+								initial={
+									shouldReduceMotion
+										? false
+										: {
+												opacity: 0.72,
+												transform: `translateX(${roundDirection * 18}px)`,
+											}
+								}
+								animate={{ opacity: 1, transform: "translateX(0px)" }}
+								exit={
+									shouldReduceMotion
+										? undefined
+										: {
+												opacity: 0.4,
+												transform: `translateX(${roundDirection * -12}px)`,
+											}
+								}
+								transition={{
+									duration: shouldReduceMotion ? 0 : 0.18,
+									ease: [0.16, 1, 0.3, 1],
+								}}
 							>
+								<ActiveSessionRoundHeader
+									roundNumber={currentRound}
+									currentRoundNumber={activeRoundNumber}
+									totalRounds={roundNumbers.length}
+									roundNumbers={roundNumbers}
+									matchSummary={matchSummary || "Raspored se priprema"}
+									onRoundSelect={goToRound}
+								/>
+
+								{nextRoundNumber ? (
+									<ActiveSessionNextRound
+										roundNumber={nextRoundNumber}
+										matches={nextRoundMatches}
+									/>
+								) : null}
+
+								{currentRound > activeRoundNumber ? (
+									<ActiveSessionBrowseNotice />
+								) : null}
+
+								{waitingForGeneratedRound ? (
+									<div className="session-detail-scoreboard p-4 text-center text-ios-subheadline text-[rgb(var(--ds-native-muted))]">
+										Raspored ove runde biće prikazan čim prethodna runda bude sačuvana.
+									</div>
+								) : currentRound === activeRoundNumber ? (
+									currentRoundMatches.map((match, matchIndex) => {
+										const isSingles = match.match_type === "singles";
+										const teamOneIds = isSingles
+											? [match.player_ids[0]]
+											: [match.player_ids[0], match.player_ids[1]];
+										const teamTwoIds = isSingles
+											? [match.player_ids[1]]
+											: [match.player_ids[2], match.player_ids[3]];
+										const matchScores = scores[match.id] ?? {
+											team1: null,
+											team2: null,
+										};
+						return (
+											<ActiveSessionMatchEditor
+												key={match.id}
+												teamOne={sideFor(match, teamOneIds, teamTwoIds)}
+												teamTwo={sideFor(match, teamTwoIds, teamOneIds)}
+												teamOneScore={matchScores.team1}
+												teamTwoScore={matchScores.team2}
+												onTeamOneScoreChange={(value) =>
+													handleScoreChange(match.id, "team1", value, matchIndex)
+												}
+												onTeamTwoScoreChange={(value) =>
+													handleScoreChange(match.id, "team2", value, matchIndex)
+												}
+												teamOneInputRef={(element) => {
+													scoreInputRefs.current[`${match.id}-team1`] = element;
+												}}
+												teamTwoInputRef={(element) => {
+													scoreInputRefs.current[`${match.id}-team2`] = element;
+												}}
+								disabled={submitting || match.status === "completed"}
+											/>
+										);
+									})
+								) : (
+									currentRoundMatches.map((match) => (
+										<SessionScoreboardMatch
+											key={match.id}
+											match={toBrowsableMatch(match)}
+										/>
+									))
+								)}
+
+								<ActiveSessionRestingLine players={restingPlayers} />
+
+								{currentRound === activeRoundNumber ? (
+									<ActiveSessionSubmitBar
+										isReady={canSubmitRound}
+										isSubmitting={submitting}
+										isFinalRound={
+											currentRound === roundNumbers[roundNumbers.length - 1]
+										}
+										onSubmit={() => void handleSubmitRound()}
+									/>
+								) : null}
+							</motion.div>
+						</AnimatePresence>
+					</ActiveSessionRoundCanvas>
+				</AppShell>
+
+				{showForceCloseModal ? (
+					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-5 backdrop-blur-sm">
+						<div
+							className="session-detail-scoreboard w-full max-w-md p-5"
+							role="dialog"
+							aria-modal="true"
+							aria-labelledby="force-close-title"
+						>
+							<h2
+								id="force-close-title"
+								className="font-session-heading text-ios-display-24 font-bold text-[rgb(var(--ds-native-bone))]"
+							>
+								{t.sessions.session.forceClose.title}
+							</h2>
+							<p className="mt-2 text-ios-subheadline leading-relaxed text-[rgb(var(--ds-native-muted))]">
+								{t.sessions.session.forceClose.description}
+							</p>
+							<div className="mt-5 flex gap-3">
 								<Button
 									variant="outline"
-									size="sm"
-									onClick={() =>
-										setShowForceCloseModal(true)
-									}
-									className="text-xs"
+									onClick={() => setShowForceCloseModal(false)}
+									disabled={forceClosing}
+									className="flex-1"
 								>
-									{
-										t.sessions.session
-											.forceClose.button
-									}
+									{t.common.cancel}
 								</Button>
-								<Box className="flex items-center gap-1 bg-chart-2/10 text-chart-2 px-2 py-1 rounded-lg border border-chart-2/20">
-									<Box className="size-2 rounded-full bg-chart-2 animate-pulse" />
-									<span className="text-[10px] font-black uppercase tracking-tight">
-										{t.sessions.session.live}
-									</span>
-								</Box>
-							</Stack>
-						)}
-					</Box>
-
-					{/* Matches */}
-					<Stack direction="column" spacing={4}>
-						{/* Show message for Round 6 if Round 5 is not completed (6-player variant) */}
-						{currentRound === 6 &&
-							sessionData.session.player_count ===
-								6 &&
-							(() => {
-								const round5Matches =
-									sessionData.matchesByRound[5] ||
-									[];
-								const isRound5Completed =
-									round5Matches.length > 0 &&
-									round5Matches.every(
-										(m) =>
-											m.status ===
-											"completed",
-									);
-								if (!isRound5Completed) {
-									return (
-										<Box className="bg-card border border-border/50 rounded-lg p-4 text-center">
-											<p className="text-muted-foreground text-sm">
-												Round 6 will be
-												determined after
-												Round 5 is
-												completed. Winners
-												from Round 5 doubles
-												will play against
-												players from Round 5
-												singles.
-											</p>
-										</Box>
-									);
-								}
-								return null;
-							})()}
-						{currentRoundMatches.map(
-							(match, matchIndex) => {
-								const matchScores = scores[
-									match.id
-								] || { team1: null, team2: null };
-								const isSingles =
-									match.match_type === "singles";
-								const isMatchCompleted =
-									match.status === "completed";
-								const isReadOnly = isMatchCompleted;
-								const pairedFirstHalfScore =
-									getPairedFirstHalfScore(match);
-
-								// Get players for each team
-								const team1PlayerIds = isSingles
-									? [match.player_ids[0]]
-									: [
-											match.player_ids[0],
-											match.player_ids[1],
-										];
-								const team2PlayerIds = isSingles
-									? [match.player_ids[1]]
-									: [
-											match.player_ids[2],
-											match.player_ids[3],
-										];
-
-								const team1Players = team1PlayerIds
-									.map((id) => getPlayer(id))
-									.filter(Boolean) as Player[];
-								const team2Players = team2PlayerIds
-									.map((id) => getPlayer(id))
-									.filter(Boolean) as Player[];
-
-								// For singles: use player Elo
-								// For doubles: use team Elo from double_team_ratings
-								let team1Elo: number;
-								let team2Elo: number;
-
-								if (isSingles) {
-									team1Elo =
-										team1Players[0]?.elo ||
-										1500;
-									team2Elo =
-										team2Players[0]?.elo ||
-										1500;
-								} else {
-									// Doubles: get team IDs from match or lookup by player pair
-									const normalizePair = (
-										p1: string,
-										p2: string,
-									) =>
-										p1 < p2
-											? `${p1}:${p2}`
-											: `${p2}:${p1}`;
-
-									let team1Id = match.team_1_id;
-									let team2Id = match.team_2_id;
-
-									// If team IDs not in match, try to find them from player pair mapping
-									if (
-										!team1Id &&
-										team1PlayerIds.length >= 2
-									) {
-										const pairKey =
-											normalizePair(
-												team1PlayerIds[0],
-												team1PlayerIds[1],
-											);
-										team1Id =
-											playerPairToTeamId[
-												pairKey
-											];
-									}
-
-									if (
-										!team2Id &&
-										team2PlayerIds.length >= 2
-									) {
-										const pairKey =
-											normalizePair(
-												team2PlayerIds[0],
-												team2PlayerIds[1],
-											);
-										team2Id =
-											playerPairToTeamId[
-												pairKey
-											];
-									}
-
-									// Get team Elo from state (fetched earlier) or default to 1500
-									team1Elo = team1Id
-										? (teamEloRatings[
-												team1Id
-											] ?? 1500)
-										: 1500;
-									team2Elo = team2Id
-										? (teamEloRatings[
-												team2Id
-											] ?? 1500)
-										: 1500;
-								}
-
-								// Get match counts for accurate K-factor calculation
-								// For singles: use player's match count
-								// For doubles: use average of team players' match counts (approximation for UI preview)
-								const team1MatchCount = isSingles
-									? team1Players[0]?.matchCount ||
-										0
-									: Math.round(
-											((team1Players[0]
-												?.matchCount || 0) +
-												(team1Players[1]
-													?.matchCount ||
-													0)) /
-												2,
-										);
-								const team2MatchCount = isSingles
-									? team2Players[0]?.matchCount ||
-										0
-									: Math.round(
-											((team2Players[0]
-												?.matchCount || 0) +
-												(team2Players[1]
-													?.matchCount ||
-													0)) /
-												2,
-										);
-
-								// Calculate Elo previews with accurate match counts
-								const team1WinChange =
-									calculateEloChange(
-										team1Elo,
-										team2Elo,
-										"win",
-										team1MatchCount,
-									);
-								const team1DrawChange =
-									calculateEloChange(
-										team1Elo,
-										team2Elo,
-										"draw",
-										team1MatchCount,
-									);
-								const team1LoseChange =
-									calculateEloChange(
-										team1Elo,
-										team2Elo,
-										"lose",
-										team1MatchCount,
-									);
-
-								const team2WinChange =
-									calculateEloChange(
-										team2Elo,
-										team1Elo,
-										"win",
-										team2MatchCount,
-									);
-								const team2DrawChange =
-									calculateEloChange(
-										team2Elo,
-										team1Elo,
-										"draw",
-										team2MatchCount,
-									);
-								const team2LoseChange =
-									calculateEloChange(
-										team2Elo,
-										team1Elo,
-										"lose",
-										team2MatchCount,
-									);
-
-								const team1Name = isSingles
-									? team1Players[0]?.name ||
-										"Unknown"
-									: `${
-											team1Players[0]?.name ||
-											""
-										} & ${
-											team1Players[1]?.name ||
-											""
-										}`.trim();
-								const team2Name = isSingles
-									? team2Players[0]?.name ||
-										"Unknown"
-									: `${
-											team2Players[0]?.name ||
-											""
-										} & ${
-											team2Players[1]?.name ||
-											""
-										}`.trim();
-
-								// Calculate player doubles Elo values for doubles matches
-								const team1Player1DoublesElo =
-									!isSingles
-										? (team1Players[0]
-												?.doublesElo ??
-											1500)
-										: 0;
-								const team1Player2DoublesElo =
-									!isSingles
-										? (team1Players[1]
-												?.doublesElo ??
-											1500)
-										: 0;
-								const team1PlayerAverageDoublesElo =
-									!isSingles
-										? (team1Player1DoublesElo +
-												team1Player2DoublesElo) /
-											2
-										: 0;
-
-								const team2Player1DoublesElo =
-									!isSingles
-										? (team2Players[0]
-												?.doublesElo ??
-											1500)
-										: 0;
-								const team2Player2DoublesElo =
-									!isSingles
-										? (team2Players[1]
-												?.doublesElo ??
-											1500)
-										: 0;
-								const team2PlayerAverageDoublesElo =
-									!isSingles
-										? (team2Player1DoublesElo +
-												team2Player2DoublesElo) /
-											2
-										: 0;
-
-								return (
-									<Box
-										key={match.id}
-										className={cn(
-											"bg-card rounded-2xl md:rounded-[20px] p-3 md:p-5 border border-border/50 shadow-sm relative",
-											animateMatches &&
-												"animate-in fade-in-0 slide-in-from-bottom-4 duration-500",
-										)}
-										style={
-											animateMatches
-												? {
-														animationDelay: `${matchIndex * 100}ms`,
-														animationFillMode:
-															"both",
-													}
-												: undefined
-										}
-									>
-										{/* Edit button for completed matches */}
-										{isMatchCompleted && (
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => {
-													setSelectedMatchForEdit(
-														match,
-													);
-													setIsEditDrawerOpen(
-														true,
-													);
-												}}
-												disabled={
-													recalcStatus ===
-														"running" ||
-													isEditingMatch
-												}
-												className="absolute top-2 right-2 size-8 p-0"
-											>
-												<Icon
-													icon="lucide:edit"
-													className="size-4"
-												/>
-											</Button>
-										)}
-										<Stack
-											direction="column"
-											spacing={1}
-											className="md:hidden"
-										>
-											{/* Mobile: Vertical Layout */}
-											{/* Team 1 - Mobile */}
-											<Stack
-												direction="row"
-												alignItems="center"
-												justifyContent="between"
-												spacing={3}
-												className="w-full"
-											>
-												<Stack
-													direction="row"
-													alignItems="center"
-													spacing={2}
-													className="flex-1 min-w-0"
-												>
-													{isSingles ? (
-														<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
-															<AvatarImage
-																src={
-																	team1Players[0]
-																		?.avatar ||
-																	undefined
-																}
-																alt={
-																	team1Players[0]
-																		?.name
-																}
-															/>
-															<AvatarFallback>
-																{team1Players[0]?.name
-																	?.charAt(
-																		0,
-																	)
-																	.toUpperCase() ||
-																	"?"}
-															</AvatarFallback>
-														</Avatar>
-													) : (
-														<Stack
-															direction="row"
-															spacing={
-																-2
-															}
-															className="shrink-0"
-														>
-															{team1Players.map(
-																(
-																	player,
-																) => (
-																	<Avatar
-																		key={
-																			player.id
-																		}
-																		className="size-10 border-2 border-background shadow-sm"
-																	>
-																		<AvatarImage
-																			src={
-																				player.avatar ||
-																				undefined
-																			}
-																			alt={
-																				player.name
-																			}
-																		/>
-																		<AvatarFallback>
-																			{player.name
-																				?.charAt(
-																					0,
-																				)
-																				.toUpperCase() ||
-																				"?"}
-																		</AvatarFallback>
-																	</Avatar>
-																),
-															)}
-														</Stack>
-													)}
-													<Box className="min-w-0 flex-1">
-														<p className="text-sm font-bold leading-tight truncate">
-															{
-																team1Name
-															}
-														</p>
-																	<p className="text-[10px] text-muted-foreground font-medium">
-																		{!match.is_rated
-																			? "Bez ELO-a"
-																			: isSingles
-																				? `Elo ${team1Elo}`
-																				: `Team ${team1Elo}`}
-																	</p>
-																	{/* Elo predictions as addon */}
-																	{match.is_rated && (
-																		<Stack
-															direction="row"
-															alignItems="center"
-															spacing={
-																1.5
-															}
-															className="mt-0.5"
-														>
-															<span className="text-[9px] font-bold text-chart-2">
-																{formatEloDelta(
-																	team1WinChange,
-																	false,
-																)}
-															</span>
-															<span className="text-[9px] font-bold text-chart-3">
-																{formatEloDelta(
-																	team1DrawChange,
-																	false,
-																)}
-															</span>
-															<span className="text-[9px] font-bold text-red-500">
-																{formatEloDelta(
-																	team1LoseChange,
-																	false,
-																)}
-															</span>
-																		</Stack>
-																	)}
-																</Box>
-															</Stack>
-												<Input
-													ref={(el) => {
-														scoreInputRefs.current[
-															`${match.id}-team1`
-														] = el;
-													}}
-													type="number"
-													inputMode="numeric"
-													pattern="[0-9]*"
-													placeholder="0"
-													value={
-														matchScores.team1 ??
-														""
-													}
-													onChange={(e) =>
-														handleScoreChange(
-															match.id,
-															"team1",
-															e.target
-																.value,
-															matchIndex,
-														)
-													}
-													disabled={
-														isReadOnly
-													}
-													readOnly={
-														isReadOnly
-													}
-													className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-												/>
-											</Stack>
-
-											{/* VS Divider - Mobile */}
-											<Box className="flex items-center justify-center py-1">
-												<Box className="h-px bg-border flex-1" />
-												<Box className="px-3">
-													<span className="text-[10px] font-black text-muted-foreground uppercase">
-														{
-															t
-																.sessions
-																.session
-																.vs
-														}
-													</span>
-												</Box>
-												<Box className="h-px bg-border flex-1" />
-											</Box>
-
-											{pairedFirstHalfScore && (
-												<Box className="flex justify-center pb-1">
-													{renderPairedScoreReminder(
-														pairedFirstHalfScore,
-														matchScores.team1,
-														matchScores.team2,
-													)}
-												</Box>
-											)}
-
-											{/* Team 2 - Mobile */}
-											<Stack
-												direction="row"
-												alignItems="center"
-												justifyContent="between"
-												spacing={3}
-												className="w-full"
-											>
-												<Stack
-													direction="row"
-													alignItems="center"
-													spacing={2}
-													className="flex-1 min-w-0"
-												>
-													{isSingles ? (
-														<Avatar className="size-12 md:size-16 border-2 border-border shadow-md shrink-0">
-															<AvatarImage
-																src={
-																	team2Players[0]
-																		?.avatar ||
-																	undefined
-																}
-																alt={
-																	team2Players[0]
-																		?.name
-																}
-															/>
-															<AvatarFallback>
-																{team2Players[0]?.name
-																	?.charAt(
-																		0,
-																	)
-																	.toUpperCase() ||
-																	"?"}
-															</AvatarFallback>
-														</Avatar>
-													) : (
-														<Stack
-															direction="row"
-															spacing={
-																-2
-															}
-															className="shrink-0"
-														>
-															{team2Players.map(
-																(
-																	player,
-																) => (
-																	<Avatar
-																		key={
-																			player.id
-																		}
-																		className="size-10 border-2 border-background shadow-sm"
-																	>
-																		<AvatarImage
-																			src={
-																				player.avatar ||
-																				undefined
-																			}
-																			alt={
-																				player.name
-																			}
-																		/>
-																		<AvatarFallback>
-																			{player.name
-																				?.charAt(
-																					0,
-																				)
-																				.toUpperCase() ||
-																				"?"}
-																		</AvatarFallback>
-																	</Avatar>
-																),
-															)}
-														</Stack>
-													)}
-													<Box className="min-w-0 flex-1">
-														<p className="text-sm font-bold leading-tight truncate">
-															{
-																team2Name
-															}
-														</p>
-																	<p className="text-[10px] text-muted-foreground font-medium">
-																		{!match.is_rated
-																			? "Bez ELO-a"
-																			: isSingles
-																				? `Elo ${team2Elo}`
-																				: `Team ${team2Elo}`}
-																	</p>
-																	{/* Elo predictions as addon */}
-																	{match.is_rated && (
-																		<Stack
-															direction="row"
-															alignItems="center"
-															spacing={
-																1.5
-															}
-															className="mt-0.5"
-														>
-															<span className="text-[9px] font-bold text-chart-2">
-																{formatEloDelta(
-																	team2WinChange,
-																	false,
-																)}
-															</span>
-															<span className="text-[9px] font-bold text-chart-3">
-																{formatEloDelta(
-																	team2DrawChange,
-																	false,
-																)}
-															</span>
-															<span className="text-[9px] font-bold text-red-500">
-																{formatEloDelta(
-																	team2LoseChange,
-																	false,
-																)}
-															</span>
-																		</Stack>
-																	)}
-																</Box>
-															</Stack>
-												<Input
-													ref={(el) => {
-														scoreInputRefs.current[
-															`${match.id}-team2`
-														] = el;
-													}}
-													type="number"
-													inputMode="numeric"
-													pattern="[0-9]*"
-													placeholder="0"
-													value={
-														matchScores.team2 ??
-														""
-													}
-													onChange={(e) =>
-														handleScoreChange(
-															match.id,
-															"team2",
-															e.target
-																.value,
-															matchIndex,
-														)
-													}
-													disabled={
-														isReadOnly
-													}
-													readOnly={
-														isReadOnly
-													}
-													className="size-14 bg-input rounded-xl text-center text-xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
-												/>
-											</Stack>
-										</Stack>
-
-										{/* Desktop: Original Horizontal Layout */}
-										<Stack
-											direction="row"
-											alignItems="center"
-											justifyContent="between"
-											spacing={4}
-											className="hidden md:flex"
-										>
-											{/* Team 1 */}
-											<Stack
-												direction="column"
-												alignItems="center"
-												spacing={2}
-												className="flex-1"
-											>
-												{isSingles ? (
-													<Avatar className="size-16 border-2 border-border shadow-md">
-														<AvatarImage
-															src={
-																team1Players[0]
-																	?.avatar ||
-																undefined
-															}
-															alt={
-																team1Players[0]
-																	?.name
-															}
-														/>
-														<AvatarFallback>
-															{team1Players[0]?.name
-																?.charAt(
-																	0,
-																)
-																.toUpperCase() ||
-																"?"}
-														</AvatarFallback>
-													</Avatar>
-												) : (
-													<Stack
-														direction="row"
-														spacing={-4}
-													>
-														{team1Players.map(
-															(
-																player,
-																idx,
-															) => (
-																<Avatar
-																	key={
-																		player.id
-																	}
-																	className="size-14 border-2 border-background shadow-sm"
-																>
-																	<AvatarImage
-																		src={
-																			player.avatar ||
-																			undefined
-																		}
-																		alt={
-																			player.name
-																		}
-																	/>
-																	<AvatarFallback>
-																		{player.name
-																			?.charAt(
-																				0,
-																			)
-																			.toUpperCase() ||
-																			"?"}
-																	</AvatarFallback>
-																</Avatar>
-															),
-														)}
-													</Stack>
-												)}
-												<Box className="text-center">
-													<p className="text-base font-bold leading-tight">
-														{team1Name}
-													</p>
-													<p className="text-xs text-muted-foreground font-medium">
-												{!match.is_rated
-															? "Bez ELO-a"
-													: isSingles
-													? `${t.sessions.session.elo} ${team1Elo}`
-													: `${t.sessions.session.teamElo} ${team1Elo}`}
-													</p>
-											{match.is_rated && !isSingles && (
-														<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
-															<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
-																{
-																	t
-																		.sessions
-																		.session
-																		.playerDoublesElo
-																}
-															</p>
-															<p className="text-[10px] text-muted-foreground/80 leading-tight">
-																{team1Players[0]?.name?.split(
-																	" ",
-																)[0] ||
-																	"P1"}
-																:{" "}
-																{team1Player1DoublesElo.toFixed(
-																	1,
-																)}
-																<br />
-																{team1Players[1]?.name?.split(
-																	" ",
-																)[0] ||
-																	"P2"}
-																:{" "}
-																{team1Player2DoublesElo.toFixed(
-																	1,
-																)}
-																<br />
-																<span className="font-semibold">
-																	{
-																		t
-																			.sessions
-																			.session
-																			.avg
-																	}
-
-																	:{" "}
-																	{team1PlayerAverageDoublesElo.toFixed(
-																		1,
-																	)}
-																</span>
-															</p>
-														</Box>
-													)}
-												</Box>
-												<Stack
-													direction="row"
-													alignItems="center"
-													justifyContent="center"
-													spacing={3}
-											className={cn(
-												"text-xs font-bold mt-2",
-												!match.is_rated && "hidden",
-											)}
-												>
-													<span className="text-chart-2">
-														{formatEloDelta(
-															team1WinChange,
-															false,
-														)}
-													</span>
-													<span className="text-chart-3">
-														{formatEloDelta(
-															team1DrawChange,
-															false,
-														)}
-													</span>
-													<span className="text-red-500">
-														{formatEloDelta(
-															team1LoseChange,
-															false,
-														)}
-													</span>
-												</Stack>
-											</Stack>
-
-											{/* Score Inputs */}
-											<Stack
-												direction="column"
-												alignItems="center"
-												spacing={2}
-												className="shrink-0"
-											>
-												{renderPairedScoreReminder(
-													pairedFirstHalfScore,
-													matchScores.team1,
-													matchScores.team2,
-												)}
-												<Stack
-													direction="row"
-													alignItems="center"
-													spacing={3}
-												>
-													<Input
-														ref={(el) => {
-															scoreInputRefs.current[
-																`${match.id}-team1-desktop`
-															] = el;
-														}}
-														type="number"
-														inputMode="numeric"
-														pattern="[0-9]*"
-														placeholder="0"
-														value={
-															matchScores.team1 ??
-															""
-														}
-														onChange={(e) =>
-															handleScoreChange(
-																match.id,
-																"team1",
-																e.target
-																	.value,
-																matchIndex,
-															)
-														}
-														disabled={
-															isReadOnly
-														}
-														readOnly={
-															isReadOnly
-														}
-														className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
-													/>
-													<Box className="px-1">
-														<span className="text-xs font-black text-muted-foreground">
-															{
-																t
-																	.sessions
-																	.session
-																	.vs
-															}
-														</span>
-													</Box>
-													<Input
-														ref={(el) => {
-															scoreInputRefs.current[
-																`${match.id}-team2-desktop`
-															] = el;
-														}}
-														type="number"
-														inputMode="numeric"
-														pattern="[0-9]*"
-														placeholder="0"
-														value={
-															matchScores.team2 ??
-															""
-														}
-														onChange={(e) =>
-															handleScoreChange(
-																match.id,
-																"team2",
-																e.target
-																	.value,
-																matchIndex,
-															)
-														}
-														disabled={
-															isReadOnly
-														}
-														readOnly={
-															isReadOnly
-														}
-														className="size-16 bg-input rounded-xl text-center text-2xl font-black border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary outline-none transition-all placeholder:text-muted-foreground/30 disabled:opacity-50 disabled:cursor-not-allowed"
-													/>
-												</Stack>
-											</Stack>
-
-											{/* Team 2 */}
-											<Stack
-												direction="column"
-												alignItems="center"
-												spacing={2}
-												className="flex-1"
-											>
-												{isSingles ? (
-													<Avatar className="size-16 border-2 border-border shadow-md">
-														<AvatarImage
-															src={
-																team2Players[0]
-																	?.avatar ||
-																undefined
-															}
-															alt={
-																team2Players[0]
-																	?.name
-															}
-														/>
-														<AvatarFallback>
-															{team2Players[0]?.name
-																?.charAt(
-																	0,
-																)
-																.toUpperCase() ||
-																"?"}
-														</AvatarFallback>
-													</Avatar>
-												) : (
-													<Stack
-														direction="row"
-														spacing={-4}
-													>
-														{team2Players.map(
-															(
-																player,
-																idx,
-															) => (
-																<Avatar
-																	key={
-																		player.id
-																	}
-																	className="size-14 border-2 border-background shadow-sm"
-																>
-																	<AvatarImage
-																		src={
-																			player.avatar ||
-																			undefined
-																		}
-																		alt={
-																			player.name
-																		}
-																	/>
-																	<AvatarFallback>
-																		{player.name
-																			?.charAt(
-																				0,
-																			)
-																			.toUpperCase() ||
-																			"?"}
-																	</AvatarFallback>
-																</Avatar>
-															),
-														)}
-													</Stack>
-												)}
-												<Box className="text-center">
-													<p className="text-base font-bold leading-tight">
-														{team2Name}
-													</p>
-													<p className="text-xs text-muted-foreground font-medium">
-												{!match.is_rated
-															? "Bez ELO-a"
-													: isSingles
-													? `${t.sessions.session.elo} ${team2Elo}`
-													: `${t.sessions.session.teamElo} ${team2Elo}`}
-													</p>
-											{match.is_rated && !isSingles && (
-														<Box className="mt-1.5 pt-1.5 border-t border-border/30 hidden md:block">
-															<p className="text-[10px] text-muted-foreground/70 font-medium mb-0.5">
-																{
-																	t
-																		.sessions
-																		.session
-																		.playerDoublesElo
-																}
-															</p>
-															<p className="text-[10px] text-muted-foreground/80 leading-tight">
-																{team2Players[0]?.name?.split(
-																	" ",
-																)[0] ||
-																	"P1"}
-																:{" "}
-																{team2Player1DoublesElo.toFixed(
-																	1,
-																)}
-																<br />
-																{team2Players[1]?.name?.split(
-																	" ",
-																)[0] ||
-																	"P2"}
-																:{" "}
-																{team2Player2DoublesElo.toFixed(
-																	1,
-																)}
-																<br />
-																<span className="font-semibold">
-																	{
-																		t
-																			.sessions
-																			.session
-																			.avg
-																	}
-
-																	:{" "}
-																	{team2PlayerAverageDoublesElo.toFixed(
-																		1,
-																	)}
-																</span>
-															</p>
-														</Box>
-													)}
-												</Box>
-												<Stack
-													direction="row"
-													alignItems="center"
-													justifyContent="center"
-													spacing={3}
-											className={cn(
-												"text-xs font-bold mt-2",
-												!match.is_rated && "hidden",
-											)}
-												>
-													<span className="text-chart-2">
-														{formatEloDelta(
-															team2WinChange,
-															false,
-														)}
-													</span>
-													<span className="text-chart-3">
-														{formatEloDelta(
-															team2DrawChange,
-															false,
-														)}
-													</span>
-													<span className="text-red-500">
-														{formatEloDelta(
-															team2LoseChange,
-															false,
-														)}
-													</span>
-												</Stack>
-											</Stack>
-										</Stack>
-									</Box>
-								);
-							},
-						)}
-					</Stack>
-
-					{/* Round Indicators */}
-					<Box className="pt-6 pb-4">
-						<Stack
-							direction="row"
-							alignItems="center"
-							justifyContent="center"
-							spacing={2}
-						>
-							{roundNumbers.map((round) => {
-								const isActive =
-									round === currentRound;
-								return (
-									<Box
-										key={round}
-										className={cn(
-											"flex-1 h-1 rounded-full transition-all",
-											isActive
-												? "bg-primary"
-												: "bg-muted",
-										)}
-									/>
-								);
-							})}
-						</Stack>
-					</Box>
-
-					{/* Up Next Preview */}
-					{(() => {
-						const currentIndex =
-							roundNumbers.indexOf(currentRound);
-						const nextRound =
-							currentIndex < roundNumbers.length - 1
-								? roundNumbers[currentIndex + 1]
-								: null;
-
-						if (!nextRound) return null;
-
-						const nextMatches =
-							sessionData.matchesByRound[nextRound] ||
-							[];
-						if (nextMatches.length === 0) return null;
-
-						return (
-							<Box className="pb-4">
-								<Stack
-									direction="row"
-									alignItems="center"
-									justifyContent="center"
-									spacing={3}
-									className="flex-wrap"
+								<Button
+									variant="destructive"
+									onClick={handleForceClose}
+									disabled={forceClosing}
+									className="flex-1"
 								>
-									<span className="text-xs font-semibold text-muted-foreground/70">
-										{t.sessions.session.upNext}:
-									</span>
-									{nextMatches.map(
-										(match, idx) => {
-											const isSingles =
-												match.match_type ===
-												"singles";
-											const team1PlayerIds =
-												isSingles
-													? [
-															match
-																.player_ids[0],
-														]
-													: [
-															match
-																.player_ids[0],
-															match
-																.player_ids[1],
-														];
-											const team2PlayerIds =
-												isSingles
-													? [
-															match
-																.player_ids[1],
-														]
-													: [
-															match
-																.player_ids[2],
-															match
-																.player_ids[3],
-														];
+									{forceClosing
+										? t.sessions.session.forceClose.closing
+										: t.sessions.session.forceClose.button}
+								</Button>
+							</div>
+						</div>
+					</div>
+				) : null}
 
-											const team1Players =
-												team1PlayerIds
-													.map((id) =>
-														getPlayer(
-															id,
-														),
-													)
-													.filter(
-														Boolean,
-													) as Player[];
-											const team2Players =
-												team2PlayerIds
-													.map((id) =>
-														getPlayer(
-															id,
-														),
-													)
-													.filter(
-														Boolean,
-													) as Player[];
+				{selectedMatchForEdit ? (
+					<EditMatchDrawer
+						open={isEditDrawerOpen}
+						onOpenChange={setIsEditDrawerOpen}
+						match={selectedMatchForEdit}
+						team1Players={
+							selectedMatchForEdit.match_type === "singles"
+								? ([getPlayer(selectedMatchForEdit.player_ids[0])].filter(
+										Boolean,
+									) as Player[])
+								: ([
+										getPlayer(selectedMatchForEdit.player_ids[0]),
+										getPlayer(selectedMatchForEdit.player_ids[1]),
+									].filter(Boolean) as Player[])
+						}
+						team2Players={
+							selectedMatchForEdit.match_type === "singles"
+								? ([getPlayer(selectedMatchForEdit.player_ids[1])].filter(
+										Boolean,
+									) as Player[])
+								: ([
+										getPlayer(selectedMatchForEdit.player_ids[2]),
+										getPlayer(selectedMatchForEdit.player_ids[3]),
+									].filter(Boolean) as Player[])
+						}
+						onSave={handleEditMatch}
+						isSaving={isEditingMatch}
+						isEloDeferred={isTwoHalfScoreOnlyEdit(selectedMatchForEdit)}
+					/>
+				) : null}
 
-											const team1Name =
-												isSingles
-													? team1Players[0]?.name?.split(
-															" ",
-														)[0] || "?"
-													: team1Players
-															.map(
-																(
-																	p,
-																) =>
-																	p.name?.split(
-																		" ",
-																	)[0] ||
-																	"?",
-															)
-															.join(
-																" & ",
-															);
-											const team2Name =
-												isSingles
-													? team2Players[0]?.name?.split(
-															" ",
-														)[0] || "?"
-													: team2Players
-															.map(
-																(
-																	p,
-																) =>
-																	p.name?.split(
-																		" ",
-																	)[0] ||
-																	"?",
-															)
-															.join(
-																" & ",
-															);
-
-											return (
-												<Stack
-													key={match.id}
-													direction="row"
-													alignItems="center"
-													spacing={3}
-												>
-													{idx > 0 && (
-														<Box className="w-px h-4 bg-border/50 -ml-1.5" />
-													)}
-													<Stack
-														direction="row"
-														alignItems="center"
-														spacing={
-															1.5
-														}
-													>
-														<span className="text-xs text-muted-foreground">
-															{
-																team1Name
-															}
-														</span>
-														<span className="text-[10px] font-bold text-muted-foreground/60">
-															vs
-														</span>
-														<span className="text-xs text-muted-foreground">
-															{
-																team2Name
-															}
-														</span>
-													</Stack>
-												</Stack>
-											);
-										},
-									)}
-								</Stack>
-							</Box>
-						);
-					})()}
-
-					{/* Navigation Buttons */}
-					<Box className="pt-2 pb-8">
-						<Stack direction="row" spacing={3}>
-							<Button
-								variant="outline"
-								onClick={goToPreviousRound}
-								disabled={
-									currentRound === roundNumbers[0]
-								}
-								className="flex-1 py-4 px-6 rounded-full font-bold text-base h-auto"
-							>
-								<Stack
-									direction="row"
-									alignItems="center"
-									justifyContent="center"
-									spacing={2}
-								>
-									<Icon
-										icon="solar:arrow-left-linear"
-										className="size-5"
-									/>
-									<span>
-										{
-											t.sessions.session
-												.previous
-										}
-									</span>
-								</Stack>
-							</Button>
-							<Button
-								variant="outline"
-								onClick={handleNextClick}
-								disabled={
-									submitting ||
-									(currentRound ===
-										roundNumbers[
-											roundNumbers.length - 1
-										] &&
-										!canSubmitRound &&
-										!isCurrentRoundCompleted)
-								}
-								className="flex-1 py-4 px-6 rounded-full font-bold text-base h-auto"
-							>
-								<Stack
-									direction="row"
-									alignItems="center"
-									justifyContent="center"
-									spacing={2}
-								>
-									{submitting ? (
-										<>
-											<Icon
-												icon="lucide:loader-circle"
-												className="size-5 animate-spin"
-											/>
-											<span>
-												{
-													t.sessions
-														.session
-														.submitting
-												}
-											</span>
-										</>
-									) : (
-										<>
-											<span>
-												{currentRound ===
-												roundNumbers[
-													roundNumbers.length -
-														1
-												]
-													? t.sessions
-															.session
-															.finish
-													: t.sessions
-															.session
-															.next}
-											</span>
-											<Icon
-												icon={
-													currentRound ===
-													roundNumbers[
-														roundNumbers.length -
-															1
-													]
-														? "solar:check-circle-linear"
-														: "solar:arrow-right-linear"
-												}
-												className="size-5"
-											/>
-										</>
-									)}
-								</Stack>
-							</Button>
-						</Stack>
-					</Box>
-				</motion.div>
-			</AppShell>
-
-			{/* Edit Match Drawer */}
-			{selectedMatchForEdit && (
-				<EditMatchDrawer
-					open={isEditDrawerOpen}
-					onOpenChange={setIsEditDrawerOpen}
-					match={selectedMatchForEdit}
-					team1Players={
-						selectedMatchForEdit.match_type === "singles"
-							? ([
-									getPlayer(
-										selectedMatchForEdit.player_ids[0],
-									),
-								].filter(Boolean) as Player[])
-							: ([
-									getPlayer(
-										selectedMatchForEdit.player_ids[0],
-									),
-									getPlayer(
-										selectedMatchForEdit.player_ids[1],
-									),
-								].filter(Boolean) as Player[])
-					}
-					team2Players={
-						selectedMatchForEdit.match_type === "singles"
-							? ([
-									getPlayer(
-										selectedMatchForEdit.player_ids[1],
-									),
-								].filter(Boolean) as Player[])
-							: ([
-									getPlayer(
-										selectedMatchForEdit.player_ids[2],
-									),
-									getPlayer(
-										selectedMatchForEdit.player_ids[3],
-									),
-								].filter(Boolean) as Player[])
-					}
-					onSave={handleEditMatch}
-					isSaving={isEditingMatch}
-					isEloDeferred={isTwoHalfScoreOnlyEdit(selectedMatchForEdit)}
-				/>
-			)}
-
-			{/* ELO Calculation Terminal Modal */}
-			<TerminalModal isVisible={showCalculationTerminal}>
-				<CalculationTerminal
-					lines={terminalLines}
-					isComplete={isTerminalComplete}
-					onComplete={handleTerminalComplete}
-				/>
-			</TerminalModal>
-		</>
-	);
+				<TerminalModal isVisible={showCalculationTerminal}>
+					<CalculationTerminal
+						lines={terminalLines}
+						isComplete={isTerminalComplete}
+						onComplete={handleTerminalComplete}
+					/>
+				</TerminalModal>
+			</>
+		);
+	}
+	return null;
 }
 
 export default function SessionPage() {

@@ -1,9 +1,9 @@
 "use client";
 
-import { Box } from "@/components/ui/box";
-import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { TeamNameCard } from "@/components/ui/team-name-card";
-import { cn } from "@/lib/utils";
+import {
+	SessionScoreboardMatch,
+	type SessionDetailPlayer,
+} from "@/components/sessions/session-detail";
 import { t } from "@/lib/i18n";
 
 type Player = {
@@ -14,6 +14,8 @@ type Player = {
 };
 
 type MatchHistoryCardProps = {
+	matchId?: string;
+	roundNumber?: number;
 	matchType: "singles" | "doubles";
 	team1Players: Player[];
 	team2Players: Player[];
@@ -28,9 +30,20 @@ type MatchHistoryCardProps = {
 	team2EloChange?: number;
 	onClick?: () => void;
 	hasVideo?: boolean;
+	isRated?: boolean;
 };
 
+function toSessionPlayers(players: Player[]): SessionDetailPlayer[] {
+	return players.map((player) => ({
+		id: player.id,
+		name: player.name,
+		avatar: player.avatar,
+	}));
+}
+
 export function MatchHistoryCard({
+	matchId,
+	roundNumber = 0,
 	matchType,
 	team1Players,
 	team2Players,
@@ -41,169 +54,31 @@ export function MatchHistoryCard({
 	team2EloChange,
 	onClick,
 	hasVideo,
+	isRated = true,
 }: MatchHistoryCardProps) {
-	const isSingles = matchType === "singles";
-	const team1Won =
-		team1Score !== null && team2Score !== null && team1Score > team2Score;
-	const team2Won =
-		team1Score !== null && team2Score !== null && team2Score > team1Score;
-
-	const formatEloChange = (change?: number) => {
-		if (change === undefined || change === null) return null;
-		const rounded = Math.round(change);
-		return rounded > 0 ? `+${rounded}` : `${rounded}`;
-	};
-
-	const team1Change = formatEloChange(team1EloChange);
-	const team2Change = formatEloChange(team2EloChange);
-
 	return (
-		<Box
-			onClick={onClick}
-			className={cn(
-				"bg-card rounded-xl border border-border/40 overflow-hidden",
-				onClick &&
-					"cursor-pointer hover:border-border active:scale-[0.99] transition-[transform,border-color] duration-150"
-			)}
-		>
-			<Box className="px-3 py-3 flex items-center gap-3">
-				{/* Team 1 */}
-				<Box className="flex items-center gap-2 flex-1">
-					{isSingles ? (
-						<PlayerNameCard
-							name={team1Players[0]?.name || "Unknown"}
-							avatar={team1Players[0]?.avatar || null}
-							size="sm"
-							avatarBorder={team1Won ? "primary" : "transparent"}
-							className={cn(!team1Won && "opacity-60")}
-							addon={
-								team1Change ? (
-									<span
-										className={cn(
-											"text-[10px]",
-											team1Change.startsWith("+")
-												? "text-emerald-500"
-												: "text-red-500"
-										)}
-									>
-										{team1Change}
-									</span>
-								) : undefined
-							}
-						/>
-					) : (
-						<TeamNameCard
-							player1={{
-								name: team1Players[0]?.name || "",
-								avatar: team1Players[0]?.avatar || null,
-							}}
-							player2={{
-								name: team1Players[1]?.name || "",
-								avatar: team1Players[1]?.avatar || null,
-							}}
-							size="sm"
-							className={cn(!team1Won && "opacity-60")}
-							addon={
-								team1Change ? (
-									<span
-										className={cn(
-											"text-[10px]",
-											team1Change.startsWith("+")
-												? "text-emerald-500"
-												: "text-red-500"
-										)}
-									>
-										{team1Change}
-									</span>
-								) : undefined
-							}
-						/>
-					)}
-				</Box>
-
-				{/* Score & Match Type */}
-				<Box className="flex flex-col items-center gap-0.5 px-3">
-					<span className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider mb-0.5">
-						{matchType === "singles"
-							? t.sessions.singles
-							: t.sessions.doubles}
-					</span>
-					{team1Score !== null && team2Score !== null ? (
-						<span className="text-lg font-bold font-mono">
-							{team1Score}-{team2Score}
-						</span>
-					) : (
-						<span className="text-lg font-bold font-mono text-muted-foreground">
-							-
-						</span>
-					)}
-					{pairedFirstHalfScore && (
-						<Box className="mt-1 flex flex-col items-center gap-0.5">
-							<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[9px] font-bold text-primary">
-								{t.sessions.session.pairedFirstHalfScore(
-									pairedFirstHalfScore.roundNumber,
-									pairedFirstHalfScore.team1Score,
-									pairedFirstHalfScore.team2Score,
-								)}
-							</span>
-						</Box>
-					)}
-				</Box>
-
-				{/* Team 2 */}
-				<Box className="flex items-center gap-2 flex-1 justify-end">
-					{isSingles ? (
-						<PlayerNameCard
-							name={team2Players[0]?.name || "Unknown"}
-							avatar={team2Players[0]?.avatar || null}
-							size="sm"
-							reverse
-							avatarBorder={team2Won ? "primary" : "transparent"}
-							addon={
-								team2Change ? (
-									<span
-										className={cn(
-											"text-[10px]",
-											team2Change.startsWith("+")
-												? "text-emerald-500"
-												: "text-red-500"
-										)}
-									>
-										{team2Change}
-									</span>
-								) : undefined
-							}
-						/>
-					) : (
-						<TeamNameCard
-							player1={{
-								name: team2Players[0]?.name || "",
-								avatar: team2Players[0]?.avatar || null,
-							}}
-							player2={{
-								name: team2Players[1]?.name || "",
-								avatar: team2Players[1]?.avatar || null,
-							}}
-							size="sm"
-							reverse
-							addon={
-								team2Change ? (
-									<span
-										className={cn(
-											"text-[10px]",
-											team2Change.startsWith("+")
-												? "text-emerald-500"
-												: "text-red-500"
-										)}
-									>
-										{team2Change}
-									</span>
-								) : undefined
-							}
-						/>
-					)}
-				</Box>
-			</Box>
-		</Box>
+		<SessionScoreboardMatch
+			match={{
+				id: matchId ?? `${roundNumber}-${team1Players.map((player) => player.id).join("-")}`,
+				roundNumber,
+				matchType,
+				teamOne: toSessionPlayers(team1Players),
+				teamTwo: toSessionPlayers(team2Players),
+				teamOneScore: team1Score,
+				teamTwoScore: team2Score,
+				isRated,
+				pairedFirstHalfLabel: pairedFirstHalfScore
+					? t.sessions.session.pairedFirstHalfScore(
+							pairedFirstHalfScore.roundNumber,
+							pairedFirstHalfScore.team1Score,
+							pairedFirstHalfScore.team2Score,
+						)
+					: undefined,
+				teamOneEloChange: team1EloChange,
+				teamTwoEloChange: team2EloChange,
+				onActivate: onClick,
+				hasVideo,
+			}}
+		/>
 	);
 }

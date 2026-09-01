@@ -1,9 +1,6 @@
 "use client";
 
-import { motion, AnimatePresence } from "framer-motion";
-import { Box } from "@/components/ui/box";
-import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { TeamNameCard } from "@/components/ui/team-name-card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 type Player = {
 	id: string;
@@ -14,206 +11,101 @@ type Player = {
 
 type MatchRowProps = {
 	type: "singles" | "doubles";
-	players: Player[]; // 2 for singles, 4 for doubles
+	players: Player[];
 	isShuffling?: boolean;
 	shuffleKey?: number;
 };
 
-// Slot machine spin effect - blur up then vanish
-const getSpinOut = () => {
-	const delay = Math.random() * 0.1;
-	
-	return {
-		y: [0, -8, -20, -40],
-		opacity: [1, 0.8, 0.4, 0],
-		scale: [1, 0.95, 0.85, 0.7],
-		filter: ["blur(0px)", "blur(1px)", "blur(3px)", "blur(6px)"],
-		transition: { 
-			duration: 0.35, 
-			delay,
-			ease: [0.4, 0, 1, 1] as [number, number, number, number] // ease-in (accelerate)
-		}
-	};
-};
-
-export function MatchRow({ type, players, isShuffling = false, shuffleKey = 0 }: MatchRowProps) {
+export function MatchRow({ type, players }: MatchRowProps) {
+	const firstSide = type === "doubles" ? players.slice(0, 2) : players.slice(0, 1);
+	const secondSide = type === "doubles" ? players.slice(2, 4) : players.slice(1, 2);
 	const isExhibition = players.some((player) => player.isPlaceholder);
-	if (type === "singles") {
-		const [player1, player2] = players;
-		return (
-			<Box className="relative flex items-center justify-between bg-background/50 rounded-xl p-3 pt-7 border border-border/30">
-				{isExhibition && (
-					<span className="absolute left-3 top-2 text-[9px] font-black uppercase tracking-wider text-amber-500">
-						Bez ELO-a
-					</span>
-				)}
-				<Box className="flex-1 flex justify-end">
-					<AnimatePresence mode="wait">
-						<motion.div
-							key={`${shuffleKey}-${player1.id}`}
-							initial={{ opacity: 0, scale: 0.7, y: 30, filter: "blur(4px)" }}
-							animate={isShuffling 
-								? getSpinOut()
-								: { 
-									opacity: 1, 
-									scale: 1,
-									y: 0,
-									filter: "blur(0px)"
-								}
-							}
-							transition={isShuffling ? undefined : { 
-								type: "spring", 
-								stiffness: 400, 
-								damping: 15,
-								mass: 0.8,
-								delay: 0.05 + Math.random() * 0.1
-							}}
-						>
-							<PlayerNameCard
-								name={player1.name}
-								avatar={player1.avatar}
-								id={player1.id}
-								variant="horizontal"
-								size="md"
-								reverse
-							/>
-						</motion.div>
-					</AnimatePresence>
-				</Box>
-				<Box className="px-4">
-					<Box className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded">
-						VS
-					</Box>
-				</Box>
-				<Box className="flex-1">
-					<AnimatePresence mode="wait">
-						<motion.div
-							key={`${shuffleKey}-${player2.id}`}
-							initial={{ opacity: 0, scale: 0.7, y: 30, filter: "blur(4px)" }}
-							animate={isShuffling 
-								? getSpinOut()
-								: { 
-									opacity: 1, 
-									scale: 1,
-									y: 0,
-									filter: "blur(0px)"
-								}
-							}
-							transition={isShuffling ? undefined : { 
-								type: "spring", 
-								stiffness: 400, 
-								damping: 15,
-								mass: 0.8,
-								delay: 0.05 + Math.random() * 0.1
-							}}
-						>
-							<PlayerNameCard
-								name={player2.name}
-								avatar={player2.avatar}
-								id={player2.id}
-								variant="horizontal"
-								size="md"
-							/>
-						</motion.div>
-					</AnimatePresence>
-				</Box>
-			</Box>
-		);
-	}
+	const label = `${type === "doubles" ? "Dubl" : "Singl"}, ${sideName(
+		firstSide,
+	)} protiv ${sideName(secondSide)}${isExhibition ? ", bez ELO-a" : ""}`;
 
-	// Doubles: 4 players
-	const [player1, player2, player3, player4] = players;
 	return (
-		<Box className="relative flex items-center justify-between bg-background/50 rounded-xl p-3 pt-7 border border-border/30">
+		<div
+			className="py-3"
+			role="group"
+			aria-label={label}
+		>
 			{isExhibition && (
-				<span className="absolute left-3 top-2 text-[9px] font-black uppercase tracking-wider text-amber-500">
+				<p className="mb-2 text-center text-ios-label-9 font-bold uppercase tracking-[0.12em] text-[rgb(var(--ds-native-amber))]">
 					Bez ELO-a
-				</span>
+				</p>
 			)}
-			<Box className="flex-1 flex justify-end">
-				<AnimatePresence mode="wait">
-					<motion.div
-						key={`${shuffleKey}-${player1.id}-${player2.id}`}
-						initial={{ opacity: 0, scale: 0.7, y: 30, filter: "blur(4px)" }}
-						animate={isShuffling 
-							? getSpinOut()
-							: { 
-								opacity: 1, 
-								scale: 1,
-								y: 0,
-								filter: "blur(0px)"
-							}
-						}
-						transition={isShuffling ? undefined : { 
-							type: "spring", 
-							stiffness: 400, 
-							damping: 15,
-							mass: 0.8,
-							delay: 0.05 + Math.random() * 0.1
-						}}
-					>
-						<TeamNameCard
-							player1={{
-								name: player1.name,
-								avatar: player1.avatar,
-								id: player1.id,
-							}}
-							player2={{
-								name: player2.name,
-								avatar: player2.avatar,
-								id: player2.id,
-							}}
-							variant="horizontal"
-							size="md"
-							reverse
-						/>
-					</motion.div>
-				</AnimatePresence>
-			</Box>
-			<Box className="px-4">
-				<Box className="text-[10px] font-black text-muted-foreground bg-muted px-2 py-1 rounded">
+			<div className="flex items-center gap-2">
+				<MatchSide players={firstSide} alignment="right" />
+				<span
+					aria-hidden="true"
+					className="w-5 shrink-0 text-center text-ios-caption2 font-black text-[rgb(var(--ds-native-muted))]"
+				>
 					VS
-				</Box>
-			</Box>
-			<Box className="flex-1">
-				<AnimatePresence mode="wait">
-					<motion.div
-						key={`${shuffleKey}-${player3.id}-${player4.id}`}
-						initial={{ opacity: 0, scale: 0.7, y: 30, filter: "blur(4px)" }}
-						animate={isShuffling 
-							? getSpinOut()
-							: { 
-								opacity: 1, 
-								scale: 1,
-								y: 0,
-								filter: "blur(0px)"
-							}
-						}
-						transition={isShuffling ? undefined : { 
-							type: "spring", 
-							stiffness: 400, 
-							damping: 15,
-							mass: 0.8,
-							delay: 0.05 + Math.random() * 0.1
-						}}
-					>
-						<TeamNameCard
-							player1={{
-								name: player3.name,
-								avatar: player3.avatar,
-								id: player3.id,
-							}}
-							player2={{
-								name: player4.name,
-								avatar: player4.avatar,
-								id: player4.id,
-							}}
-							variant="horizontal"
-							size="md"
-						/>
-					</motion.div>
-				</AnimatePresence>
-			</Box>
-		</Box>
+				</span>
+				<MatchSide players={secondSide} alignment="left" />
+			</div>
+		</div>
 	);
+}
+
+function MatchSide({
+	players,
+	alignment,
+}: {
+	players: Player[];
+	alignment: "left" | "right";
+}) {
+	const names = (
+		<span
+			className={`min-w-0 text-ios-caption font-semibold leading-4 ${
+				alignment === "right" ? "text-right" : "text-left"
+			}`}
+		>
+			{sideName(players)}
+		</span>
+	);
+	const avatars = <AvatarStack players={players} />;
+
+	return (
+		<div
+			className={`flex min-w-0 flex-1 items-center gap-[7px] ${
+				alignment === "right" ? "justify-end" : "justify-start"
+			}`}
+		>
+			{alignment === "right" ? (
+				<>
+					{names}
+					{avatars}
+				</>
+			) : (
+				<>
+					{avatars}
+					{names}
+				</>
+			)}
+		</div>
+	);
+}
+
+function AvatarStack({ players }: { players: Player[] }) {
+	return (
+		<span className="flex shrink-0 -space-x-[7px]">
+			{players.map((player) => (
+				<Avatar
+					key={player.id}
+					className="size-[30px] border-[1.5px] border-[rgb(var(--ds-native-background))]"
+				>
+					<AvatarImage src={player.avatar ?? undefined} alt="" />
+					<AvatarFallback className="bg-ds-surface-raised text-ios-label-10 font-semibold text-[rgb(var(--ds-native-bone))]">
+						{player.name.charAt(0).toUpperCase()}
+					</AvatarFallback>
+				</Avatar>
+			))}
+		</span>
+	);
+}
+
+function sideName(players: Player[]) {
+	return players.map((player) => player.name).join(" i ");
 }

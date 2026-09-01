@@ -8,6 +8,7 @@ import { Box } from "@/components/ui/box";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Stack } from "@/components/ui/stack";
 import { StateBlock } from "@/components/ui/state-block";
+import { PageLoading } from "@/components/ui/loading";
 import { TeamNameCard } from "@/components/ui/team-name-card";
 import { PerformanceTrend } from "@/components/player/performance-trend";
 import { useAuth } from "@/lib/auth/useAuth";
@@ -89,11 +90,7 @@ function TeamPageContent() {
 	return (
 		<AppShell title={teamData?.display_name ?? t.statistics.table.team}>
 			{loading ? (
-				<StateBlock
-					variant="loading"
-					size="lg"
-					title={t.teamPage.loading}
-				/>
+				<PageLoading label={t.teamPage.loading} />
 			) : error || !teamData ? (
 				<StateBlock
 					variant="error"

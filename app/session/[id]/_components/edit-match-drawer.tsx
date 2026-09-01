@@ -252,15 +252,13 @@ export function EditMatchDrawer({
 						>
 							Cancel
 						</Button>
-						<Button onClick={handleSave} disabled={isSaving}>
-							{isSaving ? (
-								<>
-									<Icon icon="lucide:loader-circle" className="animate-spin mr-2" />
-									Saving...
-								</>
-							) : (
-								"Save Changes"
-							)}
+						<Button
+							onClick={handleSave}
+							disabled={isSaving}
+							isLoading={isSaving}
+							loadingLabel="Saving…"
+						>
+							Save Changes
 						</Button>
 					</Stack>
 				</DrawerFooter>

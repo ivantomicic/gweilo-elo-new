@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Loading, type LoadingSize } from "@/components/ui/loading";
 import { cn } from "@/lib/utils";
 
 type StateBlockVariant = "loading" | "empty" | "error";
@@ -12,10 +13,10 @@ const sizeClasses: Record<StateBlockSize, string> = {
 	lg: "min-h-[320px] px-6 py-12",
 };
 
-const spinnerClasses: Record<StateBlockSize, string> = {
-	sm: "size-5",
-	md: "size-6",
-	lg: "size-8",
+const loadingSizes: Record<StateBlockSize, LoadingSize> = {
+	sm: "sm",
+	md: "md",
+	lg: "lg",
 };
 
 const titleSizeClasses: Record<StateBlockSize, string> = {
@@ -52,23 +53,25 @@ export function StateBlock({
 	"aria-live": ariaLive,
 	...props
 }: StateBlockProps) {
+	if (variant === "loading") {
+		return (
+			<Loading
+				label={typeof title === "string" ? title : "Učitavam…"}
+				size={loadingSizes[size]}
+				description={description}
+				role={role ?? "status"}
+				aria-live={ariaLive ?? "polite"}
+				className={cn(sizeClasses[size], className, contentClassName)}
+				{...props}
+			/>
+		);
+	}
+
 	return (
 		<div
-			role={
-				role ??
-				(variant === "error"
-					? "alert"
-					: variant === "loading"
-						? "status"
-						: undefined)
-			}
+			role={role ?? (variant === "error" ? "alert" : undefined)}
 			aria-live={
-				ariaLive ??
-				(variant === "error"
-					? "assertive"
-					: variant === "loading"
-						? "polite"
-						: undefined)
+				ariaLive ?? (variant === "error" ? "assertive" : undefined)
 			}
 			className={cn(
 				"flex w-full flex-col items-center justify-center text-center",
@@ -83,15 +86,6 @@ export function StateBlock({
 					contentClassName,
 				)}
 			>
-				{variant === "loading" && (
-					<div
-						aria-hidden="true"
-						className={cn(
-							"mb-3 animate-spin rounded-full border-2 border-border border-t-primary",
-							spinnerClasses[size],
-						)}
-					/>
-				)}
 				{title !== undefined && title !== null ? (
 					<p
 						className={cn(

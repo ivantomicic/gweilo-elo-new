@@ -1,40 +1,35 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import Image from "next/image";
 import { useSearchParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
-import { Box } from "@/components/ui/box";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+} from "@/components/ui/avatar";
 import { StateBlock } from "@/components/ui/state-block";
-import {
-	PlayerTableIdentity,
-	RankCell,
-	TeamTableIdentity,
-} from "@/components/ui/stats-table-cells";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loading } from "@/components/ui/loading";
+import { ScrollFadeHero } from "@/components/ui/scroll-fade-hero";
+import { PageContainer } from "@/components/ui/page-container";
+import { AnimatedNumber } from "@/components/ui/animated-number";
+import { RankingEntranceItem, RANKING_ENTRANCE_ROW_LIMIT, useRankingEntrance } from "@/components/statistics/ranking-entrance";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
+import { cn } from "@/lib/utils";
 import {
 	classifyOpportunityAdjustedForm,
 	fallbackOpportunityAdjustedForm,
 } from "@/lib/elo/form";
 
-const MotionTableRow = motion(TableRow);
-
 const tableContentTransition = {
-	duration: 0.2,
-	ease: [0.25, 0.46, 0.45, 0.94] as const, // ease-out
+	duration: 0.28,
+	ease: [0.16, 1, 0.3, 1] as const,
 };
 
 type PlayerStats = {
@@ -144,18 +139,18 @@ function RecentFormDots({
 	const toneFor = (value: number | null) => {
 		if (value === null) {
 			return {
-				color: "hsl(var(--muted-foreground) / 0.2)",
+				color: "rgb(148 145 161 / 0.18)",
 				label: "Nema podatka",
 			};
 		}
 		const band = classifyOpportunityAdjustedForm(value);
 		if (band === "good") {
-			return { color: "#10b981", label: "Dobra forma" };
+			return { color: "rgb(194 255 31)", label: "Dobra forma" };
 		}
 		if (band === "bad") {
-			return { color: "#ef4444", label: "Loša forma" };
+			return { color: "rgb(255 69 92)", label: "Loša forma" };
 		}
-		return { color: "#fbbf24", label: "Neutralna forma" };
+		return { color: "rgb(255 179 26)", label: "Neutralna forma" };
 	};
 
 	const tones = paddedScores.map(toneFor);
@@ -172,7 +167,7 @@ function RecentFormDots({
 
 	return (
 		<div
-			className="mx-auto flex h-2 w-14 overflow-hidden rounded-[3px] md:w-20"
+			className="mx-auto flex h-2 w-14 overflow-hidden rounded-[3px]"
 			style={{
 				backgroundImage: `linear-gradient(90deg in oklab, ${gradientStops.join(", ")})`,
 			}}
@@ -196,6 +191,319 @@ function RecentFormDots({
 					/>
 				);
 			})}
+		</div>
+	);
+}
+
+const rankingViews: Array<{
+	value: StatisticsRankingView;
+	label: string;
+}> = [
+	{ value: "singles", label: "Singlovi" },
+	{ value: "doubles_player", label: "Dublovi" },
+	{ value: "doubles_team", label: "Timovi" },
+];
+
+const rankingEloFormatter = new Intl.NumberFormat("sr-Latn-RS", {
+	maximumFractionDigits: 0,
+});
+
+function rankingInitials(name: string) {
+	return name
+		.split(/\s+/)
+		.filter(Boolean)
+		.slice(0, 2)
+		.map((part) => part.charAt(0))
+		.join("")
+		.toLocaleUpperCase("sr-Latn-RS");
+}
+
+function NativeRankBadge({ rank }: { rank: number }) {
+	const badge =
+		rank === 1
+			? "/session-detail/rank-gold.png"
+			: rank === 2
+				? "/session-detail/rank-silver.png"
+				: rank === 3
+					? "/session-detail/rank-bronze.png"
+					: null;
+
+	return (
+		<span className="absolute -left-1 -top-1 z-10 flex size-[17px] items-center justify-center">
+			{badge ? (
+				<Image src={badge} alt="" width={17} height={17} aria-hidden="true" />
+			) : (
+				<span className="flex min-h-[17px] min-w-[17px] items-center justify-center rounded-full bg-ds-button-surface px-1 font-session-label text-ios-label-10 font-semibold leading-none text-ds-button-foreground ring-[1.5px] ring-[rgb(3_3_4/0.88)]">
+					{rank}
+				</span>
+			)}
+		</span>
+	);
+}
+
+function NativeRankingAvatar({
+	name,
+	avatar,
+	seed,
+	rank,
+}: {
+	name: string;
+	avatar: string | null;
+	seed: string;
+	rank: number;
+}) {
+	return (
+		<span className="relative ml-0.5 shrink-0" aria-hidden="true">
+			<Avatar className="size-[38px] border-[0.9px] border-ds-button-accent/65 bg-ds-button-surface">
+				<AvatarImage
+					src={avatar || undefined}
+					alt=""
+					fallbackSeed={seed || name}
+				/>
+				<AvatarFallback className="bg-ds-button-surface font-session-display text-ios-caption font-black text-ds-button-foreground">
+					{rankingInitials(name)}
+				</AvatarFallback>
+			</Avatar>
+			<NativeRankBadge rank={rank} />
+		</span>
+	);
+}
+
+function NativeMovementBadge({ movement }: { movement?: number }) {
+	if (!movement) return null;
+
+	const positive = movement > 0;
+	return (
+		<span
+			className={cn(
+				"inline-flex min-h-[18px] min-w-[27px] shrink-0 items-center justify-center gap-0.5 rounded-full px-[5px] text-ios-caption2 font-bold leading-none tabular-nums",
+				positive
+					? "bg-ds-control-selected/10 text-ds-control-selected"
+					: "bg-ds-button-destructive/10 text-ds-button-destructive",
+			)}
+			aria-hidden="true"
+		>
+			<span className="text-[8px] font-black">{positive ? "↑" : "↓"}</span>
+			{Math.abs(movement)}
+		</span>
+	);
+}
+
+function NativeRankingsTabs({
+	activeView,
+	onViewChange,
+}: {
+	activeView: StatisticsRankingView;
+	onViewChange: (view: StatisticsRankingView) => void;
+}) {
+	const shouldReduceMotion = useReducedMotion();
+	const [keyboardNavigation, setKeyboardNavigation] = useState(false);
+	const handleTabKeyDown = (
+		event: React.KeyboardEvent<HTMLButtonElement>,
+		index: number,
+	) => {
+		if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+			return;
+		}
+
+		event.preventDefault();
+		setKeyboardNavigation(true);
+		const nextIndex =
+			event.key === "Home"
+				? 0
+				: event.key === "End"
+					? rankingViews.length - 1
+					: (index + (event.key === "ArrowRight" ? 1 : -1) + rankingViews.length) %
+						rankingViews.length;
+		const nextView = rankingViews[nextIndex].value;
+		onViewChange(nextView);
+		requestAnimationFrame(() => {
+			document.querySelector<HTMLButtonElement>(
+				`[data-statistics-tab="${nextView}"]`,
+			)?.focus();
+		});
+	};
+
+	return (
+		<div className="relative z-10 pt-[22px]">
+			<div
+				className="grid grid-cols-3 border-b border-white/[0.13]"
+				role="tablist"
+				aria-label="Kategorija statistike"
+			>
+				{rankingViews.map((view, index) => {
+					const selected = activeView === view.value;
+					return (
+						<button
+							key={view.value}
+							type="button"
+							role="tab"
+							aria-selected={selected}
+							aria-controls="statistics-ranking-panel"
+							tabIndex={selected ? 0 : -1}
+							data-statistics-tab={view.value}
+							onClick={() => onViewChange(view.value)}
+							onPointerDown={() => setKeyboardNavigation(false)}
+							onKeyDown={(event) => handleTabKeyDown(event, index)}
+							className={cn(
+								"relative flex min-h-11 items-end justify-center pb-2 font-session-label text-ios-label-12 font-semibold uppercase leading-[15px] tracking-[0.68px] transition-colors duration-150 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-section-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(3_3_4)] active:opacity-80",
+								selected ? "text-ds-button-foreground" : "text-ds-button-muted",
+							)}
+						>
+							{view.label}
+							{selected && (
+								<motion.span
+									layoutId="statistics-category-indicator"
+									className="absolute inset-x-0 -bottom-px h-0.5 bg-ds-control-selected"
+									transition={shouldReduceMotion || keyboardNavigation ? { duration: 0 } : tableContentTransition}
+								/>
+							)}
+						</button>
+					);
+				})}
+			</div>
+		</div>
+	);
+}
+
+function NativeRankingRow({
+	item,
+	rank,
+	onSelect,
+	showsDisclosure,
+	animateNumbers,
+}: {
+	item: PlayerStats | TeamStats;
+	rank: number;
+	onSelect?: () => void;
+	showsDisclosure: boolean;
+	animateNumbers: boolean;
+}) {
+	const isTeam = "team_id" in item;
+	const name = isTeam
+		? `${item.player1.display_name} + ${item.player2.display_name}`
+		: item.display_name;
+	const avatar = isTeam ? null : item.avatar;
+	const seed = isTeam ? item.team_id : item.player_id;
+	const movement = item.rank_movement;
+	const movementLabel = movement
+		? movement > 0
+			? `, napredovao za ${movement} mesta`
+			: `, pao za ${Math.abs(movement)} mesta`
+		: "";
+	const label = `Pozicija ${rank}, ${name}, ${Math.round(item.elo)} Elo, ${item.wins} pobeda, ${item.draws} nerešenih, ${item.losses} poraza${movementLabel}`;
+
+	const content = (
+		<>
+			<div className="flex min-w-0 items-center gap-[9px]">
+				<NativeRankingAvatar
+					name={name}
+					avatar={avatar}
+					seed={seed}
+					rank={rank}
+				/>
+				<div className="min-w-0 space-y-0.5 text-left">
+					<div className="flex min-w-0 items-center gap-1.5">
+						<span className="truncate text-ios-body font-semibold leading-[19px] text-ds-button-foreground">
+							{name}
+						</span>
+						<NativeMovementBadge movement={movement} />
+					</div>
+					<div className="flex items-center gap-0.5 text-ios-caption2 leading-3 tabular-nums">
+						<span className="text-ds-button-muted">{item.matches_played}</span>
+						<span className="text-ds-control-selected">{item.wins}</span>
+						<span className="text-ds-button-muted">–</span>
+						<span className="text-[rgb(var(--ds-native-amber))]">{item.draws}</span>
+						<span className="text-ds-button-muted">–</span>
+						<span className="text-ds-button-destructive">{item.losses}</span>
+					</div>
+				</div>
+			</div>
+
+			<RecentFormDots
+				values={item.recent_form}
+				formScores={item.recent_form_scores}
+			/>
+
+			<span className="text-right font-session-display text-ios-display-19 font-black leading-6 text-ds-button-foreground tabular-nums">
+				{animateNumbers ? <AnimatedNumber value={item.elo} /> : rankingEloFormatter.format(Math.round(item.elo))}
+			</span>
+
+			<span
+				className={cn(
+					"text-right text-xl font-bold leading-none text-white/25",
+					!showsDisclosure && "invisible",
+				)}
+				aria-hidden="true"
+			>
+				›
+			</span>
+		</>
+	);
+
+	const rowClassName =
+		"grid min-h-[64px] w-full grid-cols-[minmax(0,1fr)_56px_60px_8px] items-center gap-2 border-b border-white/[0.13] py-[13px] text-left last:border-b-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ds-section-accent";
+
+	return onSelect ? (
+		<button type="button" className={`${rowClassName} active:opacity-80`} onClick={onSelect} aria-label={label}>
+			{content}
+		</button>
+	) : (
+		<div className={rowClassName} role="group" aria-label={label}>
+			{content}
+		</div>
+	);
+}
+
+function NativeRankingsList({
+	items,
+	activeView,
+	onPlayerSelect,
+	onTeamSelect,
+	animateEntrance,
+}: {
+	items: Array<PlayerStats | TeamStats>;
+	activeView: StatisticsRankingView;
+	onPlayerSelect: (playerId: string) => void;
+	onTeamSelect: (teamId: string) => void;
+	animateEntrance: boolean;
+}) {
+	const showsDisclosure = activeView !== "doubles_player";
+
+	return (
+		<div>
+			<div
+				className="grid grid-cols-[minmax(0,1fr)_56px_60px_8px] items-center gap-2 border-b border-white/[0.13] py-[9px] font-session-label text-ios-label-11 font-semibold uppercase leading-[14px] tracking-[0.8px] text-ds-button-muted"
+				aria-hidden="true"
+			>
+				<span>{activeView === "doubles_team" ? "Tim" : "Igrač"}</span>
+				<span className="text-center">Forma</span>
+				<span className="text-right">Elo</span>
+				<span />
+			</div>
+
+			<ul aria-label="Elo rang lista">
+				{items.map((item, index) => {
+					const isTeam = "team_id" in item;
+					const key = isTeam ? item.team_id : item.player_id;
+					const onSelect = showsDisclosure
+						? isTeam
+							? () => onTeamSelect(item.team_id)
+							: () => onPlayerSelect(item.player_id)
+						: undefined;
+					return (
+						<RankingEntranceItem key={key} index={index} animate={animateEntrance}>
+							<NativeRankingRow
+								item={item}
+								rank={index + 1}
+								onSelect={onSelect}
+								showsDisclosure={showsDisclosure}
+								animateNumbers={animateEntrance && index < RANKING_ENTRANCE_ROW_LIMIT}
+							/>
+						</RankingEntranceItem>
+					);
+				})}
+			</ul>
 		</div>
 	);
 }
@@ -229,7 +537,6 @@ function StatisticsPageContent() {
 	const { session } = useAuth();
 	const accessToken = session?.access_token;
 	const userId = session?.user.id;
-	const shouldReduceMotion = useReducedMotion();
 	const { trigger } = useWebHaptics();
 
 	// Page-level view filter. URL uses hyphens for doubles views.
@@ -244,6 +551,9 @@ function StatisticsPageContent() {
 	const handleViewChange = (
 		view: StatisticsRankingView
 	) => {
+		if (view === activeView) return;
+		finishEntrance();
+		void trigger();
 		const params = new URLSearchParams(searchParams.toString());
 		if (view === "singles") {
 			params.delete("view");
@@ -288,6 +598,10 @@ function StatisticsPageContent() {
 	const statisticsRef = useRef(statistics);
 	const loadedRef = useRef(loaded);
 	const prefetchedViewsRef = useRef(new Set<StatisticsRankingView>());
+	const { animateEntrance, finishEntrance } = useRankingEntrance(
+		loaded[getViewKey(activeRankingView)] && !error,
+		activeRankingView,
+	);
 
 	useEffect(() => {
 		statisticsRef.current = statistics;
@@ -488,433 +802,70 @@ function StatisticsPageContent() {
 		loading[getViewKey(activeRankingView)] &&
 		!loaded[getViewKey(activeRankingView)];
 
-	if (isInitialLoading) {
-		return (
-			<AppShell title={t.statistics.title}>
-				<StateBlock
-					variant="loading"
-					size="lg"
-					title={t.statistics.loading}
-				/>
-			</AppShell>
-		);
-	}
-
-	if (error) {
-		return (
-			<AppShell title={t.statistics.title}>
-				<StateBlock variant="error" size="lg" title={error} />
-			</AppShell>
-		);
-	}
+	const currentData: Array<PlayerStats | TeamStats> =
+		activeRankingView === "singles"
+			? statistics.singles
+			: activeRankingView === "doubles_player"
+				? statistics.doublesPlayers
+				: statistics.doublesTeams;
 
 	return (
-		<AppShell title={t.statistics.title}>
-							{/* Page-level Navigation Tabs */}
-							<Box className="mb-4">
-								<Tabs
-									value={
-										activeView === "doubles_player"
-											? "doubles-player"
-											: activeView === "doubles_team"
-											? "doubles-team"
-											: "singles"
-									}
-									onValueChange={(value) => {
-										if (value === "singles") {
-											handleViewChange("singles");
-										} else if (value === "doubles-player") {
-											handleViewChange("doubles_player");
-										} else if (value === "doubles-team") {
-											handleViewChange("doubles_team");
-										}
-									}}
-								>
-									<TabsList className="w-full">
-										<TabsTrigger value="singles">
-											{t.statistics.tabs.singles}
-										</TabsTrigger>
-										<TabsTrigger value="doubles-player">
-											{t.statistics.tabs.doublesPlayers}
-										</TabsTrigger>
-										<TabsTrigger value="doubles-team">
-											{t.statistics.tabs.doublesTeams}
-										</TabsTrigger>
-									</TabsList>
-								</Tabs>
-							</Box>
+		<AppShell
+			title={t.statistics.title}
+			showHeader={false}
+			insetClassName="statistics-native-shell"
+			bodyClassName="bg-[rgb(3_3_4)]"
+			containerClassName="bg-[rgb(3_3_4)]"
+			contentClassName="!gap-0 !py-0"
+			contentPadding={false}
+		>
+			<PageContainer className="statistics-native-content pb-10">
+				<ScrollFadeHero
+					title="Statistika"
+					eyebrow="Trenutni Elo"
+					videoSrc="/rankings-header.mp4"
+					titleTracking="-0.5px"
+					eyebrowTracking="1.8px"
+				/>
+				<NativeRankingsTabs
+					activeView={activeRankingView}
+					onViewChange={handleViewChange}
+				/>
 
-							{/* Statistics Table */}
-							<Box>
-								{(() => {
-									// Determine current data and header label based on view
-									// Check if current view is loading
-									const currentViewLoading =
-										activeView === "singles"
-											? loading.singles
-											: activeView === "doubles_player"
-											? loading.doublesPlayers
-											: loading.doublesTeams;
-
-									const currentData: (
-										| PlayerStats
-										| TeamStats
-									)[] =
-										activeView === "singles"
-											? statistics.singles
-											: activeView === "doubles_player"
-											? statistics.doublesPlayers
-											: statistics.doublesTeams;
-
-									// Show loading state for current view if data is not loaded yet
-									if (currentViewLoading && currentData.length === 0) {
-										return (
-											<AnimatePresence mode="wait">
-												<motion.div
-													key={activeView}
-													initial={
-														shouldReduceMotion
-															? false
-															: { opacity: 0, y: 8 }
-													}
-													animate={{ opacity: 1, y: 0 }}
-													transition={tableContentTransition}
-												>
-													<Box className="bg-card rounded-lg border border-border/50">
-														<StateBlock
-															variant="loading"
-															size="md"
-															title={t.statistics.loading}
-														/>
-													</Box>
-												</motion.div>
-											</AnimatePresence>
-										);
-									}
-
-									const headerLabel =
-										activeView === "doubles_team"
-											? t.statistics.table.team
-											: t.statistics.table.player;
-
-									return (
-										<AnimatePresence mode="wait">
-											<motion.div
-												key={activeView}
-												initial={
-													shouldReduceMotion
-														? false
-														: { opacity: 0, y: 8 }
-												}
-												animate={{ opacity: 1, y: 0 }}
-												exit={
-													shouldReduceMotion
-														? undefined
-														: { opacity: 0, y: -6 }
-												}
-												transition={tableContentTransition}
-												className="rounded-lg border border-border/50 overflow-hidden bg-card"
-											>
-											<Table>
-												<TableHeader className="bg-muted/30">
-													<TableRow>
-														<TableHead className="hidden text-left w-8 md:table-cell">
-															#
-														</TableHead>
-														<TableHead className="text-left">
-															{headerLabel}
-														</TableHead>
-														<TableHead className="w-[68px] px-1 text-center whitespace-nowrap md:w-[92px] md:px-2">
-															{
-																t.statistics
-																	.table
-																	.form
-															}
-														</TableHead>
-														<TableHead className="text-center hidden md:table-cell">
-															{
-																t.statistics
-																	.table
-																	.matches
-															}
-														</TableHead>
-														<TableHead className="text-center hidden md:table-cell">
-															{
-																t.statistics
-																	.table.wins
-															}
-														</TableHead>
-														<TableHead className="text-center hidden md:table-cell">
-															{
-																t.statistics
-																	.table
-																	.losses
-															}
-														</TableHead>
-														<TableHead className="text-center hidden md:table-cell">
-															{
-																t.statistics
-																	.table.draws
-															}
-														</TableHead>
-														<TableHead className="text-center">
-															{
-																t.statistics
-																	.table.elo
-															}
-														</TableHead>
-													</TableRow>
-												</TableHeader>
-												<TableBody>
-													{currentData.map(
-														(item, index) => {
-															const isTeam =
-																"team_id" in
-																item;
-															const key = isTeam
-																? (
-																		item as TeamStats
-																  ).team_id
-																: (
-																		item as PlayerStats
-																  ).player_id;
-
-															if (isTeam) {
-																const team =
-																	item as TeamStats;
-																return (
-																	<MotionTableRow
-																		key={
-																			key
-																		}
-																		initial={
-																			shouldReduceMotion
-																				? false
-																				: { opacity: 0, y: 6 }
-																		}
-																		animate={{ opacity: 1, y: 0 }}
-																		transition={{
-																			...tableContentTransition,
-																			delay: shouldReduceMotion ? 0 : index * 0.02,
-																		}}
-																	>
-																		<RankCell
-																			index={
-																				index
-																			}
-																			className="hidden md:table-cell"
-																		/>
-																		<TableCell>
-																			<TeamTableIdentity
-																				player1={{
-																					name: team
-																						.player1
-																						.display_name,
-																					avatar: team
-																						.player1
-																						.avatar,
-																					id: team
-																						.player1
-																						.id,
-																				}}
-																				player2={{
-																					name: team
-																						.player2
-																						.display_name,
-																					avatar: team
-																						.player2
-																						.avatar,
-																					id: team
-																						.player2
-																						.id,
-																				}}
-																				size="md"
-																				onClick={() =>
-																					handleTeamClick(
-																						team.team_id
-																					)
-																				}
-																				rankMovement={
-																					team.rank_movement
-																				}
-																				mobileRecord={
-																					team
-																				}
-																				mobileRankIndex={
-																					index
-																				}
-																			/>
-																		</TableCell>
-																		<TableCell className="w-[68px] px-1 text-center md:w-[92px] md:px-2">
-																			<RecentFormDots
-																				values={
-																					team.recent_form
-																				}
-																				formScores={
-																					team.recent_form_scores
-																				}
-																			/>
-																		</TableCell>
-																		<TableCell className="text-center font-medium hidden md:table-cell">
-																			{
-																				team.matches_played
-																			}
-																		</TableCell>
-																		<TableCell className="text-center hidden md:table-cell">
-																			<span className="font-medium text-green-500">
-																				{
-																					team.wins
-																				}
-																			</span>{" "}
-																			<span className="text-xs font-medium text-muted-foreground">
-																				(
-																				{
-																					team.sets_won
-																				}
-
-																				)
-																			</span>
-																		</TableCell>
-																		<TableCell className="text-center hidden md:table-cell">
-																			<span className="font-medium text-red-500">
-																				{
-																					team.losses
-																				}
-																			</span>{" "}
-																			<span className="text-xs font-medium text-muted-foreground">
-																				(
-																				{
-																					team.sets_lost
-																				}
-
-																				)
-																			</span>
-																		</TableCell>
-																		<TableCell className="text-center hidden md:table-cell font-medium text-yellow-500">
-																			{
-																				team.draws
-																			}
-																		</TableCell>
-																		<TableCell className="text-center font-bold">
-																			{
-																				team.elo
-																			}
-																		</TableCell>
-																	</MotionTableRow>
-																);
-															}
-
-															const player =
-																item as PlayerStats;
-															return (
-																<MotionTableRow
-																	key={key}
-																	initial={
-																		shouldReduceMotion
-																			? false
-																			: { opacity: 0, y: 6 }
-																	}
-																	animate={{ opacity: 1, y: 0 }}
-																	transition={{
-																		...tableContentTransition,
-																		delay: shouldReduceMotion ? 0 : index * 0.02,
-																	}}
-																>
-																	<RankCell
-																		index={
-																			index
-																		}
-																		className="hidden md:table-cell"
-																	/>
-																	<TableCell>
-																		<PlayerTableIdentity
-																			name={
-																				player.display_name
-																			}
-																			avatar={
-																				player.avatar
-																			}
-																			size="md"
-																			onClick={() =>
-																				handlePlayerClick(
-																					player.player_id
-																				)
-																			}
-																			rankMovement={
-																				player.rank_movement
-																			}
-																			mobileRecord={
-																				player
-																			}
-																			mobileRankIndex={
-																				index
-																			}
-																		/>
-																	</TableCell>
-																	<TableCell className="w-[68px] px-1 text-center md:w-[92px] md:px-2">
-																		<RecentFormDots
-																			values={
-																				player.recent_form
-																			}
-																			formScores={
-																				player.recent_form_scores
-																			}
-																		/>
-																	</TableCell>
-																	<TableCell className="text-center hidden md:table-cell font-medium">
-																		{
-																			player.matches_played
-																		}
-																	</TableCell>
-																	<TableCell className="text-center hidden md:table-cell">
-																		<span className="font-medium text-green-500">
-																			{
-																				player.wins
-																			}
-																		</span>{" "}
-																		<span className="text-xs font-medium text-muted-foreground">
-																			(
-																			{
-																				player.sets_won
-																			}
-																			)
-																		</span>
-																	</TableCell>
-																	<TableCell className="text-center hidden md:table-cell">
-																		<span className="font-medium text-red-500">
-																			{
-																				player.losses
-																			}
-																		</span>{" "}
-																		<span className="text-xs font-medium text-muted-foreground">
-																			(
-																			{
-																				player.sets_lost
-																			}
-																			)
-																		</span>
-																	</TableCell>
-																	<TableCell className="text-center hidden md:table-cell font-medium text-yellow-500">
-																		{
-																			player.draws
-																		}
-																	</TableCell>
-																	<TableCell className="text-center font-bold">
-																		{
-																			player.elo
-																		}
-																	</TableCell>
-																</MotionTableRow>
-															);
-														}
-													)}
-												</TableBody>
-											</Table>
-											</motion.div>
-										</AnimatePresence>
-									);
-								})()}
-							</Box>
+				<section
+					id="statistics-ranking-panel"
+					role="tabpanel"
+					aria-label={rankingViews.find((view) => view.value === activeRankingView)?.label}
+					className="relative z-10 pt-6"
+				>
+					{isInitialLoading ? (
+						<Loading
+							label={t.statistics.loading}
+							size="lg"
+							className="py-[60px]"
+						/>
+					) : error ? (
+						<StateBlock variant="error" size="lg" title={error} />
+					) : currentData.length === 0 ? (
+						<div className="py-[60px] text-center">
+							<p className="text-base font-semibold text-ds-button-foreground">
+								Nema rangiranih igrača
+							</p>
+							<p className="mx-auto mt-2 max-w-sm text-sm leading-5 text-ds-button-muted">
+								Igrači će se pojaviti nakon dovoljnog broja završenih mečeva.
+							</p>
+						</div>
+					) : (
+						<NativeRankingsList
+							items={currentData}
+							activeView={activeRankingView}
+							onPlayerSelect={handlePlayerClick}
+							onTeamSelect={handleTeamClick}
+							animateEntrance={animateEntrance}
+						/>
+					)}
+				</section>
+			</PageContainer>
 		</AppShell>
 	);
 }

@@ -665,7 +665,7 @@ private struct SessionHero: View {
                         )
                         .frame(width: 7, height: 7)
 
-                    Text(session.status == .active ? "U TOKU" : "ZAVRŠENA")
+                    Text(session.status == .active ? "U TOKU" : "ZAVRŠEN TERMIN")
                         .font(.caption2.weight(.bold))
                         .tracking(1.2)
                 }

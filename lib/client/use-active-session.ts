@@ -10,6 +10,10 @@ export type ActiveSession = {
 	player_count: number;
 	created_at: string;
 	status: "active";
+	current_round: number;
+	total_rounds: number;
+	singles_match_count: number;
+	doubles_match_count: number;
 };
 
 const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 15_000;

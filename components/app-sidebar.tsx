@@ -32,6 +32,7 @@ import { adminNavigationItems } from "@/components/admin/admin-navigation";
 import { NavMain } from "@/components/nav-main";
 import { NavUser } from "@/components/nav-user";
 import { useAuth } from "@/lib/auth/useAuth";
+import { isNavigationItemVisible } from "@/lib/navigation/visibility";
 import {
 	Sidebar,
 	SidebarContent,
@@ -43,6 +44,7 @@ import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	SidebarTrigger,
 } from "@/components/ui/sidebar";
 
 const data = {
@@ -90,14 +92,16 @@ const data = {
 	],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+const visibleMainItems = data.navMain.filter(isNavigationItemVisible);
+
+export function AppSidebar({ showToggle = false, ...props }: React.ComponentProps<typeof Sidebar> & { showToggle?: boolean }) {
 	const pathname = usePathname();
 	const { user, role } = useAuth();
 
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
-			<SidebarHeader>
-				<SidebarMenu>
+			<SidebarHeader className={showToggle ? "flex-row items-center" : undefined}>
+				<SidebarMenu className={showToggle ? "min-w-0 flex-1" : undefined}>
 					<SidebarMenuItem>
 						<SidebarMenuButton
 							asChild
@@ -105,22 +109,23 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 						>
 							<Link href="/">
 								<Image
-									src="/favicon.png"
+									src="/logo-small.png"
 									alt=""
-									width={20}
-									height={20}
-									className="h-5 w-5"
+									width={24}
+									height={24}
+									className="h-6 w-6 shrink-0"
 								/>
 								<span className="text-base font-semibold">
-									Gweilo NS
+									Gweilo
 								</span>
 							</Link>
 						</SidebarMenuButton>
 					</SidebarMenuItem>
 				</SidebarMenu>
+				{showToggle && <SidebarTrigger aria-label="Zatvori navigaciju" className="hidden shrink-0 md:inline-flex" />}
 			</SidebarHeader>
 			<SidebarContent>
-				<NavMain items={data.navMain} currentPathname={pathname} />
+				<NavMain items={visibleMainItems} currentPathname={pathname} />
 				{/* <NavDocuments items={data.documents} /> */}
 				{role === "admin" && (
 					<SidebarGroup className="mt-auto">

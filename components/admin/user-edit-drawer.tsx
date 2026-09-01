@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Loading } from "@/components/ui/loading";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
 	Select,
@@ -333,9 +334,16 @@ export function UserEditDrawer({
 							className="cursor-pointer"
 						/>
 						{uploadingAvatar && (
-							<p className="text-xs text-muted-foreground mt-1">
-								{t.settings.saving}
-							</p>
+							<div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+								<Loading
+									inline
+									size="xs"
+									showsQuote={false}
+									label={t.settings.saving}
+									className="w-auto"
+								/>
+								<span aria-hidden="true">{t.settings.saving}</span>
+							</div>
 						)}
 					</div>
 				</div>

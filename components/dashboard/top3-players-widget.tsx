@@ -6,6 +6,7 @@ import { DashboardCard } from "@/components/dashboard/dashboard-card";
 import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loading } from "@/components/ui/loading";
 import { useAuth } from "@/lib/auth/useAuth";
 import { readStaleCache, writeStaleCache } from "@/lib/client/stale-cache";
 import { formatElo } from "@/lib/elo/format";
@@ -127,6 +128,18 @@ export function Top3PlayersWidget() {
 		};
 	}, [accessToken, userId]);
 
+	if (loading) {
+		return (
+			<DashboardCard padding="none" className="px-6 pb-0 pt-4">
+				<Loading
+					label="Učitavam vodeće igrače…"
+					size="lg"
+					className="min-h-[192px]"
+				/>
+			</DashboardCard>
+		);
+	}
+
 	const second = topPlayers[1];
 	const first = topPlayers[0];
 	const third = topPlayers[2];
@@ -144,73 +157,7 @@ export function Top3PlayersWidget() {
 				spacing={3}
 				className="flex-1 pt-4 pb-0 relative z-10 min-h-[192px]"
 			>
-				{loading ? (
-					<>
-						{/* Loading skeleton - 2nd Place */}
-						<Stack
-							direction="column"
-							alignItems="center"
-							justifyContent="end"
-							className="w-1/3 h-full"
-						>
-							<Box className="relative mb-3 flex-shrink-0">
-								<Box className="w-[clamp(3rem,15%,4rem)] h-[clamp(3rem,15%,4rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-zinc-500 to-zinc-300 shadow-lg mx-auto animate-pulse">
-									<Box className="size-full rounded-full bg-zinc-700/50 border-2 border-card" />
-								</Box>
-								<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-zinc-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm animate-pulse">
-									#2
-								</Box>
-							</Box>
-							<Box className="h-4 w-16 bg-zinc-700/50 rounded mb-1 animate-pulse" />
-							<Box className="flex-[0.85] min-h-[4rem] w-full bg-gradient-to-b from-zinc-600/70 to-zinc-800/50 mt-1 rounded-t-lg border-t border-zinc-400/30 relative flex flex-col items-center justify-start pt-1.5 animate-pulse">
-								<Box className="h-3 w-12 bg-zinc-700/50 rounded" />
-							</Box>
-						</Stack>
-
-						{/* Loading skeleton - 1st Place */}
-						<Stack
-							direction="column"
-							alignItems="center"
-							justifyContent="end"
-							className="w-1/3 -mt-4 z-20 h-full"
-						>
-							<Box className="relative mb-3 flex-shrink-0">
-								<Box className="w-[clamp(4rem,20%,5rem)] h-[clamp(4rem,20%,5rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-yellow-500 via-amber-300 to-yellow-600 shadow-xl shadow-yellow-500/10 mx-auto animate-pulse">
-									<Box className="size-full rounded-full bg-yellow-800/50 border-4 border-card" />
-								</Box>
-								<Box className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-card shadow-sm animate-pulse">
-									#1
-								</Box>
-							</Box>
-							<Box className="h-4 w-20 bg-yellow-800/50 rounded mb-1 animate-pulse" />
-							<Box className="flex-[1] min-h-[6rem] w-full bg-gradient-to-b from-yellow-800/50 to-yellow-900/30 mt-1 rounded-t-lg border-t border-yellow-600/40 relative flex flex-col items-center justify-start pt-1.5 animate-pulse">
-								<Box className="h-3 w-14 bg-yellow-800/50 rounded" />
-							</Box>
-						</Stack>
-
-						{/* Loading skeleton - 3rd Place */}
-						<Stack
-							direction="column"
-							alignItems="center"
-							justifyContent="end"
-							className="w-1/3 z-10 h-full"
-						>
-							<Box className="relative mb-3 flex-shrink-0">
-								<Box className="w-[clamp(3rem,15%,4rem)] h-[clamp(3rem,15%,4rem)] aspect-square rounded-full p-0.5 bg-gradient-to-tr from-orange-700 to-amber-700 shadow-lg mx-auto animate-pulse">
-									<Box className="size-full rounded-full bg-orange-800/50 border-2 border-card" />
-								</Box>
-								<Box className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-amber-800 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-card shadow-sm animate-pulse">
-									#3
-								</Box>
-							</Box>
-							<Box className="h-4 w-16 bg-orange-800/50 rounded mb-1 animate-pulse" />
-							<Box className="flex-[0.7] min-h-[3rem] w-full bg-gradient-to-b from-orange-800/60 to-orange-900/40 mt-1 rounded-t-lg border-t border-orange-700/40 relative flex flex-col items-center justify-start pt-1.5 animate-pulse">
-								<Box className="h-3 w-12 bg-orange-800/50 rounded" />
-							</Box>
-						</Stack>
-					</>
-				) : (
-					<>
+				<>
 						{/* 2nd Place */}
 						{second && (
 							<Stack
@@ -321,8 +268,7 @@ export function Top3PlayersWidget() {
 								</Box>
 							</Stack>
 						)}
-					</>
-				)}
+				</>
 			</Stack>
 		</DashboardCard>
 	);

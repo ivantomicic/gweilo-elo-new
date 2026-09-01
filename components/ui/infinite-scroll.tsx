@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import { Box } from "./box";
+import { Loading } from "./loading";
 
 type InfiniteScrollProps = {
 	hasMore: boolean;
@@ -69,9 +70,13 @@ export function InfiniteScroll({
 			{loading && (
 				<Box className="flex items-center justify-center py-4">
 					{loader || (
-						<p className="text-sm text-muted-foreground">
-							Loading...
-						</p>
+						<Loading
+							inline
+							size="sm"
+							showsQuote={false}
+							label="Loading more…"
+							className="w-auto"
+						/>
 					)}
 				</Box>
 			)}
@@ -83,4 +88,3 @@ export function InfiniteScroll({
 		</>
 	);
 }
-

@@ -2,6 +2,7 @@
 
 import { useAuth } from "@/lib/auth/useAuth";
 import { AuthScreen } from "@/components/auth/auth-screen";
+import { FullScreenLoading } from "@/components/ui/loading";
 
 /**
  * AuthGuard component
@@ -16,11 +17,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
 	// Show loading state briefly to prevent flicker
 	if (isAuthenticated === null) {
-		return (
-			<div className="flex min-h-screen items-center justify-center bg-background">
-				<p className="text-muted-foreground">Loading...</p>
-			</div>
-		);
+		return <FullScreenLoading label="Vraćam tvoj klub…" />;
 	}
 
 	// Show login screen if not authenticated
@@ -31,4 +28,3 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 	// Render protected content if authenticated
 	return <>{children}</>;
 }
-

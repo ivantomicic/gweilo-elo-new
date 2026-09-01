@@ -2,17 +2,13 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { motion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SessionCreationGuard } from "@/components/auth/session-creation-guard";
-import { AppShell } from "@/components/app-shell";
-import { Stack } from "@/components/ui/stack";
-import { Box } from "@/components/ui/box";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
+import { SessionCreationShell } from "@/components/sessions/session-creation-shell";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loading } from "@/components/ui/loading";
 import { RoundCard } from "./_components/round-card";
-import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
 import { createClientUuid } from "@/lib/sessions/client-uuid";
 import {
@@ -598,6 +594,13 @@ function SchedulePageContent() {
 		searchParams.get("format") === "singles" ? "singles" : "mixed";
 	const sixPlayerFormat: SixPlayerFormat =
 		searchParams.get("format") === "singles" ? "singles" : "mixed";
+	const playersHref = `/start-session/players?count=${playerCount}${
+		playerCount === 4
+			? `&format=${fourPlayerFormat}`
+			: playerCount === 6
+				? `&format=${sixPlayerFormat}`
+				: ""
+	}`;
 
 	// Get selected players from sessionStorage
 	const [selectedPlayers, setSelectedPlayers] = useState<Player[]>(() => {
@@ -820,14 +823,9 @@ function SchedulePageContent() {
 	const [isShuffling, setIsShuffling] = useState(false);
 	const [scheduleKey, setScheduleKey] = useState(0);
 
-	const handleRandomize = async () => {
+	const handleRandomize = () => {
 		void trigger();
-
-		// Start shuffle animation
 		setIsShuffling(true);
-		
-		// Wait for spin out animation to complete
-		await new Promise(resolve => setTimeout(resolve, 450));
 		const randomizedSchedule = buildRandomizedSchedule(
 			selectedPlayers,
 			playerCount,
@@ -842,11 +840,8 @@ function SchedulePageContent() {
 			randomizedSchedule.isManuallyManagingRounds,
 		);
 		
-		// Trigger re-render with new key for enter animation
-		setScheduleKey(prev => prev + 1);
-		
-		// End shuffle animation
-		setIsShuffling(false);
+		setScheduleKey((previous) => previous + 1);
+		window.setTimeout(() => setIsShuffling(false), 240);
 	};
 
 	const [isStartingSession, setIsStartingSession] = useState(false);
@@ -909,118 +904,183 @@ function SchedulePageContent() {
 	if (
 		!playerCount ||
 		playerCount < 2 ||
-		playerCount > 6 ||
+		playerCount > 6
+	) {
+		return null;
+	}
+
+	if (
 		(playerCount === 6 &&
 			sixPlayerFormat === "mixed" &&
 			isLoadingSixPlayerRound5Team) ||
 		rounds.length === 0
 	) {
-		return null;
+		return (
+			<SessionCreationShell
+				title="Raspored"
+				leadingAction={{
+					label: "Nazad",
+					icon: "solar:alt-arrow-left-linear",
+					onClick: () => router.push(playersHref),
+				}}
+				footerLabel="Pokreni termin"
+				onFooterAction={() => {}}
+				footerDisabled
+			>
+				<Loading label="Pravim raspored…" className="min-h-[50vh]" />
+			</SessionCreationShell>
+		);
 	}
 
 	return (
-		<AppShell title={t.startSession.schedule.title}>
-			{/* Step Indicator */}
-			<Box className="flex justify-end">
-				<Box className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full uppercase tracking-wider">
-					{t.startSession.schedule.stepIndicator}
-				</Box>
-			</Box>
+		<SessionCreationShell
+			title="Raspored"
+			leadingAction={{
+				label: "Nazad",
+				icon: "solar:alt-arrow-left-linear",
+				onClick: () => {
+					void trigger();
+					router.push(playersHref);
+				},
+			}}
+			trailingAction={{
+				label:
+					playerCount === 6 && sixPlayerFormat === "mixed"
+						? "Promeni singl raspored"
+						: "Promeni raspored",
+				icon: "solar:shuffle-linear",
+				iconClassName:
+					"transition-transform duration-200 ease-ds-out motion-reduce:transition-none " +
+					(isShuffling ? "rotate-180" : "rotate-0"),
+				onClick: handleRandomize,
+				disabled: isShuffling,
+			}}
+			footerLabel="Pokreni termin"
+			onFooterAction={handleStartSession}
+			footerDisabled={isStartingSession}
+			footerLoading={isStartingSession}
+			footerLoadingLabel="Kreiram termin…"
+		>
+			<div className="space-y-6">
+				{playerCount === 6 && sixPlayerFormat === "mixed" && (
+					<ScheduleTeamReview players={selectedPlayers} />
+				)}
 
-			{/* Randomize Button */}
-			<Box className="mb-6">
-				<Button
-					variant="outline"
-					onClick={handleRandomize}
-					disabled={isShuffling}
-					className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-secondary/50 border-border/50 rounded-2xl"
-				>
-					<motion.div
-						animate={isShuffling ? { rotate: [0, 360] } : {}}
-						transition={{ duration: 0.5, ease: "easeInOut" }}
-					>
-						<Icon
-							icon="solar:shuffle-bold"
-							className={isShuffling ? "size-5 text-amber-400" : "size-5 text-foreground"}
-						/>
-					</motion.div>
-					<span className="font-semibold text-sm">
-						{t.startSession.schedule.randomize}
-					</span>
-				</Button>
-			</Box>
+				<div>
+					{rounds.map((round) => {
+						const phase = phaseHeader(
+							playerCount,
+							playerCount === 4 ? fourPlayerFormat : sixPlayerFormat,
+							round.roundNumber,
+						);
 
-			{/* Rounds List */}
-			<Box className="relative">
-				{/* Timeline connector */}
-				<Box className="absolute left-6 top-8 bottom-8 w-0.5 bg-border/30 -z-0" />
-
-				<Stack direction="column" spacing={6}>
-					{rounds.map((round, index) => (
-						<RoundCard
-							key={round.id}
-							roundNumber={round.roundNumber}
-							matches={round.matches}
-							restingPlayers={round.restingPlayers}
-							isActive={index === 0}
-							isDynamic={round.isDynamic}
-							dynamicNote={round.dynamicNote}
-							isShuffling={isShuffling}
-							shuffleKey={scheduleKey}
-						/>
-					))}
-				</Stack>
-			</Box>
-
-			{/* Back and Start Session Buttons */}
-			<Box className="pt-4">
-				<Stack direction="column" spacing={3}>
-					<Button
-						onClick={handleStartSession}
-						disabled={isStartingSession}
-						className="w-full py-4 px-6 rounded-full font-bold text-lg shadow-lg h-auto"
-					>
-						<Stack
-							direction="row"
-							alignItems="center"
-							justifyContent="center"
-							spacing={2}
-						>
-							<span>
-								{isStartingSession
-									? "Kreiranje..."
-									: t.startSession.schedule
-											.startSession}
-							</span>
-							{!isStartingSession && (
-								<Icon
-									icon="solar:play-bold"
-									className="size-5"
+						return (
+							<div key={round.id}>
+								{phase && <SchedulePhaseHeader {...phase} />}
+								<RoundCard
+									roundNumber={round.roundNumber}
+									matches={round.matches}
+									restingPlayers={round.restingPlayers}
+									isDynamic={round.isDynamic}
+									dynamicNote={round.dynamicNote}
+									shuffleKey={scheduleKey}
 								/>
-							)}
-						</Stack>
-					</Button>
-					<Button
-						variant="secondary"
-						onClick={() => {
-							void trigger();
-							router.push(
-								`/start-session/players?count=${playerCount}${
-									playerCount === 4
-										? `&format=${fourPlayerFormat}`
-										: playerCount === 6
-											? `&format=${sixPlayerFormat}`
-										: ""
-								}`
-							);
-						}}
-						className="w-full py-4 px-6 rounded-full font-bold text-lg h-auto"
-					>
-						{t.startSession.back}
-					</Button>
-				</Stack>
-			</Box>
-		</AppShell>
+							</div>
+						);
+					})}
+				</div>
+			</div>
+		</SessionCreationShell>
+	);
+}
+
+function phaseHeader(
+	playerCount: number,
+	format: FourPlayerFormat | SixPlayerFormat,
+	roundNumber: number,
+): { title: string; detail?: string } | null {
+	if (playerCount === 6 && format === "mixed" && roundNumber === 5) {
+		return { title: "ZAVRŠNICA" };
+	}
+	if (
+		format === "singles" &&
+		((roundNumber === 1 && (playerCount === 4 || playerCount === 6)) ||
+			(roundNumber === 4 && playerCount === 4) ||
+			(roundNumber === 6 && playerCount === 6))
+	) {
+		return {
+			title: roundNumber === 1 ? "PRVI DEO" : "DRUGI DEO",
+		};
+	}
+	if (playerCount === 4 && format === "mixed" && roundNumber === 1) {
+		return { title: "SINGLOVI", detail: "svako igra protiv svakoga" };
+	}
+	if (playerCount === 4 && format === "mixed" && roundNumber === 4) {
+		return { title: "DUBLOVI", detail: "svako igra sa svakim partnerom" };
+	}
+	return null;
+}
+
+function SchedulePhaseHeader({ title, detail }: { title: string; detail?: string }) {
+	return (
+		<div className="flex items-baseline justify-center gap-2 pb-1.5 pt-[18px]">
+			<p className="text-ios-caption2 font-black tracking-[0.12em] text-[rgb(var(--ds-native-lime))]">
+				{title}
+			</p>
+			{detail && (
+				<>
+					<span aria-hidden="true" className="text-white/25">·</span>
+					<p className="text-ios-caption2 text-[rgb(var(--ds-native-muted))]">
+						{detail}
+					</p>
+				</>
+			)}
+		</div>
+	);
+}
+
+function ScheduleTeamReview({ players }: { players: Player[] }) {
+	const teams = [players.slice(0, 2), players.slice(2, 4), players.slice(4, 6)];
+	const colors = [
+		"text-[rgb(var(--ds-native-lime))]",
+		"text-[rgb(var(--ds-native-cyan))]",
+		"text-ds-button-accent-bright",
+	];
+
+	return (
+		<section aria-labelledby="review-teams-heading" className="space-y-3">
+			<h2
+				id="review-teams-heading"
+				className="text-center text-ios-caption2 font-black tracking-[0.12em] text-[rgb(var(--ds-native-muted))]"
+			>
+				DUBL PAROVI
+			</h2>
+			<div className="grid grid-cols-3 divide-x divide-ds-button-hairline/[0.13]">
+				{teams.map((team, index) => (
+					<div key={index} className="min-w-0 px-2 text-center">
+						<div className="mx-auto flex w-fit -space-x-2">
+							{team.map((player) => (
+								<Avatar
+									key={player.id}
+									className="size-[30px] border-2 border-[rgb(var(--ds-native-background))]"
+								>
+									<AvatarImage src={player.avatar ?? undefined} alt="" />
+									<AvatarFallback className="bg-ds-surface-raised text-ios-label-10 font-semibold">
+										{player.name.charAt(0).toUpperCase()}
+									</AvatarFallback>
+								</Avatar>
+							))}
+						</div>
+						<p className="mt-1.5 truncate text-ios-caption2 font-semibold">
+							<span className={`mr-1 font-black ${colors[index]}`}>
+								{String.fromCharCode(65 + index)}
+							</span>
+							{team.map((player) => player.name).join(" i ")}
+						</p>
+					</div>
+				))}
+			</div>
+		</section>
 	);
 }
 

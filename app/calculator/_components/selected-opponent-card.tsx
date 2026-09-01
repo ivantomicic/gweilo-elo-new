@@ -1,10 +1,10 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { MatchResult } from "@/lib/elo/calculation";
-import { Icon } from "@/components/ui/icon";
-import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { formatDelta } from "@/app/calculator/_lib/utils";
+import { CalculatorPlayerAvatar } from "@/app/calculator/_components/calculator-player-avatar";
+import { eloDeltaClass, formatDelta, formatElo } from "@/app/calculator/_lib/utils";
 import type { PlayerWithRating } from "@/app/calculator/_lib/types";
 import { PredictionSelector } from "@/app/calculator/_components/prediction-selector";
+import { cn } from "@/lib/utils";
 
 type SelectedOpponentCardProps = {
 	opponent: PlayerWithRating;
@@ -25,76 +25,61 @@ export function SelectedOpponentCard({
 	onRemove,
 	onSetPrediction,
 }: SelectedOpponentCardProps) {
+	const shouldReduceMotion = useReducedMotion();
+	const selectedDelta =
+		result === "win" ? winDelta : result === "loss" ? lossDelta : drawDelta;
+
 	return (
-		<motion.div
-			layout
-			initial={{
-				opacity: 0,
-				y: 8,
-			}}
-			animate={{
-				opacity: 1,
-				y: 0,
-			}}
-			exit={{
-				opacity: 0,
-				y: -8,
-			}}
-			className="calculator-opponent-card rounded-2xl p-3 border border-border/50 bg-card"
+		<motion.article
+			initial={shouldReduceMotion ? false : { opacity: 0, x: 14 }}
+			animate={{ opacity: 1, x: 0 }}
+			exit={shouldReduceMotion ? undefined : { opacity: 0, x: 14 }}
+			transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+			className="calculator-flat-surface rounded-[18px] p-[14px]"
+			aria-label={`Projekcija protiv igrača ${opponent.name}`}
 		>
-			<div className="calculator-opponent-top flex items-start gap-3">
+			<div className="mb-[14px] flex min-w-0 items-center gap-3">
+				<CalculatorPlayerAvatar
+					name={opponent.name}
+					avatar={opponent.avatar}
+					size={48}
+				/>
 				<div className="min-w-0 flex-1">
-					<PlayerNameCard
-						name={opponent.name}
-						avatar={opponent.avatar}
-						id={opponent.id}
-						size="sm"
-						addon={
-							<div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest">
-								<span className="text-muted-foreground">
-									Elo {Math.round(opponent.elo)}
-								</span>
-								<span className="text-emerald-500">
-									+{Math.abs(Math.round(winDelta))}
-								</span>
-								<span className="text-muted-foreground">
-									{formatDelta(drawDelta)}
-								</span>
-								<span className="text-red-500">
-									{formatDelta(lossDelta)}
-								</span>
-							</div>
-						}
-					/>
+					<h3 className="calculator-system-heading truncate text-ios-body font-bold leading-5 text-[rgb(var(--ds-native-bone))]">
+						PROTIV {opponent.name}
+					</h3>
+					<p className="mt-0.5 text-ios-caption font-semibold leading-[14px] tabular-nums text-[rgb(var(--ds-native-muted))]">
+						{formatElo(opponent.elo)} Elo
+					</p>
 				</div>
-				<div className="calculator-opponent-selector-inline">
-					<PredictionSelector
-						result={result}
-						onChange={(nextResult) =>
-							onSetPrediction(opponent.id, nextResult)
-						}
-					/>
-				</div>
+				<strong
+					aria-live="polite"
+					className={cn(
+						"shrink-0 font-session-display text-[24px] font-black leading-none tabular-nums",
+						eloDeltaClass(selectedDelta),
+					)}
+				>
+					{formatDelta(selectedDelta)}
+				</strong>
 				<button
+					type="button"
 					onClick={() => onRemove(opponent.id)}
-					className="size-8 rounded-full bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+					className="calculator-pressable flex size-8 shrink-0 items-center justify-center rounded-full bg-[rgb(var(--ds-native-raised))] text-lg font-semibold leading-none text-[rgb(var(--ds-native-muted))] outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--ds-native-purple-bright))]"
 					aria-label={`Ukloni ${opponent.name}`}
 				>
-					<Icon
-						icon="solar:close-circle-bold"
-						className="size-5"
-					/>
+					<span aria-hidden="true">×</span>
 				</button>
 			</div>
 
-			<div className="calculator-opponent-selector-below">
-				<PredictionSelector
-					result={result}
-					onChange={(nextResult) =>
-						onSetPrediction(opponent.id, nextResult)
-					}
-				/>
-			</div>
-		</motion.div>
+			<PredictionSelector
+				result={result}
+				winDelta={winDelta}
+				drawDelta={drawDelta}
+				lossDelta={lossDelta}
+				onChange={(nextResult) =>
+					onSetPrediction(opponent.id, nextResult)
+				}
+			/>
+		</motion.article>
 	);
 }

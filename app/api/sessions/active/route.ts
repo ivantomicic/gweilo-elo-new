@@ -8,6 +8,12 @@ const NO_STORE_HEADERS = {
 	Vary: "Authorization",
 };
 
+type ActiveSessionMatch = {
+	round_number: number;
+	match_type: string;
+	status: string | null;
+};
+
 /**
  * GET /api/sessions/active
  *
@@ -31,7 +37,9 @@ export async function GET(request: NextRequest) {
 		const supabase = createAdminClient();
 		const { data: session, error } = await supabase
 			.from("sessions")
-			.select("*")
+			.select(
+				"*, session_matches(round_number, match_type, status)",
+			)
 			.eq("status", "active")
 			.order("created_at", { ascending: false })
 			.limit(1)
@@ -45,8 +53,44 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
+		if (!session) {
+			return NextResponse.json(
+				{ session: null },
+				{ headers: NO_STORE_HEADERS },
+			);
+		}
+
+		const matches: ActiveSessionMatch[] = Array.isArray(session.session_matches)
+			? (session.session_matches as ActiveSessionMatch[])
+			: [];
+		const pendingRounds = matches
+			.filter((match) => match.status !== "completed")
+			.map((match) => match.round_number);
+		const totalRounds = matches.reduce(
+			(maximum, match) => Math.max(maximum, match.round_number ?? 0),
+			0,
+		);
+		const singlesMatchCount = matches.filter(
+			(match) => match.match_type === "singles",
+		).length;
+		const doublesMatchCount = matches.filter(
+			(match) => match.match_type === "doubles",
+		).length;
+		const { session_matches: _sessionMatches, ...sessionRow } = session;
+
 		return NextResponse.json(
-			{ session: session ?? null },
+			{
+				session: {
+					...sessionRow,
+					current_round:
+						pendingRounds.length > 0
+							? Math.min(...pendingRounds)
+							: totalRounds || 1,
+					total_rounds: totalRounds,
+					singles_match_count: singlesMatchCount,
+					doubles_match_count: doublesMatchCount,
+				},
+			},
 			{ headers: NO_STORE_HEADERS },
 		);
 	} catch (error) {

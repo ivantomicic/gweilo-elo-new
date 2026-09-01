@@ -3,12 +3,12 @@
 import {
   CircleCheck,
   Info,
-  LoaderCircle,
   OctagonX,
   TriangleAlert,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"
+import { Loading } from "@/components/ui/loading"
 
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
@@ -24,7 +24,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <Info className="h-4 w-4" />,
         warning: <TriangleAlert className="h-4 w-4" />,
         error: <OctagonX className="h-4 w-4" />,
-        loading: <LoaderCircle className="h-4 w-4 animate-spin" />,
+        loading: <Loading inline size="xs" showsQuote={false} label="Učitavam…" role="presentation" aria-live="off" aria-hidden="true" className="w-auto scale-75" />,
       }}
       toastOptions={{
         classNames: {

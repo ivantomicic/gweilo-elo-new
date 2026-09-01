@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
 import { StateBlock } from "@/components/ui/state-block";
+import { PageLoading } from "@/components/ui/loading";
 import { useAuth } from "@/lib/auth/useAuth";
 import { VideoCard, type VideoItem } from "./_components/video-card";
 
@@ -69,7 +70,7 @@ function VideosPageContent() {
 	return (
 		<AppShell title="Video">
 			{loading ? (
-				<StateBlock variant="loading" size="lg" title="Loading videos..." />
+				<PageLoading label="Loading videos…" />
 			) : error ? (
 				<StateBlock variant="error" size="lg" title={error} />
 			) : videos.length === 0 ? (

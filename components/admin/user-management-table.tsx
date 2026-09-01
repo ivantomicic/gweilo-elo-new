@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { UserEditDrawer } from "@/components/admin/user-edit-drawer";
 import { StateBlock } from "@/components/ui/state-block";
+import { PageLoading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 import { PencilIcon } from "lucide-react";
 import type { UserRole } from "@/lib/supabase/admin";
@@ -160,7 +161,7 @@ export function UserManagementTable() {
 	};
 
 	if (loading) {
-		return <StateBlock variant="loading" title={t.admin.users.loading} />;
+		return <PageLoading label={t.admin.users.loading} />;
 	}
 
 	if (error) {
@@ -169,8 +170,8 @@ export function UserManagementTable() {
 
 	return (
 		<>
-			{/* Table Container - Centered with max width */}
-			<div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
+			{/* The admin layout owns the shared page width and gutters. */}
+			<div className="w-full min-w-0">
 				<div className="rounded-lg border bg-card">
 					<Table>
 						<TableHeader>

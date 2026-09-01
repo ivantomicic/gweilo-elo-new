@@ -1,15 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useReducedMotion } from "framer-motion";
 import { useWebHaptics } from "web-haptics/react";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SessionCreationGuard } from "@/components/auth/session-creation-guard";
-import { AppShell } from "@/components/app-shell";
-import { Button } from "@/components/ui/button";
-import { Icon } from "@/components/ui/icon";
+import {
+	SessionCreationSectionHeading,
+	SessionCreationShell,
+} from "@/components/sessions/session-creation-shell";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { SectionLabel } from "@/components/ui/typography";
 import { t } from "@/lib/i18n";
 
 type SessionFormat = "singles" | "mixed";
@@ -20,11 +21,16 @@ const FORMAT_OPTIONS = ["singles", "mixed"] as const;
 function StartSessionPageContent() {
   const router = useRouter();
   const { trigger } = useWebHaptics();
+  const reduceMotion = useReducedMotion();
   const [selectedPlayers, setSelectedPlayers] = useState<number | null>(null);
   const [fourPlayerFormat, setFourPlayerFormat] =
     useState<SessionFormat>("mixed");
   const [sixPlayerFormat, setSixPlayerFormat] =
     useState<SessionFormat>("mixed");
+
+  useEffect(() => {
+    sessionStorage.removeItem("selectedPlayers");
+  }, []);
 
   const selectedFormat =
     selectedPlayers === 4
@@ -62,31 +68,29 @@ function StartSessionPageContent() {
   };
 
   return (
-    <AppShell
-      title={t.startSession.title}
-      contentClassName="mx-auto w-full max-w-xl md:pt-10"
+    <SessionCreationShell
+      title="Novi termin"
+      leadingAction={{
+        label: "Zatvori",
+        onClick: () => router.back(),
+      }}
+      footerLabel="Nastavi"
+      onFooterAction={continueToPlayers}
+      footerDisabled={selectedPlayers === null}
     >
-      <div className="flex flex-col gap-8">
-        <header className="space-y-2">
-          <div className="flex items-center justify-between gap-4">
-            <SectionLabel>
-              {t.startSession.stepIndicator}
-            </SectionLabel>
-            <p className="text-xs font-semibold tabular-nums text-muted-foreground">
-              {selectedPlayers === null
-                ? "Izaberi 2–6"
-                : `${selectedPlayers} igrača`}
-            </p>
-          </div>
-          <p className="max-w-sm text-sm leading-6 text-muted-foreground">
-            {t.startSession.subtitle}
-          </p>
-        </header>
-
-        <section aria-labelledby="player-count-title" className="space-y-3">
-          <SectionLabel as="h2" id="player-count-title">
+      <div className="flex flex-col gap-5">
+        <section aria-labelledby="player-count-title" className="space-y-2.5">
+          <SessionCreationSectionHeading
+            detail={
+              selectedPlayers === null
+                ? "IZABERI 2–6"
+                : `0/${selectedPlayers} izabrano`
+            }
+          >
+            <span id="player-count-title">
             {t.startSession.numberOfPlayers}
-          </SectionLabel>
+            </span>
+          </SessionCreationSectionHeading>
 
           <SegmentedControl
             value={selectedPlayers}
@@ -97,17 +101,15 @@ function StartSessionPageContent() {
             }))}
             onValueChange={selectPlayerCount}
             ariaLabel={t.startSession.numberOfPlayers}
-            selection="highlight"
-            size="number"
-            elevated
+            className="rounded-full [&>button]:min-h-10 [&>button]:rounded-full [&>button]:py-0 [&>button]:font-body [&>button]:text-ios-body [&>button]:font-bold [&>button[data-state=on]]:shadow-none"
           />
         </section>
 
         {selectedFormat && (
-          <section aria-labelledby="session-format-title" className="space-y-3">
-            <SectionLabel as="h2" id="session-format-title">
-              {formatCopy.title}
-            </SectionLabel>
+          <section aria-labelledby="session-format-title" className="space-y-2.5">
+            <SessionCreationSectionHeading>
+              <span id="session-format-title">FORMAT</span>
+            </SessionCreationSectionHeading>
 
             <SegmentedControl
               value={selectedFormat}
@@ -117,33 +119,23 @@ function StartSessionPageContent() {
               }))}
               onValueChange={selectFormat}
               ariaLabel={formatCopy.title}
+              className="rounded-full [&>button]:rounded-full [&>button]:font-body [&>button]:text-ios-subheadline [&>button]:font-semibold [&>button[data-state=on]]:!bg-[rgb(var(--ds-native-muted)/0.22)] [&>button[data-state=on]]:!text-[rgb(var(--ds-native-bone))] [&>button[data-state=on]]:shadow-none"
             />
-
-            <p className="px-1 text-sm leading-6 text-muted-foreground">
-              {formatCopy[selectedFormat].description}
-            </p>
           </section>
         )}
 
-        <div className="flex items-start gap-3 px-1 text-sm leading-6 text-muted-foreground">
-          <Icon
-            icon="solar:info-circle-bold"
-            className="mt-0.5 size-5 shrink-0 text-ds-section-accent"
-          />
-          <p>{t.startSession.info}</p>
-        </div>
-
-        <Button
-          disabled={selectedPlayers === null}
-          onClick={continueToPlayers}
-          variant="prominent"
-          size="cta"
-        >
-          <span>{t.startSession.continue}</span>
-          <Icon icon="solar:arrow-right-linear" className="size-5" />
-        </Button>
+        <video
+          src="/session-creation/player-count-placeholder.mp4"
+          muted
+          loop
+          playsInline
+          autoPlay={!reduceMotion}
+          preload="metadata"
+          className="mx-auto aspect-square w-full max-w-md object-contain"
+          aria-hidden="true"
+        />
       </div>
-    </AppShell>
+    </SessionCreationShell>
   );
 }
 

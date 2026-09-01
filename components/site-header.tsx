@@ -1,15 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { useWebHaptics } from "web-haptics/react";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
-import { useAuth } from "@/lib/auth/useAuth";
-import { useActiveSession } from "@/lib/client/use-active-session";
-import { t } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 
 /**
  * SiteHeader component
@@ -22,7 +19,8 @@ import { t } from "@/lib/i18n";
  *
  * Optionally accepts actionLabel, actionHref, actionOnClick, and actionIcon props
  * to display a standardized action button on the far right.
- * A default "Start Session" button is shown if no action props are provided.
+ * Session actions are intentionally owned by the global mobile navigation
+ * accessory, never inferred or injected by the page header.
  */
 export function SiteHeader({
 	title,
@@ -31,6 +29,10 @@ export function SiteHeader({
 	actionOnClick,
 	actionIcon,
 	actionVariant,
+	actionIconOnly = false,
+	actionAriaLabel,
+	actionDisabled = false,
+	centerTitleOnMobile = false,
 }: {
 	title: string;
 	actionLabel?: string;
@@ -44,36 +46,26 @@ export function SiteHeader({
 		| "secondary"
 		| "ghost"
 		| "link";
+	actionIconOnly?: boolean;
+	actionAriaLabel?: string;
+	actionDisabled?: boolean;
+	centerTitleOnMobile?: boolean;
 }) {
-	const pathname = usePathname();
 	const { trigger } = useWebHaptics();
-	const { role } = useAuth();
-	const { activeSession, loading: loadingActiveSession } = useActiveSession();
-	const canStartSession =
-		(role === "admin" || role === "mod") &&
-		!loadingActiveSession &&
-		!activeSession;
 
 	const handleActionClick = () => {
 		void trigger();
 		actionOnClick?.();
 	};
 
-	// Determine which action to show
-	const hasCustomAction = actionLabel && (actionHref || actionOnClick);
-	const isStartSessionRoute = pathname.startsWith("/start-session");
-	// Show default "Start Session" button for admins and mods
-	const showDefaultAction =
-		!hasCustomAction &&
-		canStartSession &&
-		!isStartSessionRoute;
-	// Only show button area if there's something to show
-	const showActionButton = hasCustomAction || showDefaultAction;
+	const hasCustomAction = Boolean(
+		actionLabel && (actionHref || actionOnClick),
+	);
 
 	return (
 		<header
 			data-site-header
-			className="group-has-data-[collapsible=icon]/sidebar-wrapper:h-16 flex h-16 shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
+			className="site-header-safe flex shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear"
 		>
 			<div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
 				<SidebarTrigger className="-ml-1 hidden md:block" />
@@ -81,59 +73,56 @@ export function SiteHeader({
 					orientation="vertical"
 					className="mx-2 hidden md:block data-[orientation=vertical]:h-4"
 				/>
-				<h1 className="text-xl font-heading font-semibold md:text-base md:font-medium">
+				<h1
+					className={cn(
+						"text-xl font-heading font-semibold md:text-base md:font-medium",
+						centerTitleOnMobile &&
+							"max-md:absolute max-md:left-1/2 max-md:-translate-x-1/2 max-md:font-body max-md:text-ios-body max-md:font-semibold",
+					)}
+				>
 					{title}
 				</h1>
-				{showActionButton && (
+				{hasCustomAction && (
 					<div className="ml-auto flex items-center gap-2">
-						{showDefaultAction ? (
-							<Button asChild size="sm">
-								<Link
-									href="/start-session"
-									onClick={() => void trigger()}
-								>
-									<Icon
-										icon="solar:add-circle-bold"
-										className="size-4 mr-1.5"
-									/>
-									{t.startSession.title}
+						<Button
+							size="sm"
+							variant={actionVariant || "default"}
+							asChild={!!actionHref}
+							aria-label={actionAriaLabel ?? actionLabel}
+							disabled={actionDisabled}
+							className={cn(
+								actionIconOnly && "size-9 rounded-full p-0",
+							)}
+							onClick={actionHref ? undefined : handleActionClick}
+						>
+							{actionHref ? (
+								<Link href={actionHref} onClick={handleActionClick}>
+									{actionIcon && (
+										<Icon
+											icon={actionIcon}
+											className={cn(
+												"size-4",
+												!actionIconOnly && "mr-1.5",
+											)}
+										/>
+									)}
+									{!actionIconOnly && actionLabel}
 								</Link>
-							</Button>
-						) : (
-							<Button
-								size="sm"
-								variant={actionVariant || "default"}
-								asChild={!!actionHref}
-								onClick={
-									actionHref ? undefined : handleActionClick
-								}
-							>
-								{actionHref ? (
-									<Link
-										href={actionHref}
-										onClick={handleActionClick}
-									>
-										{actionIcon && (
-											<Icon
-												icon={actionIcon}
-												className="size-4 mr-1.5"
-											/>
-										)}
-										{actionLabel}
-									</Link>
-								) : (
-									<>
-										{actionIcon && (
-											<Icon
-												icon={actionIcon}
-												className="size-4 mr-1.5"
-											/>
-										)}
-										{actionLabel}
-									</>
-								)}
-							</Button>
-						)}
+							) : (
+								<>
+									{actionIcon && (
+										<Icon
+											icon={actionIcon}
+											className={cn(
+												"size-4",
+												!actionIconOnly && "mr-1.5",
+											)}
+										/>
+									)}
+									{!actionIconOnly && actionLabel}
+								</>
+							)}
+						</Button>
 					</div>
 				)}
 			</div>

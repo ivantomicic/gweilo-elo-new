@@ -8,12 +8,19 @@ private enum RankingDestination: Hashable {
 
 struct RankingsView: View {
     @Environment(\.isActiveAppTab) private var isActiveAppTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.scenePhase) private var scenePhase
     let dataStore: AppDataStore
     @State private var category = RankingCategory.singles
-    @State private var pageDirection = 1.0
+    @State private var entrance = RankingsEntranceSequence()
 
     private var entries: [RankingEntry] {
         dataStore.rankings(for: category)
+    }
+
+    private var entranceReady: Bool {
+        isActiveAppTab && scenePhase == .active && !entries.isEmpty
     }
 
     var body: some View {
@@ -45,7 +52,6 @@ struct RankingsView: View {
                                 }
                             )
                             .id(category)
-                            .transition(categoryTransition)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -53,10 +59,16 @@ struct RankingsView: View {
                     .padding(.bottom, 40)
                 }
                 .refreshable {
+                    entrance.finishImmediately()
                     await dataStore.load(forceRefresh: true)
                 }
+                .onScrollPhaseChange { _, phase in
+                    if phase != .idle { entrance.finishImmediately() }
+                }
+                .simultaneousGesture(TapGesture().onEnded { entrance.finishImmediately() })
                 .scrollIndicators(.hidden)
             }
+            .onDisappear { entrance.finishImmediately() }
             .toolbarVisibility(.hidden, for: .navigationBar)
             .navigationDestination(for: RankingDestination.self) { destination in
                 switch destination {
@@ -73,29 +85,37 @@ struct RankingsView: View {
                 }
             }
         }
+        .environment(entrance)
+        .task(id: entranceReady) {
+            guard entranceReady else { return }
+            await entrance.run(entryIDs: entries.map(\.id), skipMotion: reduceMotion || voiceOverEnabled)
+        }
+        .onChange(of: reduceMotion) { _, enabled in
+            if enabled { entrance.finishImmediately() }
+        }
+        .onChange(of: voiceOverEnabled) { _, enabled in
+            if enabled { entrance.finishImmediately() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if isActiveAppTab && phase != .active { entrance.finishImmediately() }
+        }
+        .onChange(of: isActiveAppTab) { _, active in
+            if !active { entrance.finishImmediately() }
+        }
+        .onKeyPress { _ in
+            entrance.finishImmediately()
+            return .ignored
+        }
         .task(id: isActiveAppTab) {
             guard isActiveAppTab else { return }
             await dataStore.load(forceRefresh: true)
         }
     }
 
-    private var categoryTransition: AnyTransition {
-        .asymmetric(
-            insertion: .offset(x: 22 * pageDirection).combined(with: .opacity),
-            removal: .offset(x: -14 * pageDirection).combined(with: .opacity)
-        )
-    }
-
     private func selectCategory(_ newCategory: RankingCategory) {
-        guard newCategory != category,
-              let currentIndex = RankingCategory.allCases.firstIndex(of: category),
-              let newIndex = RankingCategory.allCases.firstIndex(of: newCategory) else {
-            return
-        }
-        pageDirection = newIndex > currentIndex ? 1 : -1
-        withAnimation(.snappy(duration: 0.28, extraBounce: 0)) {
-            category = newCategory
-        }
+        guard newCategory != category else { return }
+        entrance.finishImmediately()
+        category = newCategory
     }
 
     private func destination(
@@ -278,26 +298,29 @@ private struct RankingsTable: View {
             Divider()
 
             ForEach(Array(entries.enumerated()), id: \.element.id) { index, entry in
-                if let destination = destination(entry) {
-                    NavigationLink(value: destination) {
+                VStack(spacing: 0) {
+                    if let destination = destination(entry) {
+                        NavigationLink(value: destination) {
+                            RankingRecord(
+                                rank: index + 1,
+                                entry: entry,
+                                showsDisclosure: true
+                            )
+                        }
+                        .buttonStyle(ResponsiveButtonStyle())
+                    } else {
                         RankingRecord(
                             rank: index + 1,
                             entry: entry,
-                            showsDisclosure: true
+                            showsDisclosure: false
                         )
                     }
-                    .buttonStyle(ResponsiveButtonStyle())
-                } else {
-                    RankingRecord(
-                        rank: index + 1,
-                        entry: entry,
-                        showsDisclosure: false
-                    )
-                }
 
-                if entry.id != entries.last?.id {
-                    Divider()
+                    if entry.id != entries.last?.id {
+                        Divider()
+                    }
                 }
+                .modifier(RankingsEntranceModifier(id: entry.id, index: index))
             }
         }
     }
@@ -362,7 +385,7 @@ private struct RankingRecord: View {
             )
                 .frame(width: 56)
 
-            Text("\(entry.elo)")
+            RankingsEntranceNumber(value: entry.elo, id: entry.id, index: rank - 1)
                 .font(GweiloTheme.displayFont(size: 19, relativeTo: .body).monospacedDigit())
                 .foregroundStyle(GweiloTheme.bone)
                 .fixedSize(horizontal: true, vertical: false)
@@ -561,6 +584,8 @@ private struct RecentFormBar: View {
 struct PlayerProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverEnabled
+    @Environment(\.scenePhase) private var scenePhase
 
     let player: RankingEntry
     let dataStore: AppDataStore
@@ -572,6 +597,7 @@ struct PlayerProfileView: View {
     @State private var errorMessage: String?
     @State private var comparisonErrorMessage: String?
     @State private var hasFinishedInitialLoad: Bool
+    @State private var entrance = PlayerProfileEntranceSequence()
 
     init(
         player: RankingEntry,
@@ -606,13 +632,6 @@ struct PlayerProfileView: View {
         )
     }
 
-    private var singlesRank: Int? {
-        dataStore.singlesRankings.firstIndex {
-            $0.id == player.id
-        }
-        .map { $0 + 1 }
-    }
-
     var body: some View {
         ZStack {
             ArenaBackground()
@@ -623,16 +642,17 @@ struct PlayerProfileView: View {
                         LazyVStack(alignment: .leading, spacing: 30) {
                             PlayerProfileHeader(
                                 player: player,
-                                rank: singlesRank,
                                 goBack: { dismiss() }
                             )
                             PlayerRecordStrip(player: player)
+                                .playerProfileEntrance(.record)
 
                             if let history {
                                 EloHistoryChart(
                                     history: history,
                                     accessibilityTitle: "Kretanje singl Elo rejtinga"
                                 )
+                                .playerProfileEntrance(.chart)
                             } else if let errorMessage {
                                 DataErrorNotice(
                                     message: errorMessage,
@@ -660,6 +680,7 @@ struct PlayerProfileView: View {
                                 }
                             )
                             .id(PlayerProfileScrollTarget.matches)
+                            .playerProfileEntrance(.matches)
                         }
                         .padding(.horizontal, 20)
                         .padding(.bottom, 44)
@@ -671,7 +692,23 @@ struct PlayerProfileView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .environment(entrance)
         .toolbarVisibility(.hidden, for: .navigationBar)
+        .accessibilityAction(.escape) { dismiss() }
+        .task(id: hasFinishedInitialLoad) {
+            guard hasFinishedInitialLoad else { return }
+            await entrance.run(skipMotion: reduceMotion || voiceOverEnabled)
+        }
+        .onChange(of: reduceMotion) { _, enabled in
+            if enabled { entrance.finishImmediately() }
+        }
+        .onChange(of: voiceOverEnabled) { _, enabled in
+            if enabled { entrance.finishImmediately() }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { entrance.finishImmediately() }
+        }
+        .onDisappear { entrance.finishImmediately() }
         .task(id: player.id) {
             if loadsRemoteData {
                 await loadHistory()
@@ -1180,7 +1217,9 @@ struct PlayerProfilePreviewScreen: View {
         wins: 132,
         losses: 77,
         draws: 10,
-        rankDays: nil
+        rankDays: nil,
+        recentForm: [18, -4, 36, 4, -43],
+        recentFormScores: [0.8, -0.1, 0.9, 0.2, -1]
     )
 
     private let history = PlayerEloHistory(
@@ -1383,151 +1422,7 @@ struct RecentResultsPreviewScreen: View {
 }
 #endif
 
-private struct PlayerProfileHeader: View {
-    let player: RankingEntry
-    let rank: Int?
-    let goBack: () -> Void
-
-    var body: some View {
-        HStack(spacing: 16) {
-            PlayerProfilePortrait(
-                player: player,
-                rank: rank,
-                goBack: goBack
-            )
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(player.name.uppercased())
-                    .font(
-                        GweiloTheme.displayFont(
-                            size: 40,
-                            relativeTo: .largeTitle
-                        )
-                    )
-                    .tracking(-0.4)
-                    .foregroundStyle(GweiloTheme.bone)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-
-                Text("\(player.elo) Elo")
-                    .font(
-                        GweiloTheme.labelFont(
-                            size: 17,
-                            relativeTo: .headline
-                        )
-                        .monospacedDigit()
-                    )
-                    .foregroundStyle(GweiloTheme.accentBright)
-
-                if !player.recentForm.isEmpty {
-                    HStack(spacing: 8) {
-                        Text("FORMA")
-                            .font(
-                                GweiloTheme.labelFont(
-                                    size: 9,
-                                    relativeTo: .caption2
-                                )
-                            )
-                            .tracking(0.8)
-                            .foregroundStyle(GweiloTheme.muted)
-
-                        RecentFormBar(
-                            values: player.recentForm,
-                            formScores: player.resolvedRecentFormScores
-                        )
-                            .frame(width: 58)
-                    }
-                    .padding(.top, 5)
-                }
-            }
-            .layoutPriority(1)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.top, 18)
-        .padding(.bottom, 4)
-    }
-}
-
-private struct PlayerProfilePortrait: View {
-    let player: RankingEntry
-    let rank: Int?
-    let goBack: () -> Void
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            CachedRemoteImage(
-                url: DiceBearAvatar.resolvedURL(
-                    customURL: player.avatarURL,
-                    seed: player.name
-                ),
-                pointSize: 112
-            ) { image in
-                image
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFill()
-            } placeholder: {
-                Text(player.initials)
-                    .font(
-                        GweiloTheme.displayFont(
-                            size: 34,
-                            relativeTo: .title2
-                        )
-                    )
-                    .foregroundStyle(GweiloTheme.bone)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(GweiloTheme.raisedSurface)
-            }
-            .frame(width: 112, height: 112)
-            .clipShape(.rect(cornerRadius: 22))
-            .overlay {
-                RoundedRectangle(cornerRadius: 22)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                GweiloTheme.accentBright.opacity(0.75),
-                                GweiloTheme.lime.opacity(0.24)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
-            .accessibilityHidden(true)
-
-            PlayerProfileBackButton(action: goBack)
-                .offset(x: -8, y: -8)
-
-            if let rank {
-                Text("\(rank). MESTO")
-                    .font(
-                        GweiloTheme.labelFont(
-                            size: 10,
-                            relativeTo: .caption2
-                        )
-                        .monospacedDigit()
-                    )
-                    .tracking(0.4)
-                    .foregroundStyle(GweiloTheme.background)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 5)
-                    .background(GweiloTheme.lime, in: .capsule)
-                    .frame(
-                        width: 112,
-                        height: 112,
-                        alignment: .bottomTrailing
-                    )
-                    .offset(x: 6, y: 6)
-                    .accessibilityLabel("\(rank). mesto")
-            }
-        }
-        .padding(.leading, 4)
-        .padding(.top, 4)
-    }
-}
-
-private struct PlayerProfileBackButton: View {
+struct PlayerProfileBackButton: View {
     let action: () -> Void
 
     var body: some View {
@@ -1549,7 +1444,7 @@ private struct PlayerProfileBackButton: View {
             Image(systemName: "chevron.left")
                 .font(.body.weight(.bold))
                 .foregroundStyle(GweiloTheme.bone)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
@@ -1588,7 +1483,7 @@ private struct ProfileOutcomeMetric: View {
         VStack(spacing: 6) {
             MatchOutcomeArtwork(outcome: outcome, size: 52)
 
-            Text("\(value)")
+            PlayerProfileAnimatedNumber(value: value, stage: .record)
                 .font(
                     GweiloTheme.displayFont(size: 24, relativeTo: .title3)
                         .monospacedDigit()
@@ -1904,63 +1799,65 @@ private struct EloHistoryChart: View {
     }
 }
 
-private struct EloScrubBanner: View {
+struct EloScrubBanner: View {
     let point: PlayerEloHistoryPoint?
 
+    @ScaledMetric(relativeTo: .caption) private var textScale: CGFloat = 1
+
     var body: some View {
-        Group {
-            if let point {
-                EloMatchScrubDetail(point: point)
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .move(edge: .trailing)),
-                            removal: .opacity
-                        )
+        VStack(alignment: .leading, spacing: 8 * textScale) {
+            HStack(spacing: 12) {
+                Text(point.map { "MEČ \($0.match)" } ?? "ISTORIJA MEČEVA")
+                    .font(GweiloTheme.labelFont(size: 11, relativeTo: .caption))
+                    .tracking(0.8)
+
+                Spacer(minLength: 0)
+
+                if let point {
+                    Text(
+                        point.date,
+                        format: .dateTime
+                            .day()
+                            .month(.abbreviated)
+                            .year()
+                            .locale(Locale(identifier: "sr_Latn_RS"))
                     )
+                    .font(.system(size: 11 * textScale))
+                    .monospacedDigit()
+                }
+            }
+            .lineLimit(1)
+            .foregroundStyle(GweiloTheme.muted)
+            .frame(height: 16 * textScale)
+
+            if let point {
+                EloMatchScrubDetail(point: point, textScale: textScale)
             } else {
-                HStack(spacing: 12) {
-                    Image(systemName: "hand.point.up.left.fill")
-                        .font(.title3)
-                        .foregroundStyle(GweiloTheme.accentBright)
-                        .frame(width: 34, height: 34)
-                        .background(GweiloTheme.accentBright.opacity(0.12))
-                        .clipShape(.rect(cornerRadius: 8))
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Zadrži i prevuci preko grafikona")
+                        .font(.system(size: 14 * textScale, weight: .semibold))
+                        .frame(height: 20 * textScale)
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("PREGLEDAJ MEČ")
-                            .font(
-                                GweiloTheme.labelFont(
-                                    size: 10,
-                                    relativeTo: .caption2
-                                )
-                            )
-                            .tracking(1)
-                            .foregroundStyle(GweiloTheme.lime)
-
-                        Text("Zadrži i prevuci preko grafikona")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(GweiloTheme.bone)
-                    }
-
-                    Spacer()
+                    Text("Za rezultat meča i promenu Elo rejtinga")
+                        .font(.system(size: 11 * textScale))
+                        .foregroundStyle(GweiloTheme.muted)
+                        .frame(height: 16 * textScale)
                 }
-                .padding(.vertical, 12)
-                .padding(.horizontal, 14)
-                .background(GweiloTheme.raisedSurface)
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(GweiloTheme.accentBright)
-                        .frame(width: 3)
-                }
-                .transition(.opacity)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
-                    "Zadrži i prevuci preko grafikona za detalje meča"
+                    "Zadrži i prevuci preko grafikona za rezultat meča i promenu Elo rejtinga"
                 )
             }
         }
-        .frame(minHeight: 78)
-        .clipShape(.rect(cornerRadius: 8))
-        .animation(.smooth(duration: 0.24), value: point?.id)
+        .padding(.horizontal, 14)
+        // Height follows Dynamic Type, never the selected match's content.
+        .frame(height: 88 * textScale)
+        .foregroundStyle(GweiloTheme.bone)
+        .background(GweiloTheme.surface, in: .rect(cornerRadius: 20))
+        .accessibilityElement(children: .combine)
+        .transaction { $0.animation = nil }
     }
 }
 
@@ -2044,110 +1941,75 @@ private struct ChartPerformanceLegendItem: View {
 
 private struct EloMatchScrubDetail: View {
     let point: PlayerEloHistoryPoint
-
-    private var hasMatchResult: Bool {
-        point.outcome != nil
-            && point.scoreFor != nil
-            && point.scoreAgainst != nil
-    }
+    let textScale: CGFloat
 
     private var formattedDelta: String {
-        guard let delta = point.delta else { return "—" }
+        guard let delta = point.delta, delta.isFinite else { return "—" }
         let value = Int(delta.rounded())
-        return value > 0 ? "+\(value)" : "\(value)"
+        return "\(value > 0 ? "+" : value < 0 ? "−" : "")\(abs(value))"
     }
 
-    private var formattedScore: String {
-        guard let scoreFor = point.scoreFor,
-              let scoreAgainst = point.scoreAgainst else {
-            return "—"
+    private var deltaColor: Color {
+        guard let delta = point.delta, delta.isFinite else {
+            return GweiloTheme.muted
         }
-        return "\(scoreFor)–\(scoreAgainst)"
+        let value = delta.rounded()
+        return value > 0 ? GweiloTheme.lime
+            : value < 0 ? GweiloTheme.coral : GweiloTheme.muted
     }
 
-    private var localizedOutcome: String {
-        switch point.outcome {
-        case .win:
-            "Pobeda"
-        case .draw:
-            "Nerešeno"
-        case .loss:
-            "Poraz"
-        case nil:
-            ""
-        }
+    private var opponent: String {
+        let name = point.opponent?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.flatMap { $0.isEmpty ? nil : $0 } ?? "Nepoznat protivnik"
+    }
+
+    private var formattedElo: String {
+        guard point.elo.isFinite else { return "—" }
+        return Int(point.elo.rounded()).formatted(.number.locale(Locale(identifier: "sr_Latn_RS")))
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("MEČ \(point.match)")
-                    .font(GweiloTheme.labelFont(size: 10, relativeTo: .caption2))
-                    .tracking(1)
-                    .foregroundStyle(point.performanceBand.color)
+        HStack(spacing: 8) {
+            Text("\(Text("vs").foregroundStyle(GweiloTheme.muted).fontWeight(.regular)) \(opponent)")
+                .font(.system(size: 16 * textScale, weight: .semibold))
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
 
-                Text("VS \(point.opponent ?? "nepoznatog protivnika")")
-                    .font(.subheadline.weight(.semibold))
-                    .lineLimit(1)
+            VStack(spacing: 0) {
+                Text(point.formattedScore ?? "—")
+                    .font(.system(size: 19 * textScale, weight: .semibold))
+                    .frame(height: 20 * textScale)
 
-                Text(
-                    point.date.formatted(
-                        .dateTime
-                            .day()
-                            .month(.abbreviated)
-                            .year()
-                            .locale(Locale(identifier: "sr_Latn_RS"))
-                    )
-                )
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+                Text(point.resolvedOutcome?.label ?? "Rezultat")
+                    .font(.system(size: 11 * textScale))
+                    .foregroundStyle(point.resolvedOutcome?.color ?? GweiloTheme.muted)
+                    .frame(height: 16 * textScale)
             }
+            .minimumScaleFactor(0.7)
+            .frame(width: 72)
 
-            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 0) {
+                Text("\(Text(formattedDelta).foregroundStyle(deltaColor)) \(Text("Elo").font(.system(size: 11 * textScale)).fontWeight(.regular))")
+                    .font(.system(size: 16 * textScale, weight: .semibold))
+                    .frame(height: 20 * textScale)
 
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(
-                    hasMatchResult
-                        ? "\(localizedOutcome) \(formattedScore)"
-                        : formattedDelta
-                )
-                    .font(
-                        GweiloTheme.displayFont(
-                            size: 25,
-                            relativeTo: .title3
-                        )
-                        .monospacedDigit()
-                    )
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.72)
-                    .foregroundStyle(
-                        point.outcome?.color ?? point.performanceBand.color
-                    )
-
-                Text(
-                    hasMatchResult
-                        ? "\(formattedDelta) Elo · \(Int(point.elo.rounded()))"
-                        : "\(Int(point.elo.rounded())) Elo"
-                )
-                    .font(.caption.monospacedDigit().weight(.semibold))
-                    .foregroundStyle(.secondary)
+                Text(formattedElo)
+                    .font(.system(size: 11 * textScale))
+                    .frame(height: 16 * textScale)
             }
+            .foregroundStyle(GweiloTheme.muted)
+            .minimumScaleFactor(0.7)
+            // Equal flexible side columns keep the score at the banner's center.
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
         }
-        .padding(.vertical, 12)
-        .padding(.horizontal, 14)
-        .background(GweiloTheme.raisedSurface)
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(point.performanceBand.color)
-                .frame(width: 3)
-        }
+        .lineLimit(1)
+        .monospacedDigit()
+        .frame(height: 36 * textScale)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "Meč \(point.match), protiv "
-                + "\(point.opponent ?? "nepoznatog protivnika"), "
-                + "\(localizedOutcome.isEmpty ? "rezultat nije dostupan" : localizedOutcome), "
-                + "rezultat \(formattedScore), \(formattedDelta) Elo, "
-                + "novi rejting \(Int(point.elo.rounded()))"
+            "Protiv \(opponent), "
+                + "\(point.resolvedOutcome?.label ?? "ishod nije zabeležen"), "
+                + "rezultat \(point.formattedScore ?? "nije zabeležen"), prvo rezultat na ovom profilu, "
+                + "promena \(formattedDelta) Elo, novi rejting \(formattedElo)"
         )
     }
 }

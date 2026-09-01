@@ -155,7 +155,7 @@ function renderTestEmail(props: TestEmailProps): string {
 				<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" class="email-container" style="max-width: 600px; width: 100%; margin: 0 auto;">
 					<tr>
 						<td align="center" class="email-header" style="padding: 0 0 30px 0;">
-							<img src="${logoUrl}" alt="Gweilo Elo" class="logo-img" width="275" height="275" style="display: block; width: 275px; max-width: 33%; height: auto;" />
+							<img src="${logoUrl}" alt="Gweilo" class="logo-img" width="275" height="275" style="display: block; width: 275px; max-width: 33%; height: auto;" />
 						</td>
 					</tr>
 				</table>

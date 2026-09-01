@@ -304,7 +304,7 @@ async function getSinglesRatingSnapshot(
 
 export function getEloRules() {
 	return {
-		system: "Gweilo Elo",
+		system: "Gweilo",
 		starting_elo: 1500,
 		formula: {
 			expected_score:

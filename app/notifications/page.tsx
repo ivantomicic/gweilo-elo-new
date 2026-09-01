@@ -18,6 +18,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Loading } from "@/components/ui/loading";
 import { useAuth } from "@/lib/auth/useAuth";
 
 type Preferences = {
@@ -202,9 +203,11 @@ function NotificationPreferences() {
 								))}
 							</>
 						) : (
-							<p className="py-8 text-center text-muted-foreground">
-								Učitavam podešavanja…
-							</p>
+							<Loading
+								label="Učitavam podešavanja…"
+								size="sm"
+								className="py-8"
+							/>
 						)}
 					</CardContent>
 				</Card>

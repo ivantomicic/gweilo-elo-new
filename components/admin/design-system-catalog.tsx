@@ -50,6 +50,7 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { StateBlock } from "@/components/ui/state-block";
+import { FullScreenLoading, Loading, PageLoading } from "@/components/ui/loading";
 import { SurfaceCard } from "@/components/ui/surface-card";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -67,6 +68,16 @@ import {
 	TabsTrigger,
 } from "@/components/ui/tabs";
 import { TeamNameCard } from "@/components/ui/team-name-card";
+import { SessionCard } from "@/components/sessions/session-card";
+import {
+	SessionCompletedMatchResults,
+	SessionDetailHero,
+	SessionPerformanceTableView,
+	SessionPerformanceTabs,
+	type SessionDetailPlayer,
+	type SessionPerformancePlayer,
+	type SessionResultRound,
+} from "@/components/sessions/session-detail";
 import {
 	DisplayHeading,
 	SectionLabel,
@@ -109,6 +120,97 @@ const colorTokens = [
 	},
 ] as const;
 
+const catalogDetailPlayers: SessionDetailPlayer[] = [
+	{ id: "ivan", name: "Ivan", avatar: null },
+	{ id: "andrej", name: "Andrej", avatar: null },
+	{ id: "gara", name: "Gara", avatar: null },
+	{
+		id: "long-name",
+		name: "Aleksandar Jovanović sa veoma dugim imenom",
+		avatar: null,
+	},
+];
+
+const catalogDetailPerformance: SessionPerformancePlayer[] = [
+	{
+		...catalogDetailPlayers[0],
+		matches: 5,
+		wins: 4,
+		draws: 0,
+		losses: 1,
+		eloAfter: 1611,
+		eloChange: 19,
+	},
+	{
+		...catalogDetailPlayers[1],
+		matches: 5,
+		wins: 3,
+		draws: 1,
+		losses: 1,
+		eloAfter: 1527,
+		eloChange: 9,
+	},
+	{
+		...catalogDetailPlayers[2],
+		matches: 5,
+		wins: 2,
+		draws: 1,
+		losses: 2,
+		eloAfter: 1565,
+		eloChange: -1,
+	},
+	{
+		...catalogDetailPlayers[3],
+		matches: 5,
+		wins: 1,
+		draws: 0,
+		losses: 4,
+		eloAfter: 1441,
+		eloChange: -12,
+	},
+];
+
+const catalogDetailRounds: SessionResultRound[] = [
+	{
+		number: 1,
+		matches: [
+			{
+				id: "catalog-detail-win",
+				roundNumber: 1,
+				matchType: "singles",
+				teamOne: [catalogDetailPlayers[0]],
+				teamTwo: [catalogDetailPlayers[3]],
+				teamOneScore: 3,
+				teamTwoScore: 1,
+			},
+			{
+				id: "catalog-detail-draw",
+				roundNumber: 1,
+				matchType: "singles",
+				teamOne: [catalogDetailPlayers[2]],
+				teamTwo: [catalogDetailPlayers[1]],
+				teamOneScore: 3,
+				teamTwoScore: 3,
+			},
+		],
+	},
+	{
+		number: 2,
+		matches: [
+			{
+				id: "catalog-detail-doubles",
+				roundNumber: 2,
+				matchType: "doubles",
+				teamOne: [catalogDetailPlayers[0], catalogDetailPlayers[1]],
+				teamTwo: [catalogDetailPlayers[2], catalogDetailPlayers[3]],
+				teamOneScore: 2,
+				teamTwoScore: 3,
+				isRated: false,
+			},
+		],
+	},
+];
+
 const inventory = [
 	{
 		name: "Button",
@@ -123,10 +225,22 @@ const inventory = [
 		note: "Shared product surface and radius contract.",
 	},
 	{
+		name: "SessionCard",
+		path: "@/components/sessions/session-card",
+		status: "App-owned",
+		note: "Native-aligned live and completed session history composition.",
+	},
+	{
+		name: "Session detail",
+		path: "@/components/sessions/session-detail",
+		status: "App-owned",
+		note: "Native session hero, performance table, result artwork, flat standard results and round fallback.",
+	},
+	{
 		name: "SegmentedControl",
 		path: "@/components/ui/segmented-control",
 		status: "App-owned",
-		note: "Single and multi-option selection patterns.",
+		note: "Radio semantics on the shared iOS-derived selection foundation.",
 	},
 	{
 		name: "Typography",
@@ -150,7 +264,7 @@ const inventory = [
 		name: "Tabs / Pagination",
 		path: "@/components/ui/tabs, pagination",
 		status: "App-owned",
-		note: "Navigation states and pagination composition.",
+		note: "Tab semantics share the same selection foundation; pagination stays separate.",
 	},
 	{
 		name: "Sheet / Drawer / SheetForm",
@@ -177,10 +291,10 @@ const inventory = [
 		note: "Data grid boundary and shared ranking/result cells.",
 	},
 	{
-		name: "StateBlock / Loading",
+		name: "Loading / PageLoading / FullScreenLoading / StateBlock",
 		path: "@/components/ui/state-block, loading",
 		status: "App-owned",
-		note: "Loading, empty, and error feedback states.",
+		note: "One native animation. PageLoading is the large in-flow preset inside the app shell; FullScreenLoading is only for auth/bootstrap or standalone flows. StateBlock reuses Loading.",
 	},
 	{
 		name: "Icon / Badge / Separator",
@@ -266,6 +380,7 @@ export function DesignSystemCatalog() {
 	const [notificationsEnabled, setNotificationsEnabled] = useState(true);
 	const [checked, setChecked] = useState(true);
 	const [currentPage, setCurrentPage] = useState(2);
+	const [detailTab, setDetailTab] = useState("singles");
 
 	return (
 		<div className="mx-auto w-full max-w-6xl space-y-12 pb-8">
@@ -357,56 +472,110 @@ export function DesignSystemCatalog() {
 			id="actions"
 			eyebrow="02 · Actions"
 			title="Buttons and selection"
-			description="Every supported hierarchy and state is visible here, including the product-emphasis action introduced on session setup."
+			description="Seven semantic levels translated from the iOS action language. Lime is reserved for the highest-emphasis primary action; routine actions step down through accent, surface, outline, ghost, destructive, and link treatments."
 		>
 			<div className="grid gap-4 lg:grid-cols-2">
-				<PreviewFrame label="Button hierarchy">
-					<div className="flex flex-wrap items-center gap-3">
-						<Button>
-							<PlusIcon /> Primary
-						</Button>
-						<Button variant="secondary">Secondary</Button>
-						<Button variant="outline">Outline</Button>
-						<Button variant="ghost">Ghost</Button>
-						<Button variant="destructive">
-							<Trash2Icon /> Delete
-						</Button>
-						<Button variant="link">Text link</Button>
-						<Button disabled>Disabled</Button>
+				<div className="lg:col-span-2">
+					<PreviewFrame label="Seven-level hierarchy">
+						<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Primary · prominent</p>
+								<Button variant="prominent" className="w-full">
+									<ArrowRightIcon /> Continue
+								</Button>
+							</div>
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Accent · default</p>
+								<Button className="w-full">
+									<PlusIcon /> Create
+								</Button>
+							</div>
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Secondary · raised</p>
+								<Button variant="secondary" className="w-full">Secondary</Button>
+							</div>
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Outline · alternate</p>
+								<Button variant="outline" className="w-full">Outline</Button>
+							</div>
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Ghost · local</p>
+								<Button variant="ghost" className="w-full">Ghost</Button>
+							</div>
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Destructive · danger</p>
+								<Button variant="destructive" className="w-full">
+									<Trash2Icon /> Delete
+								</Button>
+							</div>
+							<div className="space-y-2">
+								<p className="text-xs font-semibold text-muted-foreground">Link · lowest weight</p>
+								<Button variant="link" className="w-full">View details</Button>
+							</div>
+						</div>
+					</PreviewFrame>
+				</div>
+
+				<PreviewFrame label="Disabled states">
+					<div className="grid gap-3 sm:grid-cols-2">
+						<Button variant="prominent" disabled>Primary unavailable</Button>
+						<Button disabled>Accent unavailable</Button>
+						<Button variant="secondary" disabled>Secondary unavailable</Button>
+						<Button variant="destructive" disabled>Delete unavailable</Button>
 					</div>
 				</PreviewFrame>
 
-				<PreviewFrame label="Prominent action">
-					<Button variant="prominent" size="cta">
-						Continue <ArrowRightIcon />
-					</Button>
+				<PreviewFrame label="Loading and touch states">
+					<div className="grid gap-3 sm:grid-cols-2">
+						<Button
+							variant="prominent"
+							isLoading
+							loadingLabel="Saving…"
+						>
+							Save
+						</Button>
+						<Button isLoading loadingLabel="Creating…">
+							Create
+						</Button>
+						<Button variant="secondary" isLoading loadingLabel="Connecting…">
+							Connect
+						</Button>
+						<Button variant="outline">Press or tab to inspect</Button>
+					</div>
 				</PreviewFrame>
 
 				<PreviewFrame label="Highlighted selection">
-					<SegmentedControl
-						value={playerCount}
-						options={[2, 3, 4, 5, 6].map((count) => ({
-							value: count,
-							label: count,
-						}))}
-						onValueChange={setPlayerCount}
-						ariaLabel="Player count preview"
-						selection="highlight"
-						size="number"
-						elevated
-					/>
+					<div className="space-y-3">
+						<SegmentedControl
+							value={playerCount}
+							options={[2, 3, 4, 5, 6].map((count) => ({
+								value: count,
+								label: count,
+							}))}
+							onValueChange={setPlayerCount}
+							ariaLabel="Player count preview"
+						/>
+						<Text variant="caption">
+							Radio-group wrapper for a single value.
+						</Text>
+					</div>
 				</PreviewFrame>
 
 				<PreviewFrame label="Subtle selection">
-					<SegmentedControl
-						value={format}
-						options={[
-							{ value: "singles", label: "Singles" },
-							{ value: "mixed", label: "Mixed" },
-						]}
-						onValueChange={setFormat}
-						ariaLabel="Session format preview"
-					/>
+					<div className="space-y-3">
+						<SegmentedControl
+							value={format}
+							options={[
+								{ value: "singles", label: "Singles" },
+								{ value: "mixed", label: "Mixed" },
+							]}
+							onValueChange={setFormat}
+							ariaLabel="Session format preview"
+						/>
+						<Text variant="caption">
+							The former subtle variant now uses the same selected state.
+						</Text>
+					</div>
 				</PreviewFrame>
 			</div>
 		</CatalogueSection>
@@ -415,8 +584,142 @@ export function DesignSystemCatalog() {
 			id="surfaces"
 			eyebrow="03 · Surfaces"
 			title="Cards and containers"
-			description="SurfaceCard is the app-level product card. Base Card remains available for conventional admin and form compositions."
+			description="SurfaceCard is the general product surface. SessionCard owns the iOS-derived session hierarchy; Base Card remains available for conventional admin and form compositions."
 		>
+			<PreviewFrame
+				label="Session cards · native parity"
+				className="space-y-4"
+			>
+				<div id="session-card-states" className="grid gap-4 lg:grid-cols-2">
+					<div className="space-y-2 lg:col-span-2">
+						<p className="text-xs font-semibold text-muted-foreground">
+							Live · round progress
+						</p>
+						<SessionCard
+							href="#session-card-states"
+							session={{
+								id: "catalog-live",
+								player_count: 6,
+								created_at: "2026-08-25T18:30:00+02:00",
+								status: "active",
+								singles_match_count: 9,
+								doubles_match_count: 3,
+								current_round: 3,
+								total_rounds: 7,
+							}}
+						/>
+					</div>
+
+					<div className="space-y-2">
+						<p className="text-xs font-semibold text-muted-foreground">
+							Completed · both performers
+						</p>
+						<SessionCard
+							href="#session-card-states"
+							session={{
+								id: "catalog-completed",
+								player_count: 6,
+								created_at: "2026-08-19T18:30:00+02:00",
+								status: "completed",
+								singles_match_count: 12,
+								doubles_match_count: 4,
+								best_player: {
+									id: "catalog-miladin",
+									name: "Miladin Petrović",
+									avatar: null,
+									delta: 19,
+								},
+								worst_player: {
+									id: "catalog-aleksandar",
+									name: "Aleksandar Jovanović sa veoma dugim imenom",
+									avatar: null,
+									delta: -16,
+								},
+							}}
+						/>
+					</div>
+
+					<div className="space-y-2">
+						<p className="text-xs font-semibold text-muted-foreground">
+							Completed · short content
+						</p>
+						<SessionCard
+							href="#session-card-states"
+							session={{
+								id: "catalog-empty",
+								player_count: 2,
+								created_at: "2026-07-02T18:30:00+02:00",
+								status: "completed",
+								singles_match_count: 0,
+								doubles_match_count: 0,
+							}}
+						/>
+					</div>
+
+					<div className="space-y-2 lg:col-span-2">
+						<p className="text-xs font-semibold text-muted-foreground">
+							Compact · native home-carousel presentation
+						</p>
+						<SessionCard
+							href="#session-card-states"
+							presentation="compact"
+							className="max-w-[272px]"
+							session={{
+								id: "catalog-compact",
+								player_count: 5,
+								created_at: "2026-06-12T18:30:00+02:00",
+								status: "completed",
+								singles_match_count: 8,
+								doubles_match_count: 2,
+								best_player: {
+									id: "catalog-leo",
+									name: "Leo",
+									avatar: null,
+									delta: 14,
+								},
+								worst_player: {
+									id: "catalog-andrej",
+									name: "Andrej",
+									avatar: null,
+									delta: -11,
+								},
+							}}
+						/>
+					</div>
+				</div>
+				<Text variant="caption">
+					Live and completed are the production states. The domain has no
+					upcoming card; compact only changes density, not visual language.
+				</Text>
+			</PreviewFrame>
+
+			<PreviewFrame label="Session detail · native parity" className="p-0 sm:p-0">
+				<div className="session-detail-native-shell min-h-[760px] py-5">
+					<div className="session-detail-native mx-auto flex w-full max-w-[402px] flex-col gap-[30px] px-5 pb-12">
+						<SessionDetailHero date="2026-04-27T12:00:00+02:00" />
+						<div className="space-y-3.5">
+							<SessionPerformanceTabs
+								tabs={[
+									{ value: "singles", label: "Singlovi" },
+									{ value: "doubles", label: "Dublovi" },
+									{ value: "teams", label: "Timovi" },
+								]}
+								value={detailTab}
+								onValueChange={setDetailTab}
+							/>
+							<SessionPerformanceTableView
+								view="player"
+								players={catalogDetailPerformance}
+								activeTabValue={detailTab}
+							/>
+						</div>
+						<SessionCompletedMatchResults
+							matches={catalogDetailRounds.flatMap((round) => round.matches)}
+						/>
+					</div>
+				</div>
+			</PreviewFrame>
+
 			<div className="grid gap-4 md:grid-cols-3">
 				<SurfaceCard>
 					<p className="font-semibold">Default surface</p>
@@ -509,10 +812,10 @@ export function DesignSystemCatalog() {
 
 			<PreviewFrame label="Tabs">
 				<Tabs defaultValue="overview">
-					<TabsList className="w-full sm:w-auto">
+					<TabsList aria-label="Catalogue sections" className="w-full sm:w-auto">
 						<TabsTrigger value="overview">Overview</TabsTrigger>
 						<TabsTrigger value="matches">Matches</TabsTrigger>
-						<TabsTrigger value="form">Form</TabsTrigger>
+						<TabsTrigger value="form" disabled>Form</TabsTrigger>
 					</TabsList>
 					<TabsContent value="overview" className="pt-3 text-sm text-muted-foreground">
 						Overview content and selected state.
@@ -521,8 +824,11 @@ export function DesignSystemCatalog() {
 						Matches content and selected state.
 					</TabsContent>
 					<TabsContent value="form" className="pt-3 text-sm text-muted-foreground">
-						Form content and selected state.
+						Disabled-state example.
 					</TabsContent>
+					<Text variant="caption" className="block pt-3">
+						Same visual primitive, with tablist, tab and tabpanel semantics.
+					</Text>
 				</Tabs>
 			</PreviewFrame>
 		</CatalogueSection>
@@ -534,17 +840,17 @@ export function DesignSystemCatalog() {
 			description="Identity components keep avatars, names and supporting data consistent across match, mission and statistics views."
 		>
 			<PreviewFrame label="Identity rows">
-				<div className="grid gap-6 sm:grid-cols-2">
-					<PlayerNameCard
-						name="Miladin"
-						avatar="/favicon.png"
-						addon={<Text variant="caption">1,284 Elo · +12</Text>}
-					/>
-					<TeamNameCard
-						player1={{ name: "Andrej", avatar: "/favicon.png" }}
-						player2={{ name: "Leo", avatar: "/favicon.png" }}
-						addon={<Text variant="caption">Doubles team</Text>}
-					/>
+					<div className="grid gap-6 sm:grid-cols-2">
+						<PlayerNameCard
+							name="Miladin"
+							avatar={null}
+							addon={<Text variant="caption">1,284 Elo · +12</Text>}
+						/>
+						<TeamNameCard
+							player1={{ name: "Andrej", avatar: null }}
+							player2={{ name: "Leo", avatar: null }}
+							addon={<Text variant="caption">Doubles team</Text>}
+						/>
 				</div>
 			</PreviewFrame>
 		</CatalogueSection>
@@ -612,8 +918,21 @@ export function DesignSystemCatalog() {
 			title="Status and overlays"
 			description="Loading, empty, error and overlay patterns should remain predictable throughout the product."
 		>
-			<div className="grid gap-4 lg:grid-cols-3">
-				<PreviewFrame label="Loading">
+			<div className="grid gap-4 lg:grid-cols-2">
+				<PreviewFrame label="Page loading · stays inside navigation">
+					<PageLoading label="Učitavam termine…" className="min-h-[320px]" />
+				</PreviewFrame>
+				<PreviewFrame label="Full-screen loading · contained preview">
+					<FullScreenLoading
+						contained
+						label="Učitavam tvoj klub…"
+						className="min-h-[320px] rounded-surface"
+					/>
+				</PreviewFrame>
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-2">
+				<PreviewFrame label="StateBlock loading · shared regular loader">
 					<StateBlock variant="loading" size="sm" title="Loading sessions" />
 				</PreviewFrame>
 				<PreviewFrame label="Empty">

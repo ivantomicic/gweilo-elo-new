@@ -14,7 +14,7 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Icon } from "@/components/ui/icon";
-import { Loading } from "@/components/ui/loading";
+import { FullScreenLoading } from "@/components/ui/loading";
 import { useAuth } from "@/lib/auth/useAuth";
 import { supabase } from "@/lib/supabase/client";
 
@@ -134,7 +134,7 @@ export function OAuthConsent() {
 	}
 
 	if (isAuthenticated === null || (isAuthenticated && loading)) {
-		return <Loading label="Loading authorization request…" />;
+		return <FullScreenLoading label="Loading authorization request…" />;
 	}
 
 	if (!isAuthenticated) {

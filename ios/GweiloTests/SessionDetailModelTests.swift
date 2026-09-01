@@ -1,4 +1,5 @@
 import XCTest
+import SwiftUI
 @testable import Gweilo
 
 final class SessionDetailModelTests: XCTestCase {
@@ -828,6 +829,62 @@ final class SessionDetailModelTests: XCTestCase {
 
         XCTAssertEqual(point.resolvedOutcome, .win)
         XCTAssertEqual(point.formattedScore, "3–1")
+    }
+
+    @MainActor
+    func testScrubBannerKeepsItsHeightAcrossMatchesAndIdleState() throws {
+        let date = Date(timeIntervalSince1970: 1_772_236_800)
+        let points: [PlayerEloHistoryPoint?] = [
+            nil,
+            .init(match: 101, elo: 1_559, date: date, opponent: "Ivan", delta: -1,
+                  outcome: .draw, scoreFor: 4, scoreAgainst: 4),
+            .init(match: 109, elo: 1_580, date: date, opponent: "Milan", delta: -4,
+                  outcome: .loss, scoreFor: 0, scoreAgainst: 5),
+            .init(match: 110, elo: 1_595, date: date, opponent: "Aleksandar Veoma Dugačko Ime",
+                  delta: 15, scoreFor: 11, scoreAgainst: 9),
+            .init(match: 1, elo: 1_500, date: date, opponent: nil, delta: nil),
+            .init(match: 2, elo: 1_500, date: date, opponent: "Leo", delta: 0,
+                  scoreFor: 0, scoreAgainst: 0)
+        ]
+
+        for width: CGFloat in [320, 390] {
+            for textSize: DynamicTypeSize in [.large, .xxxLarge, .accessibility1] {
+                var idleHeight: CGFloat?
+                for point in points {
+                    let renderer = ImageRenderer(content:
+                        EloScrubBanner(point: point)
+                            .frame(width: width)
+                            .environment(\.dynamicTypeSize, textSize)
+                            .environment(\.colorScheme, .dark)
+                    )
+                    let image = try XCTUnwrap(renderer.uiImage)
+                    if point == nil { idleHeight = image.size.height }
+                    XCTAssertEqual(image.size.width, width, accuracy: 0.5)
+                    XCTAssertEqual(image.size.height, try XCTUnwrap(idleHeight), accuracy: 0.5)
+                    if textSize == .large {
+                        XCTAssertEqual(image.size.height, 88, accuracy: 0.5)
+                    }
+                }
+
+                let renderer = ImageRenderer(content:
+                    VStack(spacing: 12) {
+                        ForEach(Array(points.enumerated()), id: \.offset) { _, point in
+                            EloScrubBanner(point: point)
+                        }
+                    }
+                    .frame(width: width)
+                    .padding(16)
+                    .background(GweiloTheme.background)
+                    .environment(\.dynamicTypeSize, textSize)
+                    .environment(\.colorScheme, .dark)
+                )
+                renderer.scale = 2
+                let attachment = XCTAttachment(image: try XCTUnwrap(renderer.uiImage))
+                attachment.name = "Scrub banners — \(Int(width))pt — \(textSize)"
+                attachment.lifetime = .keepAlways
+                add(attachment)
+            }
+        }
     }
 
     @MainActor

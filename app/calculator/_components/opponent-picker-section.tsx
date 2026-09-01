@@ -1,17 +1,13 @@
-import { AnimatePresence, motion } from "framer-motion";
 import type { RefObject } from "react";
-import { Box } from "@/components/ui/box";
-import { Icon } from "@/components/ui/icon";
-import { PlayerNameCard } from "@/components/ui/player-name-card";
-import { Stack } from "@/components/ui/stack";
-import { cn } from "@/lib/utils";
+import { CalculatorPlayerAvatar } from "@/app/calculator/_components/calculator-player-avatar";
 import type { PlayerWithRating } from "@/app/calculator/_lib/types";
+import { formatElo } from "@/app/calculator/_lib/utils";
+import { cn } from "@/lib/utils";
 
 type OpponentPickerSectionProps = {
 	availableOpponents: PlayerWithRating[];
 	selectedCount: number;
 	scrollRef: RefObject<HTMLDivElement>;
-	canScrollLeft: boolean;
 	canScrollRight: boolean;
 	onScroll: () => void;
 	onToggleOpponent: (opponentId: string) => void;
@@ -21,113 +17,74 @@ export function OpponentPickerSection({
 	availableOpponents,
 	selectedCount,
 	scrollRef,
-	canScrollLeft,
 	canScrollRight,
 	onScroll,
 	onToggleOpponent,
 }: OpponentPickerSectionProps) {
 	return (
-		<Box className="overflow-hidden">
-			<Stack
-				direction="row"
-				alignItems="center"
-				justifyContent="between"
-				className="px-1 mb-4"
-			>
-				<h3 className="text-lg font-bold text-foreground">
+		<section aria-labelledby="calculator-opponents-heading">
+			<div className="mb-3 flex items-baseline justify-between gap-4">
+				<h2
+					id="calculator-opponents-heading"
+					className="font-session-label text-ios-label-12 font-semibold uppercase leading-[15px] tracking-[1.8px] text-[rgb(var(--ds-native-purple-bright))]"
+				>
 					Izaberi protivnike
-				</h3>
-				<motion.div
-					key={selectedCount}
-					initial={{ scale: 1.2 }}
-					animate={{ scale: 1 }}
-					className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md"
+				</h2>
+				<span
+					aria-live="polite"
+					className={cn(
+						"shrink-0 text-ios-caption2 font-black leading-none tabular-nums",
+						selectedCount === 0
+							? "text-[rgb(var(--ds-native-muted))]"
+							: "text-[rgb(var(--ds-native-lime))]",
+					)}
 				>
 					{selectedCount} izabrano
-				</motion.div>
-			</Stack>
-
-			<div className="w-full max-w-full relative">
-				<div
-					className={cn(
-						"absolute left-0 top-0 bottom-4 w-16 bg-gradient-to-r from-background via-background/60 to-transparent z-10 pointer-events-none transition-opacity duration-200",
-						canScrollLeft ? "opacity-100" : "opacity-0",
-					)}
-				/>
-				<div
-					className={cn(
-						"absolute right-0 top-0 bottom-4 w-16 bg-gradient-to-l from-background via-background/60 to-transparent z-10 pointer-events-none transition-opacity duration-200",
-						canScrollRight ? "opacity-100" : "opacity-0",
-					)}
-				/>
-				<div
-					ref={scrollRef}
-					onScroll={onScroll}
-					className="w-full overflow-x-auto scrollbar-hide"
-				>
-					<div className="flex gap-4 pb-4 w-max">
-						<AnimatePresence>
-							{availableOpponents.map((player) => (
-								<motion.button
-									key={player.id}
-									initial={{
-										opacity: 0,
-										scale: 0.8,
-									}}
-									animate={{
-										opacity: 1,
-										scale: 1,
-									}}
-									exit={{
-										opacity: 0,
-										scale: 0.8,
-									}}
-									transition={{
-										duration: 0.2,
-									}}
-									onClick={() => onToggleOpponent(player.id)}
-									className="flex-shrink-0"
-									whileTap={{
-										scale: 0.95,
-									}}
-								>
-									<PlayerNameCard
-										name={player.name}
-										avatar={player.avatar}
-										id={player.id}
-										size="lg"
-										variant="vertical"
-										avatarBorder="transparent"
-										addon={
-											<span className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-												Elo {Math.round(player.elo)}
-											</span>
-										}
-									/>
-								</motion.button>
-							))}
-						</AnimatePresence>
-					</div>
-				</div>
+				</span>
 			</div>
 
-			{availableOpponents.length === 0 && (
-				<Box className="mt-1 bg-secondary/30 rounded-2xl p-4 border border-border/30">
-					<Stack
-						direction="row"
-						alignItems="start"
-						spacing={3}
+			{availableOpponents.length === 0 ? (
+				<p className="py-[18px] text-ios-subheadline font-semibold leading-5 text-[rgb(var(--ds-native-muted))]">
+					Svi dostupni protivnici su već izabrani.
+				</p>
+			) : (
+				<div className="relative h-[102px]">
+					<div
+						ref={scrollRef}
+						onScroll={onScroll}
+						className="calculator-opponents-scroll scrollbar-hide flex h-full snap-x snap-proximity gap-[10px] overflow-x-auto overscroll-x-contain pr-6"
 					>
-						<Icon
-							icon="solar:info-circle-bold"
-							className="size-5 text-primary shrink-0 mt-0.5"
-						/>
-						<p className="text-sm text-muted-foreground leading-relaxed">
-							Svi dostupni protivnici su već izabrani.
-						</p>
-					</Stack>
-				</Box>
+						{availableOpponents.map((player) => (
+							<button
+								type="button"
+								key={player.id}
+								onClick={() => onToggleOpponent(player.id)}
+								className="calculator-pressable flex h-[102px] w-[72px] shrink-0 snap-start flex-col items-center gap-[7px] rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[rgb(var(--ds-native-purple-bright))]"
+								aria-label={`Dodaj protivnika ${player.name}`}
+							>
+								<CalculatorPlayerAvatar
+									name={player.name}
+									avatar={player.avatar}
+									size={58}
+								/>
+								<span className="w-full truncate text-center text-ios-caption font-bold leading-[14px] text-[rgb(var(--ds-native-bone))]">
+									{player.name}
+								</span>
+								<span className="text-ios-caption2 font-bold leading-3 tabular-nums text-[rgb(var(--ds-native-muted))]">
+									{formatElo(player.elo)}
+								</span>
+							</button>
+						))}
+					</div>
+					<div
+						aria-hidden="true"
+						className={cn(
+							"pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-r from-transparent to-[rgb(var(--ds-native-background))] transition-opacity duration-150",
+							canScrollRight ? "opacity-100" : "opacity-0",
+						)}
+					/>
+				</div>
 			)}
-		</Box>
+		</section>
 	);
 }

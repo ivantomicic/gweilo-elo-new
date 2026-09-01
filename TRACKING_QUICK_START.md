@@ -9,7 +9,7 @@
 1. **Database**: `analytics_events` table with RLS policies
 2. **Frontend tracking**: `app_loaded`, `page_viewed`
 3. **Login tracking**: `user_logged_in` (on successful login)
-4. **Admin panel**: `/admin/activity` with filters and pagination
+4. **Admin panel**: `/admin/activity-log` with filters and pagination
 
 ---
 
@@ -35,7 +35,7 @@ npm run dev
 2. **Refresh page** → Should see `app_loaded` event in `analytics_events` table
 3. **Navigate to** `/dashboard` → Should see `page_viewed` event
 4. **Log in** → Should see `user_logged_in` event
-5. **Go to** `/admin/activity` (as admin) → Should see all events in table
+5. **Go to** `/admin/activity-log` (as admin) → Should see all events in table
 
 ---
 
@@ -49,7 +49,7 @@ lib/analytics/
 components/analytics/
   app-tracker.tsx        # Auto-tracks app_loaded + page_viewed
 
-app/admin/activity/
+app/admin/activity-log/
   page.tsx               # Admin activity log page
 
 supabase/migrations/
@@ -65,8 +65,8 @@ supabase/migrations/
 - [ ] `app_loaded` event fires on page load (once per session)
 - [ ] `page_viewed` event fires on route change
 - [ ] `user_logged_in` event fires on login
-- [ ] Admin can access `/admin/activity`
-- [ ] Non-admin cannot access `/admin/activity`
+- [ ] Admin can access `/admin/activity-log`
+- [ ] Non-admin cannot access `/admin/activity-log`
 - [ ] Filters work (user ID, event type, date range)
 - [ ] Pagination works
 

@@ -1,17 +1,29 @@
 {
-	"name": "Gweilo ELO",
-	"short_name": "Gweilo ELO",
+	"name": "Gweilo",
+	"short_name": "Gweilo",
 	"description": "Table tennis ELO rating system",
 	"start_url": "/",
 	"display": "standalone",
-	"background_color": "#0A0A0A",
-	"theme_color": "#3B82F6",
+	"background_color": "#030304",
+	"theme_color": "#030304",
 	"icons": [
 		{
-			"src": "/favicon.png",
-			"sizes": "180x180",
+			"src": "/icons/gweilo-192.png",
+			"sizes": "192x192",
 			"type": "image/png",
-			"purpose": "any maskable"
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/gweilo-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "any"
+		},
+		{
+			"src": "/icons/gweilo-maskable-512.png",
+			"sizes": "512x512",
+			"type": "image/png",
+			"purpose": "maskable"
 		}
 	]
 }

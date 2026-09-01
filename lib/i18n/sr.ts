@@ -564,28 +564,11 @@ export const sr = {
 		},
 	},
 	meta: {
-		title: "Gweilo :: Les talkie-talkie, more ping-pong.",
+		title: "Gweilo · Manje priče, više ping-ponga.",
 		description: "Sistem Elo rejtinga za stoni tenis",
 	},
 	logo: {
-		alt: "GWEILO NS",
-	},
-	maintenance: {
-		title: "Održavanje",
-		message: "Radimo na fičerima, vraćamo se uskoro.",
-		subtext: "Hvala na strpljenju!",
-		admin: {
-			title: "Mod održavanja",
-			enabled: "Uključeno",
-			disabled: "Isključeno",
-			success: {
-				enabled: "Mod održavanja uključen",
-				disabled: "Mod održavanja isključen",
-			},
-			error: {
-				updateFailed: "Greška",
-			},
-		},
+		alt: "Gweilo",
 	},
 	terminal: {
 		initializing: "Pokrećem ELO kalkulator...",

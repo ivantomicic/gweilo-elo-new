@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import {
+	SessionPerformanceTableView,
+	type SessionPerformancePlayer,
+	type SessionPerformanceTeam,
+} from "@/components/sessions/session-detail";
+import { supabase } from "@/lib/supabase/client";
 import {
 	getOrFetchSessionSummary,
 	readCachedSessionSummary,
@@ -8,30 +15,13 @@ import {
 	type SessionTeamSummary,
 	type SummaryView,
 } from "../_lib/session-summary-client";
-import {
-	EloChangeCell,
-	PlayerTableIdentity,
-	RankCell,
-	TeamTableIdentity,
-} from "@/components/ui/stats-table-cells";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { Box } from "@/components/ui/box";
-import { StateBlock } from "@/components/ui/state-block";
-import { supabase } from "@/lib/supabase/client";
-import { t } from "@/lib/i18n";
 
 type SessionSummaryTableProps = {
 	sessionId: string;
 	activeView: SummaryView;
 	onPlayerClick?: (playerId: string) => void;
 	selectedPlayerFilter?: string | null;
+	onSelectedPlayerSummaryChange?: (summary: string | null) => void;
 };
 
 function getCachedLoadedViews(sessionId: string) {
@@ -40,11 +30,9 @@ function getCachedLoadedViews(sessionId: string) {
 	if (readCachedSessionSummary(sessionId, "singles")?.singles) {
 		loadedViews.push("singles");
 	}
-
 	if (readCachedSessionSummary(sessionId, "doubles_player")?.doubles_player) {
 		loadedViews.push("doubles_player");
 	}
-
 	if (readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team) {
 		loadedViews.push("doubles_team");
 	}
@@ -52,11 +40,80 @@ function getCachedLoadedViews(sessionId: string) {
 	return new Set<SummaryView>(loadedViews);
 }
 
+function sortByPerformance<
+	T extends { wins: number; draws: number; elo_change: number | null },
+>(entries: T[]) {
+	return [...entries].sort(
+		(a, b) =>
+			b.wins - a.wins ||
+			b.draws - a.draws ||
+			(b.elo_change ?? 0) - (a.elo_change ?? 0),
+	);
+}
+
+function playerPresentation(
+	player: SessionPlayerSummary,
+): SessionPerformancePlayer {
+	return {
+		id: player.player_id,
+		name: player.display_name,
+		avatar: player.avatar,
+		isPlaceholder: player.is_placeholder,
+		matches: player.matches_played,
+		wins: player.wins,
+		draws: player.draws,
+		losses: player.losses,
+		eloAfter: player.elo_after,
+		eloChange: player.elo_change,
+	};
+}
+
+function teamPresentation(team: SessionTeamSummary): SessionPerformanceTeam {
+	return {
+		id: team.team_id,
+		name: `${team.player1_name} + ${team.player2_name}`,
+		players: [
+			{
+				id: team.player1_id,
+				name: team.player1_name,
+				avatar: team.player1_avatar,
+			},
+			{
+				id: team.player2_id,
+				name: team.player2_name,
+				avatar: team.player2_avatar,
+			},
+		],
+		matches: team.matches_played,
+		wins: team.wins,
+		draws: team.draws,
+		losses: team.losses,
+		eloAfter: team.elo_after,
+		eloChange: team.elo_change,
+	};
+}
+
+function selectedPlayerSummary(
+	player: SessionPerformancePlayer | undefined,
+	view: SummaryView,
+) {
+	if (!player || view === "doubles_team") return null;
+	const label = view === "singles" ? "Singl" : "Dubl";
+	if (player.eloAfter === null || player.eloChange === null) {
+		return `${label} bez ELO-a`;
+	}
+
+	const elo = Math.round(player.eloAfter).toLocaleString("sr-Latn-RS");
+	const delta = Math.round(player.eloChange);
+	return `${label} ${elo} (${delta > 0 ? `+${delta}` : delta})`;
+}
+
 export function SessionSummaryTable({
 	sessionId,
 	activeView,
 	onPlayerClick,
 	selectedPlayerFilter,
+	onSelectedPlayerSummaryChange,
 }: SessionSummaryTableProps) {
 	const [singlesSummary, setSinglesSummary] = useState<
 		SessionPlayerSummary[] | null
@@ -72,8 +129,7 @@ export function SessionSummaryTable({
 		SessionTeamSummary[] | null
 	>(
 		() =>
-			readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team ??
-			null,
+			readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team ?? null,
 	);
 	const [loadingByView, setLoadingByView] = useState<
 		Record<SummaryView, boolean>
@@ -90,18 +146,16 @@ export function SessionSummaryTable({
 		getCachedLoadedViews(sessionId),
 	);
 	const inFlightViewsRef = useRef<Set<SummaryView>>(new Set());
+	const summaryChangeRef = useRef(onSelectedPlayerSummaryChange);
+	summaryChangeRef.current = onSelectedPlayerSummaryChange;
 
 	const getAccessToken = useCallback(async () => {
-		if (accessTokenRef.current) {
-			return accessTokenRef.current;
-		}
+		if (accessTokenRef.current) return accessTokenRef.current;
 
 		const {
 			data: { session },
 		} = await supabase.auth.getSession();
-		if (!session) {
-			throw new Error("Not authenticated");
-		}
+		if (!session) throw new Error("Not authenticated");
 		accessTokenRef.current = session.access_token;
 		return session.access_token;
 	}, []);
@@ -116,9 +170,9 @@ export function SessionSummaryTable({
 			}
 
 			inFlightViewsRef.current.add(view);
-			setLoadingByView((prev) => ({ ...prev, [view]: true }));
-			setErrorByView((prev) => {
-				const next = { ...prev };
+			setLoadingByView((current) => ({ ...current, [view]: true }));
+			setErrorByView((current) => {
+				const next = { ...current };
 				delete next[view];
 				return next;
 			});
@@ -129,32 +183,28 @@ export function SessionSummaryTable({
 					view,
 					getAccessToken,
 				);
-				if (view === "singles") {
-					setSinglesSummary(data.singles || []);
-				} else if (view === "doubles_player") {
+				if (view === "singles") setSinglesSummary(data.singles || []);
+				else if (view === "doubles_player") {
 					setDoublesPlayerSummary(data.doubles_player || []);
-				} else {
-					setDoublesTeamSummary(data.doubles_team || []);
-				}
+				} else setDoublesTeamSummary(data.doubles_team || []);
 				loadedViewsRef.current.add(view);
-			} catch (err) {
-				console.error(`Error fetching ${view} summary:`, err);
-				setErrorByView((prev) => ({
-					...prev,
+			} catch (error) {
+				console.error(`Error fetching ${view} summary:`, error);
+				setErrorByView((current) => ({
+					...current,
 					[view]:
-						err instanceof Error
-							? err.message
+						error instanceof Error
+							? error.message
 							: "Failed to load session summary",
 				}));
 			} finally {
 				inFlightViewsRef.current.delete(view);
-				setLoadingByView((prev) => ({ ...prev, [view]: false }));
+				setLoadingByView((current) => ({ ...current, [view]: false }));
 			}
 		},
 		[getAccessToken, sessionId],
 	);
 
-	// Reset summary state when session changes.
 	useEffect(() => {
 		setSinglesSummary(
 			readCachedSessionSummary(sessionId, "singles")?.singles ?? null,
@@ -164,8 +214,7 @@ export function SessionSummaryTable({
 				null,
 		);
 		setDoublesTeamSummary(
-			readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team ??
-				null,
+			readCachedSessionSummary(sessionId, "doubles_team")?.doubles_team ?? null,
 		);
 		setLoadingByView({
 			singles: false,
@@ -178,264 +227,62 @@ export function SessionSummaryTable({
 		inFlightViewsRef.current = new Set();
 	}, [sessionId]);
 
-	// Load singles immediately for fastest first paint.
 	useEffect(() => {
-		fetchSummaryForView("singles");
+		void fetchSummaryForView("singles");
 	}, [fetchSummaryForView]);
 
-	// Lazy-load other summaries when user opens that tab.
 	useEffect(() => {
-		fetchSummaryForView(activeView);
+		void fetchSummaryForView(activeView);
 	}, [activeView, fetchSummaryForView]);
 
-	const currentView = activeView;
-	const currentError = errorByView[currentView] ?? null;
-	const isCurrentViewLoading = loadingByView[currentView];
-	const currentViewLoaded =
-		currentView === "singles"
-			? singlesSummary !== null
-			: currentView === "doubles_player"
-				? doublesPlayerSummary !== null
-				: doublesTeamSummary !== null;
-
-	// Sort by wins (descending) for display
-	const sortByWins = <T extends { wins: number }>(arr: T[]): T[] => {
-		return [...arr].sort((a, b) => b.wins - a.wins);
-	};
-	const renderPlayerIdentity = (player: SessionPlayerSummary) => (
-		<PlayerTableIdentity
-			name={player.display_name}
-			avatar={player.avatar}
-			id={player.is_placeholder ? undefined : player.player_id}
-			size="sm"
-			onClick={
-				onPlayerClick ? () => onPlayerClick(player.player_id) : undefined
-			}
-			selected={selectedPlayerFilter === player.player_id}
-			mobileRecord={player}
-		/>
+	const activePlayerSource =
+		activeView === "singles" ? singlesSummary : doublesPlayerSummary;
+	const activePlayers = sortByPerformance(activePlayerSource ?? []).map(
+		playerPresentation,
 	);
-	const renderPlayerElo = (player: SessionPlayerSummary) =>
-		player.elo_change === null || player.elo_after === null ? (
-			<TableCell className="text-center text-[10px] font-bold text-muted-foreground">
-				Bez ELO-a
-			</TableCell>
-		) : (
-			<EloChangeCell
-				change={player.elo_change}
-				eloAfter={player.elo_after}
+	const summary = selectedPlayerSummary(
+		activePlayers.find((player) => player.id === selectedPlayerFilter),
+		activeView,
+	);
+
+	useEffect(() => {
+		summaryChangeRef.current?.(summary);
+	}, [summary]);
+
+	const error = errorByView[activeView];
+	if (error) {
+		return (
+			<p
+				className="py-5 text-sm text-[rgb(var(--ds-native-coral))]"
+				role="alert"
+			>
+				{error}
+			</p>
+		);
+	}
+
+	if (activeView === "doubles_team") {
+		const teams = sortByPerformance(doublesTeamSummary ?? []).map(
+			teamPresentation,
+		);
+		return (
+			<SessionPerformanceTableView
+				view="team"
+				teams={teams}
+				activeTabValue={activeView}
+				loading={loadingByView.doubles_team && doublesTeamSummary === null}
 			/>
 		);
-
-	if (isCurrentViewLoading && !currentViewLoaded) {
-		return (
-			<Box>
-				<StateBlock
-					variant="loading"
-					size="sm"
-					title={t.sessions.session.loading}
-				/>
-			</Box>
-		);
 	}
-
-	if (currentError) {
-		return (
-			<Box>
-				<StateBlock variant="error" size="sm" title={currentError} />
-			</Box>
-		);
-	}
-
-	// Return just the table content based on current view
-	const renderTable = () => {
-		if (currentView === "singles") {
-			const sortedPlayers = sortByWins(singlesSummary ?? []);
-			if (sortedPlayers.length === 0) {
-				return (
-					<StateBlock
-						variant="empty"
-						size="sm"
-						title="No summary data available."
-					/>
-				);
-			}
-			return (
-				<Table>
-					<TableHeader className="bg-muted/30">
-						<TableRow>
-							<TableHead className="text-left w-8">#</TableHead>
-							<TableHead className="text-left">
-								{t.statistics.table.player}
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								{t.statistics.table.wins}
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								{t.statistics.table.losses}
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								{t.statistics.table.draws}
-							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.elo}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{sortedPlayers.map((player, index) => (
-							<TableRow key={player.player_id}>
-								<RankCell index={index} />
-								<TableCell>{renderPlayerIdentity(player)}</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
-									{player.wins}
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
-									{player.losses}
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
-									{player.draws}
-								</TableCell>
-								{renderPlayerElo(player)}
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			);
-		}
-
-		if (currentView === "doubles_player") {
-			const sortedPlayers = sortByWins(doublesPlayerSummary ?? []);
-			if (sortedPlayers.length === 0) {
-				return (
-					<StateBlock
-						variant="empty"
-						size="sm"
-						title="No summary data available."
-					/>
-				);
-			}
-			return (
-				<Table>
-					<TableHeader className="bg-muted/30">
-						<TableRow>
-							<TableHead className="text-left w-8">#</TableHead>
-							<TableHead className="text-left">
-								{t.statistics.table.player}
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								W
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								L
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								D
-							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.elo}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{sortedPlayers.map((player, index) => (
-							<TableRow key={player.player_id}>
-								<RankCell index={index} />
-								<TableCell>{renderPlayerIdentity(player)}</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
-									{player.wins}
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
-									{player.losses}
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
-									{player.draws}
-								</TableCell>
-								{renderPlayerElo(player)}
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			);
-		}
-
-		if (currentView === "doubles_team") {
-			const sortedTeams = sortByWins(doublesTeamSummary ?? []);
-			if (sortedTeams.length === 0) {
-				return (
-					<StateBlock
-						variant="empty"
-						size="sm"
-						title="No summary data available."
-					/>
-				);
-			}
-			return (
-				<Table>
-					<TableHeader className="bg-muted/30">
-						<TableRow>
-							<TableHead className="text-left w-8">#</TableHead>
-							<TableHead className="text-left">
-								{t.statistics.table.team}
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								W
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								L
-							</TableHead>
-							<TableHead className="text-center hidden md:table-cell">
-								D
-							</TableHead>
-							<TableHead className="text-center">
-								{t.statistics.table.elo}
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{sortedTeams.map((team, index) => (
-							<TableRow key={team.team_id}>
-								<RankCell index={index} />
-								<TableCell>
-									<TeamTableIdentity
-										player1={{
-											name: team.player1_name,
-											avatar: team.player1_avatar,
-										}}
-										player2={{
-											name: team.player2_name,
-											avatar: team.player2_avatar,
-										}}
-										size="sm"
-										mobileRecord={team}
-									/>
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-emerald-500">
-									{team.wins}
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-red-500">
-									{team.losses}
-								</TableCell>
-								<TableCell className="text-center font-bold font-mono hidden md:table-cell text-muted-foreground">
-									{team.draws}
-								</TableCell>
-								<EloChangeCell
-									change={team.elo_change}
-									eloAfter={team.elo_after}
-								/>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			);
-		}
-
-		return null;
-	};
 
 	return (
-		<Box className="rounded-lg border border-border/50 overflow-hidden bg-card">
-			{renderTable()}
-		</Box>
+		<SessionPerformanceTableView
+			view="player"
+			players={activePlayers}
+			activeTabValue={activeView}
+			selectedPlayerId={selectedPlayerFilter}
+			onPlayerSelect={onPlayerClick}
+			loading={loadingByView[activeView] && activePlayerSource === null}
+		/>
 	);
 }

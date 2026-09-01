@@ -2,6 +2,12 @@
 
 ## What is implemented
 
+The web admin broadcast screen and `/api/admin/notifications/send` endpoint
+have been retired. Native push delivery, user preferences, and the shared APNs
+transport used by Live Activities remain supported. The announcements category
+is retained for compatibility with existing native clients and stored preferences;
+there is no longer an admin manual-message sender.
+
 Notifications are owned by the backend. Web actions and iOS actions use the
 same Next.js endpoints, and those endpoints create the same notification
 events.
@@ -118,7 +124,6 @@ The following backend actions are connected:
 | Next round ready | Session participants | Rounds |
 | Session completed | Session participants | Results and Elo |
 | Poll created | All registered users | Polls |
-| Manual admin message | All, current session, or selected users | Announcements |
 
 Notification event deduplication keys prevent an idempotent session or round
 request from sending the same event twice.

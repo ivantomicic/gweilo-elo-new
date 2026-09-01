@@ -6,6 +6,7 @@ import { Box } from "@/components/ui/box";
 import { Stack } from "@/components/ui/stack";
 import { Icon } from "@/components/ui/icon";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loading } from "@/components/ui/loading";
 import { useAuth } from "@/lib/auth/useAuth";
 import { t } from "@/lib/i18n";
 import { formatNoShowPoints } from "@/lib/no-shows/sessions-per-week";
@@ -155,32 +156,7 @@ export function NoShowAlertWidget({ users }: NoShowAlertWidgetProps) {
 	if (loading) {
 		return (
 			<DashboardCard>
-				<Box className="absolute inset-0 bg-[radial-gradient(circle_at_top,hsl(var(--destructive)/0.18),transparent_58%)] pointer-events-none" />
-				<Box className="absolute -right-10 top-10 size-32 rounded-full bg-destructive/10 blur-3xl pointer-events-none" />
-				<Box className="absolute -left-8 bottom-6 size-24 rounded-full bg-amber-500/10 blur-3xl pointer-events-none" />
-
-				<Box className="relative z-10 flex items-start justify-between gap-4">
-					<Box className="h-4 w-24 rounded-full bg-muted-foreground/20" />
-					<Box className="h-6 w-14 rounded-full bg-muted-foreground/20" />
-				</Box>
-
-				<Stack
-					direction="column"
-					alignItems="center"
-					justifyContent="center"
-					spacing={5}
-					className="relative z-10 w-full flex-1 pt-6"
-				>
-					<Box className="relative shrink-0">
-						<Box className="absolute inset-[-10px] rounded-full border border-amber-400/35" />
-						<Box className="absolute inset-[-20px] rounded-full border border-destructive/10" />
-						<Box className="size-24 rounded-full border-2 border-destructive/30 bg-destructive/20 animate-pulse shadow-[0_0_0_6px_rgba(239,68,68,0.08)]" />
-						<Box className="absolute -bottom-1 -right-1 bg-destructive/50 size-7 rounded-full border-2 border-card animate-pulse" />
-					</Box>
-					<Box className="space-y-2 text-center">
-						<Box className="mx-auto h-8 w-32 rounded bg-muted-foreground/20" />
-					</Box>
-				</Stack>
+				<Loading label="Učitavam izostanke…" size="lg" />
 			</DashboardCard>
 		);
 	}

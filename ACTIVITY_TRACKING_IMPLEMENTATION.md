@@ -85,7 +85,7 @@ The following files have been created automatically:
 - `lib/analytics/track-server.ts` - Server-side tracking helper
 
 ### ✅ Admin Panel
-- `app/admin/activity/page.tsx` - Admin activity log page
+- `app/admin/activity-log/page.tsx` - Admin activity log page (`/admin/activity` redirects here)
 
 ### ✅ Integration Points
 - `app/layout.tsx` - AppTracker added
@@ -126,7 +126,7 @@ The following files have been created automatically:
 ### 3.4 Test Admin Panel
 
 1. **Log in as admin** (user with `role = 'admin'`)
-2. **Navigate to** `/admin/activity`
+2. **Navigate to** `/admin/activity-log`
 3. **Verify**:
    - Table shows all events
    - Can filter by user ID, event type, date range
@@ -135,7 +135,7 @@ The following files have been created automatically:
 ### 3.5 Test Non-Admin Access
 
 1. **Log in as regular user** (not admin)
-2. **Try to access** `/admin/activity`
+2. **Try to access** `/admin/activity-log`
 3. **Verify**:
    - Should redirect to home or show "Unauthorized"
    - RLS policy prevents reading events
@@ -153,7 +153,7 @@ The following files have been created automatically:
 ### 4.2 Test Admin Can Read All Events
 
 1. **Log in as admin**
-2. **Go to** `/admin/activity`
+2. **Go to** `/admin/activity-log`
 3. **Verify** table shows all events from all users
 
 ### 4.3 Test Non-Admin Cannot Read Events
@@ -223,7 +223,7 @@ Use this checklist to verify everything works:
 - [ ] Login still works if tracking fails (non-blocking)
 
 ### ✅ Admin Panel
-- [ ] `/admin/activity` page exists
+- [ ] `/admin/activity-log` page exists
 - [ ] Page shows table with events
 - [ ] Default sort: newest first
 - [ ] Pagination works (if > 50 events)
@@ -231,7 +231,7 @@ Use this checklist to verify everything works:
   - [ ] Filter by user ID
   - [ ] Filter by event type
   - [ ] Filter by date range
-- [ ] Non-admins cannot access `/admin/activity` (redirected or blocked)
+- [ ] Non-admins cannot access `/admin/activity-log` (redirected or blocked)
 
 ### ✅ Privacy & GDPR
 - [ ] `user_id` is NULL for anonymous events

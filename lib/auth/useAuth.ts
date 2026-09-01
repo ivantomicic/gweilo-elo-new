@@ -25,6 +25,7 @@ import {
 export type AuthUser = {
 	id: string;
 	name: string;
+	nameVocative?: string | null;
 	email: string;
 	avatar: string | null;
 	role: UserRole;
@@ -44,7 +45,7 @@ async function getUserFromSession(session: Session): Promise<AuthUser> {
 	const user = session.user;
 	const { data: profile } = await supabase
 		.from("profiles")
-		.select("display_name, avatar_url")
+		.select("display_name, avatar_url, name_vocative")
 		.eq("id", user.id)
 		.maybeSingle();
 
@@ -63,6 +64,7 @@ async function getUserFromSession(session: Session): Promise<AuthUser> {
 	return {
 		id: user.id,
 		name,
+		nameVocative: profile?.name_vocative ?? null,
 		email: user.email || "",
 		avatar,
 		role: getUserRoleFromAuthUser(user),

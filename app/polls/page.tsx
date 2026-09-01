@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppShell } from "@/components/app-shell";
-import { StateBlock } from "@/components/ui/state-block";
+import { FullScreenLoading } from "@/components/ui/loading";
 import { PollsView } from "./_components/polls-view";
 import { CreatePollDrawer } from "./_components/create-poll-drawer";
 import { t } from "@/lib/i18n";
@@ -71,15 +71,7 @@ export default function PollsPage() {
 	return (
 		<AuthGuard>
 			<Suspense
-				fallback={
-					<AppShell title={t.pages.polls}>
-						<StateBlock
-							variant="loading"
-							size="lg"
-							title={t.polls.loading}
-						/>
-					</AppShell>
-				}
+				fallback={<FullScreenLoading label={t.polls.loading} />}
 			>
 				<PollsPageContent />
 			</Suspense>

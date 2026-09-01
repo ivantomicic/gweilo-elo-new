@@ -21,6 +21,33 @@
 		--ds-control-selected: 194 255 31;
 		--ds-control-selected-hover: 208 255 81;
 
+		/* Button roles mirror the native iOS palette in GweiloTheme.swift. */
+		--ds-button-primary: 194 255 31;
+		--ds-button-primary-foreground: 3 3 4;
+		--ds-button-accent: 120 48 255;
+		--ds-button-accent-bright: 156 97 255;
+		--ds-button-surface: 20 18 27;
+		--ds-button-surface-hover: 43 38 55;
+		--ds-button-foreground: 245 242 232;
+		--ds-button-muted: 148 145 161;
+		--ds-button-destructive: 255 69 92;
+		--ds-button-hairline: 255 255 255;
+		--ds-session-card-live: 20 18 27;
+		--ds-session-card-neutral: 19 19 21;
+
+		/* Literal web translation of GweiloTheme.swift for session details. */
+		--ds-native-background: 3 3 4;
+		--ds-native-surface: 14 13 18;
+		--ds-native-raised: 20 18 27;
+		--ds-native-bone: 245 242 232;
+		--ds-native-muted: 148 145 161;
+		--ds-native-purple: 120 48 255;
+		--ds-native-purple-bright: 156 97 255;
+		--ds-native-lime: 194 255 31;
+		--ds-native-coral: 255 69 92;
+		--ds-native-amber: 255 179 26;
+		--ds-native-cyan: 26 199 224;
+
 		--ds-radius-control: 9999px;
 		--ds-radius-card: 1.5rem;
 		--ds-radius-panel: 1.25rem;
@@ -29,11 +56,17 @@
 		--ds-shadow-control: 0 12px 30px rgb(0 0 0 / 0.24);
 		--ds-shadow-selection: 0 5px 16px rgb(194 255 31 / 0.18);
 		--ds-shadow-primary-action: 0 10px 28px rgb(194 255 31 / 0.16);
+		--ds-shadow-session-card: 0 6px 20px rgb(0 0 0 / 0.28);
 
 		--ds-duration-fast: 150ms;
+		--ds-duration-press: 120ms;
 		--ds-duration-standard: 200ms;
 		--ds-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 		--ds-tracking-label: 0.16em;
+
+		/* One viewport anchor for the dock and its floating session action. */
+		--mobile-nav-bottom: calc(6px - env(safe-area-inset-bottom, 0px));
+		--mobile-nav-height: 68px;
 
 		/* Color tokens - dark mode only */
 		/* App background: #0A0A0A - very dark, almost black */
@@ -112,8 +145,39 @@
 	}
 
 	body {
-		@apply bg-background text-foreground;
+		@apply text-foreground;
+		background-color: rgb(var(--ds-native-background));
 		font-family: var(--font-body);
+	}
+
+	html {
+		background-color: rgb(var(--ds-native-background));
+		color-scheme: dark;
+	}
+
+	/* Fixed loaders contribute no document height. Keep the viewport canvas
+	 * present before route data arrives, including on short/empty screens.
+	 * Use min-height, not height/overflow, so normal page scrolling is intact. */
+	html,
+	body {
+		min-height: 100vh;
+		min-height: 100dvh;
+	}
+
+	@media (max-width: 767px) {
+		/* Stop vertical edge-bounce/pull-to-refresh from dragging the fixed dock.
+		 * Keep document scrolling, horizontal history gestures, and zoom intact.
+		 * Scope this to app screens; signed-out pages keep browser defaults. */
+		html:has([data-mobile-nav]),
+		body:has([data-mobile-nav]) {
+			overscroll-behavior-y: none;
+		}
+	}
+
+	@media (display-mode: standalone) {
+		:root {
+			--mobile-nav-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+		}
 	}
 
 	h1,
@@ -127,6 +191,67 @@
 }
 
 @layer utilities {
+	/*
+	 * viewport-fit=cover lets native arena backgrounds continue behind iPhone
+	 * status icons. The shared header still reserves the top safe area for its
+	 * controls, matching a SwiftUI navigation bar over ArenaBackground.
+	 */
+	.site-header-safe {
+		height: calc(4rem + env(safe-area-inset-top, 0px));
+		padding-top: env(safe-area-inset-top, 0px);
+	}
+
+	@media (min-width: 768px) {
+		.site-header-safe {
+			height: 4rem;
+			padding-top: 0;
+		}
+	}
+
+	/* Keep Safari/Chrome autofill inside the native sign-in capsule palette. */
+	.auth-lock-field:-webkit-autofill,
+	.auth-lock-field:-webkit-autofill:hover,
+	.auth-lock-field:-webkit-autofill:focus {
+		-webkit-text-fill-color: rgb(var(--ds-native-bone));
+		-webkit-box-shadow: 0 0 0 1000px rgb(var(--ds-native-surface)) inset;
+		caret-color: rgb(var(--ds-native-purple-bright));
+		transition: background-color 9999s ease-out;
+	}
+
+	/*
+	 * The native lock screen is authored on a fixed-height iPhone canvas. Mobile
+	 * Safari exposes a materially shorter layout viewport while its toolbars are
+	 * visible, so the artwork—not the 50–52px controls—absorbs that difference.
+	 */
+	.auth-lock-hero {
+		width: clamp(
+			280px,
+			calc((100svh - 390px) * 1.102249489),
+			100%
+		);
+	}
+
+	.auth-lock-title {
+		margin-bottom: clamp(22px, 3.44svh, 30px);
+		font-size: clamp(36px, 10.2vw, 41px);
+	}
+
+	.auth-lock-screen[data-has-error="true"] .auth-lock-hero {
+		width: clamp(
+			250px,
+			calc((100svh - 416px) * 1.102249489),
+			100%
+		);
+	}
+
+	@media (max-height: 620px) and (orientation: landscape) {
+		.auth-lock-screen {
+			height: auto;
+			min-height: 100svh;
+			overflow-y: auto;
+		}
+	}
+
 	/* Prevent hover effects on touch devices and improve touch interactions */
 	.touch-safe {
 		touch-action: manipulation;
@@ -144,6 +269,266 @@
 	/* Mobile nav is ~96px tall (56px items + 16px padding + 24px bottom offset) */
 	.pb-mobile-nav {
 		@apply pb-24 md:pb-0;
+	}
+
+	@media (max-width: 767px) {
+		body:has(.mobile-nav-accessory) .pb-mobile-nav {
+			padding-bottom: 10.5rem;
+		}
+	}
+
+	/*
+	 * Mobile navigation mirrors the native iOS 26 system TabView:
+	 * one continuous floating material, a restrained interactive lens for the
+	 * selected tab, and GweiloTheme.accent (#7830ff) as the exact tint.
+	 */
+	.mobile-nav {
+		/* Safari's browser viewport already reserves its bottom safe area. Offset
+		 * that reservation so the floating dock sits near (not on) the toolbar.
+		 * Installed PWAs use the real device safe area instead. */
+		position: fixed;
+		top: auto;
+		bottom: var(--mobile-nav-bottom);
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+		-webkit-text-size-adjust: none;
+		text-size-adjust: none;
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+	}
+
+	.mobile-nav__bar {
+		isolation: isolate;
+		/* Keep the material clear: the edge defines the capsule, not a dark fill.
+		 * A lighter blur lets actual content provide the glass's changing color. */
+		border: 0.5px solid rgb(255 255 255 / 0.16);
+		background-color: rgb(var(--ds-native-raised) / 0.08);
+		background-image: linear-gradient(
+			165deg,
+			rgb(255 255 255 / 0.045),
+			rgb(255 255 255 / 0.008) 48%,
+			transparent
+		);
+		-webkit-backdrop-filter: blur(12px) saturate(135%);
+		backdrop-filter: blur(12px) saturate(135%);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.16),
+			inset 0 -1px 0 rgb(255 255 255 / 0.035),
+			0 5px 18px rgb(0 0 0 / 0.16);
+	}
+
+	.mobile-nav__bar {
+		position: relative;
+		display: flex;
+		width: 100%;
+		min-height: var(--mobile-nav-height);
+		align-items: center;
+		justify-content: space-between;
+		gap: 2px;
+		overflow: hidden;
+		border-radius: 9999px;
+		padding: 4px 5px;
+		/* The dock is a tap target, not a page-scroll handle. Allow pinch zoom. */
+		touch-action: pinch-zoom;
+	}
+
+	.mobile-nav__bar::after,
+	.mobile-nav__popover::after {
+		position: absolute;
+		inset: 0;
+		z-index: 0;
+		border-radius: inherit;
+		content: "";
+		pointer-events: none;
+	}
+
+	.mobile-nav__bar::after,
+	.mobile-nav__popover::after {
+		background: radial-gradient(
+			95% 70% at 18% -8%,
+			rgb(255 255 255 / 0.045),
+			transparent 48%
+		);
+	}
+
+	.mobile-nav__item {
+		position: relative;
+		z-index: 1;
+		display: flex;
+		min-width: 44px;
+		min-height: 56px;
+		flex: 1 1 0%;
+		flex-direction: column;
+		cursor: pointer;
+		align-items: center;
+		justify-content: center;
+		gap: 2px;
+		border-radius: 23px;
+		color: rgb(var(--ds-native-bone) / 0.82);
+		transition:
+			color var(--ds-duration-fast) ease,
+			opacity var(--ds-duration-fast) ease,
+			transform var(--ds-duration-press) var(--ds-ease-out);
+	}
+
+	.mobile-nav__item[data-active="true"] {
+		color: rgb(var(--ds-native-purple));
+	}
+
+	.mobile-nav__selection {
+		position: absolute;
+		inset: 2px;
+		z-index: -1;
+		border: 0.5px solid rgb(255 255 255 / 0.12);
+		border-radius: 9999px;
+		background:
+			linear-gradient(
+				150deg,
+				rgb(255 255 255 / 0.045),
+				transparent 44%
+			),
+			rgb(var(--ds-native-purple) / 0.035);
+		/* Inherit the dock's glass; a second backdrop blur makes this look opaque. */
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.12),
+			inset 0 0 0 0.5px rgb(var(--ds-native-purple) / 0.12);
+		pointer-events: none;
+	}
+
+	.mobile-nav__icon,
+	.mobile-nav__avatar,
+	.mobile-nav__label {
+		position: relative;
+		z-index: 1;
+	}
+
+	.mobile-nav__icon,
+	.mobile-nav__avatar {
+		margin-bottom: 1px;
+	}
+
+	.mobile-nav__label {
+		max-width: 100%;
+		overflow: hidden;
+		font-size: 9px;
+		font-weight: 600;
+		line-height: 1.05;
+		letter-spacing: -0.08px;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+		text-shadow: 0 1px 3px rgb(0 0 0 / 0.75);
+	}
+
+	.mobile-nav__icon {
+		filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.55));
+	}
+
+	.mobile-nav__item[data-active="true"] .mobile-nav__label {
+		font-weight: 600;
+	}
+
+	.mobile-nav__item[data-active="true"] .mobile-nav__avatar {
+		border-color: rgb(var(--ds-native-purple) / 0.66);
+	}
+
+	.mobile-nav__item:active,
+	.mobile-nav__menu-item:active {
+		transform: scale(0.97);
+	}
+
+	.mobile-nav__item:focus-visible,
+	.mobile-nav__menu-item:focus-visible {
+		outline: 2px solid rgb(var(--ds-native-purple-bright));
+		outline-offset: -2px;
+	}
+
+	.mobile-nav__popover {
+		isolation: isolate;
+		overflow: hidden;
+		border: 0.8px solid rgb(255 255 255 / 0.16);
+		border-radius: 26px;
+		background-color: rgb(var(--ds-native-raised) / 0.52);
+		background-image: linear-gradient(
+			145deg,
+			rgb(255 255 255 / 0.1),
+			transparent 42%
+		);
+		-webkit-backdrop-filter: blur(16px) saturate(135%);
+		backdrop-filter: blur(16px) saturate(135%);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.16),
+			0 12px 36px rgb(0 0 0 / 0.34);
+		transform-origin: calc(100% - 28px) 100%;
+	}
+
+	.mobile-nav__menu-item {
+		position: relative;
+		z-index: 1;
+		display: flex;
+		min-height: 46px;
+		align-items: center;
+		gap: 12px;
+		border-radius: 18px;
+		padding: 10px 14px;
+		color: rgb(var(--ds-native-bone) / 0.9);
+		transition:
+			background-color var(--ds-duration-fast) ease,
+			color var(--ds-duration-fast) ease,
+			transform var(--ds-duration-press) var(--ds-ease-out);
+	}
+
+	.mobile-nav__menu-item[data-active="true"] {
+		background-color: rgb(var(--ds-native-purple) / 0.14);
+		color: rgb(var(--ds-native-purple-bright));
+	}
+
+	.mobile-nav__menu-separator {
+		height: 1px;
+		margin: 4px 10px;
+		background: rgb(255 255 255 / 0.1);
+	}
+
+	@media (hover: hover) and (pointer: fine) {
+		.mobile-nav__item:not([data-active="true"]):hover {
+			color: rgb(var(--ds-native-bone));
+		}
+
+		.mobile-nav__menu-item:hover {
+			background-color: rgb(255 255 255 / 0.075);
+			color: rgb(var(--ds-native-bone));
+		}
+	}
+
+	@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+		.mobile-nav__bar,
+		.mobile-nav__popover {
+			background-color: rgb(var(--ds-native-raised) / 0.96);
+		}
+	}
+
+	@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+		.mobile-nav__bar,
+		.mobile-nav__popover {
+			background-color: rgb(var(--ds-native-raised) / 0.96);
+			background-image: none;
+			-webkit-backdrop-filter: none;
+			backdrop-filter: none;
+		}
+
+		.mobile-nav__item[data-active="true"] {
+			color: rgb(var(--ds-native-purple-bright));
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.mobile-nav__item,
+		.mobile-nav__menu-item {
+			transition-duration: 0ms;
+		}
+
+		.mobile-nav__item:active,
+		.mobile-nav__menu-item:active {
+			transform: none;
+		}
 	}
 
 	/* Hide scrollbars for horizontal scroll containers */
@@ -166,33 +551,472 @@
 		appearance: textfield;
 	}
 
-	/* Calculator selected-opponent card layout */
-	.calculator-opponent-card {
-		container-type: inline-size;
+	/* Native-aligned session history surface from GweiloCardSurface. */
+	.session-card {
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+		border: 0.8px solid rgb(255 255 255 / 0.08);
+		border-radius: var(--ds-radius-panel);
+		background-color: rgb(var(--ds-session-card-neutral));
+		background-image: linear-gradient(
+			to bottom,
+			rgb(255 255 255 / 0.045),
+			rgb(255 255 255 / 0.012)
+		);
+		box-shadow: var(--ds-shadow-session-card);
+		transition-property: transform, opacity, border-color, box-shadow;
+		transition-duration: var(--ds-duration-press);
+		transition-timing-function: var(--ds-ease-out);
 	}
 
-	.calculator-opponent-selector-inline {
-		display: none;
+	.session-card[data-session-status="active"] {
+		border-color: rgb(255 255 255 / 0.1);
+		background-color: rgb(var(--ds-session-card-live));
+		background-image: linear-gradient(
+			to bottom,
+			rgb(var(--ds-control-selected) / 0.11),
+			rgb(var(--ds-control-selected) / 0.025)
+		);
 	}
 
-	.calculator-opponent-selector-below {
-		margin-top: 0.75rem;
+	/* Native RankingsView and SessionsView canvas and safe-area rhythm. */
+	.statistics-native-shell,
+	.statistics-native-content,
+	.sessions-native-shell,
+	.sessions-native-content,
+	.home-native-shell,
+	.home-native {
+		background: rgb(var(--ds-native-background));
+		color: rgb(var(--ds-native-bone));
 	}
 
-	@container (min-width: 700px) {
-		.calculator-opponent-top {
-			align-items: center;
+	.statistics-native-content,
+	.sessions-native-content,
+	.home-native {
+		padding-top: env(safe-area-inset-top, 0px);
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+	}
+
+	.home-native-shell {
+		background-color: rgb(var(--ds-native-background));
+		background-image: radial-gradient(
+			circle at top right,
+			rgb(var(--ds-native-purple) / 0.16) 0,
+			rgb(var(--ds-native-purple) / 0.035) 28rem,
+			transparent 43rem
+		);
+	}
+
+	.home-native {
+		min-height: 100dvh;
+		background: transparent;
+	}
+
+	.home-standing {
+		border-top: 1px solid rgb(255 255 255 / 0.13);
+		border-bottom: 1px solid rgb(255 255 255 / 0.13);
+	}
+
+	/* Same cadence as the profile, without moving the page or its fixed dock. */
+	@keyframes ranking-enter {
+		from { opacity: 0; transform: translateY(6px); }
+		to { opacity: 1; transform: none; }
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.ranking-enter {
+			animation: ranking-enter 480ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+			animation-delay: var(--ranking-enter-delay, 0ms);
+		}
+	}
+
+	@keyframes home-enter {
+		from { opacity: 0; transform: translateY(6px); }
+		to { opacity: 1; transform: none; }
+	}
+
+	@keyframes home-media-enter {
+		from { opacity: 0; }
+		to { opacity: 1; }
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.home-enter,
+		.home-media-enter {
+			animation: home-enter 480ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+			animation-delay: var(--home-enter-delay, 0ms);
+		}
+		/* Fade media itself, not its ancestor: preserve screen blending and video positioning. */
+		.home-media-enter { animation-name: home-media-enter; }
+		.home-enter-mascot { --home-enter-delay: 120ms; }
+		.home-enter-podium { --home-enter-delay: 240ms; }
+		.home-enter-standing { --home-enter-delay: 360ms; }
+		.home-enter-missions { --home-enter-delay: 480ms; }
+		.home-enter-sessions { --home-enter-delay: 600ms; }
+	}
+
+	.home-native[data-skip-entrance="true"] .home-enter,
+	.home-native[data-skip-entrance="true"] .home-media-enter {
+		animation: none;
+	}
+
+	.home-pressable {
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+		transition-property: transform, opacity;
+		transition-duration: var(--ds-duration-press);
+		transition-timing-function: var(--ds-ease-out);
+	}
+
+	.home-pressable:active {
+		transform: scale(0.97);
+		opacity: 0.84;
+	}
+
+	.home-carousel {
+		scroll-padding-inline: 20px;
+		overscroll-behavior-x: contain;
+		-webkit-overflow-scrolling: touch;
+		-webkit-mask-image: linear-gradient(
+			to right,
+			black 0,
+			black 94.8%,
+			transparent 100%
+		);
+		mask-image: linear-gradient(
+			to right,
+			black 0,
+			black 94.8%,
+			transparent 100%
+		);
+	}
+
+	.home-carousel > * {
+		scroll-snap-align: center;
+	}
+
+	.home-carousel > :first-child,
+	.home-carousel > :last-child {
+		scroll-snap-align: start;
+	}
+
+	.home-mission-card {
+		width: min(72vw, 272px);
+		border: 0.8px solid rgb(255 255 255 / 0.1);
+		border-radius: 20px;
+		background-color: rgb(var(--ds-native-raised));
+		box-shadow: 0 6px 20px rgb(0 0 0 / 0.28);
+	}
+
+	.home-mission-card[data-tone="accent"] {
+		border-color: rgb(255 255 255 / 0.11);
+		background-image: linear-gradient(
+			to bottom,
+			rgb(var(--ds-native-purple) / 0.3),
+			rgb(var(--ds-native-purple) / 0.12)
+		);
+	}
+
+	.home-mission-card[data-tone="cyan"] {
+		background-image: linear-gradient(
+			to bottom,
+			rgb(var(--ds-native-cyan) / 0.18),
+			rgb(var(--ds-native-cyan) / 0.055)
+		);
+	}
+
+	.home-mission-card[data-tone="amber"] {
+		background-image: linear-gradient(
+			to bottom,
+			rgb(var(--ds-native-amber) / 0.18),
+			rgb(var(--ds-native-amber) / 0.055)
+		);
+	}
+
+	.home-mission-card[data-tone="coral"] {
+		background-image: linear-gradient(
+			to bottom,
+			rgb(var(--ds-native-coral) / 0.18),
+			rgb(var(--ds-native-coral) / 0.055)
+		);
+	}
+
+	.mobile-nav-accessory {
+		position: fixed;
+		top: auto;
+		right: 16px;
+		bottom: calc(var(--mobile-nav-bottom) + var(--mobile-nav-height) + 8px);
+		left: 16px;
+		z-index: 45;
+		margin-inline: auto;
+		max-width: 450px;
+		padding-block: 8px;
+	}
+
+	.mobile-nav-accessory__button {
+		display: flex;
+		height: 50px;
+		width: 100%;
+		align-items: center;
+		justify-content: center;
+		border: 0.8px solid rgb(var(--ds-native-lime) / 0.58);
+		border-radius: 9999px;
+		background:
+			linear-gradient(
+				145deg,
+				rgb(255 255 255 / 0.12),
+				transparent 42%
+			),
+			rgb(var(--ds-native-lime) / 0.5);
+		-webkit-backdrop-filter: blur(18px) saturate(150%);
+		backdrop-filter: blur(18px) saturate(150%);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.2),
+			0 7px 22px rgb(0 0 0 / 0.24);
+		color: rgb(var(--ds-native-background));
+		font-size: 14px;
+		font-weight: 600;
+		line-height: 20px;
+		text-align: center;
+		touch-action: pinch-zoom;
+		-webkit-tap-highlight-color: transparent;
+		transition-property: transform, opacity, background-color;
+		transition-duration: var(--ds-duration-press);
+		transition-timing-function: var(--ds-ease-out);
+	}
+
+	.mobile-nav-accessory__button:active {
+		transform: scale(0.97);
+		opacity: 0.84;
+	}
+
+	.mobile-nav-accessory__button:focus-visible {
+		outline: 2px solid rgb(var(--ds-native-lime));
+		outline-offset: 3px;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.home-pressable,
+		.mobile-nav-accessory__button {
+			transition-duration: 0ms;
 		}
 
-		.calculator-opponent-selector-inline {
-			display: block;
-			flex: 1 1 300px;
-			max-width: 360px;
+		.home-pressable:active,
+		.mobile-nav-accessory__button:active {
+			transform: none;
+		}
+	}
+
+	.session-card:active {
+		transform: scale(0.97);
+		opacity: 0.84;
+	}
+
+	.session-card:focus-visible {
+		outline: 2px solid rgb(var(--ds-section-accent));
+		outline-offset: 3px;
+	}
+
+	.session-detail-native-shell {
+		background-color: rgb(var(--ds-native-background));
+		background-image: radial-gradient(
+			circle at top right,
+			rgb(var(--ds-native-purple) / 0.16) 0,
+			rgb(var(--ds-native-purple) / 0.035) 28rem,
+			transparent 43rem
+		);
+	}
+
+	/* Native PlayerProfileView canvas: one uninterrupted arena, not stacked cards. */
+	.player-profile-native-shell,
+	.player-profile-native-content {
+		background-color: rgb(var(--ds-native-background));
+		background-image: radial-gradient(
+			circle at top right,
+			rgb(var(--ds-native-purple) / 0.16) 0,
+			rgb(var(--ds-native-purple) / 0.035) 28rem,
+			transparent 43rem
+		);
+		color: rgb(var(--ds-native-bone));
+	}
+
+	.player-profile-native-content {
+		min-height: 100dvh;
+		padding-top: env(safe-area-inset-top, 0px);
+	}
+
+	.player-profile-native {
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+	}
+
+	/* A readable entrance sequence per mounted profile; never replay on scrubs. */
+	@keyframes profile-enter {
+		from { opacity: 0; transform: translateY(6px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		.profile-enter {
+			animation: profile-enter 480ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+			animation-delay: var(--profile-enter-delay, 0ms);
+		}
+		.profile-enter-name { --profile-enter-delay: 120ms; }
+		.profile-enter-elo { --profile-enter-delay: 240ms; }
+		.profile-enter-form { --profile-enter-delay: 360ms; }
+		.profile-enter-record { --profile-enter-delay: 480ms; }
+		.profile-enter-chart { --profile-enter-delay: 600ms; }
+		.profile-enter-matches { --profile-enter-delay: 720ms; }
+	}
+
+	/* Keyboard-driven entry is immediate; later focus changes cannot replay it. */
+	.player-profile-native[data-skip-entrance="true"] .profile-enter {
+		animation: none;
+	}
+
+	.session-detail-native {
+		color: rgb(var(--ds-native-bone));
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+	}
+
+	.session-detail-scoreboard {
+		border: 0.8px solid rgb(255 255 255 / 0.08);
+		border-radius: 20px;
+		background-color: rgb(19 19 21);
+		background-image: linear-gradient(
+			to bottom,
+			rgb(255 255 255 / 0.045),
+			rgb(255 255 255 / 0.012)
+		);
+		box-shadow: 0 6px 20px rgb(0 0 0 / 0.28);
+	}
+
+	@media (hover: hover) {
+		.session-card:hover {
+			border-color: rgb(255 255 255 / 0.13);
+			box-shadow: 0 8px 24px rgb(0 0 0 / 0.32);
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.session-card {
+			transition-duration: 0ms;
 		}
 
-		.calculator-opponent-selector-below {
+		.session-card:active {
+			transform: none;
+		}
+	}
+
+	/* Literal web translation of EloCalculatorView and ArenaBackground. */
+	.calculator-native-shell {
+		background-color: rgb(var(--ds-native-background));
+		background-image: radial-gradient(
+			circle at top right,
+			rgb(var(--ds-native-purple) / 0.16) 0,
+			rgb(var(--ds-native-purple) / 0.035) 28rem,
+			transparent 43rem
+		);
+		color: rgb(var(--ds-native-bone));
+	}
+
+	.calculator-native {
+		min-height: 100dvh;
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+	}
+
+	.calculator-system-heading {
+		font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+	}
+
+	.calculator-refresh {
+		width: 44px;
+		height: 44px;
+		border: 0.8px solid rgb(var(--ds-native-purple) / 0.2);
+		background: rgb(var(--ds-native-purple) / 0.12);
+		color: rgb(var(--ds-native-purple-bright));
+	}
+
+	.calculator-refresh svg {
+		width: 21px;
+		height: 21px;
+	}
+
+	.calculator-flat-surface {
+		border: 0.8px solid transparent;
+		background:
+			linear-gradient(
+				rgb(var(--ds-native-surface)),
+				rgb(var(--ds-native-surface))
+			)
+			padding-box,
+			linear-gradient(
+				135deg,
+				rgb(var(--ds-native-purple) / 0.32),
+				rgb(255 255 255 / 0.13),
+				rgb(var(--ds-native-lime) / 0.1)
+			)
+			border-box;
+	}
+
+	.calculator-player-avatar {
+		display: inline-flex;
+		padding: 0.9px;
+		border-radius: 9999px;
+		background: linear-gradient(
+			135deg,
+			rgb(var(--ds-native-purple) / 0.65),
+			rgb(255 255 255 / 0.13)
+		);
+	}
+
+	.calculator-pressable {
+		touch-action: manipulation;
+		-webkit-tap-highlight-color: transparent;
+		transition-property: transform, opacity;
+		transition-duration: var(--ds-duration-press);
+		transition-timing-function: var(--ds-ease-out);
+	}
+
+	.calculator-pressable:active {
+		transform: scale(0.97);
+		opacity: 0.84;
+	}
+
+	.calculator-opponents-scroll {
+		-webkit-overflow-scrolling: touch;
+	}
+
+	.calculator-floating-summary {
+		border: 0.8px solid rgb(255 255 255 / 0.14);
+		background:
+			linear-gradient(
+				145deg,
+				rgb(255 255 255 / 0.09),
+				transparent 45%
+			),
+			rgb(var(--ds-native-raised) / 0.82);
+		-webkit-backdrop-filter: blur(22px) saturate(150%);
+		backdrop-filter: blur(22px) saturate(150%);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.13),
+			0 8px 24px rgb(0 0 0 / 0.28);
+	}
+
+	@media (max-width: 767px) {
+		body:has(.calculator-projection-accessory)
+			.mobile-nav-accessory:not(.calculator-projection-accessory) {
 			display: none;
-			margin-top: 0;
+		}
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.calculator-pressable {
+			transition-duration: 0ms;
+		}
+
+		.calculator-pressable:active {
+			transform: none;
 		}
 	}
 }

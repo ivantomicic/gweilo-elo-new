@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Stack } from "@/components/ui/stack";
 import { Box } from "@/components/ui/box";
 import { Icon } from "@/components/ui/icon";
+import { Loading } from "@/components/ui/loading";
 import { t } from "@/lib/i18n";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import {
@@ -237,9 +238,11 @@ function SettingsPageContent() {
 	if (!user) {
 		return (
 			<AppShell title={t.pages.settings} contentPadding={false}>
-				<div className="px-4 lg:px-6">
-					<p className="text-muted-foreground">Učitavanje...</p>
-				</div>
+				<Loading
+					label="Učitavam podešavanja…"
+					size="lg"
+					className="min-h-[60svh] px-4 lg:px-6"
+				/>
 			</AppShell>
 		);
 	}
@@ -459,13 +462,10 @@ function SettingsPageContent() {
 								{/* Combined Account Save Button */}
 								<Box className="pt-4">
 									<Button
-										onClick={
-											handleSaveAccount
-										}
-										disabled={
-											savingAccount ||
-											!accountHasChanges
-										}
+										onClick={handleSaveAccount}
+										isLoading={savingAccount}
+										loadingLabel={t.settings.saving}
+										disabled={!accountHasChanges}
 										className="w-full py-4 rounded-2xl font-bold text-lg shadow-lg shadow-primary/20 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<Stack
@@ -473,25 +473,11 @@ function SettingsPageContent() {
 											alignItems="center"
 											spacing={2}
 										>
-											{savingAccount && (
-												<Icon
-													icon="solar:refresh-bold"
-													className="size-6 animate-spin"
-												/>
-											)}
-											{!savingAccount && (
-												<Icon
-													icon="solar:check-read-bold"
-													className="size-6"
-												/>
-											)}
-											<span>
-												{savingAccount
-													? t.settings
-															.saving
-													: t.settings
-															.saveChanges}
-											</span>
+											<Icon
+												icon="solar:check-read-bold"
+												className="size-6"
+											/>
+											<span>{t.settings.saveChanges}</span>
 										</Stack>
 									</Button>
 								</Box>

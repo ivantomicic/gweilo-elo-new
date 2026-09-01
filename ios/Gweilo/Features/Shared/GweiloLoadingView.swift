@@ -1,21 +1,26 @@
 import SwiftUI
 
 private enum GweiloLoadingQuote {
-    static let all = [
-        "Ping-pong—or, as the Chinese call it, ping-pong.",
-        "Less talking, more ping-pong.",
-        "What didn’t you understand about “sudden death”?",
-        "Farewell, ladies, gentlemen, and athletes.",
-        "Who told you to grab the cricket from my hand?",
-        "Don’t hit flies—hit bees!",
-        "I’m the Boggle master!",
-        "Stop—this is boring. Eliminate them both.",
-        "Welcome to ping-pong’s dangerous underworld.",
-        "Defeat is so close, it smells like your cheap cologne."
-    ]
+    private static let fallback = "Less talking, more ping-pong."
+
+    static let all: [String] = {
+        guard
+            let url = Bundle.main.url(
+                forResource: "loading-quotes",
+                withExtension: "json"
+            ),
+            let data = try? Data(contentsOf: url),
+            let quotes = try? JSONDecoder().decode([String].self, from: data),
+            !quotes.isEmpty
+        else {
+            return [fallback]
+        }
+
+        return quotes
+    }()
 
     static func random() -> String {
-        all.randomElement() ?? "Less talking, more ping-pong."
+        all.randomElement() ?? fallback
     }
 }
 

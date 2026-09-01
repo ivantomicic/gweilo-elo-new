@@ -181,11 +181,11 @@ export async function GET(request: NextRequest) {
 				"/api/gpt/elo-rules": {
 					get: {
 						operationId: "getGweiloEloRules",
-						summary: "Get the official Gweilo Elo calculation rules",
+						summary: "Get the official Gweilo rating calculation rules",
 						description:
 							"Returns the starting rating, formula, actual scores, dynamic K-factors, decimal-precision behavior, leaderboard thresholds, and the separate singles and doubles systems. Use this operation instead of relying on general Elo knowledge.",
 						responses: {
-							"200": { description: "Official Gweilo Elo rules" },
+							"200": { description: "Official Gweilo rating rules" },
 							"401": { description: "Invalid API key" },
 						},
 					},

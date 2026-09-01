@@ -3,6 +3,11 @@ type AuthMetadata = Record<string, unknown> | null | undefined;
 export type ManagedUserRole = "guest" | "user" | "mod" | "admin";
 export type UserRole = Exclude<ManagedUserRole, "guest">;
 
+/** Shared allowlist for creation UI, route guards, and verified API roles. */
+export function canStartSession(role: string | null | undefined): boolean {
+	return role === "admin" || role === "mod";
+}
+
 type AuthUserLike = {
 	app_metadata?: AuthMetadata;
 };

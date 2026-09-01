@@ -1,0 +1,14 @@
+# Native app sources and local Xcode products are not part of the Next.js deploy.
+ios
+
+# Local build, dependency, test, and editor artifacts.
+.next
+node_modules
+.test-build
+coverage
+.DS_Store
+
+# Local-only configuration. Vercel injects environment variables separately.
+.env
+.env.*
+!.env.example
