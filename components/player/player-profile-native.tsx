@@ -83,8 +83,8 @@ type PlayerProfileNativeProps = {
 };
 
 type Outcome = "win" | "draw" | "loss";
-type Scope = "all" | "against-me";
-type HistoryView = "matches" | "sessions";
+type HistoryView = "all" | "against-me" | "sessions";
+type MatchScope = Exclude<HistoryView, "sessions">;
 
 const tone = {
 	bone: "rgb(var(--ds-native-bone))",
@@ -679,20 +679,19 @@ function SessionRow({ session }: { session: PlayerSessionSummary }) {
 function MatchHistory({
 	history,
 	currentUserId,
-	playerId,
-	loadHeadToHead,
+	scope,
+	comparison,
+	comparisonLoading,
+	comparisonError,
 }: {
 	history: PlayerEloPoint[];
 	currentUserId: string | null;
-	playerId: string;
-	loadHeadToHead: () => Promise<HeadToHeadData>;
+	scope: MatchScope;
+	comparison: HeadToHeadData | null;
+	comparisonLoading: boolean;
+	comparisonError: string | null;
 }) {
-	const [scope, setScope] = useState<Scope>("all");
 	const [visibleCount, setVisibleCount] = useState(5);
-	const [comparison, setComparison] = useState<HeadToHeadData | null>(null);
-	const [comparisonLoading, setComparisonLoading] = useState(false);
-	const [comparisonError, setComparisonError] = useState<string | null>(null);
-	const canCompare = Boolean(currentUserId && currentUserId !== playerId);
 	const results = useMemo(
 		() => [...history].filter((point) => point.match > 0 && point.opponent).reverse(),
 		[history],
@@ -702,42 +701,8 @@ function MatchHistory({
 		: results;
 	const visible = scopedResults.slice(0, visibleCount);
 
-	const selectScope = async (next: Scope) => {
-		setScope(next);
-		setVisibleCount(5);
-		if (next !== "against-me" || comparison || comparisonLoading) return;
-		setComparisonLoading(true);
-		setComparisonError(null);
-		try {
-			setComparison(await loadHeadToHead());
-		} catch {
-			setComparisonError("Nije moguće učitati međusobni skor.");
-		} finally {
-			setComparisonLoading(false);
-		}
-	};
-
 	return (
 		<div className="space-y-3.5">
-		{canCompare && (
-			<UnderlineTabs
-				options={[
-					{ value: "all", label: "Svi mečevi" },
-					{ value: "against-me", label: "Protiv mene" },
-				] as const}
-				value={scope}
-				onValueChange={(next) => void selectScope(next)}
-				ariaLabel="Opseg mečeva"
-				panelId="player-match-scope-panel"
-			/>
-		)}
-
-		<div
-			id="player-match-scope-panel"
-			role={canCompare ? "tabpanel" : undefined}
-			aria-labelledby={canCompare ? `player-match-scope-panel-tab-${scope}` : undefined}
-			className="space-y-3.5"
-		>
 		{scope === "against-me" && (
 			<div>
 				{comparisonLoading ? (
@@ -779,7 +744,6 @@ function MatchHistory({
 				Učitaj još
 			</button>
 		)}
-		</div>
 	</div>
 	);
 }
@@ -822,17 +786,42 @@ function RecentActivity(props: {
 	playerId: string;
 	loadHeadToHead: () => Promise<HeadToHeadData>;
 }) {
-	const [view, setView] = useState<HistoryView>("matches");
+	const [view, setView] = useState<HistoryView>("all");
+	const [comparison, setComparison] = useState<HeadToHeadData | null>(null);
+	const [comparisonLoading, setComparisonLoading] = useState(false);
+	const [comparisonError, setComparisonError] = useState<string | null>(null);
+	const canCompare = Boolean(props.currentUserId && props.currentUserId !== props.playerId);
+	const tabs: readonly UnderlineTabOption<HistoryView>[] = canCompare
+		? [
+				{ value: "all", label: "Svi mečevi" },
+				{ value: "against-me", label: "Protiv mene" },
+				{ value: "sessions", label: "Termini" },
+			]
+		: [
+				{ value: "all", label: "Svi mečevi" },
+				{ value: "sessions", label: "Termini" },
+			];
+
+	const selectView = async (next: HistoryView) => {
+		setView(next);
+		if (next !== "against-me" || comparison || comparisonLoading) return;
+		setComparisonLoading(true);
+		setComparisonError(null);
+		try {
+			setComparison(await props.loadHeadToHead());
+		} catch {
+			setComparisonError("Nije moguće učitati međusobni skor.");
+		} finally {
+			setComparisonLoading(false);
+		}
+	};
 
 	return (
 		<section className="space-y-3.5" aria-label="Istorija igrača">
 			<UnderlineTabs
-				options={[
-					{ value: "matches", label: "Mečevi" },
-					{ value: "sessions", label: "Termini" },
-				] as const}
+				options={tabs}
 				value={view}
-				onValueChange={setView}
+				onValueChange={(next) => void selectView(next)}
 				ariaLabel="Vrsta istorije"
 				panelId="player-history-panel"
 			/>
@@ -841,7 +830,19 @@ function RecentActivity(props: {
 				role="tabpanel"
 				aria-labelledby={`player-history-panel-tab-${view}`}
 			>
-				{view === "matches" ? <MatchHistory {...props} /> : <SessionHistory history={props.history} />}
+				{view === "sessions" ? (
+					<SessionHistory history={props.history} />
+				) : (
+					<MatchHistory
+						key={view}
+						history={props.history}
+						currentUserId={props.currentUserId}
+						scope={view}
+						comparison={comparison}
+						comparisonLoading={comparisonLoading}
+						comparisonError={comparisonError}
+					/>
+				)}
 			</div>
 		</section>
 	);
