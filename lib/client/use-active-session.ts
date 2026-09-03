@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+	createContext,
+	createElement,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ReactNode,
+} from "react";
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { useAuth } from "@/lib/auth/useAuth";
-import { supabase } from "@/lib/supabase/client";
-import { clearAllCaches } from "@/lib/utils/clear-cache";
 
 export type ActiveSession = {
 	id: string;
@@ -18,8 +27,22 @@ export type ActiveSession = {
 
 const ACTIVE_SESSION_REFRESH_INTERVAL_MS = 15_000;
 
-export function useActiveSession() {
-	const { isAuthenticated, session } = useAuth();
+type ActiveSessionContextValue = {
+	activeSession: ActiveSession | null;
+	loading: boolean;
+	error: string | null;
+	refresh: (options?: {
+		showLoading?: boolean;
+		signal?: AbortSignal;
+	}) => Promise<void>;
+};
+
+const ActiveSessionContext = createContext<ActiveSessionContextValue | null>(
+	null,
+);
+
+export function ActiveSessionProvider({ children }: { children: ReactNode }) {
+	const { isAuthenticated } = useAuth();
 	const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
@@ -28,7 +51,7 @@ export function useActiveSession() {
 	const refresh = useCallback(
 		async (options?: { showLoading?: boolean; signal?: AbortSignal }) => {
 			const requestID = ++latestRequestID.current;
-			if (!isAuthenticated || !session) {
+			if (!isAuthenticated) {
 				setActiveSession(null);
 				setLoading(false);
 				setError(null);
@@ -40,25 +63,17 @@ export function useActiveSession() {
 			}
 
 			try {
-				const response = await fetch("/api/sessions/active", {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
+				const response = await authenticatedFetch("/api/sessions/active", {
 					cache: "no-store",
 					signal: options?.signal,
 				});
 
-				if (response.status === 401) {
-					if (requestID !== latestRequestID.current) return;
-					setActiveSession(null);
-					setError(null);
-					clearAllCaches();
-					await supabase.auth.signOut({ scope: "local" });
-					return;
-				}
-
 				if (!response.ok) {
-					throw new Error("Could not check the active session.");
+					throw new Error(
+						response.status === 401
+							? "Authentication could not be refreshed."
+							: "Could not check the active session.",
+					);
 				}
 
 				const body = (await response.json()) as {
@@ -89,7 +104,7 @@ export function useActiveSession() {
 				}
 			}
 		},
-		[isAuthenticated, session],
+		[isAuthenticated],
 	);
 
 	useEffect(() => {
@@ -116,10 +131,27 @@ export function useActiveSession() {
 		};
 	}, [refresh]);
 
-	return {
-		activeSession,
-		loading,
-		error,
-		refresh,
-	};
+	const value = useMemo<ActiveSessionContextValue>(
+		() => ({
+			activeSession,
+			loading,
+			error,
+			refresh,
+		}),
+		[activeSession, error, loading, refresh],
+	);
+
+	return createElement(ActiveSessionContext.Provider, { value }, children);
+}
+
+export function useActiveSession() {
+	const context = useContext(ActiveSessionContext);
+
+	if (!context) {
+		throw new Error(
+			"useActiveSession must be used within ActiveSessionProvider",
+		);
+	}
+
+	return context;
 }

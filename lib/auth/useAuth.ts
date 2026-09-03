@@ -7,15 +7,19 @@ import {
 	useContext,
 	useEffect,
 	useMemo,
+	useRef,
 	useState,
 } from "react";
 import type { ReactNode } from "react";
-import type { Session } from "@supabase/supabase-js";
+import {
+	isAuthRetryableFetchError,
+	type Session,
+} from "@supabase/supabase-js";
 import {
 	getEffectiveAvatar,
 	getProviderAvatarFromMetadata,
 } from "@/lib/profile-avatar";
-import { getSessionSafely, supabase } from "@/lib/supabase/client";
+import { supabase } from "@/lib/supabase/client";
 import {
 	getUserRoleFromAuthUser,
 	isPlatformAccessDisabled,
@@ -71,6 +75,24 @@ async function getUserFromSession(session: Session): Promise<AuthUser> {
 	};
 }
 
+function getFallbackUserFromSession(session: Session): AuthUser {
+	const user = session.user;
+
+	return {
+		id: user.id,
+		name:
+			user.user_metadata?.display_name ||
+			user.user_metadata?.name ||
+			user.user_metadata?.full_name ||
+			user.email?.split("@")[0] ||
+			"User",
+		nameVocative: null,
+		email: user.email || "",
+		avatar: getProviderAvatarFromMetadata(user.user_metadata),
+		role: getUserRoleFromAuthUser(user),
+	};
+}
+
 /**
  * Centralized auth state hook
  * 
@@ -86,8 +108,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 	const [session, setSession] = useState<Session | null>(null);
 	const [user, setUser] = useState<AuthUser | null>(null);
+	const sessionVersionRef = useRef(0);
 
 	const applySession = useCallback(async (nextSession: Session | null) => {
+		const sessionVersion = ++sessionVersionRef.current;
+		const isCurrentSession = () =>
+			sessionVersion === sessionVersionRef.current;
+
 		if (!nextSession?.user) {
 			setSession(null);
 			setIsAuthenticated(false);
@@ -95,18 +122,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			return;
 		}
 
+		// Publish a rotated access token before doing network-backed user/profile
+		// enrichment. Consumers must never keep sending the previous token while
+		// TOKEN_REFRESHED is being processed.
+		setSession(nextSession);
+		setIsAuthenticated((current) => (current === true ? true : null));
+
 		try {
 			const {
 				data: { user: verifiedUser },
 				error: userError,
 			} = await supabase.auth.getUser(nextSession.access_token);
 
-			if (
-				userError ||
-				!verifiedUser ||
-				isPlatformAccessDisabled(verifiedUser)
-			) {
+			if (!isCurrentSession()) return;
+
+			if (userError || !verifiedUser) {
+				if (userError && isAuthRetryableFetchError(userError)) {
+					setIsAuthenticated(true);
+					setUser(
+						(current) =>
+							current ?? getFallbackUserFromSession(nextSession),
+					);
+					return;
+				}
+
+				const {
+					data: { session: currentSession },
+					error: currentSessionError,
+				} = await supabase.auth.getSession();
+
+				if (!isCurrentSession()) return;
+
+				if (
+					currentSessionError &&
+					isAuthRetryableFetchError(currentSessionError)
+				) {
+					setIsAuthenticated(true);
+					setUser(
+						(current) =>
+							current ?? getFallbackUserFromSession(nextSession),
+					);
+					return;
+				}
+
+				if (!currentSession) {
+					setSession(null);
+					setIsAuthenticated(false);
+					setUser(null);
+					return;
+				}
+
+				// A newer token may already be in storage before its auth event has
+				// completed. Its own event will perform verification.
+				if (currentSession.access_token !== nextSession.access_token) {
+					return;
+				}
+
+				const {
+					data: { session: refreshedSession },
+					error: refreshError,
+				} = await supabase.auth.refreshSession();
+
+				if (!isCurrentSession()) return;
+
+				if (refreshedSession) {
+					// TOKEN_REFRESHED publishes and verifies the rotated session.
+					return;
+				}
+
+				if (refreshError && isAuthRetryableFetchError(refreshError)) {
+					setIsAuthenticated(true);
+					setUser(
+						(current) =>
+							current ?? getFallbackUserFromSession(nextSession),
+					);
+					return;
+				}
+
+				// Non-retryable refresh failures remove the Supabase session and emit
+				// SIGNED_OUT. Mirror that state if the event has not landed yet.
+				setSession(null);
+				setIsAuthenticated(false);
+				setUser(null);
+				return;
+			}
+
+			if (isPlatformAccessDisabled(verifiedUser)) {
 				await supabase.auth.signOut({ scope: "local" });
+				if (!isCurrentSession()) return;
 				setSession(null);
 				setIsAuthenticated(false);
 				setUser(null);
@@ -115,14 +218,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 			const verifiedSession = { ...nextSession, user: verifiedUser };
 			const nextUser = await getUserFromSession(verifiedSession);
+			if (!isCurrentSession()) return;
 			setSession(verifiedSession);
 			setIsAuthenticated(true);
 			setUser(nextUser);
 		} catch (error) {
 			console.error("Failed to load current user:", error);
-			setSession(null);
-			setIsAuthenticated(false);
-			setUser(null);
+			if (!isCurrentSession()) return;
+			// A transient user/profile request must not turn a valid persisted
+			// session into a logout. Server endpoints still verify authorization.
+			setIsAuthenticated(true);
+			setUser(
+				(current) => current ?? getFallbackUserFromSession(nextSession),
+			);
 		}
 	}, []);
 
@@ -134,14 +242,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			await applySession(nextSession);
 		};
 
-		// Check initial auth state
-		const checkAuth = async () => {
-			const nextSession = await getSessionSafely();
-			await applyMountedSession(nextSession);
-		};
-		checkAuth();
-
-		// Listen for auth state changes (login, logout, token refresh)
+		// Supabase emits INITIAL_SESSION after restoring persisted auth, followed by
+		// login, logout, and token refresh events for subsequent changes.
 		const {
 			data: { subscription },
 		} = supabase.auth.onAuthStateChange((_event, session) => {
@@ -150,6 +252,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 		return () => {
 			isMounted = false;
+			sessionVersionRef.current += 1;
 			subscription.unsubscribe();
 		};
 	}, [applySession]);

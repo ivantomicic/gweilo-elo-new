@@ -41,7 +41,10 @@ test("the session accessory uses the same anchor and dock height in every displa
 
 test("navigation remains outside route loading and animated content", () => {
 	const layout = readFileSync("app/layout.tsx", "utf8");
-	assert.match(layout, /\{children\}\s*<MobileNav\s*\/>\s*<\/AuthProvider>/);
+	assert.match(
+		layout,
+		/\{children\}\s*<MobileNav\s*\/>\s*<\/ActiveSessionProvider>/,
+	);
 	assert.doesNotMatch(layout, /MaintenanceGuard/);
 });
 

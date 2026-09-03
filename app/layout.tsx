@@ -4,6 +4,7 @@ import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
 import { AuthProvider } from "@/lib/auth/useAuth";
+import { ActiveSessionProvider } from "@/lib/client/use-active-session";
 
 const AppTracker = dynamic(
 	() =>
@@ -115,8 +116,10 @@ export default function RootLayout({
 			<body>
 				<AuthProvider>
 					<AppTracker />
-					{children}
-					<MobileNav />
+					<ActiveSessionProvider>
+						{children}
+						<MobileNav />
+					</ActiveSessionProvider>
 				</AuthProvider>
 			</body>
 		</html>

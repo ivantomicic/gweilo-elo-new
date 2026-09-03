@@ -3,10 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FullScreenLoading } from "@/components/ui/loading";
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { useAuth } from "@/lib/auth/useAuth";
 import { canStartSession } from "@/lib/auth/roles";
-import { supabase } from "@/lib/supabase/client";
-import { clearAllCaches } from "@/lib/utils/clear-cache";
 
 export function SessionCreationGuard({
 	children,
@@ -28,16 +27,11 @@ export function SessionCreationGuard({
 		let cancelled = false;
 		const checkActiveSession = async () => {
 			try {
-				const response = await fetch("/api/sessions/active", {
-					headers: {
-						Authorization: `Bearer ${session.access_token}`,
-					},
+				const response = await authenticatedFetch("/api/sessions/active", {
 					cache: "no-store",
 				});
 				if (response.status === 401) {
-					if (cancelled) return;
-					clearAllCaches();
-					await supabase.auth.signOut({ scope: "local" });
+					if (!cancelled) setIsChecking(false);
 					return;
 				}
 				if (!response.ok) {
