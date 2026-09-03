@@ -14,6 +14,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { t } from "@/lib/i18n";
 import { supabase } from "@/lib/supabase/client";
+import { isOnscreenKeyboardVisible } from "@/lib/ui/onscreen-keyboard";
 
 type AuthState = "idle" | "success" | "error";
 type AuthMode = "login" | "register" | "forgot";
@@ -289,13 +290,17 @@ export function AuthScreen({ redirectPath = "/" }: AuthScreenProps = {}) {
 	const [loadingMethod, setLoadingMethod] =
 		useState<LoadingMethod>(null);
 	const [focusedField, setFocusedField] = useState<FocusedField>(null);
+	const [isOnscreenKeyboardOpen, setIsOnscreenKeyboardOpen] = useState(false);
 	const [heroWidth, setHeroWidth] = useState(0);
 	const heroRef = useRef<HTMLDivElement>(null);
+	const keyboardBaselineRef = useRef<{ height: number; width: number } | null>(
+		null,
+	);
 	const errorMessageId = useId();
 	const shouldReduceMotion = useReducedMotion();
 
 	const isLoading = loadingMethod !== null;
-	const isEditing = focusedField !== null;
+	const isEditing = focusedField !== null && isOnscreenKeyboardOpen;
 	const canLogin = email.includes("@") && password.length > 0 && !isLoading;
 	const canRegister =
 		fullName.trim().length > 0 &&
@@ -305,6 +310,62 @@ export function AuthScreen({ redirectPath = "/" }: AuthScreenProps = {}) {
 	const contentStart = heroWidth / LOGIN_VIDEO_ASPECT_RATIO + 10;
 	const editingOffset =
 		isEditing && contentStart > 0 ? Math.min(0, 56 - contentStart) : 0;
+
+	useEffect(() => {
+		const viewport = window.visualViewport;
+		const hasTouchInput = navigator.maxTouchPoints > 0;
+
+		if (!viewport || !hasTouchInput) {
+			keyboardBaselineRef.current = null;
+			setIsOnscreenKeyboardOpen(false);
+			return;
+		}
+
+		const updateKeyboardState = () => {
+			const currentHeight = viewport.height;
+			const currentWidth = viewport.width;
+			const baseline = keyboardBaselineRef.current;
+			const orientationChanged =
+				baseline !== null && Math.abs(baseline.width - currentWidth) >= 50;
+
+			if (!baseline || orientationChanged) {
+				keyboardBaselineRef.current = {
+					height: currentHeight,
+					width: currentWidth,
+				};
+				setIsOnscreenKeyboardOpen(false);
+				return;
+			}
+
+			if (focusedField === null) {
+				// Browser chrome can temporarily shorten the visual viewport. Keep the
+				// largest stable height as the keyboard-free baseline.
+				keyboardBaselineRef.current = {
+					height: Math.max(baseline.height, currentHeight),
+					width: currentWidth,
+				};
+				setIsOnscreenKeyboardOpen(false);
+				return;
+			}
+
+			setIsOnscreenKeyboardOpen(
+				isOnscreenKeyboardVisible({
+					hasFocusedField: true,
+					hasTouchInput,
+					baselineHeight: baseline.height,
+					viewportHeight: currentHeight,
+				}),
+			);
+		};
+
+		updateKeyboardState();
+		viewport.addEventListener("resize", updateKeyboardState);
+		viewport.addEventListener("scroll", updateKeyboardState);
+		return () => {
+			viewport.removeEventListener("resize", updateKeyboardState);
+			viewport.removeEventListener("scroll", updateKeyboardState);
+		};
+	}, [focusedField]);
 
 	useEffect(() => {
 		const hero = heroRef.current;
