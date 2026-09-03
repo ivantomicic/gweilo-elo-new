@@ -81,6 +81,10 @@ final class LoopingBundlePlayerView: UIView {
 
         guard configuredResourceName != resourceName else { return }
         configuredResourceName = resourceName
+        // A resource change replaces every queued item. Reset the cached
+        // playback state so the following setPlaying(_:) call starts the new
+        // animation instead of leaving AVPlayerLayer on the previous frame.
+        isCurrentlyPlaying = false
         player.pause()
         player.removeAllItems()
         looper = nil

@@ -161,7 +161,33 @@ final class SessionDetailModelTests: XCTestCase {
         )
 
         XCTAssertEqual(performance.delta, 19)
-        XCTAssertNil(performance.formScore)
+        XCTAssertEqual(performance.formScore, -0.7)
+    }
+
+    @MainActor
+    func testLatestSessionPerformanceKeepsNeutralMoodWhenDeltaIsNegative() {
+        let history = PlayerEloHistory(
+            points: [
+                PlayerEloHistoryPoint(
+                    match: 1,
+                    elo: 1_496,
+                    date: Date(timeIntervalSince1970: 2_000),
+                    sessionID: UUID(),
+                    opponent: "Leo",
+                    delta: -4
+                )
+            ],
+            currentElo: 1_496
+        )
+
+        let performance = HomeLatestSessionPerformance.resolve(
+            cachedDelta: -4,
+            cachedFormScore: -0.15,
+            history: history
+        )
+
+        XCTAssertEqual(performance.delta, -4)
+        XCTAssertEqual(EloPerformanceBand(formScore: performance.formScore), .steady)
     }
 
     @MainActor

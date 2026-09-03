@@ -4,6 +4,120 @@ import XCTest
 
 final class PlayerProfilePresentationTests: XCTestCase {
     @MainActor
+    func testSessionHistoryGroupsMatchesAndShowsNewestSessionFirst() {
+        let firstSessionID = UUID()
+        let secondSessionID = UUID()
+        let firstDate = Date(timeIntervalSince1970: 1_700_000_000)
+        let secondDate = firstDate.addingTimeInterval(86_400)
+        let summaries = PlayerSessionPerformance.summaries(from: [
+            PlayerEloHistoryPoint(
+                match: 1,
+                elo: 1_510,
+                date: firstDate,
+                sessionID: firstSessionID,
+                opponent: "Gara",
+                delta: 10,
+                outcome: .win
+            ),
+            PlayerEloHistoryPoint(
+                match: 2,
+                elo: 1_506,
+                date: firstDate,
+                sessionID: firstSessionID,
+                opponent: "Leo",
+                delta: -4,
+                outcome: .loss
+            ),
+            PlayerEloHistoryPoint(
+                match: 3,
+                elo: 1_514,
+                date: secondDate,
+                sessionID: secondSessionID,
+                opponent: "Miladin",
+                delta: 8,
+                outcome: .win
+            )
+        ])
+
+        XCTAssertEqual(summaries.map(\.sessionID), [secondSessionID, firstSessionID])
+        XCTAssertEqual(summaries[1].matchCount, 2)
+        XCTAssertEqual(summaries[1].wins, 1)
+        XCTAssertEqual(summaries[1].losses, 1)
+        XCTAssertEqual(summaries[1].eloDelta, 6)
+        XCTAssertEqual(summaries[1].endingElo, 1_506)
+    }
+
+    @MainActor
+    func testSessionHistoryKeepsLegacyMatchesSeparate() {
+        let date = Date(timeIntervalSince1970: 1_700_000_000)
+        let summaries = PlayerSessionPerformance.summaries(from: [
+            PlayerEloHistoryPoint(
+                match: 1,
+                elo: 1_505,
+                date: date,
+                opponent: "Gara",
+                delta: 5
+            ),
+            PlayerEloHistoryPoint(
+                match: 2,
+                elo: 1_510,
+                date: date,
+                opponent: "Leo",
+                delta: 5
+            )
+        ])
+
+        XCTAssertEqual(summaries.count, 2)
+        XCTAssertEqual(summaries.map(\.matchCount), [1, 1])
+        XCTAssertTrue(summaries.allSatisfy { $0.sessionID == nil })
+    }
+
+    @MainActor
+    func testSessionHistoryUsesSerbianMatchPluralization() {
+        let base = PlayerSessionPerformance(
+            id: "test",
+            sessionID: nil,
+            date: .now,
+            matchCount: 1,
+            wins: 1,
+            draws: 0,
+            losses: 0,
+            eloDelta: 5,
+            endingElo: 1_505
+        )
+
+        XCTAssertEqual(base.matchCountLabel, "1 meč")
+        XCTAssertEqual(
+            PlayerSessionPerformance(
+                id: "two",
+                sessionID: nil,
+                date: .now,
+                matchCount: 2,
+                wins: 2,
+                draws: 0,
+                losses: 0,
+                eloDelta: 10,
+                endingElo: 1_510
+            ).matchCountLabel,
+            "2 meča"
+        )
+        XCTAssertEqual(
+            PlayerSessionPerformance(
+                id: "five",
+                sessionID: nil,
+                date: .now,
+                matchCount: 5,
+                wins: 5,
+                draws: 0,
+                losses: 0,
+                eloDelta: 25,
+                endingElo: 1_525
+            ).matchCountLabel,
+            "5 mečeva"
+        )
+    }
+
+    @MainActor
     func testFormPreservesFiveChronologicalSlotsAndPadsOnLeft() {
         let slots = PlayerProfileFormEntry.slots(deltas: [18, -4], scores: [0.8, -0.1])
         XCTAssertEqual(slots.count, 5)

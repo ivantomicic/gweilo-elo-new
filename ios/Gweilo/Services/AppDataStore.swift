@@ -8,6 +8,7 @@ struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
     let currentUserLatestFormScore: Double?
     let currentUserFirstName: String
     let savedAt: Date
+    var currentUserVocativeName: String? = nil
     var sessions: [SessionSummary]? = nil
     var singlesRankings: [RankingEntry]? = nil
     var doublesPlayerRankings: [RankingEntry]? = nil
@@ -37,7 +38,7 @@ struct HomeLatestSessionPerformance: Equatable, Sendable {
 
         return HomeLatestSessionPerformance(
             delta: historyDelta,
-            formScore: nil
+            formScore: cachedFormScore
         )
     }
 }
@@ -166,6 +167,7 @@ final class AppDataStore {
     private var homeLatestSessionDelta: Double?
     private var homeLatestSessionFormScore: Double?
     private var homeCurrentUserFirstName: String?
+    private var homeCurrentUserVocativeName: String?
     @ObservationIgnored
     private var playerHistoryCache = ExpiringCache<UUID, PlayerEloHistory>(
         lifetime: profileCacheLifetime
@@ -240,6 +242,7 @@ final class AppDataStore {
             configuration: configuration,
             accessToken: session.accessToken
         )
+        registerWatchSessionCreationHandler()
 
         if let snapshot = homeSnapshotStore.load(for: session.user.id) {
             topThreeSinglesPlayers = snapshot.topThreeSinglesPlayers
@@ -259,6 +262,7 @@ final class AppDataStore {
                 snapshot.currentUserLatestSessionDelta
             homeLatestSessionFormScore = snapshot.currentUserLatestFormScore
             homeCurrentUserFirstName = snapshot.currentUserFirstName
+            homeCurrentUserVocativeName = snapshot.currentUserVocativeName
             lastSuccessfulLoadAt = snapshot.primaryLoadedAt
                 ?? snapshot.savedAt
             lastMissionLoadAt = snapshot.missionLoadedAt
@@ -338,6 +342,15 @@ final class AppDataStore {
             .split(whereSeparator: \.isWhitespace)
             .first
             .map(String.init) ?? "Igrač"
+    }
+
+    var currentUserGreetingName: String {
+        let vocativeName = homeCurrentUserVocativeName?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let vocativeName, !vocativeName.isEmpty else {
+            return currentUserFirstName
+        }
+        return vocativeName
     }
 
     private static func fallbackName(for email: String?) -> String {
@@ -633,6 +646,39 @@ final class AppDataStore {
         try await apiClient.previewSession(players: players, format: format)
     }
 
+    func prepareSessionPreview(
+        from draft: SessionCreationDraft,
+        currentPreview: SessionSchedulePreview? = nil,
+        randomizing: Bool = false
+    ) async throws -> SessionSchedulePreview {
+        guard draft.canPreview else {
+            throw BackendAPIError.rejected(
+                "Izaberi tačan broj igrača pre pravljenja rasporeda."
+            )
+        }
+
+        if randomizing,
+           let currentPreview,
+           draft.keepsMixedScheduleOrder {
+            return SessionScheduleRandomizer.preservingFixedTeams(
+                in: currentPreview
+            )
+        }
+
+        let requestedPlayers = draft.keepsMixedScheduleOrder
+            ? draft.selectedPlayers
+            : draft.selectedPlayers.shuffled()
+        let serverPreview = try await previewSession(
+            players: requestedPlayers,
+            format: draft.selectedFormat
+        )
+        return draft.keepsMixedScheduleOrder
+            ? SessionScheduleRandomizer.preservingFixedTeams(
+                in: serverPreview
+            )
+            : serverPreview
+    }
+
     func createSession(
         from draft: SessionCreationDraft,
         preview: SessionSchedulePreview
@@ -656,6 +702,71 @@ final class AppDataStore {
         await load(forceRefresh: true)
         return sessions.first { $0.id == result.sessionId }
             ?? result.makeSummary(for: draft)
+    }
+
+    private func registerWatchSessionCreationHandler() {
+        IPhoneWatchSyncService.shared.registerSessionCreationHandler {
+            [weak self] request in
+            guard let self else {
+                return .failure(
+                    requestID: request.id,
+                    message: "Otvori Gweilo na iPhone-u i pokušaj ponovo."
+                )
+            }
+            return await self.handleWatchSessionCreationRequest(request)
+        }
+    }
+
+    private func handleWatchSessionCreationRequest(
+        _ request: GweiloWatchSessionRequest
+    ) async -> GweiloWatchSessionResponse {
+        guard canManageSessions else {
+            return .failure(
+                requestID: request.id,
+                message: "Nemaš dozvolu za pokretanje termina."
+            )
+        }
+
+        do {
+            guard activeSession == nil, clubActiveSessionID == nil else {
+                throw BackendAPIError.rejected("Termin je već aktivan.")
+            }
+
+            switch request.command {
+            case .loadPlayers:
+                let players = try await availableSessionPlayers()
+                return .success(
+                    requestID: request.id,
+                    payload: .players(players)
+                )
+
+            case let .preview(draft, currentPreview, randomizing):
+                let preview = try await prepareSessionPreview(
+                    from: draft,
+                    currentPreview: currentPreview,
+                    randomizing: randomizing
+                )
+                return .success(
+                    requestID: request.id,
+                    payload: .preview(preview)
+                )
+
+            case let .create(draft, preview):
+                let session = try await createSession(
+                    from: draft,
+                    preview: preview
+                )
+                return .success(
+                    requestID: request.id,
+                    payload: .created(sessionID: session.id)
+                )
+            }
+        } catch {
+            return .failure(
+                requestID: request.id,
+                message: error.localizedDescription
+            )
+        }
     }
 
     func cancelSession(sessionID: UUID) async throws {
@@ -729,6 +840,9 @@ final class AppDataStore {
         async let sessionsRequest = client.fetchSessions()
         async let rankingsRequest = apiClient.fetchRankings()
         async let activeSessionRequest = apiClient.fetchActiveSessionID()
+        async let vocativeNameRequest = client.fetchVocativeName(
+            userID: currentUserID
+        )
         var firstError: Error?
         var didRefreshSessions = false
 
@@ -737,6 +851,13 @@ final class AppDataStore {
             didRefreshSessions = true
         } catch {
             firstError = error
+        }
+        guard generation == loadGeneration else { return }
+
+        do {
+            homeCurrentUserVocativeName = try await vocativeNameRequest
+        } catch {
+            // The regular first name remains a valid greeting fallback.
         }
         guard generation == loadGeneration else { return }
 
@@ -896,6 +1017,7 @@ final class AppDataStore {
                 currentUserFirstName:
                     homeCurrentUserFirstName ?? currentUserFirstName,
                 savedAt: .now,
+                currentUserVocativeName: homeCurrentUserVocativeName,
                 sessions: sessions,
                 singlesRankings: singlesRankings,
                 doublesPlayerRankings: doublesPlayerRankings,
@@ -931,7 +1053,8 @@ final class AppDataStore {
             player: existing?.player,
             standings: existing?.standings ?? [],
             activeSessionID: activeSession.id,
-            activeSession: activeSession
+            activeSession: activeSession,
+            canManageSessions: canManageSessions
         )
         persistWidgetSnapshot(snapshot)
     }
@@ -1007,7 +1130,8 @@ final class AppDataStore {
             player: currentPlayer,
             standings: standings,
             activeSessionID: clubActiveSessionID,
-            activeSession: activeSession
+            activeSession: activeSession,
+            canManageSessions: canManageSessions
         )
         persistWidgetSnapshot(snapshot)
     }

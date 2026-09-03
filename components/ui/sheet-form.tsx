@@ -89,23 +89,39 @@ const SheetForm = React.forwardRef<HTMLFormElement, SheetFormProps>(
 			<Sheet open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
 				<SheetContent
 					side={side}
-					className={cn("w-full sm:max-w-md", contentClassName)}
+					className={cn(
+						"h-dvh max-h-dvh w-full overflow-hidden pb-[max(24px,env(safe-area-inset-bottom,0px))] sm:h-full sm:max-w-md",
+						contentClassName,
+					)}
 				>
 					<form
 						ref={ref}
 						onSubmit={handleSubmit}
-						className={cn("flex h-full flex-col", formClassName)}
+						className={cn(
+							"flex h-full min-h-0 flex-col overflow-hidden",
+							formClassName,
+						)}
 					>
-						<SheetHeader>
+						<SheetHeader className="shrink-0 pr-8">
 							<SheetTitle>{title}</SheetTitle>
 						</SheetHeader>
 
-						<div className={cn("mt-6 flex-1 space-y-6", bodyClassName)}>
+						<div
+							className={cn(
+								"mt-6 min-h-0 flex-1 touch-pan-y space-y-6 overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable] [-webkit-overflow-scrolling:touch]",
+								bodyClassName,
+							)}
+						>
 							<SheetFormError>{error}</SheetFormError>
 							{children}
 						</div>
 
-						<SheetFooter className={cn("mt-8", footerClassName)}>
+						<SheetFooter
+							className={cn(
+								"mt-4 shrink-0 gap-2 border-t border-border/60 pt-4 sm:space-x-0",
+								footerClassName,
+							)}
+						>
 							<Button
 								type="button"
 								variant="outline"

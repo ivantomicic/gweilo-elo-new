@@ -788,25 +788,11 @@ struct StartSessionView: View {
         isPreparingSchedule = true
         defer { isPreparingSchedule = false }
         do {
-            if !showReview,
-               let preview,
-               draft.keepsMixedScheduleOrder {
-                self.preview = SessionScheduleRandomizer
-                    .preservingFixedTeams(in: preview)
-            } else {
-                let requestedPlayers = draft.keepsMixedScheduleOrder
-                    ? draft.selectedPlayers
-                    : draft.selectedPlayers.shuffled()
-                let serverPreview = try await dataStore.previewSession(
-                    players: requestedPlayers,
-                    format: draft.selectedFormat
-                )
-                preview = draft.keepsMixedScheduleOrder
-                    ? SessionScheduleRandomizer.preservingFixedTeams(
-                        in: serverPreview
-                    )
-                    : serverPreview
-            }
+            preview = try await dataStore.prepareSessionPreview(
+                from: draft,
+                currentPreview: preview,
+                randomizing: !showReview
+            )
             if showReview {
                 withAnimation(.smooth) { step = .review }
             }

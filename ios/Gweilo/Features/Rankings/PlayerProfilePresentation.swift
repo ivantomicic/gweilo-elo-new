@@ -213,6 +213,103 @@ struct PlayerProfileFormEntry: Equatable {
     }
 }
 
+struct PlayerSessionPerformance: Identifiable, Equatable, Sendable {
+    let id: String
+    let sessionID: UUID?
+    let date: Date
+    let matchCount: Int
+    let wins: Int
+    let draws: Int
+    let losses: Int
+    let eloDelta: Int
+    let endingElo: Int
+
+    static func summaries(
+        from history: [PlayerEloHistoryPoint]
+    ) -> [Self] {
+        struct Accumulator {
+            let id: String
+            let sessionID: UUID?
+            var date: Date
+            var matchCount = 0
+            var wins = 0
+            var draws = 0
+            var losses = 0
+            var eloDelta = 0.0
+            var endingElo = 0.0
+        }
+
+        var order: [String] = []
+        var accumulated: [String: Accumulator] = [:]
+
+        for point in history
+            .filter({ $0.match > 0 })
+            .sorted(by: { $0.match < $1.match }) {
+            let id = point.sessionID.map {
+                "session:\($0.uuidString.lowercased())"
+            } ?? "legacy-match:\(point.match)"
+            var summary = accumulated[id] ?? Accumulator(
+                id: id,
+                sessionID: point.sessionID,
+                date: point.date
+            )
+
+            if accumulated[id] == nil {
+                order.append(id)
+            }
+
+            summary.date = point.date
+            summary.matchCount += 1
+            summary.endingElo = point.elo
+            if let delta = point.delta, delta.isFinite {
+                summary.eloDelta += delta
+            }
+            switch point.resolvedOutcome {
+            case .win: summary.wins += 1
+            case .draw: summary.draws += 1
+            case .loss: summary.losses += 1
+            case nil: break
+            }
+            accumulated[id] = summary
+        }
+
+        return order.reversed().compactMap { id in
+            guard let summary = accumulated[id] else { return nil }
+            return Self(
+                id: summary.id,
+                sessionID: summary.sessionID,
+                date: summary.date,
+                matchCount: summary.matchCount,
+                wins: summary.wins,
+                draws: summary.draws,
+                losses: summary.losses,
+                eloDelta: Int(summary.eloDelta.rounded()),
+                endingElo: Int(summary.endingElo.rounded())
+            )
+        }
+    }
+
+    var matchCountLabel: String {
+        let lastTwo = abs(matchCount) % 100
+        let last = abs(matchCount) % 10
+        if last == 1, lastTwo != 11 { return "\(matchCount) meč" }
+        if (2...4).contains(last), !(12...14).contains(lastTwo) {
+            return "\(matchCount) meča"
+        }
+        return "\(matchCount) mečeva"
+    }
+
+    var deltaLabel: String {
+        eloDelta > 0 ? "+\(eloDelta)" : "\(eloDelta)"
+    }
+
+    var directionLabel: String {
+        if eloDelta > 0 { return "Dobitak" }
+        if eloDelta < 0 { return "Gubitak" }
+        return "Bez promene"
+    }
+}
+
 struct PlayerProfileFormStrip: View {
     let deltas: [Double]
     let scores: [Double]?

@@ -71,6 +71,8 @@ targets:
         excludes:
           - Info.plist
       - path: Gweilo/Models/GweiloWidgetSnapshot.swift
+      - path: Gweilo/Models/AppModels.swift
+      - path: Gweilo/Models/GweiloWatchSessionCreation.swift
       - path: Gweilo/Resources/GweiloIcon.icon
         type: file
         buildPhase: resources

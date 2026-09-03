@@ -88,6 +88,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
     let standings: [GweiloWidgetStanding]
     let activeSessionID: UUID?
     let activeSession: GweiloWatchActiveSession?
+    var canManageSessions: Bool? = nil
 
     static let empty = GweiloWidgetSnapshot(
         savedAt: .distantPast,
@@ -102,6 +103,7 @@ struct GweiloWidgetSnapshot: Codable, Hashable, Sendable {
             && standings == other.standings
             && activeSessionID == other.activeSessionID
             && activeSession == other.activeSession
+            && canManageSessions == other.canManageSessions
     }
 
     static let preview = GweiloWidgetSnapshot(

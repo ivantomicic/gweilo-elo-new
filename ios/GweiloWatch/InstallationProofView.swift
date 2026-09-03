@@ -2,6 +2,7 @@ import SwiftUI
 
 struct InstallationProofView: View {
     let snapshot: GweiloWidgetSnapshot?
+    let syncService: WatchWidgetSyncService
     @Bindable var workoutManager: WatchWorkoutManager
 
     var body: some View {
@@ -15,7 +16,12 @@ struct InstallationProofView: View {
                     workoutManager: workoutManager
                 )
             } else if snapshot?.activeSessionID == nil {
-                PersonalPage(player: snapshot?.player)
+                InactiveSessionPages(
+                    player: snapshot?.player,
+                    canManageSessions:
+                        snapshot != nil && snapshot?.canManageSessions != false,
+                    syncService: syncService
+                )
             } else if let activeSession = snapshot?.activeSession {
                 ActiveSessionPages(
                     session: activeSession,
@@ -66,6 +72,39 @@ struct InstallationProofView: View {
                 }
             }
         )
+    }
+}
+
+private struct InactiveSessionPages: View {
+    private enum Page: Hashable {
+        case personal
+        case newSession
+    }
+
+    let player: GweiloWidgetPlayer?
+    let canManageSessions: Bool
+    let syncService: WatchWidgetSyncService
+    @State private var selectedPage: Page = .personal
+
+    var body: some View {
+        if canManageSessions {
+            TabView(selection: $selectedPage) {
+                NavigationStack {
+                    PersonalPage(player: player)
+                }
+                .tag(Page.personal)
+
+                NavigationStack {
+                    WatchStartSessionLanding(syncService: syncService)
+                }
+                .tag(Page.newSession)
+            }
+            .tabViewStyle(.verticalPage(transitionStyle: .blur))
+        } else {
+            NavigationStack {
+                PersonalPage(player: player)
+            }
+        }
     }
 }
 
@@ -665,7 +704,7 @@ private struct PlayerAvatar: View {
     }
 }
 
-private enum GweiloWatchTheme {
+enum GweiloWatchTheme {
     static let background = Color(red: 0.012, green: 0.012, blue: 0.016)
     static let accent = Color(red: 0.47, green: 0.19, blue: 1.00)
     static let accentBright = Color(red: 0.61, green: 0.38, blue: 1.00)

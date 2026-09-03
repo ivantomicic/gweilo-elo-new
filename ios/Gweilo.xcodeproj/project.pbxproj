@@ -31,6 +31,11 @@
 		F3E42A720002000000000001 /* GweiloEntrancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720002000000000002 /* GweiloEntrancePresentation.swift */; };
 		F3E42A720002000000000003 /* RankingsEntrancePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720002000000000004 /* RankingsEntrancePresentation.swift */; };
 		F3E42A720002000000000005 /* RankingsEntrancePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720002000000000006 /* RankingsEntrancePresentationTests.swift */; };
+		F4A001000000000000000001 /* GweiloWatchSessionCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A001000000000000000005 /* GweiloWatchSessionCreation.swift */; };
+		F4A001000000000000000002 /* GweiloWatchSessionCreation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A001000000000000000005 /* GweiloWatchSessionCreation.swift */; };
+		F4A001000000000000000003 /* AppModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E67F5AF76CD8E21D79EC84 /* AppModels.swift */; };
+		F4A001000000000000000004 /* WatchSessionCreationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A001000000000000000006 /* WatchSessionCreationView.swift */; };
+		F4A001000000000000000007 /* WatchSessionCreationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4A001000000000000000008 /* WatchSessionCreationTests.swift */; };
 		F3E42A720001000000000003 /* PlayerProfilePresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E42A720001000000000004 /* PlayerProfilePresentationTests.swift */; };
 		57ABE6B890359977A1FB85A8 /* SessionPlayerCountPlaceholder.mp4 in Resources */ = {isa = PBXBuildFile; fileRef = 9A8688A7F268AA1E1587BAE3 /* SessionPlayerCountPlaceholder.mp4 */; };
 		5999C1D880A0425F482E0121 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FDFE13A0BFF7369FF6622CD /* RootView.swift */; };
@@ -200,6 +205,9 @@
 		F3E42A720002000000000004 /* RankingsEntrancePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsEntrancePresentation.swift; sourceTree = "<group>"; };
 		F3E42A720002000000000006 /* RankingsEntrancePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RankingsEntrancePresentationTests.swift; sourceTree = "<group>"; };
 		F3E42A720001000000000004 /* PlayerProfilePresentationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerProfilePresentationTests.swift; sourceTree = "<group>"; };
+		F4A001000000000000000005 /* GweiloWatchSessionCreation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GweiloWatchSessionCreation.swift; sourceTree = "<group>"; };
+		F4A001000000000000000006 /* WatchSessionCreationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionCreationView.swift; sourceTree = "<group>"; };
+		F4A001000000000000000008 /* WatchSessionCreationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSessionCreationTests.swift; sourceTree = "<group>"; };
 		7BE5ACD696CAB1A99AD1E621 /* AdminActivityView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminActivityView.swift; sourceTree = "<group>"; };
 		7DF6A7D394A2D0829E50769F /* DemoModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModels.swift; sourceTree = "<group>"; };
 		81B7F2D7209C7770516B928A /* SupabaseAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseAuthClient.swift; sourceTree = "<group>"; };
@@ -308,6 +316,7 @@
 				8ECEA56D670948FA0072215C /* GweiloWatch.entitlements */,
 				A2EE800B1D256FCEBB04F9CA /* GweiloWatchApp.swift */,
 				663BD600DCBC17E1CE8324DD /* InstallationProofView.swift */,
+				F4A001000000000000000006 /* WatchSessionCreationView.swift */,
 				44A3CDC50DF234F61B288D59 /* WatchAppDelegate.swift */,
 				A2F91443DFAF16B9537A6ABF /* WatchWidgetSyncService.swift */,
 				A3855D904A81D155F40B6E0A /* WatchWorkoutManager.swift */,
@@ -376,6 +385,7 @@
 			children = (
 				48E67F5AF76CD8E21D79EC84 /* AppModels.swift */,
 				7DF6A7D394A2D0829E50769F /* DemoModels.swift */,
+				F4A001000000000000000005 /* GweiloWatchSessionCreation.swift */,
 				45EB3F3AC65922CCFD82DBBF /* GweiloWidgetSnapshot.swift */,
 				BA88FB3833EA229A5DB870A0 /* MissionModels.swift */,
 				E0A27FBB6BA961B030145968 /* NotificationModels.swift */,
@@ -407,6 +417,7 @@
 				E557AB3E54730DE5E6FA18DC /* NotificationModelsTests.swift */,
 				17C69EAB954AC11053D8E07C /* SessionDetailModelTests.swift */,
 				F3E42A720001000000000004 /* PlayerProfilePresentationTests.swift */,
+				F4A001000000000000000008 /* WatchSessionCreationTests.swift */,
 				F3E42A720002000000000006 /* RankingsEntrancePresentationTests.swift */,
 			);
 			path = GweiloTests;
@@ -734,9 +745,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F4A001000000000000000003 /* AppModels.swift in Sources */,
 				54DAC83850172B46C8769464 /* GweiloWatchApp.swift in Sources */,
+				F4A001000000000000000002 /* GweiloWatchSessionCreation.swift in Sources */,
 				91782CFD6CC5EB1C2BDFB505 /* GweiloWidgetSnapshot.swift in Sources */,
 				F5B5A655B088DCFEE9497724 /* InstallationProofView.swift in Sources */,
+				F4A001000000000000000004 /* WatchSessionCreationView.swift in Sources */,
 				77B3E9FCA07524ACACB2A20F /* WatchAppDelegate.swift in Sources */,
 				66831546190DA3D57251B8CC /* WatchWidgetSyncService.swift in Sources */,
 				C80DC68FA0AF7D263AA9034B /* WatchWorkoutManager.swift in Sources */,
@@ -763,6 +777,7 @@
 				C4CA2FD844FE65E9B396338B /* NotificationModelsTests.swift in Sources */,
 				DFD827A1931C1DC300406B6F /* SessionDetailModelTests.swift in Sources */,
 				F3E42A720001000000000003 /* PlayerProfilePresentationTests.swift in Sources */,
+				F4A001000000000000000007 /* WatchSessionCreationTests.swift in Sources */,
 				F3E42A720002000000000005 /* RankingsEntrancePresentationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -789,6 +804,7 @@
 				9085C07A076D4150BB18A1AC /* GweiloLoadingView.swift in Sources */,
 				EF67633C10A3191A24652CD8 /* GweiloSessionActivityAttributes.swift in Sources */,
 				1310F1A69B0CCB56E33CF243 /* GweiloTheme.swift in Sources */,
+				F4A001000000000000000001 /* GweiloWatchSessionCreation.swift in Sources */,
 				C3D4B4640B8D278679A5C903 /* GweiloWidgetSnapshot.swift in Sources */,
 				E8247F346278F9CF701BB2B6 /* HomeView.swift in Sources */,
 				1013B6008BA22DEDA6BA0F27 /* IPhoneWatchSyncService.swift in Sources */,

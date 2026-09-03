@@ -758,12 +758,26 @@ enum EloCalculator {
     }
 }
 
-struct SessionCreationDraft: Equatable, Sendable {
-    let idempotencyKey = UUID()
-    var playerCount = 4
-    var fourPlayerFormat = FourPlayerSessionFormat.mixed
-    var sixPlayerFormat = FourPlayerSessionFormat.mixed
-    private(set) var selectedPlayers: [SessionCreationPlayer] = []
+struct SessionCreationDraft: Codable, Equatable, Sendable {
+    let idempotencyKey: UUID
+    var playerCount: Int
+    var fourPlayerFormat: FourPlayerSessionFormat
+    var sixPlayerFormat: FourPlayerSessionFormat
+    private(set) var selectedPlayers: [SessionCreationPlayer]
+
+    init(
+        idempotencyKey: UUID = UUID(),
+        playerCount: Int = 4,
+        fourPlayerFormat: FourPlayerSessionFormat = .mixed,
+        sixPlayerFormat: FourPlayerSessionFormat = .mixed,
+        selectedPlayers: [SessionCreationPlayer] = []
+    ) {
+        self.idempotencyKey = idempotencyKey
+        self.playerCount = playerCount
+        self.fourPlayerFormat = fourPlayerFormat
+        self.sixPlayerFormat = sixPlayerFormat
+        self.selectedPlayers = selectedPlayers
+    }
 
     var canPreview: Bool {
         selectedPlayers.count == playerCount

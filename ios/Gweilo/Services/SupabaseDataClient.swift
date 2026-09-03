@@ -132,6 +132,14 @@ private struct ProfileRecord: Decodable, Sendable {
     }
 }
 
+private struct ProfileGreetingRecord: Decodable, Sendable {
+    let nameVocative: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case nameVocative = "name_vocative"
+    }
+}
+
 private struct SessionEloPredictionsResponse: Decodable, Sendable {
     let predictions: [MatchEloPrediction]
 }
@@ -531,6 +539,22 @@ struct SupabaseDataClient: Sendable {
                 worstDelta: record.worstPlayerDelta.map { Int($0.rounded()) }
             )
         }
+    }
+
+    func fetchVocativeName(userID: UUID) async throws -> String? {
+        let records: [ProfileGreetingRecord] = try await get(
+            table: "profiles",
+            queryItems: [
+                .init(name: "select", value: "name_vocative"),
+                .init(
+                    name: "id",
+                    value: "eq.\(userID.uuidString.lowercased())"
+                ),
+                .init(name: "limit", value: "1")
+            ]
+        )
+        return records.first?.nameVocative?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func get<Response: Decodable>(

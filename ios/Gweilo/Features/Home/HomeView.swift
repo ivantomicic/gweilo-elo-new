@@ -25,7 +25,7 @@ struct HomeView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 26) {
                         HomeHeader(
-                            playerName: dataStore.currentUserFirstName,
+                            greetingName: dataStore.currentUserGreetingName,
                             lastSessionDelta: dataStore.currentUserLatestSessionDelta,
                             lastSessionFormScore:
                                 dataStore.currentUserLatestSessionFormScore
@@ -531,14 +531,14 @@ struct DataErrorNotice: View {
 }
 
 private struct HomeHeader: View {
-    let playerName: String
+    let greetingName: String
     let lastSessionDelta: Double?
     let lastSessionFormScore: Double?
 
     var body: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 6) {
-                Text("GWEILO / NOVI SAD")
+                Text("GWEILO NOVI SAD")
                     .font(
                         GweiloTheme.labelFont(
                             size: 12,
@@ -548,7 +548,7 @@ private struct HomeHeader: View {
                     .tracking(2.2)
                     .foregroundStyle(GweiloTheme.lime)
 
-                Text("Poy, \(playerName)")
+                Text("Poy \(greetingName)")
                     .font(
                         GweiloTheme.headingFont(
                             size: 40,
@@ -849,7 +849,7 @@ struct TopThreePreviewScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 30) {
                         HomeHeader(
-                            playerName: "Ivan",
+                            greetingName: "Ivane",
                             lastSessionDelta: 12,
                             lastSessionFormScore: 1
                         )

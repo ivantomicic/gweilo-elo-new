@@ -15,6 +15,7 @@ struct GweiloWatchApp: App {
         WindowGroup {
             InstallationProofView(
                 snapshot: syncService.snapshot,
+                syncService: syncService,
                 workoutManager: workoutManager
             )
         }

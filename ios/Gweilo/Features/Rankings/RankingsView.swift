@@ -666,6 +666,7 @@ struct PlayerProfileView: View {
                                 title: nil,
                                 emptyMessage: "Poslednji singl rezultati pojaviće se ovde.",
                                 results: recentResults,
+                                dataStore: dataStore,
                                 comparisonOpponentID: player.id == dataStore.currentUserID
                                     ? nil
                                     : dataStore.currentUserID,
@@ -2195,6 +2196,7 @@ struct ChartScrubPreviewScreen: View {
 private enum RecentMatchScope: String, CaseIterable, Identifiable {
     case all
     case againstMe
+    case sessions
 
     var id: Self { self }
 
@@ -2202,6 +2204,7 @@ private enum RecentMatchScope: String, CaseIterable, Identifiable {
         switch self {
         case .all: "Svi mečevi"
         case .againstMe: "Protiv mene"
+        case .sessions: "Termini"
         }
     }
 }
@@ -2210,6 +2213,7 @@ private struct RecentEloResults: View {
     let title: String?
     let emptyMessage: String
     let results: [PlayerEloHistoryPoint]
+    var dataStore: AppDataStore? = nil
     var comparisonOpponentID: UUID? = nil
     var comparisonOpponentName: String? = nil
     var comparison: PlayerHeadToHead? = nil
@@ -2224,7 +2228,14 @@ private struct RecentEloResults: View {
     @Namespace private var selectionIndicator
 
     private var scopes: [RecentMatchScope] {
-        comparisonOpponentID == nil ? [.all] : RecentMatchScope.allCases
+        var availableScopes: [RecentMatchScope] = [.all]
+        if comparisonOpponentID != nil {
+            availableScopes.append(.againstMe)
+        }
+        if dataStore != nil {
+            availableScopes.append(.sessions)
+        }
+        return availableScopes
     }
 
     private var scopedResults: [PlayerEloHistoryPoint] {
@@ -2271,36 +2282,110 @@ private struct RecentEloResults: View {
                 }
             }
 
-            if scope == .againstMe {
-                CompactHeadToHeadSummary(
-                    comparison: comparison,
-                    isLoading: isLoadingComparison,
-                    errorMessage: comparisonErrorMessage,
-                    retry: retryComparison
+            if scope == .sessions, let dataStore {
+                PlayerSessionHistory(
+                    history: results,
+                    dataStore: dataStore
                 )
-            }
+            } else {
+                if scope == .againstMe {
+                    CompactHeadToHeadSummary(
+                        comparison: comparison,
+                        isLoading: isLoadingComparison,
+                        errorMessage: comparisonErrorMessage,
+                        retry: retryComparison
+                    )
+                }
 
-            if scopedResults.isEmpty,
-               !(scope == .againstMe && comparison?.totalMatches == 0) {
+                if scopedResults.isEmpty,
+                   !(scope == .againstMe && comparison?.totalMatches == 0) {
+                    Text(
+                        scope == .againstMe
+                            ? "Još niste odigrali međusobni singl meč."
+                            : emptyMessage
+                    )
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                } else {
+                    VStack(spacing: 0) {
+                        ForEach(visibleResults) { result in
+                            PlayerProfileMatchResultRow(result: result)
+
+                            if result.id != visibleResults.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+
+                    if visibleResults.count < scopedResults.count {
+                        Button {
+                            withAnimation(.smooth(duration: 0.28)) {
+                                visibleCount += 5
+                            }
+                        } label: {
+                            Label("Učitaj još", systemImage: "chevron.down")
+                                .font(.subheadline.weight(.bold))
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: 44)
+                                .foregroundStyle(GweiloTheme.bone)
+                                .background(GweiloTheme.raisedSurface)
+                                .clipShape(.rect(cornerRadius: 10))
+                        }
+                        .buttonStyle(ResponsiveButtonStyle())
+                        .sensoryFeedback(
+                            .impact(weight: .light),
+                            trigger: visibleCount
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+private struct PlayerSessionHistory: View {
+    let history: [PlayerEloHistoryPoint]
+    let dataStore: AppDataStore
+
+    @State private var visibleCount = 5
+
+    private var sessions: [PlayerSessionPerformance] {
+        PlayerSessionPerformance.summaries(from: history)
+    }
+
+    private var visibleSessions: [PlayerSessionPerformance] {
+        Array(sessions.prefix(visibleCount))
+    }
+
+    var body: some View {
+        VStack(spacing: 14) {
+            if sessions.isEmpty {
                 Text(
-                    scope == .againstMe
-                        ? "Još niste odigrali međusobni singl meč."
-                        : emptyMessage
+                    "Učinak po terminima pojaviće se nakon prvog "
+                        + "završenog singl meča."
                 )
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 VStack(spacing: 0) {
-                    ForEach(visibleResults) { result in
-                        PlayerProfileMatchResultRow(result: result)
+                    ForEach(visibleSessions) { performance in
+                        PlayerSessionPerformanceRow(
+                            performance: performance,
+                            session: performance.sessionID.flatMap { id in
+                                dataStore.sessions.first { $0.id == id }
+                            },
+                            dataStore: dataStore
+                        )
 
-                        if result.id != visibleResults.last?.id {
+                        if performance.id != visibleSessions.last?.id {
                             Divider()
                         }
                     }
                 }
 
-                if visibleResults.count < scopedResults.count {
+                if visibleSessions.count < sessions.count {
                     Button {
                         withAnimation(.smooth(duration: 0.28)) {
                             visibleCount += 5
@@ -2315,12 +2400,112 @@ private struct RecentEloResults: View {
                             .clipShape(.rect(cornerRadius: 10))
                     }
                     .buttonStyle(ResponsiveButtonStyle())
-                    .sensoryFeedback(.impact(weight: .light), trigger: visibleCount)
+                    .sensoryFeedback(
+                        .impact(weight: .light),
+                        trigger: visibleCount
+                    )
                 }
             }
         }
     }
+}
 
+private struct PlayerSessionPerformanceRow: View {
+    let performance: PlayerSessionPerformance
+    let session: SessionSummary?
+    let dataStore: AppDataStore
+
+    var body: some View {
+        Group {
+            if let session {
+                NavigationLink {
+                    SessionDetailView(
+                        session: session,
+                        dataStore: dataStore
+                    )
+                } label: {
+                    content
+                }
+                .buttonStyle(ResponsiveButtonStyle())
+            } else {
+                content
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var content: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(formattedDate)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(GweiloTheme.bone)
+
+                Text(
+                    "\(performance.matchCountLabel) · Elo posle "
+                        + formattedEndingElo
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(performance.deltaLabel)
+                    .font(
+                        GweiloTheme.displayFont(
+                            size: 23,
+                            relativeTo: .title3
+                        )
+                        .monospacedDigit()
+                    )
+                    .foregroundStyle(deltaColor)
+
+                Text(performance.directionLabel.uppercased())
+                    .font(
+                        GweiloTheme.labelFont(
+                            size: 9,
+                            relativeTo: .caption2
+                        )
+                    )
+                    .tracking(0.65)
+                    .foregroundStyle(GweiloTheme.muted)
+            }
+        }
+        .frame(minHeight: 76)
+        .contentShape(.rect)
+    }
+
+    private var formattedDate: String {
+        performance.date.formatted(
+            .dateTime
+                .day()
+                .month(.abbreviated)
+                .year()
+                .locale(Locale(identifier: "sr_Latn_RS"))
+        )
+    }
+
+    private var formattedEndingElo: String {
+        performance.endingElo.formatted(
+            .number.locale(Locale(identifier: "sr_Latn_RS"))
+        )
+    }
+
+    private var deltaColor: Color {
+        if performance.eloDelta > 0 { return GweiloTheme.lime }
+        if performance.eloDelta < 0 { return GweiloTheme.coral }
+        return GweiloTheme.amber
+    }
+
+    private var accessibilityLabel: String {
+        "Termin \(formattedDate), \(performance.matchCountLabel), "
+            + "\(performance.directionLabel.lowercased()) "
+            + "\(abs(performance.eloDelta)) Elo, "
+            + "\(formattedEndingElo) Elo posle termina"
+    }
 }
 
 private struct CompactHeadToHeadSummary: View {
