@@ -4,6 +4,7 @@ import type { ReactNode, Ref } from "react";
 import { useRef } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 
@@ -235,25 +236,68 @@ export function ActiveSessionRoundHeader({
 }) {
 	const isCurrent = roundNumber === currentRoundNumber;
 	const isPast = roundNumber < currentRoundNumber;
+	const roundIndex = roundNumbers.indexOf(roundNumber);
+	const previousRound = roundIndex > 0 ? roundNumbers[roundIndex - 1] : undefined;
+	const nextRound = roundIndex >= 0 ? roundNumbers[roundIndex + 1] : undefined;
 
 	return (
 		<header className="space-y-3">
-			<div className="flex items-baseline justify-between gap-4">
-				<h1 className="font-session-display text-ios-display-30 font-black leading-[1.05] text-[rgb(var(--ds-native-bone))]">
-					Runda {roundNumber}
-				</h1>
-				{!isCurrent ? (
-					<span
-						className={cn(
-							"font-session-label text-ios-caption2 font-bold uppercase tracking-[0.7px]",
-							isPast
-								? "text-[rgb(var(--ds-native-muted))]"
-								: "text-[rgb(var(--ds-native-lime))]",
-						)}
+			<div className="flex items-center justify-between gap-3">
+				<div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+					<h1
+						aria-live="polite"
+						aria-atomic="true"
+						className="font-session-display text-ios-display-30 font-black leading-[1.05] text-[rgb(var(--ds-native-bone))]"
 					>
-						{isPast ? "● Završena" : "● Predstoji"}
-					</span>
-				) : null}
+						Runda {roundNumber}
+					</h1>
+					{!isCurrent ? (
+						<span
+							className={cn(
+								"font-session-label text-ios-caption2 font-bold uppercase tracking-[0.7px]",
+								isPast
+									? "text-[rgb(var(--ds-native-muted))]"
+									: "text-[rgb(var(--ds-native-lime))]",
+							)}
+						>
+							{isPast ? "● Završena" : "● Predstoji"}
+						</span>
+					) : null}
+				</div>
+				<div
+					className="flex shrink-0 gap-1"
+					role="group"
+					aria-label="Navigacija po rundama"
+				>
+					<Button
+						type="button"
+						variant="secondary"
+						size="icon"
+						className="touch-safe size-11"
+						aria-label="Prethodna runda"
+						title="Prethodna runda"
+						disabled={previousRound === undefined}
+						onClick={() => {
+							if (previousRound !== undefined) onRoundSelect(previousRound);
+						}}
+					>
+						<Icon icon="solar:alt-arrow-left-linear" aria-hidden="true" />
+					</Button>
+					<Button
+						type="button"
+						variant="secondary"
+						size="icon"
+						className="touch-safe size-11"
+						aria-label="Sledeća runda"
+						title="Sledeća runda"
+						disabled={nextRound === undefined}
+						onClick={() => {
+							if (nextRound !== undefined) onRoundSelect(nextRound);
+						}}
+					>
+						<Icon icon="solar:alt-arrow-right-linear" aria-hidden="true" />
+					</Button>
+				</div>
 			</div>
 
 			<div

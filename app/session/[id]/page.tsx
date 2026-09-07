@@ -3119,8 +3119,16 @@ function SessionPageContent() {
 								? nextRound
 								: undefined
 						}
-						className="session-detail-native mx-auto w-full max-w-[760px] px-5 pb-[110px] pt-[18px] md:pt-7"
+						className="session-detail-native mx-auto w-full max-w-[760px] space-y-[18px] px-5 pb-[110px] pt-[18px] md:pt-7"
 					>
+						<ActiveSessionRoundHeader
+							roundNumber={currentRound}
+							currentRoundNumber={activeRoundNumber}
+							totalRounds={roundNumbers.length}
+							roundNumbers={roundNumbers}
+							matchSummary={matchSummary || "Raspored se priprema"}
+							onRoundSelect={goToRound}
+						/>
 						<AnimatePresence initial={false} mode="wait">
 							<motion.div
 								key={currentRound}
@@ -3147,15 +3155,6 @@ function SessionPageContent() {
 									ease: [0.16, 1, 0.3, 1],
 								}}
 							>
-								<ActiveSessionRoundHeader
-									roundNumber={currentRound}
-									currentRoundNumber={activeRoundNumber}
-									totalRounds={roundNumbers.length}
-									roundNumbers={roundNumbers}
-									matchSummary={matchSummary || "Raspored se priprema"}
-									onRoundSelect={goToRound}
-								/>
-
 								{nextRoundNumber ? (
 									<ActiveSessionNextRound
 										roundNumber={nextRoundNumber}
