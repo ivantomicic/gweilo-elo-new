@@ -3097,140 +3097,136 @@ function SessionPageContent() {
 
 		return (
 			<>
-				<AppShell
-					title={t.sessions.session.title}
-					actionLabel={t.sessions.session.forceClose.button}
-					actionAriaLabel="Opcije termina"
-					actionOnClick={() => setShowForceCloseModal(true)}
-					actionIcon="solar:menu-dots-bold"
-					actionIconOnly
-					actionVariant="ghost"
-					centerTitleOnMobile
-					contentPadding={false}
-					contentClassName="gap-0 py-0 md:gap-0 md:py-0"
-					insetClassName="session-detail-native-shell"
-					bodyClassName="session-detail-native-shell"
-					containerClassName="session-detail-native-shell"
+				<ActiveSessionRoundCanvas
+					onPrevious={currentRoundIndex > 0 ? previousRound : undefined}
+					onNext={
+						currentRoundIndex < roundNumbers.length - 1
+							? nextRound
+							: undefined
+					}
 				>
-					<ActiveSessionRoundCanvas
-						onPrevious={currentRoundIndex > 0 ? previousRound : undefined}
-						onNext={
-							currentRoundIndex < roundNumbers.length - 1
-								? nextRound
-								: undefined
-						}
-						className="session-detail-native mx-auto w-full max-w-[760px] space-y-[18px] px-5 pb-[110px] pt-[18px] md:pt-7"
-					>
-						<ActiveSessionRoundHeader
-							roundNumber={currentRound}
-							currentRoundNumber={activeRoundNumber}
-							totalRounds={roundNumbers.length}
-							roundNumbers={roundNumbers}
-							matchSummary={matchSummary || "Raspored se priprema"}
-							onRoundSelect={goToRound}
-						/>
-						<AnimatePresence initial={false} mode="wait">
-							<motion.div
-								key={currentRound}
-								className="space-y-[18px]"
-								initial={
-									shouldReduceMotion
-										? false
-										: {
-												opacity: 0.72,
-												transform: `translateX(${roundDirection * 18}px)`,
-											}
-								}
-								animate={{ opacity: 1, transform: "translateX(0px)" }}
-								exit={
-									shouldReduceMotion
-										? undefined
-										: {
-												opacity: 0.4,
-												transform: `translateX(${roundDirection * -12}px)`,
-											}
-								}
-								transition={{
-									duration: shouldReduceMotion ? 0 : 0.18,
-									ease: [0.16, 1, 0.3, 1],
-								}}
-							>
-								{nextRoundNumber ? (
-									<ActiveSessionNextRound
-										roundNumber={nextRoundNumber}
-										matches={nextRoundMatches}
-									/>
-								) : null}
+					{(roundOffset) => (
+						<AppShell
+							title={t.sessions.session.title}
+							actionLabel={t.sessions.session.forceClose.button}
+							actionAriaLabel="Opcije termina"
+							actionOnClick={() => setShowForceCloseModal(true)}
+							actionIcon="solar:menu-dots-bold"
+							actionIconOnly
+							actionVariant="ghost"
+							centerTitleOnMobile
+							contentPadding={false}
+							contentClassName="flex-1 gap-0 py-0 md:gap-0 md:py-0"
+							insetClassName="session-detail-native-shell"
+							bodyClassName="session-detail-native-shell"
+							containerClassName="session-detail-native-shell"
+						>
+							<div className="session-detail-native mx-auto w-full max-w-[760px] px-5 pt-[18px] md:pt-7">
+								<ActiveSessionRoundHeader
+									roundNumber={currentRound}
+									currentRoundNumber={activeRoundNumber}
+									totalRounds={roundNumbers.length}
+									roundNumbers={roundNumbers}
+									matchSummary={matchSummary || "Raspored se priprema"}
+									onRoundSelect={goToRound}
+								/>
+							</div>
+							<AnimatePresence initial={false} mode="wait" custom={roundDirection}>
+								<motion.div
+									key={currentRound}
+									className="w-full flex-1"
+									style={{ x: roundOffset }}
+									custom={roundDirection}
+									variants={{
+										enter: (direction: number) => ({ x: shouldReduceMotion ? 0 : `${direction * 100}%` }),
+										center: { x: 0 },
+										exit: (direction: number) => ({ x: shouldReduceMotion ? 0 : `${direction * -100}%` }),
+									}}
+									initial="enter"
+									animate="center"
+									exit="exit"
+									transition={{ duration: shouldReduceMotion ? 0 : 0.18, ease: [0.16, 1, 0.3, 1] }}
+								>
+									<div className="session-detail-native mx-auto w-full max-w-[760px] space-y-[18px] px-5 pb-[110px] pt-[18px]">
 
-								{currentRound > activeRoundNumber ? (
-									<ActiveSessionBrowseNotice />
-								) : null}
-
-								{waitingForGeneratedRound ? (
-									<div className="session-detail-scoreboard p-4 text-center text-ios-subheadline text-[rgb(var(--ds-native-muted))]">
-										Raspored ove runde biće prikazan čim prethodna runda bude sačuvana.
-									</div>
-								) : currentRound === activeRoundNumber ? (
-									currentRoundMatches.map((match, matchIndex) => {
-										const isSingles = match.match_type === "singles";
-										const teamOneIds = isSingles
-											? [match.player_ids[0]]
-											: [match.player_ids[0], match.player_ids[1]];
-										const teamTwoIds = isSingles
-											? [match.player_ids[1]]
-											: [match.player_ids[2], match.player_ids[3]];
-										const matchScores = scores[match.id] ?? {
-											team1: null,
-											team2: null,
-										};
-						return (
-											<ActiveSessionMatchEditor
-												key={match.id}
-												teamOne={sideFor(match, teamOneIds, teamTwoIds)}
-												teamTwo={sideFor(match, teamTwoIds, teamOneIds)}
-												teamOneScore={matchScores.team1}
-												teamTwoScore={matchScores.team2}
-												onTeamOneScoreChange={(value) =>
-													handleScoreChange(match.id, "team1", value, matchIndex)
-												}
-												onTeamTwoScoreChange={(value) =>
-													handleScoreChange(match.id, "team2", value, matchIndex)
-												}
-												teamOneInputRef={(element) => {
-													scoreInputRefs.current[`${match.id}-team1`] = element;
-												}}
-												teamTwoInputRef={(element) => {
-													scoreInputRefs.current[`${match.id}-team2`] = element;
-												}}
-								disabled={submitting || match.status === "completed"}
+										{nextRoundNumber ? (
+											<ActiveSessionNextRound
+												roundNumber={nextRoundNumber}
+												matches={nextRoundMatches}
 											/>
-										);
-									})
-								) : (
-									currentRoundMatches.map((match) => (
-										<SessionScoreboardMatch
-											key={match.id}
-											match={toBrowsableMatch(match)}
-										/>
-									))
-								)}
+										) : null}
 
-								<ActiveSessionRestingLine players={restingPlayers} />
+										{currentRound > activeRoundNumber ? (
+											<ActiveSessionBrowseNotice />
+										) : null}
 
-								{currentRound === activeRoundNumber ? (
-									<ActiveSessionSubmitBar
-										isReady={canSubmitRound}
-										isSubmitting={submitting}
-										isFinalRound={
-											currentRound === roundNumbers[roundNumbers.length - 1]
-										}
-										onSubmit={() => void handleSubmitRound()}
-									/>
-								) : null}
-							</motion.div>
-						</AnimatePresence>
-					</ActiveSessionRoundCanvas>
-				</AppShell>
+										{waitingForGeneratedRound ? (
+											<div className="session-detail-scoreboard p-4 text-center text-ios-subheadline text-[rgb(var(--ds-native-muted))]">
+												Raspored ove runde biće prikazan čim prethodna runda bude sačuvana.
+											</div>
+										) : currentRound === activeRoundNumber ? (
+											currentRoundMatches.map((match, matchIndex) => {
+												const isSingles = match.match_type === "singles";
+												const teamOneIds = isSingles
+													? [match.player_ids[0]]
+													: [match.player_ids[0], match.player_ids[1]];
+												const teamTwoIds = isSingles
+													? [match.player_ids[1]]
+													: [match.player_ids[2], match.player_ids[3]];
+												const matchScores = scores[match.id] ?? {
+													team1: null,
+													team2: null,
+												};
+												return (
+													<ActiveSessionMatchEditor
+														key={match.id}
+														teamOne={sideFor(match, teamOneIds, teamTwoIds)}
+														teamTwo={sideFor(match, teamTwoIds, teamOneIds)}
+														teamOneScore={matchScores.team1}
+														teamTwoScore={matchScores.team2}
+														onTeamOneScoreChange={(value) =>
+															handleScoreChange(match.id, "team1", value, matchIndex)
+														}
+														onTeamTwoScoreChange={(value) =>
+															handleScoreChange(match.id, "team2", value, matchIndex)
+														}
+														teamOneInputRef={(element) => {
+															scoreInputRefs.current[`${match.id}-team1`] = element;
+														}}
+														teamTwoInputRef={(element) => {
+															scoreInputRefs.current[`${match.id}-team2`] = element;
+														}}
+														disabled={submitting || match.status === "completed"}
+													/>
+												);
+											})
+										) : (
+											currentRoundMatches.map((match) => (
+												<SessionScoreboardMatch
+													key={match.id}
+													match={toBrowsableMatch(match)}
+												/>
+											))
+										)}
+
+										<ActiveSessionRestingLine players={restingPlayers} />
+
+										{currentRound === activeRoundNumber ? (
+											<ActiveSessionSubmitBar
+												isReady={canSubmitRound}
+												isSubmitting={submitting}
+												isFinalRound={
+													currentRound === roundNumbers[roundNumbers.length - 1]
+												}
+												onSubmit={() => void handleSubmitRound()}
+											/>
+										) : null}
+									</div>
+								</motion.div>
+							</AnimatePresence>
+						</AppShell>
+					)}
+				</ActiveSessionRoundCanvas>
 
 				{showForceCloseModal ? (
 					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-5 backdrop-blur-sm">

@@ -2,11 +2,22 @@
 
 import type { ReactNode, Ref } from "react";
 import { useRef } from "react";
+import {
+	animate,
+	useMotionValue,
+	useReducedMotion,
+	type MotionValue,
+} from "framer-motion";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import {
+	getRoundSwipeAxis,
+	getRoundSwipeDirection,
+	isRoundSwipeAtRest,
+} from "@/lib/navigation/round-swipe";
 
 export type ActiveSessionPlayer = {
 	id: string;
@@ -457,36 +468,104 @@ export function ActiveSessionRoundCanvas({
 	onNext,
 	className,
 }: {
-	children: ReactNode;
+	children: (offset: MotionValue<number | string>) => ReactNode;
 	onPrevious?: () => void;
 	onNext?: () => void;
 	className?: string;
 }) {
-	const touchStart = useRef<{ x: number; y: number } | null>(null);
+	const offset = useMotionValue<number | string>(0);
+	const reduceMotion = useReducedMotion();
+	const gesture = useRef<{
+		pointerId: number;
+		x: number;
+		y: number;
+		horizontal: boolean;
+	} | null>(null);
+	const suppressClickUntil = useRef(0);
+	const reset = () => {
+		gesture.current = null;
+		void animate(offset, 0, { duration: reduceMotion ? 0 : 0.18 });
+	};
 
 	return (
 		<div
-			className={className}
-			onTouchStart={(event) => {
-				const touch = event.touches[0];
-				touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
-			}}
-			onTouchEnd={(event) => {
-				const start = touchStart.current;
-				touchStart.current = null;
-				if (!start) return;
-				const touch = event.changedTouches[0];
-				if (!touch) return;
-				const deltaX = touch.clientX - start.x;
-				const deltaY = touch.clientY - start.y;
-				if (Math.abs(deltaX) < 52 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.2) {
+			className={cn("min-h-svh w-full overflow-x-clip", className)}
+			style={{ touchAction: "pan-y pinch-zoom" }}
+			onPointerDownCapture={(event) => {
+				if (!event.isPrimary) {
+					if (gesture.current) reset();
 					return;
 				}
-				if (deltaX < 0) onNext?.();
-				else onPrevious?.();
+				suppressClickUntil.current = 0;
+				// Motion can finish a percentage-based page transition at "0%".
+				if (event.button !== 0 || !isRoundSwipeAtRest(offset.get())) return;
+				const target = event.target as HTMLElement;
+				// Portaled dialogs, navigation, and editable fields own their gestures.
+				if (
+					!event.currentTarget.contains(target) ||
+					target.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [data-sidebar="sidebar"], nav')
+				) return;
+				offset.stop();
+				offset.set(0);
+				if (event.pointerType === "mouse" && !target.closest('button, a, [role="button"]')) {
+					event.preventDefault();
+				}
+				gesture.current = {
+					pointerId: event.pointerId,
+					x: event.clientX,
+					y: event.clientY,
+					horizontal: false,
+				};
+			}}
+			onPointerMoveCapture={(event) => {
+				const start = gesture.current;
+				if (!start || start.pointerId !== event.pointerId) return;
+				if (!start.horizontal) {
+					const axis = getRoundSwipeAxis(start, { x: event.clientX, y: event.clientY });
+					if (axis === "vertical") {
+						gesture.current = null;
+						return;
+					}
+					if (axis !== "horizontal") return;
+					start.horizontal = true;
+					event.currentTarget.setPointerCapture(event.pointerId);
+				}
+				event.preventDefault();
+				const delta = event.clientX - start.x;
+				const canNavigate = delta < 0 ? onNext : onPrevious;
+				if (!reduceMotion) offset.set(delta * (canNavigate ? 1 : 0.2));
+			}}
+			onPointerUpCapture={(event) => {
+				const start = gesture.current;
+				if (!start || start.pointerId !== event.pointerId) return;
+				gesture.current = null;
+				if (!start.horizontal) return;
+				suppressClickUntil.current = event.timeStamp + 500;
+				const direction = getRoundSwipeDirection(start, { x: event.clientX, y: event.clientY });
+				const navigate = direction === "next" ? onNext : direction === "previous" ? onPrevious : undefined;
+				if (navigate) navigate();
+				else reset();
+			}}
+			onPointerCancelCapture={() => {
+				if (gesture.current) reset();
+			}}
+			onLostPointerCapture={(event) => {
+				// Touch starts with implicit capture on the child. Taking that capture
+				// for the page must not cancel the swipe we just recognized.
+				if (event.target === event.currentTarget && gesture.current?.pointerId === event.pointerId) {
+					reset();
+				}
+			}}
+			onDragStartCapture={(event) => event.preventDefault()}
+			onClickCapture={(event) => {
+				if (event.detail === 0 || event.timeStamp > suppressClickUntil.current) {
+					return;
+				}
+				event.preventDefault();
+				event.stopPropagation();
 			}}
 		>
-			{children}
+			{children(offset)}
 		</div>
 	);
 }
