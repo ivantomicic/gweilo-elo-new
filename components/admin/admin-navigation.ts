@@ -15,42 +15,46 @@ export type AdminNavigationItem = {
 		| "nameCases"
 		| "designSystem";
 	title: string;
+	description: string;
 	url: string;
 	icon: LucideIcon;
-	mobileFullWidth?: boolean;
 };
 
 export const adminNavigationItems: AdminNavigationItem[] = [
 	{
 		value: "users",
 		title: "Users",
+		description: "Manage members and access",
 		url: "/admin/users",
 		icon: UsersIcon,
 	},
 	{
 		value: "activity",
 		title: "Activity Log",
+		description: "Review recent admin changes",
 		url: "/admin/activity-log",
 		icon: ListIcon,
 	},
 	{
 		value: "missions",
 		title: "Missions",
+		description: "Control rivalry missions",
 		url: "/admin/missions",
 		icon: ClipboardListIcon,
 	},
 	{
 		value: "nameCases",
 		title: "Padeži imena",
+		description: "Set grammatical name cases",
 		url: "/admin/name-cases",
 		icon: LanguagesIcon,
 	},
 	{
 		value: "designSystem",
 		title: "Design System",
+		description: "Browse components and tokens",
 		url: "/admin/design-system",
 		icon: PaletteIcon,
-		mobileFullWidth: true,
 	},
 ];
 

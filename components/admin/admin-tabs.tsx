@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CheckIcon, ChevronUpIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, MenuIcon } from "lucide-react";
 import {
 	Drawer,
 	DrawerClose,
@@ -24,91 +24,108 @@ export function AdminTabs() {
 	const activeItem =
 		adminNavigationItems.find((item) => item.value === activeValue) ??
 		adminNavigationItems[0];
-	const ActiveIcon = activeItem.icon;
 
 	return (
-		<Drawer shouldScaleBackground={false}>
-			<DrawerTrigger asChild>
-				<button
-					type="button"
-					className="group flex min-h-16 w-full touch-manipulation items-center gap-3 rounded-2xl border border-border/50 bg-card/70 px-3.5 py-3 text-left shadow-sm backdrop-blur-xl transition-[transform,border-color,background-color] duration-150 ease-out active:scale-[0.985] active:border-primary/30 active:bg-card"
-					aria-label={`Admin navigation, current section: ${activeItem.title}`}
-				>
-					<span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
-						<ActiveIcon className="size-5" aria-hidden="true" />
-					</span>
+		<div className="flex min-h-[72px] items-end justify-between gap-4">
+			<div className="min-w-0">
+				<p className="mb-1 text-ios-caption font-semibold uppercase tracking-[0.16em] text-ds-button-muted">
+					Admin panel
+				</p>
+				<h1 className="truncate text-ios-display-34 font-semibold leading-none tracking-[-0.035em] text-ds-button-foreground">
+					{activeItem.title}
+				</h1>
+			</div>
 
-					<span className="min-w-0 flex-1">
-						<span className="block text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-							Admin section
-						</span>
-						<span className="mt-0.5 block truncate text-sm font-semibold text-foreground">
-							{activeItem.title}
-						</span>
-					</span>
+			<Drawer shouldScaleBackground={false}>
+				<DrawerTrigger asChild>
+					<button
+						type="button"
+						className="flex min-h-11 shrink-0 touch-manipulation items-center gap-2 rounded-full border border-white/10 bg-ds-surface-raised/80 px-4 text-ios-subheadline font-semibold text-ds-button-accent-bright shadow-[inset_0_1px_0_rgb(255_255_255/0.08),0_8px_24px_rgb(0_0_0/0.2)] backdrop-blur-xl transition-[transform,background-color] duration-press ease-ds-out active:scale-[0.97] active:bg-ds-surface-selected focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-button-accent-bright"
+						aria-label={`Open admin menu. Current section: ${activeItem.title}`}
+					>
+						<MenuIcon className="size-[18px]" strokeWidth={2.25} aria-hidden="true" />
+						<span>Menu</span>
+					</button>
+				</DrawerTrigger>
 
-					<span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary/70 text-muted-foreground transition-colors duration-150 group-active:text-foreground">
-						<ChevronUpIcon className="size-4" aria-hidden="true" />
-					</span>
-				</button>
-			</DrawerTrigger>
+				<DrawerContent className="z-[70] max-h-[88dvh] rounded-t-[32px] border-white/10 bg-background/95 shadow-[0_-24px_64px_rgb(0_0_0/0.5)] backdrop-blur-2xl [&>div:first-child]:mt-2.5 [&>div:first-child]:h-1 [&>div:first-child]:w-9 [&>div:first-child]:bg-white/20">
+					<DrawerHeader className="flex flex-row items-start justify-between gap-4 px-5 pb-4 pt-5 text-left">
+						<div className="min-w-0">
+							<DrawerTitle className="text-ios-display-25 font-semibold tracking-[-0.025em]">
+								Admin panel
+							</DrawerTitle>
+							<DrawerDescription className="mt-1 text-ios-subheadline">
+								Choose a section to manage.
+							</DrawerDescription>
+						</div>
+						<DrawerClose asChild>
+							<button
+								type="button"
+								className="min-h-11 touch-manipulation rounded-full px-2 text-ios-body font-semibold text-ds-button-accent-bright transition-[transform,opacity] duration-press ease-ds-out active:scale-[0.96] active:opacity-70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ds-button-accent-bright"
+							>
+								Done
+							</button>
+						</DrawerClose>
+					</DrawerHeader>
 
-			<DrawerContent className="z-[70] max-h-[85dvh] rounded-t-[28px] border-border/60 bg-background/95 shadow-[0_-20px_60px_rgba(0,0,0,0.45)] backdrop-blur-2xl">
-				<DrawerHeader className="px-5 pb-3 pt-5 text-left">
-					<DrawerTitle>Admin panel</DrawerTitle>
-					<DrawerDescription>
-						Choose the section you want to manage.
-					</DrawerDescription>
-				</DrawerHeader>
+					<nav
+						aria-label="Admin sections"
+						className="mx-4 mb-[calc(env(safe-area-inset-bottom,0px)+1.25rem)] overflow-hidden rounded-[22px] border border-white/[0.08] bg-ds-surface-raised/90 shadow-[inset_0_1px_0_rgb(255_255_255/0.045),0_14px_34px_rgb(0_0_0/0.2)]"
+					>
+						{adminNavigationItems.map((item, index) => {
+							const isActive = item.value === activeValue;
+							const isLast = index === adminNavigationItems.length - 1;
+							const ItemIcon = item.icon;
 
-				<nav
-					aria-label="Admin sections"
-					className="grid grid-cols-2 gap-2 px-4 pb-[calc(env(safe-area-inset-bottom)+1.5rem)]"
-				>
-					{adminNavigationItems.map((item) => {
-						const isActive = item.value === activeValue;
-						const ItemIcon = item.icon;
-
-						return (
-							<DrawerClose asChild key={item.value}>
-								<Link
-									href={item.url}
-									aria-current={isActive ? "page" : undefined}
-									className={cn(
-										"relative flex min-h-[68px] touch-manipulation items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-[transform,border-color,background-color,color] duration-150 ease-out active:scale-[0.975]",
-										isActive
-											? "border-primary/35 bg-primary/10 text-foreground"
-											: "border-border/45 bg-card/60 text-muted-foreground hover:border-border hover:bg-card hover:text-foreground",
-										item.mobileFullWidth && "col-span-2 mt-1",
-									)}
-								>
-									<span
+							return (
+								<DrawerClose asChild key={item.value}>
+									<Link
+										href={item.url}
+										aria-current={isActive ? "page" : undefined}
 										className={cn(
-											"flex size-9 shrink-0 items-center justify-center rounded-xl",
-											isActive
-												? "bg-primary/15 text-primary"
-												: "bg-secondary/70 text-muted-foreground",
+											"relative flex min-h-16 touch-manipulation items-center gap-3 px-3.5 py-2.5 text-left transition-[transform,background-color] duration-press ease-ds-out active:scale-[0.985] active:bg-white/[0.07] focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ds-button-accent-bright",
+											isActive && "bg-ds-button-accent/10",
+											!isLast &&
+												"after:absolute after:bottom-0 after:left-[62px] after:right-0 after:h-px after:bg-white/[0.08]",
 										)}
 									>
-										<ItemIcon className="size-[18px]" aria-hidden="true" />
-									</span>
+										<span
+											className={cn(
+												"flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-ds-button-accent text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_3px_8px_rgb(0_0_0/0.2)]",
+												isActive && "bg-ds-button-accent-bright text-ds-content-on-selected",
+											)}
+										>
+											<ItemIcon className="size-[19px]" strokeWidth={2.1} aria-hidden="true" />
+										</span>
 
-									<span className="min-w-0 text-sm font-semibold leading-tight">
-										{item.title}
-									</span>
+										<span className="min-w-0 flex-1">
+											<span className="block truncate text-ios-body font-semibold leading-tight text-ds-button-foreground">
+												{item.title}
+											</span>
+											<span className="mt-0.5 block truncate text-ios-caption text-ds-button-muted">
+												{item.description}
+											</span>
+										</span>
 
-									{isActive && (
-										<CheckIcon
-											className="absolute right-2.5 top-2.5 size-3.5 text-primary"
-											aria-hidden="true"
-										/>
-									)}
-								</Link>
-							</DrawerClose>
-						);
-					})}
-				</nav>
-			</DrawerContent>
-		</Drawer>
+										{isActive ? (
+											<CheckIcon
+												className="mr-1 size-5 shrink-0 text-ds-button-accent-bright"
+												strokeWidth={2.5}
+												aria-hidden="true"
+											/>
+										) : (
+											<ChevronRightIcon
+												className="mr-0.5 size-[18px] shrink-0 text-ds-button-muted/65"
+												aria-hidden="true"
+											/>
+										)}
+									</Link>
+								</DrawerClose>
+							);
+						})}
+					</nav>
+				</DrawerContent>
+			</Drawer>
+		</div>
 	);
 }

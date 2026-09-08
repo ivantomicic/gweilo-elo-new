@@ -19,9 +19,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 	return (
 		<AdminGuard>
 			<AppShell title={title ?? "Admin"} showHeader={false} contentPadding={false}>
-				<PageContainer className="space-y-6 pb-10">
-					<div className="md:hidden"><AdminTabs /></div>
-					<h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
+				<PageContainer className="space-y-6 pb-10 pt-[env(safe-area-inset-top,0px)] md:pt-0">
+					<div className="md:hidden">
+						<AdminTabs />
+					</div>
+					<h1 className="hidden text-2xl font-semibold tracking-tight md:block">
+						{title}
+					</h1>
 					{children}
 				</PageContainer>
 			</AppShell>
