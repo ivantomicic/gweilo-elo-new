@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 private struct AuthAppMetadata: Codable, Sendable {
     let role: String?
@@ -115,16 +116,21 @@ private struct UserUpdateRequest: Encodable {
 struct SupabaseErrorResponse: Decodable {
     let message: String?
     let errorDescription: String?
+    let code: String?
+    let errorCode: String?
 
     private enum CodingKeys: String, CodingKey {
         case message
         case errorDescription = "error_description"
+        case code
+        case errorCode = "error_code"
     }
 }
 
 enum AuthenticationError: LocalizedError {
     case cancelled
     case invalidResponse
+    case sessionExpired
     case rejected(String)
 
     var errorDescription: String? {
@@ -133,6 +139,8 @@ enum AuthenticationError: LocalizedError {
             "Prijava je otkazana."
         case .invalidResponse:
             "Supabase je vratio neispravan odgovor."
+        case .sessionExpired:
+            "Sesija je istekla. Prijavi se ponovo."
         case let .rejected(message):
             message
         }
@@ -141,7 +149,7 @@ enum AuthenticationError: LocalizedError {
 
 struct SupabaseAuthClient: Sendable {
     let configuration: AppConfiguration
-    var session: URLSession = .shared
+    var session: URLSession = AppNetwork.session
 
     func googleAuthorizationURL() throws -> URL {
         let endpoint = configuration.supabaseURL.appending(path: "auth/v1/authorize")
@@ -263,6 +271,13 @@ struct SupabaseAuthClient: Sendable {
 
         guard (200..<300).contains(httpResponse.statusCode) else {
             let response = try? JSONDecoder().decode(SupabaseErrorResponse.self, from: data)
+            let isRefresh = request.url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                .queryItems?.contains { $0.name == "grant_type" && $0.value == "refresh_token" } == true
+            let revokedCodes = ["refresh_token_not_found", "refresh_token_already_used", "session_not_found", "session_expired"]
+            if isRefresh, [400, 401, 403].contains(httpResponse.statusCode),
+               revokedCodes.contains(response?.code ?? response?.errorCode ?? "") {
+                throw AuthenticationError.sessionExpired
+            }
             throw AuthenticationError.rejected(
                 response?.message ??
                 response?.errorDescription ??
@@ -303,5 +318,81 @@ struct SupabaseAuthClient: Sendable {
         }
 
         return values
+    }
+}
+
+/// Shared, bounded transport. Only idempotent reads may be retried automatically.
+enum AppNetwork {
+    nonisolated private static let logger = Logger(subsystem: "com.ivantomicic.gweilo", category: "Networking")
+    nonisolated static let session: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 12
+        configuration.timeoutIntervalForResource = 25
+        return URLSession(configuration: configuration)
+    }()
+
+    nonisolated static func data(for request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
+        let canRetry = ["GET", "HEAD"].contains(request.httpMethod ?? "GET")
+        for attempt in 0...1 {
+            try Task.checkCancellation()
+            do {
+                let startedAt = ContinuousClock.now
+                let result = try await session.data(for: request)
+                let status = (result.1 as? HTTPURLResponse)?.statusCode ?? 0
+                let duration = startedAt.duration(to: .now)
+                logger.debug("Request completed: HTTP \(status), duration \(String(describing: duration), privacy: .public)")
+                if canRetry, attempt == 0, let response = result.1 as? HTTPURLResponse,
+                   [429, 502, 503, 504, 520].contains(response.statusCode) {
+                    // Do not retry early when the server asks for a longer wait.
+                    let header = response.value(forHTTPHeaderField: "Retry-After")
+                    let delay = header.flatMap(Double.init) ?? (header == nil ? 0.5 : 60)
+                    if delay >= 0, delay <= 2 {
+                        try await Task.sleep(for: .seconds(delay))
+                        continue
+                    }
+                }
+                return result
+            } catch let error as URLError where canRetry && attempt == 0 &&
+                [.timedOut, .networkConnectionLost, .cannotConnectToHost].contains(error.code) {
+                try await Task.sleep(for: .milliseconds(500))
+            }
+        }
+        throw URLError(.timedOut)
+    }
+
+    static func message(for error: Error) -> String {
+        if let error = error as? URLError {
+            switch error.code {
+            case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost:
+                return "Veza trenutno nije dostupna. Sačuvani podaci su i dalje tu. Pokušaj ponovo."
+            case .timedOut:
+                return "Učitavanje traje duže nego obično. Pokušaj ponovo."
+            default: break
+            }
+        }
+        return "Podaci trenutno nisu mogli da se osveže. Pokušaj ponovo."
+    }
+}
+
+struct AuthenticatedRequestExecutor: Sendable {
+    let token: @MainActor @Sendable (_ rejectedToken: String?) async throws -> String
+    var isCurrentUser: @MainActor @Sendable () -> Bool = { true }
+
+    nonisolated func data(for request: URLRequest, session: URLSession) async throws -> (Data, URLResponse) {
+        let accessToken = try await token(nil)
+        try Task.checkCancellation()
+        var authenticated = request
+        authenticated.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let result = try await AppNetwork.data(for: authenticated, session: session)
+        guard await isCurrentUser() else { throw CancellationError() }
+        guard (result.1 as? HTTPURLResponse)?.statusCode == 401 else { return result }
+        // One refresh and one replay, never an unbounded authentication loop.
+        let refreshedToken = try await token(accessToken)
+        try Task.checkCancellation()
+        authenticated.setValue("Bearer \(refreshedToken)", forHTTPHeaderField: "Authorization")
+        let replayed = try await AppNetwork.data(for: authenticated, session: session)
+        guard await isCurrentUser() else { throw CancellationError() }
+        return replayed
     }
 }

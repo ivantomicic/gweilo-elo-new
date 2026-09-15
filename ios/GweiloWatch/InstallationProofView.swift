@@ -13,7 +13,8 @@ struct InstallationProofView: View {
             if workoutManager.isWorkoutActive {
                 ActiveSessionPages(
                     session: snapshot?.activeSession,
-                    workoutManager: workoutManager
+                    workoutManager: workoutManager,
+                    syncService: syncService
                 )
             } else if snapshot?.activeSessionID == nil {
                 InactiveSessionPages(
@@ -25,7 +26,8 @@ struct InstallationProofView: View {
             } else if let activeSession = snapshot?.activeSession {
                 ActiveSessionPages(
                     session: activeSession,
-                    workoutManager: workoutManager
+                    workoutManager: workoutManager,
+                    syncService: syncService
                 )
             } else {
                 ActiveSessionSyncPage()
@@ -40,26 +42,26 @@ struct InstallationProofView: View {
             WorkoutStartPrompt(workoutManager: workoutManager)
         }
         .confirmationDialog(
-            "Session finished",
+            "Termin je završen",
             isPresented: $workoutManager.isEndPromptPresented,
             titleVisibility: .visible
         ) {
-            Button("End and Save") {
+            Button("Završi i sačuvaj") {
                 Task { await workoutManager.endWorkout() }
             }
-            Button("Keep Recording") {
+            Button("Nastavi snimanje") {
                 workoutManager.keepRecording()
             }
         } message: {
-            Text("Finish the workout too?")
+            Text("Završiti i trening?")
         }
         .alert(
-            "Workout unavailable",
+            "Trening nije dostupan",
             isPresented: workoutErrorBinding
         ) {
-            Button("OK") { workoutManager.dismissError() }
+            Button("U redu") { workoutManager.dismissError() }
         } message: {
-            Text(workoutManager.errorMessage ?? "Please try again.")
+            Text(workoutManager.errorMessage ?? "Pokušaj ponovo.")
         }
     }
 
@@ -110,48 +112,74 @@ private struct InactiveSessionPages: View {
 
 private struct ActiveSessionPages: View {
     private enum Page: Hashable {
-        case workout
-        case upNext
+        case stats
         case playingNow
+        case upNext
     }
 
     let session: GweiloWatchActiveSession?
     let workoutManager: WatchWorkoutManager
-    @State private var selectedPage: Page = .upNext
+    let syncService: WatchWidgetSyncService
+    @State private var selectedPage: Page = .stats
 
     var body: some View {
         TabView(selection: $selectedPage) {
             if workoutManager.isWorkoutActive {
                 WorkoutDashboardPage(workoutManager: workoutManager)
-                    .tag(Page.workout)
+                    .tag(Page.stats)
+            } else {
+                WorkoutStatsUnavailablePage(workoutManager: workoutManager)
+                    .tag(Page.stats)
             }
 
             if let session {
-                MatchPage(
-                    title: "UP NEXT",
-                    matches: session.upNext,
-                    emptyMessage: "FINAL ROUND"
-                )
-                .tag(Page.upNext)
-
-                MatchPage(
-                    title: "PLAYING NOW",
-                    matches: session.playingNow,
-                    emptyMessage: "WAITING FOR ROUND"
+                PlayingNowPage(
+                    session: session,
+                    syncService: syncService
                 )
                 .tag(Page.playingNow)
+
+                MatchPage(
+                    title: "SLEDEĆE",
+                    matches: session.upNext,
+                    emptyMessage: "POSLEDNJA RUNDA"
+                )
+                .tag(Page.upNext)
             }
         }
         .tabViewStyle(.verticalPage(transitionStyle: .blur))
-        .onChange(of: workoutManager.isWorkoutActive, initial: true) {
-            selectedPage = workoutManager.isWorkoutActive
-                ? .workout
-                : .upNext
-        }
         .onChange(of: workoutManager.activationSequence) {
-            guard workoutManager.isWorkoutActive else { return }
-            selectedPage = .workout
+            selectedPage = .stats
         }
+    }
+}
+
+private struct WorkoutStatsUnavailablePage: View {
+    let workoutManager: WatchWorkoutManager
+
+    var body: some View {
+        VStack(spacing: 9) {
+            Image(systemName: "heart.text.clipboard")
+                .font(.system(size: 30, weight: .semibold))
+                .foregroundStyle(GweiloWatchTheme.coral)
+
+            Text("STATISTIKA")
+                .font(.headline.weight(.black))
+                .foregroundStyle(GweiloWatchTheme.bone)
+
+            Text("Pokreni trening da pratiš vreme, kalorije i puls.")
+                .font(.caption2)
+                .foregroundStyle(GweiloWatchTheme.muted)
+                .multilineTextAlignment(.center)
+
+            Button("Pokreni trening") {
+                Task { await workoutManager.startWorkout() }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(GweiloWatchTheme.accent)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -166,8 +194,8 @@ private struct WorkoutDashboardPage: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("Workout metrics")
-        .accessibilityHint("Opens pause and end controls")
+        .accessibilityLabel("Statistika treninga")
+        .accessibilityHint("Otvara pauzu i završetak treninga")
         .sheet(isPresented: $showsWorkoutControls) {
             WorkoutControlsView(workoutManager: workoutManager)
         }
@@ -181,59 +209,73 @@ private struct WorkoutDashboardPage: View {
 
     private func workoutContent(at date: Date) -> some View {
         let elapsed = workoutManager.elapsedTime(at: date)
+        let glowIsExpanded = Int(date.timeIntervalSinceReferenceDate) % 2 == 0
 
-        return VStack(spacing: 0) {
-            Text(formattedTime(date))
-                .font(
-                    .system(
-                        size: clockSize,
-                        weight: .semibold,
-                        design: .rounded
+        return ZStack {
+            Circle()
+                .fill(GweiloWatchTheme.accent)
+                .frame(width: 150, height: 150)
+                .blur(radius: 30)
+                .scaleEffect(glowIsExpanded ? 1.08 : 0.90)
+                .opacity(glowIsExpanded ? 0.16 : 0.08)
+                .animation(
+                    .easeInOut(duration: 1.05),
+                    value: glowIsExpanded
+                )
+
+            VStack(spacing: 0) {
+                Text(formattedTime(date))
+                    .font(
+                        .system(
+                            size: clockSize,
+                            weight: .semibold,
+                            design: .rounded
+                        )
                     )
-                )
-                .monospacedDigit()
-                .foregroundStyle(
-                    workoutManager.isPaused
-                        ? GweiloWatchTheme.amber
-                        : GweiloWatchTheme.bone
-                )
-                .minimumScaleFactor(0.8)
-                .lineLimit(1)
-
-            HStack(spacing: 0) {
-                WorkoutMetric(
-                    value: String(
-                        Int(workoutManager.activeCalories.rounded())
-                    ),
-                    unit: "KCAL",
-                    symbol: "flame.fill",
-                    color: GweiloWatchTheme.amber
-                )
-
-                Rectangle()
-                    .fill(Color.white.opacity(0.12))
-                    .frame(width: 1, height: 52)
-                    .padding(.horizontal, 8)
-
-                WorkoutMetric(
-                    value: workoutManager.heartRate > 0
-                        ? String(Int(workoutManager.heartRate.rounded()))
-                        : "--",
-                    unit: "BPM",
-                    symbol: "heart.fill",
-                    color: GweiloWatchTheme.coral
-                )
-            }
-            .padding(.top, 7)
-
-            HStack(spacing: 5) {
-                Image(systemName: "timer")
-                Text(formattedDuration(elapsed))
                     .monospacedDigit()
+                    .foregroundStyle(
+                        workoutManager.isPaused
+                            ? GweiloWatchTheme.amber
+                            : GweiloWatchTheme.bone
+                    )
+                    .minimumScaleFactor(0.8)
+                    .lineLimit(1)
+
+                HStack(spacing: 0) {
+                    WorkoutMetric(
+                        value: String(
+                            Int(workoutManager.activeCalories.rounded())
+                        ),
+                        unit: "KCAL",
+                        symbol: "flame.fill",
+                        color: GweiloWatchTheme.amber
+                    )
+
+                    Rectangle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 1, height: 52)
+                        .padding(.horizontal, 8)
+
+                    WorkoutMetric(
+                        value: workoutManager.heartRate > 0
+                            ? String(Int(workoutManager.heartRate.rounded()))
+                            : "--",
+                        unit: "BPM",
+                        symbol: "heart.fill",
+                        color: GweiloWatchTheme.coral
+                    )
+                }
+                .padding(.top, 7)
+
+                HStack(spacing: 5) {
+                    Image(systemName: "timer")
+                    Text(formattedDuration(elapsed))
+                        .monospacedDigit()
+                }
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(GweiloWatchTheme.muted)
+                .padding(.top, 7)
             }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(GweiloWatchTheme.muted)
-            .padding(.top, 7)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 8)
@@ -312,22 +354,22 @@ private struct WorkoutStartPrompt: View {
                 .font(.system(size: 30, weight: .semibold))
                 .foregroundStyle(GweiloWatchTheme.accentBright)
 
-            Text("TRACK THIS SESSION?")
+            Text("PRATITI OVAJ TERMIN?")
                 .font(.headline.weight(.bold))
                 .multilineTextAlignment(.center)
 
-            Text("Track time, calories and heart rate.")
+            Text("Prati vreme, kalorije i puls.")
                 .font(.caption2)
                 .foregroundStyle(GweiloWatchTheme.muted)
                 .multilineTextAlignment(.center)
 
-            Button("Start Workout") {
+            Button("Pokreni trening") {
                 Task { await workoutManager.startWorkout() }
             }
             .buttonStyle(.borderedProminent)
             .tint(GweiloWatchTheme.accent)
 
-            Button("Not Now") {
+            Button("Ne sada") {
                 workoutManager.declineWorkout()
             }
             .buttonStyle(.plain)
@@ -345,11 +387,11 @@ private struct ActiveSessionSyncPage: View {
             ProgressView()
                 .tint(GweiloWatchTheme.accentBright)
 
-            Text("SYNCING SESSION")
+            Text("SINHRONIZACIJA TERMINA")
                 .font(.headline.weight(.bold))
                 .foregroundStyle(GweiloWatchTheme.bone)
 
-            Text("Open Gweilo on iPhone once.")
+            Text("Otvori Gweilo jednom na iPhone-u.")
                 .font(.caption2)
                 .foregroundStyle(GweiloWatchTheme.muted)
         }
@@ -378,7 +420,7 @@ private struct PersonalPage: View {
         _ player: GweiloWidgetPlayer
     ) -> some View {
         VStack(spacing: 4) {
-            Text("MY GWEILO")
+            Text("MOJ GWEILO")
                 .font(.caption.weight(.bold))
                 .foregroundStyle(GweiloWatchTheme.accentBright)
 
@@ -420,11 +462,11 @@ private struct PersonalPage: View {
                 .font(.title2)
                 .foregroundStyle(GweiloWatchTheme.accentBright)
 
-            Text("Open Gweilo on iPhone")
+            Text("Otvori Gweilo na iPhone-u")
                 .font(.headline)
                 .multilineTextAlignment(.center)
 
-            Text("Your Elo and ranking will sync here.")
+            Text("Tvoj ELO i rang će se prikazati ovde.")
                 .font(.caption2)
                 .foregroundStyle(GweiloWatchTheme.muted)
                 .multilineTextAlignment(.center)
@@ -474,7 +516,7 @@ private struct FormStrip: View {
                     .frame(height: 7)
             }
         }
-        .accessibilityLabel("Recent singles form")
+        .accessibilityLabel("Skorašnja forma u singlu")
     }
 
     private func color(for score: Double?) -> Color {
@@ -488,6 +530,336 @@ private struct FormStrip: View {
             return GweiloWatchTheme.coral
         }
         return GweiloWatchTheme.amber
+    }
+}
+
+private struct PlayingNowPage: View {
+    let session: GweiloWatchActiveSession
+    let syncService: WatchWidgetSyncService
+    @State private var resultContext: WatchRoundResultContext?
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Text("TRENUTNO IGRAJU")
+                .font(.headline.weight(.bold))
+                .foregroundStyle(GweiloWatchTheme.accentBright)
+
+            if session.playingNow.isEmpty {
+                Text("ČEKA SE RUNDA")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(GweiloWatchTheme.muted)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(session.playingNow) { match in
+                            MatchRow(match: match)
+                                .frame(height: 38)
+
+                            if match.id != session.playingNow.last?.id {
+                                Divider()
+                                    .overlay(Color.white.opacity(0.08))
+                                    .padding(.horizontal, 12)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    resultContext = WatchRoundResultContext(session: session)
+                } label: {
+                    Label("Upiši rezultat", systemImage: "square.and.pencil")
+                        .font(.caption.weight(.bold))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(GweiloWatchTheme.accent)
+            }
+        }
+        .padding(.horizontal, 8)
+        .sheet(item: $resultContext) { context in
+            WatchRoundResultView(
+                context: context,
+                syncService: syncService
+            )
+        }
+    }
+}
+
+private struct WatchRoundResultContext: Identifiable {
+    let sessionID: UUID
+    let roundNumber: Int
+    let matches: [GweiloWatchMatchup]
+
+    var id: String {
+        "\(sessionID.uuidString)-\(roundNumber)"
+    }
+
+    init(session: GweiloWatchActiveSession) {
+        sessionID = session.id
+        roundNumber = session.currentRound
+        matches = session.playingNow
+    }
+}
+
+private struct WatchMatchScoreEntry: Identifiable {
+    let match: GweiloWatchMatchup
+    var teamOneScore = 0
+    var teamTwoScore = 0
+
+    var id: UUID { match.id }
+
+    var submission: RoundMatchScoreSubmission {
+        RoundMatchScoreSubmission(
+            matchId: match.id,
+            team1Score: teamOneScore,
+            team2Score: teamTwoScore
+        )
+    }
+}
+
+private struct WatchRoundResultView: View {
+    @Environment(\.dismiss) private var dismiss
+    let context: WatchRoundResultContext
+    let syncService: WatchWidgetSyncService
+    @State private var entries: [WatchMatchScoreEntry]
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+
+    init(
+        context: WatchRoundResultContext,
+        syncService: WatchWidgetSyncService
+    ) {
+        self.context = context
+        self.syncService = syncService
+        _entries = State(
+            initialValue: context.matches.map {
+                WatchMatchScoreEntry(match: $0)
+            }
+        )
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach($entries) { $entry in
+                        WatchMatchScoreEditor(entry: $entry)
+                        .disabled(isSubmitting)
+                    }
+
+                    Button(action: requestSubmission) {
+                        if isSubmitting {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label(
+                                "Sačuvaj rezultate",
+                                systemImage: "checkmark.circle.fill"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .disabled(isSubmitting)
+                    .buttonStyle(.borderedProminent)
+                    .tint(GweiloWatchTheme.accent)
+                    .accessibilityHint("Čuva sve prikazane rezultate")
+                }
+                .padding(.horizontal, 8)
+                .padding(.bottom, 8)
+            }
+            .navigationTitle("Runda \(context.roundNumber)")
+            .alert("Rezultati nisu sačuvani", isPresented: errorBinding) {
+                Button("U redu", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "Otvori Gweilo na iPhone-u i pokušaj ponovo.")
+            }
+        }
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    errorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func requestSubmission() {
+        WatchHaptics.play(.click)
+        Task { await submit() }
+    }
+
+    private func submit() async {
+        guard !isSubmitting else { return }
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+
+        do {
+            let payload = try await syncService.performSessionCommand(
+                .submitRound(
+                    sessionID: context.sessionID,
+                    roundNumber: context.roundNumber,
+                    scores: entries.map(\.submission)
+                )
+            )
+            guard case let .roundSubmitted(roundNumber) = payload,
+                  roundNumber == context.roundNumber else {
+                throw WatchResultSubmissionError.unexpectedResponse
+            }
+            WatchHaptics.play(.success)
+            dismiss()
+        } catch {
+            WatchHaptics.play(.failure)
+            errorMessage = error.localizedDescription
+        }
+    }
+}
+
+private struct WatchMatchScoreEditor: View {
+    @Binding var entry: WatchMatchScoreEntry
+
+    var body: some View {
+        VStack(spacing: 7) {
+            HStack(alignment: .center, spacing: 5) {
+                WatchTeamScoreControl(
+                    players: entry.match.leftPlayers,
+                    score: $entry.teamOneScore
+                )
+
+                Text(":")
+                    .font(.title2.weight(.medium))
+                    .foregroundStyle(GweiloWatchTheme.muted)
+                    .accessibilityHidden(true)
+
+                WatchTeamScoreControl(
+                    players: entry.match.rightPlayers,
+                    score: $entry.teamTwoScore
+                )
+            }
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 8)
+        .background {
+            RoundedRectangle(cornerRadius: 17, style: .continuous)
+                .fill(Color.white.opacity(0.07))
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+private struct WatchTeamScoreControl: View {
+    let players: [GweiloWatchSessionPlayer]
+    @Binding var score: Int
+    @State private var didClearWithLongPress = false
+    @ScaledMetric(relativeTo: .largeTitle)
+    private var scoreSize: CGFloat = 40
+
+    private var teamName: String {
+        players.map { player in
+            player.name.split(separator: " ").first.map(String.init)
+                ?? player.name
+        }
+        .joined(separator: " & ")
+    }
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 3) {
+                PlayerAvatarStack(players: players)
+
+                Text(teamName)
+                    .font(.caption.weight(.semibold))
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: 24, alignment: .center)
+
+            Button(action: incrementScore) {
+                Text(String(score))
+                    .font(
+                        .system(
+                            size: scoreSize,
+                            weight: .bold,
+                            design: .rounded
+                        )
+                        .monospacedDigit()
+                    )
+                    .foregroundStyle(GweiloWatchTheme.bone)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .frame(minWidth: 58, minHeight: 58)
+                    .background(GweiloWatchTheme.scoreControl, in: Circle())
+                    .contentShape(.circle)
+                    .contentTransition(.numericText(value: Double(score)))
+            }
+            .buttonStyle(.plain)
+            .simultaneousGesture(clearScoreGesture)
+            .accessibilityLabel("Rezultat za \(teamName)")
+            .accessibilityValue(String(score))
+            .accessibilityHint("Aktiviraj za povećanje; zadrži za brisanje")
+            .accessibilityAction(named: "Obriši rezultat") {
+                clearScore()
+            }
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    adjustScore(by: 1)
+                case .decrement:
+                    adjustScore(by: -1)
+                @unknown default:
+                    break
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var clearScoreGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.55)
+            .onEnded { _ in
+                didClearWithLongPress = true
+                clearScore()
+            }
+    }
+
+    private func incrementScore() {
+        if didClearWithLongPress {
+            didClearWithLongPress = false
+            return
+        }
+        adjustScore(by: 1)
+    }
+
+    private func clearScore() {
+        guard score != 0 else { return }
+
+        withAnimation(.easeOut(duration: 0.12)) {
+            score = 0
+        }
+        WatchHaptics.play(.directionDown)
+    }
+
+    private func adjustScore(by amount: Int) {
+        let updatedScore = min(99, max(0, score + amount))
+        guard updatedScore != score else { return }
+
+        withAnimation(.easeOut(duration: 0.12)) {
+            score = updatedScore
+        }
+        WatchHaptics.play(amount > 0 ? .directionUp : .directionDown)
+    }
+}
+
+private enum WatchResultSubmissionError: LocalizedError {
+    case unexpectedResponse
+
+    var errorDescription: String? {
+        "iPhone je vratio neočekivan odgovor. Pokušaj ponovo."
     }
 }
 
@@ -530,66 +902,55 @@ private struct WorkoutControlsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(spacing: 10) {
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                Text(
-                    formattedDuration(
-                        workoutManager.elapsedTime(at: context.date)
-                    )
-                )
-                .font(.system(size: 34, weight: .bold, design: .rounded))
-                .monospacedDigit()
+        HStack(spacing: 14) {
+            WorkoutControlButton(
+                title: workoutManager.isPaused ? "Nastavi" : "Pauza",
+                symbol: workoutManager.isPaused ? "play.fill" : "pause.fill",
+                color: GweiloWatchTheme.amber
+            ) {
+                workoutManager.togglePause()
             }
 
-            HStack(spacing: 18) {
-                Label(
-                    "\(Int(workoutManager.activeCalories.rounded())) kcal",
-                    systemImage: "flame.fill"
-                )
-                Label(
-                    workoutManager.heartRate > 0
-                        ? "\(Int(workoutManager.heartRate.rounded())) bpm"
-                        : "-- bpm",
-                    systemImage: "heart.fill"
-                )
-            }
-            .font(.caption2.weight(.semibold))
-
-            HStack(spacing: 8) {
-                Button {
-                    workoutManager.togglePause()
-                } label: {
-                    Label(
-                        workoutManager.isPaused ? "Resume" : "Pause",
-                        systemImage: workoutManager.isPaused
-                            ? "play.fill"
-                            : "pause.fill"
-                    )
-                }
-                .tint(GweiloWatchTheme.accent)
-
-                Button(role: .destructive) {
-                    Task {
-                        await workoutManager.endWorkout()
-                        dismiss()
-                    }
-                } label: {
-                    Label("End", systemImage: "stop.fill")
+            WorkoutControlButton(
+                title: "Završi",
+                symbol: "stop.fill",
+                color: GweiloWatchTheme.coral
+            ) {
+                Task {
+                    await workoutManager.endWorkout()
+                    dismiss()
                 }
             }
-            .labelStyle(.iconOnly)
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
 
-    private func formattedDuration(_ interval: TimeInterval) -> String {
-        let seconds = max(Int(interval), 0)
-        return String(
-            format: "%02d:%02d:%02d",
-            seconds / 3_600,
-            (seconds % 3_600) / 60,
-            seconds % 60
-        )
+private struct WorkoutControlButton: View {
+    let title: String
+    let symbol: String
+    let color: Color
+    let action: () -> Void
+
+    var body: some View {
+        VStack(spacing: 7) {
+            Button(action: action) {
+                Image(systemName: symbol)
+                    .font(.title2.weight(.bold))
+                    .frame(width: 50, height: 50)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.circle)
+            .tint(color)
+
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(GweiloWatchTheme.bone)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
     }
 }
 
@@ -614,7 +975,7 @@ private struct MatchRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .trailing)
 
-            Text("vs")
+            Text("—")
                 .font(.caption2)
                 .foregroundStyle(GweiloWatchTheme.muted)
 
@@ -632,7 +993,7 @@ private struct MatchRow: View {
         .minimumScaleFactor(0.72)
         .frame(maxWidth: .infinity, alignment: .center)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(leftName) versus \(rightName)")
+        .accessibilityLabel("\(leftName) protiv \(rightName)")
     }
 
     private func shortName(
@@ -713,4 +1074,5 @@ enum GweiloWatchTheme {
     static let lime = Color(red: 0.76, green: 1.00, blue: 0.12)
     static let amber = Color(red: 1.00, green: 0.70, blue: 0.10)
     static let coral = Color(red: 1.00, green: 0.27, blue: 0.36)
+    static let scoreControl = Color(red: 0.22, green: 0.22, blue: 0.26)
 }

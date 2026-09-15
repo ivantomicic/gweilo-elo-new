@@ -659,13 +659,17 @@ struct StartSessionView: View {
         self.previewMode = previewMode
         self.onCreated = onCreated
 
+        #if DEBUG
         if previewMode {
             _step = State(initialValue: .setup)
             _availablePlayers = State(
                 initialValue: SessionCreationPlayer.previewPlayers
             )
             _isLoadingPlayers = State(initialValue: false)
-        } else if dataStore.hasLoadedAvailableSessionPlayers {
+            return
+        }
+        #endif
+        if dataStore.hasLoadedAvailableSessionPlayers {
             _availablePlayers = State(
                 initialValue: dataStore.cachedAvailableSessionPlayers
             )

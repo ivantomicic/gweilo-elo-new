@@ -50,6 +50,44 @@ final class WatchSessionCreationTests: XCTestCase {
         XCTAssertEqual(decoded, response)
     }
 
+    @MainActor
+    func testWatchRoundSubmissionRoundTrips() throws {
+        let sessionID = UUID()
+        let roundNumber = 3
+        let scores = [
+            RoundMatchScoreSubmission(
+                matchId: UUID(),
+                team1Score: 3,
+                team2Score: 1
+            )
+        ]
+        let request = GweiloWatchSessionRequest(
+            command: .submitRound(
+                sessionID: sessionID,
+                roundNumber: roundNumber,
+                scores: scores
+            )
+        )
+
+        let encodedRequest = try JSONEncoder().encode(request)
+        let decodedRequest = try JSONDecoder().decode(
+            GweiloWatchSessionRequest.self,
+            from: encodedRequest
+        )
+        XCTAssertEqual(decodedRequest, request)
+
+        let response = GweiloWatchSessionResponse.success(
+            requestID: request.id,
+            payload: .roundSubmitted(roundNumber: roundNumber)
+        )
+        let encodedResponse = try JSONEncoder().encode(response)
+        let decodedResponse = try JSONDecoder().decode(
+            GweiloWatchSessionResponse.self,
+            from: encodedResponse
+        )
+        XCTAssertEqual(decodedResponse, response)
+    }
+
     private func makePlayer(name: String) -> SessionCreationPlayer {
         SessionCreationPlayer(
             id: UUID(),

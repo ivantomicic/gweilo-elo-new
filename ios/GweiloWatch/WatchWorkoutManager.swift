@@ -95,6 +95,10 @@ final class WatchWorkoutManager: NSObject {
         errorMessage = nil
         if phase == .failed {
             phase = .idle
+            if let currentGweiloSessionID,
+               lastHandledSessionID != currentGweiloSessionID {
+                isStartPromptPresented = true
+            }
         }
     }
 
@@ -125,12 +129,12 @@ final class WatchWorkoutManager: NSObject {
 
             workoutSession = session
             workoutBuilder = builder
-            markCurrentSessionHandled()
-            pendingConfiguration = nil
 
             let startDate = Date.now
             session.startActivity(with: startDate)
             try await builder.beginCollection(at: startDate)
+            markCurrentSessionHandled()
+            pendingConfiguration = nil
             phase = .running
         } catch {
             WatchHaptics.play(.failure)
@@ -213,10 +217,26 @@ final class WatchWorkoutManager: NSObject {
         let workoutType = HKObjectType.workoutType()
         let heartRateType = HKQuantityType(.heartRate)
         let activeEnergyType = HKQuantityType(.activeEnergyBurned)
-        try await healthStore.requestAuthorization(
-            toShare: [workoutType],
-            read: [workoutType, heartRateType, activeEnergyType]
-        )
+
+        if healthStore.authorizationStatus(for: workoutType)
+            == .sharingDenied {
+            throw WorkoutError.healthAuthorizationDenied
+        }
+
+        do {
+            try await healthStore.requestAuthorization(
+                toShare: [workoutType],
+                read: [workoutType, heartRateType, activeEnergyType]
+            )
+        } catch let error as HKError
+            where error.code == .errorAuthorizationDenied {
+            throw WorkoutError.healthAuthorizationDenied
+        }
+
+        guard healthStore.authorizationStatus(for: workoutType)
+            == .sharingAuthorized else {
+            throw WorkoutError.healthAuthorizationDenied
+        }
     }
 
     private func attachRecoveredSession(_ session: HKWorkoutSession) {
@@ -355,8 +375,14 @@ extension WatchWorkoutManager: HKLiveWorkoutBuilderDelegate {
 
 private enum WorkoutError: LocalizedError {
     case healthDataUnavailable
+    case healthAuthorizationDenied
 
     var errorDescription: String? {
-        "Health data is unavailable on this Apple Watch."
+        switch self {
+        case .healthDataUnavailable:
+            "Zdravstveni podaci nisu dostupni na ovom Apple Watch-u."
+        case .healthAuthorizationDenied:
+            "Gweilo nema dozvolu da čuva treninge. Na iPhone-u otvori podešavanja aplikacije Zdravlje, izaberi Gweilo i dozvoli Treninge, Puls i Aktivnu energiju."
+        }
     }
 }

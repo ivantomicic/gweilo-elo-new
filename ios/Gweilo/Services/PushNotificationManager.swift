@@ -11,7 +11,8 @@ private struct PushNotificationAPIErrorResponse: Decodable {
 private struct PushNotificationAPIClient: Sendable {
     let configuration: AppConfiguration
     let accessToken: String
-    var session: URLSession = .shared
+    var session: URLSession = AppNetwork.session
+    var requestExecutor: AuthenticatedRequestExecutor? = nil
 
     func fetchPreferences() async throws -> PushNotificationPreferences {
         let response: PushNotificationPreferencesResponse = try await perform(
@@ -102,7 +103,13 @@ private struct PushNotificationAPIClient: Sendable {
             )
         }
 
-        let (data, response) = try await session.data(for: request)
+        let result: (Data, URLResponse)
+        if let requestExecutor {
+            result = try await requestExecutor.data(for: request, session: session)
+        } else {
+            result = try await AppNetwork.data(for: request, session: session)
+        }
+        let (data, response) = result
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BackendAPIError.invalidResponse
         }
@@ -157,6 +164,8 @@ final class PushNotificationManager {
     private var preferenceCacheKey: String?
     @ObservationIgnored
     private var preferencesLoadedAt: Date?
+    @ObservationIgnored private var requestExecutor: AuthenticatedRequestExecutor?
+    @ObservationIgnored private var configuredSession: AuthSession?
 
     private init() {}
 
@@ -182,8 +191,15 @@ final class PushNotificationManager {
 
     func configure(
         configuration: AppConfiguration,
-        session: AuthSession
+        session: AuthSession,
+        requestExecutor: AuthenticatedRequestExecutor? = nil
     ) async {
+        self.requestExecutor = requestExecutor
+        configuredSession = session
+        if preferenceCacheKey != "push-preferences-\(session.user.id.uuidString)" {
+            preferences = nil
+            preferencesLoadedAt = nil
+        }
         preferenceCacheKey = "push-preferences-\(session.user.id.uuidString)"
         if let preferenceCacheKey,
            let data = UserDefaults.standard.data(forKey: preferenceCacheKey),
@@ -196,13 +212,18 @@ final class PushNotificationManager {
         }
         apiClient = PushNotificationAPIClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            requestExecutor: requestExecutor
         )
         await refreshAuthorizationStatus()
         await loadPreferences()
+        guard !Task.isCancelled,
+              preferenceCacheKey == "push-preferences-\(session.user.id.uuidString)",
+              let latestSession = configuredSession,
+              latestSession.user.id == session.user.id else { return }
         SessionLiveActivityManager.shared.configure(
             configuration: configuration,
-            session: session,
+            session: latestSession,
             enabled: preferences?.liveActivitiesEnabled ?? true
         )
         if isSystemAuthorized {
@@ -215,9 +236,11 @@ final class PushNotificationManager {
         configuration: AppConfiguration,
         session: AuthSession
     ) {
+        configuredSession = session
         apiClient = PushNotificationAPIClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            requestExecutor: requestExecutor
         )
         SessionLiveActivityManager.shared.updateAccessToken(
             configuration: configuration,
@@ -226,6 +249,8 @@ final class PushNotificationManager {
     }
 
     func clearConfiguration() {
+        configuredSession = nil
+        requestExecutor = nil
         apiClient = nil
         preferences = nil
         preferenceCacheKey = nil
@@ -263,12 +288,15 @@ final class PushNotificationManager {
         } ?? false
         guard forceRefresh || preferences == nil || !isFresh else { return }
         isLoadingPreferences = true
+        let cacheKey = preferenceCacheKey
         defer { isLoadingPreferences = false }
         do {
             let loadedPreferences = try await apiClient.fetchPreferences()
+            guard !Task.isCancelled, cacheKey == preferenceCacheKey else { return }
             preferences = loadedPreferences
             savePreferencesToCache(loadedPreferences)
         } catch {
+            guard !Task.isCancelled, cacheKey == preferenceCacheKey else { return }
             statusMessage = error.localizedDescription
         }
     }

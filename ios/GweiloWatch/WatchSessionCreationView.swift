@@ -259,14 +259,14 @@ private struct WatchSessionSetupView: View {
     private var playerCount: Binding<Int> {
         Binding(
             get: { model.draft.playerCount },
-            set: model.setPlayerCount
+            set: { model.setPlayerCount($0) }
         )
     }
 
     private var format: Binding<FourPlayerSessionFormat> {
         Binding(
             get: { model.draft.selectedFormat },
-            set: model.setFormat
+            set: { model.setFormat($0) }
         )
     }
 }

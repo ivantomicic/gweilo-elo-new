@@ -87,6 +87,10 @@ final class SessionLiveActivityManager {
     private var activityUpdatesTask: Task<Void, Never>?
     @ObservationIgnored
     private var tokenTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored
+    private var sessionsRequestingLocalActivity = Set<String>()
+
+    private static let remoteStartGracePeriod = Duration.seconds(2)
 
     private init() {}
 
@@ -121,6 +125,7 @@ final class SessionLiveActivityManager {
         activityUpdatesTask = nil
         tokenTasks.values.forEach { $0.cancel() }
         tokenTasks.removeAll()
+        sessionsRequestingLocalActivity.removeAll()
     }
 
     func setEnabled(_ enabled: Bool) async {
@@ -135,6 +140,7 @@ final class SessionLiveActivityManager {
         activityUpdatesTask = nil
         tokenTasks.values.forEach { $0.cancel() }
         tokenTasks.removeAll()
+        sessionsRequestingLocalActivity.removeAll()
 
         for activityID in Activity<GweiloSessionActivityAttributes>
             .activities
@@ -166,15 +172,13 @@ final class SessionLiveActivityManager {
         }
 
         let sessionID = detail.session.id.uuidString.lowercased()
-        let existing = Activity<GweiloSessionActivityAttributes>.activities
-            .first { $0.attributes.sessionID.lowercased() == sessionID }
         let content = ActivityContent(
             state: makeState(detail),
             staleDate: Date().addingTimeInterval(2 * 60 * 60)
         )
 
         if detail.session.status == .completed {
-            if let existing {
+            for existing in activities(for: sessionID) {
                 await Self.endActivity(
                     id: existing.id,
                     content: content,
@@ -184,7 +188,24 @@ final class SessionLiveActivityManager {
             return
         }
 
-        if let existing {
+        if let existing = await reconcileActivities(for: sessionID) {
+            await Self.updateActivity(id: existing.id, content: content)
+            observeUpdateToken(for: existing)
+            return
+        }
+
+        // Session creation also sends a remote push-to-start. Give ActivityKit
+        // time to surface it before using the local fallback, otherwise the
+        // remote start and Activity.request can create two independent items.
+        guard sessionsRequestingLocalActivity.insert(sessionID).inserted else {
+            return
+        }
+        defer { sessionsRequestingLocalActivity.remove(sessionID) }
+
+        try? await Task.sleep(for: Self.remoteStartGracePeriod)
+
+        guard isEnabled, !Task.isCancelled else { return }
+        if let existing = await reconcileActivities(for: sessionID) {
             await Self.updateActivity(id: existing.id, content: content)
             observeUpdateToken(for: existing)
             return
@@ -200,6 +221,10 @@ final class SessionLiveActivityManager {
                 pushType: .token
             )
             observeUpdateToken(for: activity)
+            _ = await reconcileActivities(
+                for: sessionID,
+                preferredActivityID: activity.id
+            )
         } catch {
             statusMessage = "Aktivnost uživo nije mogla da se pokrene."
         }
@@ -225,8 +250,21 @@ final class SessionLiveActivityManager {
             }
         }
 
-        for activity in Activity<GweiloSessionActivityAttributes>.activities {
+        let existingActivities = Activity<GweiloSessionActivityAttributes>
+            .activities
+        for activity in existingActivities {
             observeUpdateToken(for: activity)
+        }
+        let existingSessionIDs = Set(
+            existingActivities.map { $0.attributes.sessionID.lowercased() }
+        )
+        if !existingSessionIDs.isEmpty {
+            Task { [weak self] in
+                guard let self else { return }
+                for sessionID in existingSessionIDs {
+                    _ = await self.reconcileActivities(for: sessionID)
+                }
+            }
         }
 
         if activityUpdatesTask == nil {
@@ -236,9 +274,57 @@ final class SessionLiveActivityManager {
                 {
                     guard let self else { return }
                     self.observeUpdateToken(for: activity)
+                    _ = await self.reconcileActivities(
+                        for: activity.attributes.sessionID.lowercased(),
+                        preferredActivityID: activity.id
+                    )
                 }
             }
         }
+    }
+
+    private func activities(
+        for sessionID: String
+    ) -> [Activity<GweiloSessionActivityAttributes>] {
+        Activity<GweiloSessionActivityAttributes>.activities.filter {
+            $0.attributes.sessionID.lowercased() == sessionID
+        }
+    }
+
+    @discardableResult
+    private func reconcileActivities(
+        for sessionID: String,
+        preferredActivityID: String? = nil
+    ) async -> Activity<GweiloSessionActivityAttributes>? {
+        let matchingActivities = activities(for: sessionID)
+        guard !matchingActivities.isEmpty else { return nil }
+
+        let canonical = preferredActivityID.flatMap { preferredID in
+            matchingActivities.first { $0.id == preferredID }
+        } ?? matchingActivities[0]
+
+        for duplicate in matchingActivities
+            where duplicate.id != canonical.id
+        {
+            tokenTasks[duplicate.id]?.cancel()
+            tokenTasks[duplicate.id] = nil
+            await Self.endActivity(
+                id: duplicate.id,
+                content: nil,
+                dismissalDate: nil
+            )
+            if let apiClient {
+                try? await apiClient.remove(
+                    LiveActivityTokenRemoval(
+                        tokenType: "update",
+                        activityId: duplicate.id,
+                        deviceIdentifier: Self.deviceIdentifier
+                    )
+                )
+            }
+        }
+
+        return canonical
     }
 
     private func observeUpdateToken(

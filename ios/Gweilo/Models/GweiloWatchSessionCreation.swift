@@ -20,6 +20,11 @@ struct GweiloWatchSessionRequest: Codable, Equatable, Sendable {
             draft: SessionCreationDraft,
             preview: SessionSchedulePreview
         )
+        case submitRound(
+            sessionID: UUID,
+            roundNumber: Int,
+            scores: [RoundMatchScoreSubmission]
+        )
     }
 }
 
@@ -32,6 +37,7 @@ struct GweiloWatchSessionResponse: Codable, Equatable, Sendable {
         case players([SessionCreationPlayer])
         case preview(SessionSchedulePreview)
         case created(sessionID: UUID)
+        case roundSubmitted(roundNumber: Int)
     }
 
     static func success(

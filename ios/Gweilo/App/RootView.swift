@@ -30,7 +30,7 @@ private final class ConnectivityMonitor {
 }
 
 private struct AppLoadIdentity: Hashable {
-    let accessToken: String?
+    let userID: UUID?
     let isRestoringSession: Bool
 }
 
@@ -76,12 +76,13 @@ struct RootView: View {
             } else if authStore.session == nil {
                 SignInView(authStore: authStore)
             } else if let appDataStore,
-                      appDataStore.hasLoaded {
+                      appDataStore.currentUserID == authStore.session?.user.id {
                 MainTabView(
                     dataStore: appDataStore,
                     authStore: authStore,
                     pushNotifications: pushNotifications
                 )
+                .id(appDataStore.currentUserID)
             } else {
                 GweiloLoadingView("Učitavam tvoj klub…", size: 172)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -94,79 +95,90 @@ struct RootView: View {
                 let session = authStore.session,
                 let configuration = authStore.configuration
             else {
+                appDataStore?.deactivate()
                 appDataStore = nil
                 pushNotifications.clearConfiguration()
                 return
             }
 
             let store: AppDataStore
-            if let appDataStore {
+            if let appDataStore, appDataStore.currentUserID == session.user.id {
                 appDataStore.updateSession(session)
                 store = appDataStore
             } else {
+                appDataStore?.deactivate()
                 store = AppDataStore(
                     configuration: configuration,
-                    session: session
+                    session: session,
+                    requestExecutor: authStore.requestExecutor(for: session.user.id)
                 )
                 appDataStore = store
             }
 
-            async let homeData: Void = store.loadHome()
-            async let notifications: Void = pushNotifications.configure(
-                configuration: configuration,
-                session: session
-            )
-            _ = await (homeData, notifications)
+            await store.loadHome()
         }
         .task {
             await authStore.restoreSession()
         }
-        .task(id: appLoadIdentity) {
-            guard !authStore.isRestoringSession else { return }
-            await authStore.refreshBeforeExpiry()
+        .onChange(of: authStore.session?.accessToken) { _, _ in
+            guard let session = authStore.session,
+                  let configuration = authStore.configuration else { return }
+            appDataStore?.updateSession(session)
+            pushNotifications.updateAccessToken(configuration: configuration, session: session)
         }
-        .onChange(of: scenePhase) { _, newPhase in
-            guard newPhase == .active else { return }
-            Task {
-                let previousAccessToken = authStore.session?.accessToken
-                // Validate the server-side auth session on every foreground.
-                // This recovers immediately after a database restore rolls
-                // back refresh-token state.
-                await authStore.refreshIfNeeded(force: true)
-                await pushNotifications.refreshAuthorizationStatus()
-                guard
-                    let session = authStore.session,
-                    session.accessToken == previousAccessToken,
-                    !session.needsRefresh()
-                else {
-                    return
-                }
-                await appDataStore?.loadHome()
-            }
+        .task(id: authStore.session?.accessToken) {
+            guard scenePhase == .active, needsHomeRecovery,
+                  let store = appDataStore,
+                  store.currentUserID == authStore.session?.user.id else { return }
+            // A later successful auth refresh recovers failed sections without
+            // resetting navigation or reloading an already healthy homepage.
+            await store.loadHome(forceRefresh: true)
         }
-        .onChange(of: connectivity.isConnected) { wasConnected, isConnected in
-            guard wasConnected == false, isConnected == true else { return }
-            Task {
-                let previousAccessToken = authStore.session?.accessToken
-                await authStore.refreshIfNeeded(force: true)
-                guard
-                    let session = authStore.session,
-                    session.accessToken == previousAccessToken,
-                    !session.needsRefresh()
-                else {
-                    return
+        .task(id: lifecycleIdentity) {
+            guard scenePhase == .active, !authStore.isRestoringSession,
+                  let session = authStore.session,
+                  let configuration = authStore.configuration else { return }
+            async let refreshTimer: Void = authStore.refreshBeforeExpiry()
+            if connectivity.isConnected != false {
+                await authStore.refreshIfNeeded()
+                guard !Task.isCancelled, let current = authStore.session,
+                      current.user.id == session.user.id else { return }
+                // Keep optional notification work off the homepage's critical path.
+                async let notifications: Void = pushNotifications.configure(
+                    configuration: configuration, session: current,
+                    requestExecutor: authStore.requestExecutor(for: current.user.id)
+                )
+                await appDataStore?.loadHome(forceRefresh: needsHomeRecovery)
+                await notifications
+                if needsHomeRecovery {
+                    // One delayed retry also handles brief service failures where
+                    // the network path itself never changed. No polling loop.
+                    do { try await Task.sleep(for: .seconds(6)) } catch { return }
+                    guard !Task.isCancelled, authStore.session?.user.id == session.user.id else { return }
+                    if needsHomeRecovery { await appDataStore?.loadHome(forceRefresh: true) }
                 }
-                await appDataStore?.loadHome(forceRefresh: true)
             }
+            await refreshTimer
         }
         .onOpenURL { url in
             pushNotifications.handleDeepLink(url)
         }
     }
 
+    private var lifecycleIdentity: String {
+        "\(authStore.session?.user.id.uuidString ?? "signed-out")-\(authStore.isRestoringSession)-\(scenePhase == .active)-\(String(describing: connectivity.isConnected))"
+    }
+
+    private var needsHomeRecovery: Bool {
+        appDataStore?.errorMessage != nil
+            || appDataStore?.rankingsErrorMessage != nil
+            || appDataStore?.sessionsErrorMessage != nil
+            || appDataStore?.missionsErrorMessage != nil
+    }
+
     private var appLoadIdentity: AppLoadIdentity {
         AppLoadIdentity(
-            accessToken: authStore.session?.accessToken,
+            userID: authStore.session?.user.id,
             isRestoringSession: authStore.isRestoringSession
         )
     }

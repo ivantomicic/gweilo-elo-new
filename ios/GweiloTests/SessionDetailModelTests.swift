@@ -3,6 +3,15 @@ import SwiftUI
 @testable import Gweilo
 
 final class SessionDetailModelTests: XCTestCase {
+    @MainActor
+    func testHomeChartTransitionIdentityTracksShapeAndColorButNotRefetches() {
+        let original = [HomeEloTrendPoint(elo: 1500, delta: nil), HomeEloTrendPoint(elo: 1510, delta: 10)]
+        let identicalRefetch = original.map { HomeEloTrendPoint(elo: $0.elo, delta: $0.delta) }
+        let newShape = [original[0], HomeEloTrendPoint(elo: 1505, delta: 10)]
+        let newColor = [original[0], HomeEloTrendPoint(elo: 1510, delta: -10)]
+        XCTAssertEqual(Set([original, identicalRefetch]).count, 1)
+        XCTAssertEqual(Set([original, newShape, newColor]).count, 3)
+    }
 
     @MainActor
     func testOpportunityAdjustedFormUsesThirtyPercentBoundary() {
@@ -1222,7 +1231,7 @@ final class SessionDetailModelTests: XCTestCase {
             XCTFail("Expected the missing session to be surfaced.")
         } catch let error as BackendAPIError {
             XCTAssertTrue(error.isSessionNotFound)
-            XCTAssertEqual(error.localizedDescription, "Session not found")
+            XCTAssertEqual(error.localizedDescription, "Termin nije pronađen.")
         } catch {
             XCTFail("Unexpected error: \(error)")
         }

@@ -42,7 +42,7 @@ struct RankingsView: View {
                                     destination(for: $0, in: category)
                                 },
                                 isLoading: dataStore.isLoading,
-                                errorMessage: dataStore.errorMessage,
+                                errorMessage: dataStore.rankingsErrorMessage ?? dataStore.errorMessage,
                                 retry: {
                                     Task {
                                         await dataStore.load(
@@ -86,6 +86,10 @@ struct RankingsView: View {
             }
         }
         .environment(entrance)
+        .task(id: isActiveAppTab) {
+            guard isActiveAppTab else { return }
+            await dataStore.load()
+        }
         .task(id: entranceReady) {
             guard entranceReady else { return }
             await entrance.run(entryIDs: entries.map(\.id), skipMotion: reduceMotion || voiceOverEnabled)

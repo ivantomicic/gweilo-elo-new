@@ -121,7 +121,7 @@ struct RankingEntry: Identifiable, Hashable, Codable, Sendable {
     }
 }
 
-struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
+struct PlayerEloHistoryPoint: Codable, Identifiable, Hashable, Sendable {
     var id: Int { match }
 
     let match: Int
@@ -187,7 +187,7 @@ struct PlayerEloHistoryPoint: Identifiable, Hashable, Sendable {
     }
 }
 
-enum MatchOutcome: String, Hashable, Sendable {
+enum MatchOutcome: String, Codable, Hashable, Sendable {
     case win
     case loss
     case draw
@@ -254,7 +254,7 @@ enum FormPerformanceScore {
     }
 }
 
-struct PlayerEloHistory: Hashable, Sendable {
+struct PlayerEloHistory: Codable, Hashable, Sendable {
     let points: [PlayerEloHistoryPoint]
     let currentElo: Double
 }

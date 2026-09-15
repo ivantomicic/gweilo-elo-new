@@ -3,7 +3,13 @@ import Observation
 import WidgetKit
 import Security
 
-private struct AuthSessionVault {
+protocol AuthSessionPersisting {
+    func load() throws -> AuthSession?
+    func save(_ session: AuthSession) throws
+    func delete()
+}
+
+private struct AuthSessionVault: AuthSessionPersisting {
     private let service = Bundle.main.bundleIdentifier ?? "com.ivantomicic.gweilo"
     private let account = "supabase-session"
 
@@ -74,11 +80,18 @@ final class AuthStore {
     private(set) var errorMessage: String?
 
     let configuration: AppConfiguration?
-    private let vault = AuthSessionVault()
+    private let vault: any AuthSessionPersisting
+    private let networkSession: URLSession
+    @ObservationIgnored private var refreshTask: Task<AuthSession, Error>?
+    @ObservationIgnored private var refreshGeneration = UUID()
+    @ObservationIgnored private var retryRefreshAfter: Date?
     private var didRestoreSession = false
 
-    init(configuration: AppConfiguration? = .load()) {
+    init(configuration: AppConfiguration? = .load(), vault: (any AuthSessionPersisting)? = nil,
+         networkSession: URLSession = AppNetwork.session) {
         self.configuration = configuration
+        self.vault = vault ?? AuthSessionVault()
+        self.networkSession = networkSession
     }
 
     func restoreSession() async {
@@ -89,9 +102,8 @@ final class AuthStore {
         do {
             guard let storedSession = try vault.load() else { return }
             session = storedSession
-            // A database restore can invalidate a refresh token while the
-            // locally stored access token still appears unexpired.
-            await refreshIfNeeded(force: true)
+            // Restore locally first. Requests validate/refresh credentials without
+            // keeping the cached homepage behind a network-dependent splash screen.
         } catch {
             vault.delete()
             errorMessage = "Sačuvana prijava nije mogla da se vrati. Prijavi se ponovo."
@@ -106,14 +118,17 @@ final class AuthStore {
 
         isSigningIn = true
         errorMessage = nil
+        let generation = beginAuthenticationChange()
         defer { isSigningIn = false }
 
         do {
-            let authenticatedSession = try await SupabaseAuthClient(configuration: configuration)
+            let authenticatedSession = try await SupabaseAuthClient(configuration: configuration, session: networkSession)
                 .signIn(email: email, password: password)
+            guard generation == refreshGeneration else { return }
             try vault.save(authenticatedSession)
             session = authenticatedSession
         } catch {
+            guard generation == refreshGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
@@ -129,80 +144,105 @@ final class AuthStore {
         isSigningIn = true
         isSigningInWithGoogle = true
         errorMessage = nil
+        let generation = beginAuthenticationChange()
         defer {
             isSigningIn = false
             isSigningInWithGoogle = false
         }
 
         do {
-            let client = SupabaseAuthClient(configuration: configuration)
+            let client = SupabaseAuthClient(configuration: configuration, session: networkSession)
             let authorizationURL = try client.googleAuthorizationURL()
             let callbackURL = try await authenticate(authorizationURL)
             let authenticatedSession = try await client.session(
                 fromOAuthCallback: callbackURL
             )
+            guard generation == refreshGeneration else { return }
             try vault.save(authenticatedSession)
             session = authenticatedSession
         } catch AuthenticationError.cancelled {
             // Closing the browser is an intentional action, not a sign-in error.
         } catch {
+            guard generation == refreshGeneration else { return }
             errorMessage = error.localizedDescription
         }
     }
 
     func refreshIfNeeded(force: Bool = false) async {
-        guard
-            let configuration,
-            let currentSession = session,
-            force || currentSession.needsRefresh()
-        else {
-            return
-        }
-
         do {
-            let refreshedSession = try await SupabaseAuthClient(configuration: configuration)
-                .refreshSession(refreshToken: currentSession.refreshToken)
-            try vault.save(refreshedSession)
-            session = refreshedSession
-            errorMessage = nil
-        } catch let error as AuthenticationError {
-            if case .rejected = error {
-                signOut()
-                errorMessage = "Sesija je istekla. Prijavi se ponovo."
-            } else {
-                errorMessage = error.localizedDescription
+            _ = try await validSession(force: force)
+        } catch { /* The shared refresh owner publishes the error once. */ }
+    }
+
+    func requestExecutor(for userID: UUID) -> AuthenticatedRequestExecutor {
+        AuthenticatedRequestExecutor(token: { [weak self] rejectedToken in
+            guard let self, self.session?.user.id == userID else {
+                throw AuthenticationError.sessionExpired
             }
-        } catch {
-            // Keep the saved session through temporary connectivity failures.
-            errorMessage = "Prijava nije mogla da se osveži. Pokušaćemo ponovo."
+            let force = rejectedToken != nil && self.session?.accessToken == rejectedToken
+            let valid = try await self.validSession(force: force)
+            guard self.session?.user.id == userID else { throw CancellationError() }
+            return valid.accessToken
+        }, isCurrentUser: { [weak self] in self?.session?.user.id == userID })
+    }
+
+    private func validSession(force: Bool) async throws -> AuthSession {
+        guard let current = session, let configuration else {
+            throw AuthenticationError.sessionExpired
         }
+        if let refreshTask { return try await refreshTask.value }
+        guard force || current.needsRefresh() else { return current }
+        if let retryRefreshAfter, retryRefreshAfter > .now { throw URLError(.cannotConnectToHost) }
+        let generation = refreshGeneration
+        let task = Task { [self] in
+            do {
+                let refreshed = try await SupabaseAuthClient(configuration: configuration, session: networkSession)
+                    .refreshSession(refreshToken: current.refreshToken)
+                try Task.checkCancellation()
+                guard generation == refreshGeneration, session?.user.id == current.user.id else {
+                    throw CancellationError()
+                }
+                try vault.save(refreshed)
+                session = refreshed
+                retryRefreshAfter = nil
+                errorMessage = nil
+                return refreshed
+            } catch {
+                guard generation == refreshGeneration, !Task.isCancelled else { throw CancellationError() }
+                if case AuthenticationError.sessionExpired = error {
+                    signOut()
+                    errorMessage = "Sesija je istekla. Prijavi se ponovo."
+                } else {
+                    retryRefreshAfter = .now.addingTimeInterval(5)
+                    errorMessage = "Prijava nije mogla da se osveži. Pokušaćemo ponovo."
+                }
+                throw error
+            }
+        }
+        refreshTask = task
+        defer { if generation == refreshGeneration { refreshTask = nil } }
+        return try await task.value
+    }
+
+    static func refreshDelay(for session: AuthSession, now: Date = .now) -> TimeInterval? {
+        session.expiresAt.map { max(0, TimeInterval($0) - 90 - now.timeIntervalSince1970) }
     }
 
     func refreshBeforeExpiry() async {
-        guard
-            let currentSession = session,
-            let expiresAt = currentSession.expiresAt
-        else {
-            return
+        while !Task.isCancelled, let current = session,
+              let delay = Self.refreshDelay(for: current) {
+            do {
+                if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+                try Task.checkCancellation()
+                await refreshIfNeeded()
+                // Retry temporary failures and avoid spinning on malformed expiry values.
+                try await Task.sleep(for: .seconds(5))
+            } catch { return }
         }
-
-        let refreshAt = TimeInterval(expiresAt) - 90
-        let delay = max(0, refreshAt - Date.now.timeIntervalSince1970)
-        if delay > 0 {
-            try? await Task.sleep(
-                for: .seconds(Int64(delay.rounded(.down)))
-            )
-        }
-        guard
-            !Task.isCancelled,
-            session?.accessToken == currentSession.accessToken
-        else {
-            return
-        }
-        await refreshIfNeeded()
     }
 
     func signOut() {
+        _ = beginAuthenticationChange()
         vault.delete()
         GweiloWidgetSnapshotStore().clear()
         IPhoneWatchSyncService.shared.send(.empty)
@@ -211,6 +251,14 @@ final class AuthStore {
         )
         session = nil
         errorMessage = nil
+    }
+
+    private func beginAuthenticationChange() -> UUID {
+        refreshGeneration = UUID()
+        refreshTask?.cancel()
+        refreshTask = nil
+        retryRefreshAfter = nil
+        return refreshGeneration
     }
 
     func reauthenticate(currentPassword: String) async throws -> AuthSession {
@@ -222,8 +270,10 @@ final class AuthStore {
             throw AuthenticationError.rejected("Unesi trenutnu lozinku.")
         }
 
-        let refreshedSession = try await SupabaseAuthClient(configuration: configuration)
+        let generation = beginAuthenticationChange()
+        let refreshedSession = try await SupabaseAuthClient(configuration: configuration, session: networkSession)
             .signIn(email: email, password: currentPassword)
+        guard generation == refreshGeneration else { throw CancellationError() }
         try vault.save(refreshedSession)
         session = refreshedSession
         return refreshedSession

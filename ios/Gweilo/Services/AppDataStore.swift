@@ -18,6 +18,7 @@ struct HomeDashboardSnapshot: Codable, Equatable, Sendable {
     var missionSnapshot: RivalryMissionSnapshot? = nil
     var primaryLoadedAt: Date? = nil
     var missionLoadedAt: Date? = nil
+    var currentUserEloHistory: PlayerEloHistory? = nil
 }
 
 struct HomeLatestSessionPerformance: Equatable, Sendable {
@@ -157,11 +158,19 @@ final class AppDataStore {
     private(set) var hasLoaded = false
     private(set) var hasCompletedInitialHomeLoad = false
     private(set) var errorMessage: String?
+    private(set) var hasLoadedRankings = false
+    private(set) var hasLoadedSessions = false
+    private(set) var isRankingsLoading = false
+    private(set) var isSessionsLoading = false
+    private(set) var rankingsErrorMessage: String?
+    private(set) var sessionsErrorMessage: String?
 
     private var client: SupabaseDataClient
     private var apiClient: GweiloAPIClient
     private var missionsClient: RivalryMissionsClient
     private let configuration: AppConfiguration
+    private let requestExecutor: AuthenticatedRequestExecutor?
+    private let networkSession: URLSession
     private let homeSnapshotStore: HomeDashboardSnapshotStore
     private let widgetSnapshotStore: GweiloWidgetSnapshotStore
     private var homeLatestSessionDelta: Double?
@@ -197,11 +206,16 @@ final class AppDataStore {
     @ObservationIgnored
     private var currentUserHistoryRequest: Task<PlayerEloHistory, Error>?
     @ObservationIgnored
+    private var postRoundSubmissionRefreshTasks: [UUID: Task<Void, Never>] = [:]
+    @ObservationIgnored
     private var loadWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored
     private var needsFollowupRefresh = false
     @ObservationIgnored
     private var isCurrentLoadForced = false
+    @ObservationIgnored private var isCurrentLoadIncludingDoubles = false
+    @ObservationIgnored private var needsFullRankings = false
+    @ObservationIgnored private var lastFullRankingsLoadAt: Date?
     @ObservationIgnored
     private var isRefreshingAuxiliaryData = false
     @ObservationIgnored
@@ -209,7 +223,7 @@ final class AppDataStore {
     @ObservationIgnored
     private var lastMissionLoadAt: Date?
     @ObservationIgnored
-    private var loadGeneration = 0
+    private var isActiveStore = true
     @ObservationIgnored
     private var locallyStartedSessionID: UUID?
     let currentUserID: UUID
@@ -221,9 +235,13 @@ final class AppDataStore {
         homeSnapshotStore: HomeDashboardSnapshotStore =
             HomeDashboardSnapshotStore(),
         widgetSnapshotStore: GweiloWidgetSnapshotStore =
-            GweiloWidgetSnapshotStore()
+            GweiloWidgetSnapshotStore(),
+        requestExecutor: AuthenticatedRequestExecutor? = nil,
+        networkSession: URLSession = AppNetwork.session
     ) {
         self.configuration = configuration
+        self.requestExecutor = requestExecutor
+        self.networkSession = networkSession
         self.homeSnapshotStore = homeSnapshotStore
         self.widgetSnapshotStore = widgetSnapshotStore
         currentUserID = session.user.id
@@ -232,15 +250,21 @@ final class AppDataStore {
         isAdmin = session.user.isAdmin
         client = SupabaseDataClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            session: networkSession,
+            requestExecutor: requestExecutor
         )
         apiClient = GweiloAPIClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            session: networkSession,
+            requestExecutor: requestExecutor
         )
         missionsClient = RivalryMissionsClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            session: networkSession,
+            requestExecutor: requestExecutor
         )
         registerWatchSessionCreationHandler()
 
@@ -248,6 +272,9 @@ final class AppDataStore {
             topThreeSinglesPlayers = snapshot.topThreeSinglesPlayers
             sessions = snapshot.sessions ?? []
             singlesRankings = snapshot.singlesRankings ?? []
+            hasLoadedRankings = snapshot.singlesRankings != nil || !snapshot.topThreeSinglesPlayers.isEmpty
+            hasLoadedSessions = snapshot.sessions != nil
+            currentUserEloHistory = snapshot.currentUserEloHistory
             doublesPlayerRankings = snapshot.doublesPlayerRankings ?? []
             doublesTeamRankings = snapshot.doublesTeamRankings ?? []
             rankingEligibility = snapshot.rankingEligibility ?? .fallback
@@ -264,7 +291,6 @@ final class AppDataStore {
             homeCurrentUserFirstName = snapshot.currentUserFirstName
             homeCurrentUserVocativeName = snapshot.currentUserVocativeName
             lastSuccessfulLoadAt = snapshot.primaryLoadedAt
-                ?? snapshot.savedAt
             lastMissionLoadAt = snapshot.missionLoadedAt
                 ?? (snapshot.missionSnapshot == nil ? nil : snapshot.savedAt)
             hasLoaded = true
@@ -272,37 +298,47 @@ final class AppDataStore {
     }
 
     func updateSession(_ session: AuthSession) {
-        loadGeneration += 1
+        guard session.user.id == currentUserID else { return }
+        let permissionsChanged = canManageSessions != session.user.canManageSessions || isAdmin != session.user.isAdmin
         authenticatedUserFallbackName = Self.fallbackName(for: session.user.email)
         canManageSessions = session.user.canManageSessions
         isAdmin = session.user.isAdmin
-        cachedAvailableSessionPlayers = []
-        hasLoadedAvailableSessionPlayers = false
-        cachedCalculatorPlayers = []
-        hasLoadedCalculatorPlayers = false
+        if permissionsChanged {
+            cachedAvailableSessionPlayers = []
+            hasLoadedAvailableSessionPlayers = false
+            cachedCalculatorPlayers = []
+            hasLoadedCalculatorPlayers = false
+            availablePlayersRequest?.cancel()
+            availablePlayersRequest = nil
+        }
         client = SupabaseDataClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            session: networkSession,
+            requestExecutor: requestExecutor
         )
         apiClient = GweiloAPIClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            session: networkSession,
+            requestExecutor: requestExecutor
         )
         missionsClient = RivalryMissionsClient(
             configuration: configuration,
-            accessToken: session.accessToken
+            accessToken: session.accessToken,
+            session: networkSession,
+            requestExecutor: requestExecutor
         )
-        hasLoadedMissions = false
-        currentUserEloHistory = nil
-        lastSuccessfulLoadAt = nil
-        lastMissionLoadAt = nil
+        // Token rotation is not an account change: keep valid data and requests.
+    }
+
+    func deactivate() {
+        isActiveStore = false
         sessionDetailRequests.values.forEach { $0.cancel() }
-        sessionDetailRequests.removeAll()
-        sessionDetailCache.removeAll()
         availablePlayersRequest?.cancel()
-        availablePlayersRequest = nil
         currentUserHistoryRequest?.cancel()
-        currentUserHistoryRequest = nil
+        postRoundSubmissionRefreshTasks.values.forEach { $0.cancel() }
+        postRoundSubmissionRefreshTasks.removeAll()
     }
 
     var activeSession: SessionSummary? {
@@ -411,14 +447,7 @@ final class AppDataStore {
             )
             sessionDetailCache.removeValue(for: sessionID)
             invalidateProfileCaches()
-            await load(forceRefresh: true)
-            await loadMissions(forceRefresh: true)
-            if sessions.contains(where: {
-                $0.id == sessionID && $0.status == .completed
-            }) {
-                clubActiveSessionID = nil
-                hasCheckedActiveSession = true
-            }
+            schedulePostRoundSubmissionRefresh(sessionID: sessionID)
             return result
         } catch let error as BackendAPIError where error.isSessionNotFound {
             sessions.removeAll { $0.id == sessionID }
@@ -430,6 +459,28 @@ final class AppDataStore {
             throw error
         } catch {
             throw error
+        }
+    }
+
+    private func schedulePostRoundSubmissionRefresh(sessionID: UUID) {
+        let refreshID = UUID()
+        postRoundSubmissionRefreshTasks[refreshID] = Task { [weak self] in
+            guard let self else { return }
+            defer { self.postRoundSubmissionRefreshTasks[refreshID] = nil }
+
+            async let homeRefresh: Void = self.load(forceRefresh: true)
+            async let missionsRefresh: Void = self.loadMissions(
+                forceRefresh: true
+            )
+            _ = await (homeRefresh, missionsRefresh)
+
+            guard self.isActiveStore, !Task.isCancelled else { return }
+            if self.sessions.contains(where: {
+                $0.id == sessionID && $0.status == .completed
+            }) {
+                self.clubActiveSessionID = nil
+                self.hasCheckedActiveSession = true
+            }
         }
     }
 
@@ -596,20 +647,22 @@ final class AppDataStore {
         }
 
         do {
-            missionSnapshot = try await missionsClient.playerSnapshot()
+            let snapshot = try await missionsClient.playerSnapshot()
+            try Task.checkCancellation()
+            missionSnapshot = snapshot
             lastMissionLoadAt = .now
             saveHomeSnapshotIfPossible()
         } catch {
-            missionsErrorMessage = error.localizedDescription
+            if !Task.isCancelled { missionsErrorMessage = AppNetwork.message(for: error) }
         }
     }
 
     func loadHome(forceRefresh: Bool = false) async {
         async let missions: Void = loadMissions(forceRefresh: forceRefresh)
         async let currentUserHistory: PlayerEloHistory? =
-            refreshCurrentUserEloHistory()
-        await load(forceRefresh: forceRefresh)
-        hasCompletedInitialHomeLoad = true
+            refreshCurrentUserEloHistory(forceRefresh: forceRefresh)
+        await load(forceRefresh: forceRefresh, includeDoubles: false)
+        if !Task.isCancelled { hasCompletedInitialHomeLoad = true }
         _ = await (missions, currentUserHistory)
     }
 
@@ -707,7 +760,7 @@ final class AppDataStore {
     private func registerWatchSessionCreationHandler() {
         IPhoneWatchSyncService.shared.registerSessionCreationHandler {
             [weak self] request in
-            guard let self else {
+            guard let self, self.isActiveStore else {
                 return .failure(
                     requestID: request.id,
                     message: "Otvori Gweilo na iPhone-u i pokušaj ponovo."
@@ -721,19 +774,18 @@ final class AppDataStore {
         _ request: GweiloWatchSessionRequest
     ) async -> GweiloWatchSessionResponse {
         guard canManageSessions else {
-            return .failure(
-                requestID: request.id,
-                message: "Nemaš dozvolu za pokretanje termina."
-            )
+                return .failure(
+                    requestID: request.id,
+                    message: "Nemaš dozvolu da upravljaš terminima."
+                )
         }
 
         do {
-            guard activeSession == nil, clubActiveSessionID == nil else {
-                throw BackendAPIError.rejected("Termin je već aktivan.")
-            }
-
             switch request.command {
             case .loadPlayers:
+                guard activeSession == nil, clubActiveSessionID == nil else {
+                    throw BackendAPIError.rejected("Termin je već aktivan.")
+                }
                 let players = try await availableSessionPlayers()
                 return .success(
                     requestID: request.id,
@@ -741,6 +793,9 @@ final class AppDataStore {
                 )
 
             case let .preview(draft, currentPreview, randomizing):
+                guard activeSession == nil, clubActiveSessionID == nil else {
+                    throw BackendAPIError.rejected("Termin je već aktivan.")
+                }
                 let preview = try await prepareSessionPreview(
                     from: draft,
                     currentPreview: currentPreview,
@@ -752,6 +807,9 @@ final class AppDataStore {
                 )
 
             case let .create(draft, preview):
+                guard activeSession == nil, clubActiveSessionID == nil else {
+                    throw BackendAPIError.rejected("Termin je već aktivan.")
+                }
                 let session = try await createSession(
                     from: draft,
                     preview: preview
@@ -759,6 +817,24 @@ final class AppDataStore {
                 return .success(
                     requestID: request.id,
                     payload: .created(sessionID: session.id)
+                )
+
+            case let .submitRound(sessionID, roundNumber, scores):
+                guard activeSession?.id == sessionID
+                    || clubActiveSessionID == sessionID else {
+                    throw BackendAPIError.rejected("Termin više nije aktivan.")
+                }
+                guard !scores.isEmpty else {
+                    throw BackendAPIError.rejected("Unesi rezultate mečeva.")
+                }
+                _ = try await submitRound(
+                    sessionID: sessionID,
+                    roundNumber: roundNumber,
+                    scores: scores
+                )
+                return .success(
+                    requestID: request.id,
+                    payload: .roundSubmitted(roundNumber: roundNumber)
                 )
             }
         } catch {
@@ -788,13 +864,15 @@ final class AppDataStore {
         await loadMissions(forceRefresh: true)
     }
 
-    func load(forceRefresh: Bool = false) async {
+    func load(forceRefresh: Bool = false, includeDoubles: Bool = true) async {
+        guard isActiveStore, !Task.isCancelled else { return }
         let hasFreshPrimaryData = lastSuccessfulLoadAt.map {
             Date.now.timeIntervalSince($0) < Self.primaryRefreshLifetime
         } ?? false
         if !forceRefresh,
            hasLoaded,
            hasFreshPrimaryData,
+           (!includeDoubles || lastFullRankingsLoadAt.map { Date.now.timeIntervalSince($0) < Self.primaryRefreshLifetime } == true),
            hasCheckedActiveSession {
             return
         }
@@ -802,6 +880,8 @@ final class AppDataStore {
         if isLoading {
             needsFollowupRefresh = needsFollowupRefresh
                 || (forceRefresh && !isCurrentLoadForced)
+                || (includeDoubles && !isCurrentLoadIncludingDoubles)
+            needsFullRankings = needsFullRankings || includeDoubles
             await withCheckedContinuation { continuation in
                 loadWaiters.append(continuation)
             }
@@ -809,128 +889,130 @@ final class AppDataStore {
         }
 
         var nextLoadIsForced = forceRefresh
+        var nextLoadIncludesDoubles = includeDoubles
         repeat {
             isCurrentLoadForced = nextLoadIsForced
+            isCurrentLoadIncludingDoubles = nextLoadIncludesDoubles
+            needsFullRankings = false
             needsFollowupRefresh = false
             isLoading = true
-            await performPrimaryLoad()
+            await performPrimaryLoad(includeDoubles: nextLoadIncludesDoubles)
             isLoading = false
             hasLoaded = true
             nextLoadIsForced = needsFollowupRefresh
-        } while needsFollowupRefresh
+            nextLoadIncludesDoubles = needsFullRankings
+        } while needsFollowupRefresh && !Task.isCancelled
         isCurrentLoadForced = false
 
         let waiters = loadWaiters
         loadWaiters.removeAll(keepingCapacity: true)
         waiters.forEach { $0.resume() }
 
-        Task { [weak self] in
-            await self?.refreshAuxiliaryData()
-        }
+        guard !Task.isCancelled else { return }
+        await refreshAuxiliaryData()
     }
 
-    private func performPrimaryLoad() async {
-        loadGeneration += 1
-        let generation = loadGeneration
-        if !hasLoaded {
-            hasCheckedActiveSession = false
-        }
+    private func performPrimaryLoad(includeDoubles: Bool) async {
         errorMessage = nil
-
-        async let sessionsRequest = client.fetchSessions()
-        async let rankingsRequest = apiClient.fetchRankings()
-        async let activeSessionRequest = apiClient.fetchActiveSessionID()
-        async let vocativeNameRequest = client.fetchVocativeName(
-            userID: currentUserID
-        )
-        var firstError: Error?
-        var didRefreshSessions = false
-
-        do {
-            sessions = try await sessionsRequest
-            didRefreshSessions = true
-        } catch {
-            firstError = error
+        // Each section publishes as soon as its own response arrives.
+        async let loadedSessions = refreshHomeSessions()
+        async let loadedRankings = refreshHomeRankings(includeDoubles: includeDoubles)
+        async let loadedActive = refreshHomeActiveSession()
+        async let loadedGreeting: Void = refreshHomeGreeting()
+        let (sessionsOK, rankingsOK, activeOK, _) = await
+            (loadedSessions, loadedRankings, loadedActive, loadedGreeting)
+        guard !Task.isCancelled else { return }
+        if activeOK {
+            // Reconcile after both requests finish, independent of arrival order.
+            let confirmedID = clubActiveSessionID ?? (sessionsOK ? sessions.first { $0.status == .active }?.id : nil)
+            clubActiveSessionID = confirmedID
+            sessions.removeAll { $0.status == .active && $0.id != confirmedID }
+            if confirmedID == nil { locallyStartedSessionID = nil }
         }
-        guard generation == loadGeneration else { return }
-
-        do {
-            homeCurrentUserVocativeName = try await vocativeNameRequest
-        } catch {
-            // The regular first name remains a valid greeting fallback.
-        }
-        guard generation == loadGeneration else { return }
-
-        do {
-            let rankings = try await rankingsRequest
-            singlesRankings = rankings.singles
-            doublesPlayerRankings = rankings.doublesPlayers
-            doublesTeamRankings = rankings.doublesTeams
-            rankingEligibility = rankings.eligibility
-
-            let freshTopThree = Array(rankings.singles.prefix(3))
-            if freshTopThree.count == 3 || topThreeSinglesPlayers.isEmpty {
-                topThreeSinglesPlayers = freshTopThree
-            }
-
-            if let currentUser = rankings.singles.first(where: {
-                $0.id == currentUserID
-            }) {
-                homeLatestSessionDelta = currentUser.recentForm.last
-                homeLatestSessionFormScore =
-                    currentUser.resolvedRecentFormScores.last
-                homeCurrentUserFirstName = currentUser.name
-                    .split(whereSeparator: \.isWhitespace)
-                    .first
-                    .map(String.init)
-            }
-        } catch {
-            firstError = firstError ?? error
-        }
-        guard generation == loadGeneration else { return }
-
-        do {
-            let fetchedActiveSessionID = try await activeSessionRequest
-            let listedActiveSessionID = didRefreshSessions
-                ? sessions.first { $0.status == .active }?.id
-                : nil
-            if let confirmedSessionID = fetchedActiveSessionID
-                ?? listedActiveSessionID {
-                sessions.removeAll {
-                    $0.status == .active && $0.id != confirmedSessionID
-                }
-                clubActiveSessionID = confirmedSessionID
-                if locallyStartedSessionID == confirmedSessionID {
-                    locallyStartedSessionID = nil
-                }
-            } else {
-                // The authenticated active-session endpoint is authoritative.
-                // Remove an active row restored from the on-device snapshot
-                // even when the broader sessions refresh failed.
-                sessions.removeAll { $0.status == .active }
-                locallyStartedSessionID = nil
-                clubActiveSessionID = nil
-            }
-            hasCheckedActiveSession = true
-        } catch {
-            firstError = firstError ?? error
-        }
-        guard generation == loadGeneration else { return }
-
-        errorMessage = firstError?.localizedDescription
-        if firstError == nil {
-            lastSuccessfulLoadAt = .now
-        }
+        if sessionsOK && rankingsOK && activeOK { lastSuccessfulLoadAt = .now }
+        errorMessage = errorMessage ?? sessionsErrorMessage ?? rankingsErrorMessage
         saveHomeSnapshotIfPossible()
     }
 
+    private func refreshHomeSessions() async -> Bool {
+        isSessionsLoading = true
+        sessionsErrorMessage = nil
+        defer { isSessionsLoading = false }
+        do {
+            let fetched = try await client.fetchSessions()
+            try Task.checkCancellation()
+            sessions = fetched
+            hasLoadedSessions = true
+            saveHomeSnapshotIfPossible()
+            return true
+        } catch {
+            if !Task.isCancelled { sessionsErrorMessage = AppNetwork.message(for: error) }
+            return false
+        }
+    }
+
+    private func refreshHomeRankings(includeDoubles: Bool) async -> Bool {
+        isRankingsLoading = true
+        rankingsErrorMessage = nil
+        defer { isRankingsLoading = false }
+        do {
+            let rankings = try await apiClient.fetchRankings(singlesOnly: !includeDoubles)
+            try Task.checkCancellation()
+            singlesRankings = rankings.singles
+            if includeDoubles {
+                doublesPlayerRankings = rankings.doublesPlayers
+                doublesTeamRankings = rankings.doublesTeams
+                lastFullRankingsLoadAt = .now
+            }
+            rankingEligibility = rankings.eligibility
+            topThreeSinglesPlayers = Array(rankings.singles.prefix(3))
+            hasLoadedRankings = true
+            if let currentUser = rankings.singles.first(where: { $0.id == currentUserID }) {
+                homeLatestSessionDelta = currentUser.recentForm.last
+                homeLatestSessionFormScore = currentUser.resolvedRecentFormScores.last
+                homeCurrentUserFirstName = currentUser.name
+                    .split(whereSeparator: \.isWhitespace).first.map(String.init)
+            }
+            saveHomeSnapshotIfPossible()
+            return true
+        } catch {
+            if !Task.isCancelled { rankingsErrorMessage = AppNetwork.message(for: error) }
+            return false
+        }
+    }
+
+    private func refreshHomeActiveSession() async -> Bool {
+        do {
+            let activeID = try await apiClient.fetchActiveSessionID()
+            try Task.checkCancellation()
+            clubActiveSessionID = activeID
+            hasCheckedActiveSession = true
+            if locallyStartedSessionID == activeID { locallyStartedSessionID = nil }
+            return true
+        } catch {
+            if !Task.isCancelled {
+                hasCheckedActiveSession = false
+                errorMessage = AppNetwork.message(for: error)
+            }
+            return false
+        }
+    }
+
+    private func refreshHomeGreeting() async {
+        do {
+            let name = try await client.fetchVocativeName(userID: currentUserID)
+            try Task.checkCancellation()
+            homeCurrentUserVocativeName = name
+        } catch { /* The local first name is a valid fallback. */ }
+    }
+
     private func refreshAuxiliaryData() async {
-        guard !isRefreshingAuxiliaryData else { return }
+        guard isActiveStore, !Task.isCancelled, !isRefreshingAuxiliaryData else { return }
         isRefreshingAuxiliaryData = true
         defer { isRefreshingAuxiliaryData = false }
 
         async let sessionPlayersRequest =
-            availableSessionPlayers(forceRefresh: true)
+            availableSessionPlayers()
         async let widgetHistoryRequest: PlayerEloHistory? =
             refreshCurrentUserEloHistory()
 
@@ -961,7 +1043,10 @@ final class AppDataStore {
         )
     }
 
-    private func refreshCurrentUserEloHistory() async -> PlayerEloHistory? {
+    private func refreshCurrentUserEloHistory(forceRefresh: Bool = false) async -> PlayerEloHistory? {
+        if !forceRefresh, let history = playerHistoryCache.freshValue(for: currentUserID) {
+            return history
+        }
         if let currentUserHistoryRequest {
             return try? await currentUserHistoryRequest.value
         }
@@ -976,6 +1061,7 @@ final class AppDataStore {
 
         do {
             let history = try await request.value
+            try Task.checkCancellation()
             playerHistoryCache.insert(history, for: currentUserID)
             applyCurrentUserEloHistory(history)
             return history
@@ -984,7 +1070,7 @@ final class AppDataStore {
             if currentUserEloHistory == nil, let cachedHistory {
                 applyCurrentUserEloHistory(cachedHistory)
             }
-            return cachedHistory
+            return cachedHistory ?? currentUserEloHistory
         }
     }
 
@@ -1008,7 +1094,8 @@ final class AppDataStore {
     }
 
     private func saveHomeSnapshotIfPossible() {
-        guard topThreeSinglesPlayers.count == 3 else { return }
+        guard isActiveStore else { return }
+        guard hasLoadedRankings || hasLoadedSessions || missionSnapshot != nil else { return }
         homeSnapshotStore.save(
             HomeDashboardSnapshot(
                 topThreeSinglesPlayers: topThreeSinglesPlayers,
@@ -1018,8 +1105,8 @@ final class AppDataStore {
                     homeCurrentUserFirstName ?? currentUserFirstName,
                 savedAt: .now,
                 currentUserVocativeName: homeCurrentUserVocativeName,
-                sessions: sessions,
-                singlesRankings: singlesRankings,
+                sessions: hasLoadedSessions ? sessions : nil,
+                singlesRankings: hasLoadedRankings ? singlesRankings : nil,
                 doublesPlayerRankings: doublesPlayerRankings,
                 doublesTeamRankings: doublesTeamRankings,
                 rankingEligibility: rankingEligibility,
@@ -1028,7 +1115,8 @@ final class AppDataStore {
                     : nil,
                 missionSnapshot: missionSnapshot,
                 primaryLoadedAt: lastSuccessfulLoadAt,
-                missionLoadedAt: lastMissionLoadAt
+                missionLoadedAt: lastMissionLoadAt,
+                currentUserEloHistory: currentUserEloHistory
             ),
             for: currentUserID
         )
@@ -1137,6 +1225,7 @@ final class AppDataStore {
     }
 
     private func persistWidgetSnapshot(_ snapshot: GweiloWidgetSnapshot) {
+        guard isActiveStore else { return }
         if let existing = widgetSnapshotStore.load(),
            existing.hasSameContent(as: snapshot) {
             return
@@ -1276,6 +1365,7 @@ extension AppDataStore {
         doublesPlayerRankings = doublesPlayers
         doublesTeamRankings = doublesTeams
         topThreeSinglesPlayers = Array(singles.prefix(3))
+        hasLoadedRankings = true
         if let currentUser = singles.first(
             where: { $0.id == currentUserID }
         ) {

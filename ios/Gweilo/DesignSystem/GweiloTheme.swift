@@ -482,18 +482,41 @@ struct AdaptiveSurfaceModifier<SurfaceShape: Shape>: ViewModifier {
 }
 
 struct FloatingTabBarAccessoryModifier<Accessory: View>: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let isPresented: Bool
+    var animatesPresentation = false
     let accessory: Accessory
 
     func body(content: Content) -> some View {
         content
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if isPresented {
-                    accessory
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
+                ZStack {
+                    if isPresented {
+                        accessory
+                            .padding(.horizontal, 20)
+                            .padding(.vertical, 8)
+                            .transition(presentationTransition)
+                    }
                 }
+                .allowsHitTesting(isPresented)
+                .accessibilityHidden(!isPresented)
+                .animation(
+                    animatesPresentation
+                        ? (reduceMotion
+                            ? .easeOut(duration: 0.15)
+                            : .smooth(duration: isPresented ? 0.50 : 0.26))
+                        : nil,
+                    value: isPresented
+                )
             }
+    }
+
+    private var presentationTransition: AnyTransition {
+        guard animatesPresentation else { return .identity }
+        guard !reduceMotion else { return .opacity }
+        return .opacity
+            .combined(with: .offset(y: 8))
+            .combined(with: .scale(scale: 0.98, anchor: .bottom))
     }
 }
 
@@ -630,11 +653,13 @@ extension View {
 
     func floatingTabBarAccessory<Accessory: View>(
         isPresented: Bool = true,
+        animatesPresentation: Bool = false,
         @ViewBuilder accessory: () -> Accessory
     ) -> some View {
         modifier(
             FloatingTabBarAccessoryModifier(
                 isPresented: isPresented,
+                animatesPresentation: animatesPresentation,
                 accessory: accessory()
             )
         )

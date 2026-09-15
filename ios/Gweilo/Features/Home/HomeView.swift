@@ -32,7 +32,15 @@ struct HomeView: View {
                         )
 
                         VStack(alignment: .leading, spacing: -10) {
-                            TopThreeStandings(players: topSinglesPlayers)
+                            if !dataStore.hasLoadedRankings {
+                                SectionHeading(title: "Vrh tabele")
+                                if dataStore.rankingsErrorMessage == nil {
+                                    ProgressView("Učitavam tabelu…")
+                                        .frame(maxWidth: .infinity, minHeight: 180)
+                                }
+                            } else {
+                                TopThreeStandings(players: topSinglesPlayers)
+                            }
 
                             if let standing = currentUserStanding {
                                 MyStandingSection(
@@ -44,10 +52,18 @@ struct HomeView: View {
                             }
                         }
 
+                        if let message = dataStore.rankingsErrorMessage {
+                            DataErrorNotice(message: message, retry: retryHome)
+                        }
+
                         if let snapshot = dataStore.missionSnapshot,
                            !snapshot.missions.isEmpty {
                             RivalryMissionsSection(snapshot: snapshot)
-                        } else if let errorMessage =
+                        } else if dataStore.isMissionsLoading && !dataStore.hasLoadedMissions {
+                            ProgressView("Učitavam misije…")
+                                .frame(maxWidth: .infinity, minHeight: 120)
+                        }
+                        if let errorMessage =
                                     dataStore.missionsErrorMessage {
                             VStack(alignment: .leading, spacing: 10) {
                                 SectionHeading(title: "Moje misije")
@@ -69,13 +85,22 @@ struct HomeView: View {
                                 sessions: dataStore.recentCompletedSessions,
                                 rankings: dataStore.singlesRankings
                             )
+                        } else if !dataStore.hasLoadedSessions && dataStore.sessionsErrorMessage == nil {
+                            ProgressView("Učitavam poslednje sesije…")
+                                .frame(maxWidth: .infinity, minHeight: 90)
                         }
 
-                        if let errorMessage = dataStore.errorMessage {
+                        if let message = dataStore.sessionsErrorMessage {
+                            DataErrorNotice(message: message, retry: retryHome)
+                        }
+
+                        if let errorMessage = dataStore.errorMessage,
+                           dataStore.rankingsErrorMessage == nil,
+                           dataStore.sessionsErrorMessage == nil {
                             DataErrorNotice(
                                 message: errorMessage,
                                 retry: {
-                                    Task { await dataStore.load() }
+                                    retryHome()
                                 }
                             )
                         }
@@ -88,7 +113,8 @@ struct HomeView: View {
                 }
                 .scrollIndicators(.hidden)
                 .floatingTabBarAccessory(
-                    isPresented: dataStore.canStartNewSession
+                    isPresented: dataStore.canStartNewSession,
+                    animatesPresentation: true
                 ) {
                     HomeStartSessionButton(action: startSession)
                 }
@@ -125,12 +151,16 @@ struct HomeView: View {
         }
     }
 
+    private func retryHome() {
+        Task { await dataStore.loadHome(forceRefresh: true) }
+    }
+
     private func startSession() {
         showsStartSession = true
     }
 }
 
-struct HomeEloTrendPoint: Equatable, Sendable {
+struct HomeEloTrendPoint: Hashable, Sendable {
     let elo: Double
     let delta: Double?
 }
@@ -281,6 +311,7 @@ private struct MyStandingSection: View {
 }
 
 private struct MyStandingSummary: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let player: RankingEntry
     let rank: Int
     let trend: HomeEloTrend
@@ -326,6 +357,8 @@ private struct MyStandingSummary: View {
                 Text(trendText)
                     .font(.caption.monospacedDigit().weight(.black))
                     .foregroundStyle(trendColor)
+                    .contentTransition(.opacity)
+                    .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.24), value: trend.delta)
 
                 Image(systemName: "chevron.right")
                     .font(.caption2.weight(.bold))
@@ -359,10 +392,17 @@ private struct MyStandingSummary: View {
                         .foregroundStyle(GweiloTheme.accentBright)
                 }
 
-                HomeEloSparkline(points: trend.points)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .padding(.bottom, 2)
+                ZStack {
+                    // Canvas redraws are not interpolated by SwiftUI. Keep the
+                    // outgoing drawing alive while the new, accurate data fades in.
+                    HomeEloSparkline(points: trend.points)
+                        .id(trend.points)
+                        .transition(.opacity)
+                }
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .padding(.bottom, 2)
+                .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.24), value: trend.points)
             }
 
             Text(trend.rangeLabel)
@@ -374,6 +414,8 @@ private struct MyStandingSummary: View {
                 )
                 .tracking(1)
                 .foregroundStyle(GweiloTheme.muted)
+                .contentTransition(.opacity)
+                .animation(.easeInOut(duration: reduceMotion ? 0.15 : 0.24), value: trend.rangeLabel)
         }
         .padding(.vertical, 16)
         .overlay(alignment: .top) {
@@ -511,7 +553,7 @@ struct DataErrorNotice: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 11) {
-            Image(systemName: "wifi.exclamationmark")
+            Image(systemName: "arrow.clockwise.circle")
                 .foregroundStyle(GweiloTheme.coral)
 
             Text(message)
@@ -804,6 +846,8 @@ private struct PodiumPlayer: View {
 }
 
 struct TopThreePreviewScreen: View {
+    @State private var showsAvailableSession = false
+    @State private var detailedHistory: PlayerEloHistory?
     private let players = [
         RankingEntry(
             id: UUID(),
@@ -858,15 +902,40 @@ struct TopThreePreviewScreen: View {
                             MyStandingSection(
                                 player: players[0],
                                 rank: 1,
-                                history: nil
+                                history: detailedHistory
                             )
                             .zIndex(1)
                         }
                     }
                     .padding(.horizontal, 20)
                 }
+                .floatingTabBarAccessory(
+                    isPresented: showsAvailableSession,
+                    animatesPresentation: true
+                ) {
+                    HomeStartSessionButton(action: {})
+                }
             }
             .toolbarVisibility(.hidden, for: .navigationBar)
+        }
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("-home-motion-preview") else { return }
+            do {
+                try await Task.sleep(for: .seconds(2))
+                showsAvailableSession = true
+                try await Task.sleep(for: .seconds(1))
+                let values: [Double] = [1650, 1640, 1664, 1670, 1658, 1685, 1691, 1705, 1690, 1710, 1703, 1718]
+                detailedHistory = PlayerEloHistory(
+                    points: values.enumerated().map { index, elo in
+                        PlayerEloHistoryPoint(
+                            match: index + 1, elo: elo,
+                            date: Date(timeIntervalSince1970: Double(index / 3) * 86400),
+                            opponent: "Preview", delta: elo - (index == 0 ? 1645 : values[index - 1])
+                        )
+                    },
+                    currentElo: 1718
+                )
+            } catch { }
         }
     }
 }

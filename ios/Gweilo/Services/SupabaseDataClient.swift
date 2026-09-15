@@ -220,7 +220,15 @@ private struct PostgrestErrorResponse: Decodable {
 struct SupabaseDataClient: Sendable {
     let configuration: AppConfiguration
     let accessToken: String
-    var session: URLSession = .shared
+    var session: URLSession = AppNetwork.session
+    var requestExecutor: AuthenticatedRequestExecutor? = nil
+
+    private func authenticatedData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        if let requestExecutor {
+            return try await requestExecutor.data(for: request, session: session)
+        }
+        return try await AppNetwork.data(for: request, session: session)
+    }
 
     func fetchSessionDetail(session summary: SessionSummary) async throws -> SessionDetail {
         async let sessionRecordRequest: [SessionDetailEnvelopeRecord] = get(
@@ -421,7 +429,7 @@ struct SupabaseDataClient: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await authenticatedData(for: request)
         guard
             let httpResponse = response as? HTTPURLResponse,
             (200..<300).contains(httpResponse.statusCode)
@@ -491,7 +499,7 @@ struct SupabaseDataClient: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await authenticatedData(for: request)
         guard
             let httpResponse = response as? HTTPURLResponse,
             (200..<300).contains(httpResponse.statusCode)
@@ -575,7 +583,7 @@ struct SupabaseDataClient: Sendable {
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await authenticatedData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw LiveDataError.invalidResponse
         }
@@ -832,6 +840,16 @@ private struct StatisticsResponse: Decodable {
     let doublesPlayers: [StatisticsPlayerResponse]
     let doublesTeams: [StatisticsTeamResponse]
     let eligibility: RankingEligibility?
+
+    private enum CodingKeys: String, CodingKey { case singles, doublesPlayers, doublesTeams, eligibility }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        singles = try values.decode([StatisticsPlayerResponse].self, forKey: .singles)
+        doublesPlayers = try values.decodeIfPresent([StatisticsPlayerResponse].self, forKey: .doublesPlayers) ?? []
+        doublesTeams = try values.decodeIfPresent([StatisticsTeamResponse].self, forKey: .doublesTeams) ?? []
+        eligibility = try values.decodeIfPresent(RankingEligibility.self, forKey: .eligibility)
+    }
 }
 
 struct RankingsSnapshot: Sendable {
@@ -952,7 +970,15 @@ enum BackendAPIError: LocalizedError {
 struct GweiloAPIClient: Sendable {
     let configuration: AppConfiguration
     let accessToken: String
-    var session: URLSession = .shared
+    var session: URLSession = AppNetwork.session
+    var requestExecutor: AuthenticatedRequestExecutor? = nil
+
+    private func authenticatedData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        if let requestExecutor {
+            return try await requestExecutor.data(for: request, session: session)
+        }
+        return try await AppNetwork.data(for: request, session: session)
+    }
 
     func submitRound(
         sessionID: UUID,
@@ -965,7 +991,7 @@ struct GweiloAPIClient: Sendable {
             scores: scores
         )
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await authenticatedData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BackendAPIError.invalidResponse
         }
@@ -1093,9 +1119,9 @@ struct GweiloAPIClient: Sendable {
         }
     }
 
-    func fetchRankings() async throws -> RankingsSnapshot {
+    func fetchRankings(singlesOnly: Bool = false) async throws -> RankingsSnapshot {
         let response: StatisticsResponse = try await perform(
-            makeStatisticsRequest(),
+            makeStatisticsRequest(singlesOnly: singlesOnly),
             fallbackMessage: "Nije moguće učitati trenutnu statistiku."
         )
         let eligibility = response.eligibility ?? .fallback
@@ -1347,8 +1373,12 @@ struct GweiloAPIClient: Sendable {
         makeAuthenticatedRequest(path: "api/calculator/players")
     }
 
-    func makeStatisticsRequest() -> URLRequest {
-        makeAuthenticatedRequest(path: "api/statistics")
+    func makeStatisticsRequest(singlesOnly: Bool = false) -> URLRequest {
+        var request = makeAuthenticatedRequest(path: "api/statistics")
+        if singlesOnly {
+            request.url = request.url?.appending(queryItems: [URLQueryItem(name: "view", value: "singles")])
+        }
+        return request
     }
 
     private func makeRankingEntry(
@@ -1495,7 +1525,7 @@ struct GweiloAPIClient: Sendable {
         _ request: URLRequest,
         fallbackMessage: String
     ) async throws -> Response {
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await authenticatedData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BackendAPIError.invalidResponse
         }

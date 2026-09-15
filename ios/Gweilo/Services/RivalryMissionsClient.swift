@@ -16,7 +16,15 @@ private struct RivalryMissionsErrorResponse: Decodable {
 struct RivalryMissionsClient: Sendable {
     let configuration: AppConfiguration
     let accessToken: String
-    var session: URLSession = .shared
+    var session: URLSession = AppNetwork.session
+    var requestExecutor: AuthenticatedRequestExecutor? = nil
+
+    private func authenticatedData(for request: URLRequest) async throws -> (Data, URLResponse) {
+        if let requestExecutor {
+            return try await requestExecutor.data(for: request, session: session)
+        }
+        return try await AppNetwork.data(for: request, session: session)
+    }
 
     func playerSnapshot() async throws -> RivalryMissionSnapshot? {
         let response: PlayerMissionsResponse = try await perform(
@@ -54,7 +62,7 @@ struct RivalryMissionsClient: Sendable {
         )
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await authenticatedData(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             throw BackendAPIError.invalidResponse
         }

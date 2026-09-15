@@ -714,6 +714,7 @@ private struct MinimalLiveMark: View {
     }
 }
 
+#if DEBUG
 #Preview(
     "Lock Screen",
     as: .content,
@@ -734,3 +735,4 @@ private struct MinimalLiveMark: View {
         GweiloSessionActivityAttributes.ContentState.previewActive
     }
 )
+#endif

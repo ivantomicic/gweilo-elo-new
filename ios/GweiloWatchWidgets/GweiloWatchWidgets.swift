@@ -18,12 +18,12 @@ private enum GweiloEloHistoryRange: String, AppEnum {
     case all
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation =
-        "Elo history"
+        "Istorija ELO-a"
 
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .lastSeven: "Last 7 matches",
-        .lastThirty: "Last 30 matches",
-        .all: "All history"
+        .lastSeven: "Poslednjih 7 mečeva",
+        .lastThirty: "Poslednjih 30 mečeva",
+        .all: "Cela istorija"
     ]
 
     var maximumMatchCount: Int? {
@@ -39,12 +39,12 @@ private enum GweiloEloHistoryRange: String, AppEnum {
 }
 
 private struct GweiloEloConfigurationIntent: WidgetConfigurationIntent {
-    static let title: LocalizedStringResource = "Elo chart"
+    static let title: LocalizedStringResource = "ELO grafikon"
     static let description = IntentDescription(
-        "Choose how much of your singles Elo history the chart shows."
+        "Izaberi koliko istorije ELO-a u singlu grafikon prikazuje."
     )
 
-    @Parameter(title: "History")
+    @Parameter(title: "Istorija")
     var historyRange: GweiloEloHistoryRange?
 
     init() {
@@ -67,8 +67,8 @@ private struct GweiloPersonalEloWidget: Widget {
                     Color.clear
                 }
         }
-        .configurationDisplayName("My Gweilo Elo")
-        .description("See your current Elo rating and recent progress.")
+        .configurationDisplayName("Moj Gweilo ELO")
+        .description("Pogledaj trenutni ELO i skorašnji napredak.")
         .supportedFamilies([
             .accessoryRectangular,
             .accessoryCircular,
@@ -91,8 +91,8 @@ private struct GweiloEloChartWidget: Widget {
                     Color.clear
                 }
         }
-        .configurationDisplayName("Gweilo Elo History")
-        .description("A configurable chart of your singles Elo history.")
+        .configurationDisplayName("Istorija Gweilo ELO-a")
+        .description("Podesivi grafikon istorije ELO-a u singlu.")
         .supportedFamilies([.accessoryRectangular])
     }
 }
@@ -347,7 +347,7 @@ private struct GweiloEloComplicationView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(
-                "Current Elo \(currentElo), recent trend \(spokenDelta(trendDelta))"
+                "Trenutni ELO \(currentElo), skorašnji trend \(spokenDelta(trendDelta))"
             )
         } else {
             unavailableView
@@ -367,8 +367,8 @@ private struct GweiloEloComplicationView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            entry.currentElo.map { "Current Elo \($0)" }
-                ?? "Open Gweilo on iPhone to sync Elo"
+            entry.currentElo.map { "Trenutni ELO \($0)" }
+                ?? "Otvori Gweilo na iPhone-u za sinhronizaciju ELO-a"
         )
     }
 
@@ -376,23 +376,23 @@ private struct GweiloEloComplicationView: View {
     private var inlineView: some View {
         if let latestSessionDelta = entry.latestSessionDelta {
             Label(
-                "Last session \(signed(latestSessionDelta)) ELO",
+                "Poslednji termin \(signed(latestSessionDelta)) ELO",
                 systemImage: trendSymbol(for: latestSessionDelta)
             )
             .accessibilityLabel(
-                "Latest session Elo change \(spokenDelta(latestSessionDelta))"
+                "Promena ELO-a na poslednjem terminu: \(spokenDelta(latestSessionDelta))"
             )
         } else {
-            Label("Open Gweilo to sync", systemImage: "iphone.and.arrow.forward")
+            Label("Otvori Gweilo za sinhronizaciju", systemImage: "iphone.and.arrow.forward")
         }
     }
 
     private var unavailableView: some View {
-        Label("Open Gweilo to sync", systemImage: "iphone.and.arrow.forward")
+        Label("Otvori Gweilo za sinhronizaciju", systemImage: "iphone.and.arrow.forward")
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityLabel("Open Gweilo on iPhone to sync Elo")
+            .accessibilityLabel("Otvori Gweilo na iPhone-u za sinhronizaciju ELO-a")
     }
 
     private func signed(_ value: Int) -> String {
@@ -411,12 +411,12 @@ private struct GweiloEloComplicationView: View {
 
     private func spokenDelta(_ value: Int) -> String {
         if value > 0 {
-            return "up \(value) points"
+            return "rast od \(value) poena"
         }
         if value < 0 {
-            return "down \(abs(value)) points"
+            return "pad od \(abs(value)) poena"
         }
-        return "unchanged"
+        return "bez promene"
     }
 }
 
@@ -467,11 +467,11 @@ private enum GweiloWidgetPerformanceBand {
     var label: String {
         switch self {
         case .gain:
-            "GOOD"
+            "DOBRO"
         case .steady:
-            "NEUTRAL"
+            "NEUTRALNO"
         case .loss:
-            "BAD"
+            "LOŠE"
         }
     }
 
@@ -592,9 +592,9 @@ private struct GweiloFormWidget: Widget {
                     Color.clear
                 }
         }
-        .configurationDisplayName("My Gweilo Form")
+        .configurationDisplayName("Moja Gweilo forma")
         .description(
-            "Your opportunity-adjusted form across recent singles sessions."
+            "Forma prilagođena prilikama tokom skorašnjih singl termina."
         )
         .supportedFamilies([
             .accessoryCircular,
@@ -616,9 +616,9 @@ private struct GweiloAverageFormWidget: Widget {
                     Color.clear
                 }
         }
-        .configurationDisplayName("5-Session Form")
+        .configurationDisplayName("Forma u 5 termina")
         .description(
-            "Your average opportunity-adjusted form across the latest five singles sessions."
+            "Prosečna forma prilagođena prilikama tokom poslednjih pet singl termina."
         )
         .supportedFamilies([.accessoryCircular])
     }
@@ -720,9 +720,9 @@ private struct GweiloAverageFormComplicationView: View {
 
     private var accessibilityLabel: String {
         guard let averageBand = entry.averageBand else {
-            return "Open Gweilo on iPhone to sync form"
+            return "Otvori Gweilo na iPhone-u za sinhronizaciju forme"
         }
-        return "Average form across the latest \(entry.scores.count) singles sessions: \(averageBand.label.lowercased())"
+        return "Prosečna forma tokom poslednjih \(entry.scores.count) singl termina: \(averageBand.label.lowercased())"
     }
 }
 
@@ -866,7 +866,7 @@ private struct GweiloFormComplicationView: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(overallBand.color)
                 } else {
-                    Text("SYNC")
+                    Text("SINH.")
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -894,15 +894,15 @@ private struct GweiloFormComplicationView: View {
     private var circularAccessibilitySummary: String {
         let availableScores = circularScores.compactMap { $0 }
         guard !availableScores.isEmpty else {
-            return "Open Gweilo on iPhone to sync form"
+            return "Otvori Gweilo na iPhone-u za sinhronizaciju forme"
         }
 
-        return "Form across the last \(availableScores.count) singles sessions"
+        return "Forma tokom poslednjih \(availableScores.count) singl termina"
     }
 
     private var accessibilitySummary: String {
         guard let overallBand else {
-            return "Open Gweilo on iPhone to sync form"
+            return "Otvori Gweilo na iPhone-u za sinhronizaciju forme"
         }
 
         let goodCount = entry.scores.filter {
@@ -912,7 +912,7 @@ private struct GweiloFormComplicationView: View {
             GweiloWidgetPerformanceBand(formScore: $0) == .steady
         }.count
         let badCount = entry.scores.count - goodCount - neutralCount
-        return "Form \(overallBand.label.lowercased()). Last \(entry.scores.count) sessions: \(goodCount) good, \(neutralCount) neutral, \(badCount) bad."
+        return "Forma je \(overallBand.label.lowercased()). Poslednjih \(entry.scores.count) termina: \(goodCount) dobrih, \(neutralCount) neutralnih, \(badCount) loših."
     }
 }
 
