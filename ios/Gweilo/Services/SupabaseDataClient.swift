@@ -935,6 +935,46 @@ struct RoundSubmissionResult: Decodable, Sendable {
     let ratingsDeferred: Bool?
     let ratingsApplied: Bool?
     let combinedWithRound: Int?
+    let completedRound: Int?
+    let nextRound: Int?
+    let sessionStatus: SessionStatus?
+    let futureMatches: [FutureRoundMatchUpdate]?
+
+    struct FutureRoundMatchUpdate: Decodable, Sendable {
+        let matchID: UUID
+        let roundNumber: Int
+        let playerIDs: [UUID]
+        let isRated: Bool
+
+        private enum CodingKeys: String, CodingKey {
+            case matchID = "match_id"
+            case roundNumber = "round_number"
+            case playerIDs = "player_ids"
+            case isRated = "is_rated"
+        }
+    }
+
+    init(
+        success: Bool,
+        message: String?,
+        ratingsDeferred: Bool?,
+        ratingsApplied: Bool?,
+        combinedWithRound: Int?,
+        completedRound: Int? = nil,
+        nextRound: Int? = nil,
+        sessionStatus: SessionStatus? = nil,
+        futureMatches: [FutureRoundMatchUpdate]? = nil
+    ) {
+        self.success = success
+        self.message = message
+        self.ratingsDeferred = ratingsDeferred
+        self.ratingsApplied = ratingsApplied
+        self.combinedWithRound = combinedWithRound
+        self.completedRound = completedRound
+        self.nextRound = nextRound
+        self.sessionStatus = sessionStatus
+        self.futureMatches = futureMatches
+    }
 }
 
 struct MatchResultEditResult: Decodable, Sendable {

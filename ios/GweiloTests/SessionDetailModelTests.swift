@@ -212,6 +212,62 @@ final class SessionDetailModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRoundReceiptImmediatelyAdvancesAndAppliesFutureMatchups() {
+        let playerIDs = (1...4).map { UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", $0))! }
+        let firstMatchID = UUID()
+        let nextMatchID = UUID()
+        let participants = playerIDs.enumerated().map { index, id in
+            SessionParticipant(id: id, name: "Player \(index + 1)", avatarURL: nil, team: nil)
+        }
+        let original = SessionDetail(
+            session: SessionSummary(
+                id: UUID(), createdAt: .now, playerCount: 4, status: .active,
+                currentRound: 1, totalRounds: 2, singlesMatches: 0, doublesMatches: 0,
+                bestPlayer: nil, bestDelta: nil, worstPlayer: nil, worstDelta: nil
+            ),
+            participants: participants,
+            singlesPerformance: [], doublesPlayerPerformance: [], doublesTeamPerformance: [],
+            rounds: [
+                SessionRound(number: 1, matches: [
+                    SessionMatch(
+                        id: firstMatchID, roundNumber: 1, type: .singles, order: 0,
+                        playerIDs: Array(playerIDs.prefix(2)), isCompleted: false,
+                        teamOneScore: nil, teamTwoScore: nil
+                    )
+                ], restingPlayers: Array(participants.suffix(2))),
+                SessionRound(number: 2, matches: [
+                    SessionMatch(
+                        id: nextMatchID, roundNumber: 2, type: .singles, order: 0,
+                        playerIDs: Array(playerIDs.prefix(2)), isCompleted: false,
+                        teamOneScore: nil, teamTwoScore: nil
+                    )
+                ], restingPlayers: Array(participants.suffix(2)))
+            ]
+        )
+        let receipt = RoundSubmissionResult(
+            success: true, message: nil, ratingsDeferred: nil, ratingsApplied: true,
+            combinedWithRound: nil, completedRound: 1, nextRound: 2,
+            sessionStatus: .active,
+            futureMatches: [RoundSubmissionResult.FutureRoundMatchUpdate(
+                matchID: nextMatchID, roundNumber: 2,
+                playerIDs: Array(playerIDs.suffix(2)), isRated: true
+            )]
+        )
+
+        let updated = original.applying(
+            receipt,
+            scores: [RoundMatchScoreSubmission(matchId: firstMatchID, team1Score: 3, team2Score: 1)],
+            roundNumber: 1
+        )
+
+        XCTAssertEqual(updated.session.currentRound, 2)
+        XCTAssertTrue(updated.rounds[0].matches[0].isCompleted)
+        XCTAssertEqual(updated.rounds[0].matches[0].teamOneScore, 3)
+        XCTAssertEqual(updated.rounds[1].matches[0].playerIDs, Array(playerIDs.suffix(2)))
+        XCTAssertEqual(updated.rounds[1].restingPlayers.map(\.id), Array(playerIDs.prefix(2)))
+    }
+
+    @MainActor
     private func makeHomeTrendPlayer(
         elo: Int,
         recentForm: [Double]

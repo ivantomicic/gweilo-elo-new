@@ -24,7 +24,7 @@ const paddingClasses: Record<SurfaceCardPadding, string> = {
 
 export interface SurfaceCardProps
 	extends React.HTMLAttributes<HTMLDivElement> {
-	component?: keyof JSX.IntrinsicElements;
+	component?: keyof React.JSX.IntrinsicElements;
 	variant?: SurfaceCardVariant;
 	padding?: SurfaceCardPadding;
 	clipped?: boolean;

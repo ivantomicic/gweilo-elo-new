@@ -1,0 +1,5 @@
+{
+	"crons": [
+		{ "path": "/api/cron/round-effects", "schedule": "0 3 * * *" }
+	]
+}

@@ -41,8 +41,13 @@ export function CalculationTerminal({
 	const [isEntering, setIsEntering] = useState(true);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const hasCalledComplete = useRef(false);
+	const onCompleteRef = useRef(onComplete);
 	const lineIdCounter = useRef(0);
 	const instanceId = useId();
+
+	useEffect(() => {
+		onCompleteRef.current = onComplete;
+	}, [onComplete]);
 
 	// Generate stable ID for lines (stable refs/useId, no deps needed)
 	const generateLineId = useCallback(() => {
@@ -73,9 +78,12 @@ export function CalculationTerminal({
 		if (currentLineIndex >= lines.length) {
 			setIsTyping(false);
 			setCurrentTypingLine(null);
-			if (isComplete && onComplete && !hasCalledComplete.current) {
-				hasCalledComplete.current = true;
-				const timer = setTimeout(onComplete, 600);
+			if (isComplete && onCompleteRef.current && !hasCalledComplete.current) {
+				const timer = setTimeout(() => {
+					if (hasCalledComplete.current) return;
+					hasCalledComplete.current = true;
+					onCompleteRef.current?.();
+				}, 600);
 				return () => clearTimeout(timer);
 			}
 			return;
@@ -125,7 +133,7 @@ export function CalculationTerminal({
 			setCurrentLineIndex((i) => i + 1);
 		}, lineEndDelay);
 		return () => clearTimeout(timer);
-	}, [currentLineIndex, currentTypingLine, currentTypingText, lines, isComplete, onComplete, generateLineId]);
+	}, [currentLineIndex, currentTypingLine, currentTypingText, lines, isComplete, generateLineId]);
 
 	// Auto-scroll to bottom
 	useEffect(() => {

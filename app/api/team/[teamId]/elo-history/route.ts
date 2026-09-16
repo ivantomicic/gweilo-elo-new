@@ -78,11 +78,9 @@ function buildTeamName(
 	return `${player1Name} & ${player2Name}`;
 }
 
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { teamId: string } },
-) {
-	try {
+export async function GET(request: NextRequest, props: { params: Promise<{ teamId: string }> }) {
+    const params = await props.params;
+    try {
 		const authHeader = request.headers.get("authorization");
 		const user = await verifyUser(authHeader);
 

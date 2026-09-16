@@ -20,13 +20,11 @@ import {
  * The database function owns validation, locking, restoration, deletion, and
  * audit logging in one transaction. A failure leaves all data unchanged.
  */
-export async function DELETE(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } }
-) {
-	const adminClient = createAdminClient();
+export async function DELETE(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    const adminClient = createAdminClient();
 
-	try {
+    try {
 		const authHeader = request.headers.get("authorization");
 		const adminUserId = await verifyAdmin(authHeader);
 

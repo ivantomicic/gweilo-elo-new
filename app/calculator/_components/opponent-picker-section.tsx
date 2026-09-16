@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 type OpponentPickerSectionProps = {
 	availableOpponents: PlayerWithRating[];
 	selectedCount: number;
-	scrollRef: RefObject<HTMLDivElement>;
+	scrollRef: RefObject<HTMLDivElement | null>;
 	canScrollRight: boolean;
 	onScroll: () => void;
 	onToggleOpponent: (opponentId: string) => void;

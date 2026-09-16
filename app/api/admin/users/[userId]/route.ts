@@ -58,11 +58,9 @@ function isMissingProfileAvatarColumnError(
  * - Email changes require confirmation (Supabase sends confirmation email)
  * - Avatar URL must be provided (upload should happen separately if needed)
  */
-export async function PATCH(
-	request: NextRequest,
-	{ params }: { params: { userId: string } },
-) {
-	try {
+export async function PATCH(request: NextRequest, props: { params: Promise<{ userId: string }> }) {
+    const params = await props.params;
+    try {
 		// Verify admin access
 		const authHeader = request.headers.get("authorization");
 		const adminUserId = await verifyAdmin(authHeader);

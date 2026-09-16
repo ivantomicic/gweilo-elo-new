@@ -199,13 +199,11 @@ async function loadSnapshots(
  * - doubles_player: Player summary for player_double_ratings (replayed from player-doubles baseline)
  * - doubles_team: Team summary for double_team_ratings
  */
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } }
-) {
-	const adminClient = createAdminClient();
+export async function GET(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    const adminClient = createAdminClient();
 
-	try {
+    try {
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(

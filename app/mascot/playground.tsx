@@ -12,7 +12,7 @@ export function MascotPlayground() {
 	const [paused, setPaused] = useState(false);
 	const [status, setStatus] = useState<"loading" | "ready" | "fallback">("loading");
 	const [reaction, setReaction] = useState("");
-	const timer = useRef<ReturnType<typeof setTimeout>>();
+	const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 	const pokes = useRef(0);
 	const react = useCallback(() => {
 		pokes.current += 1;

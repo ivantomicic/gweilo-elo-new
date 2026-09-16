@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { revalidateTag } from "next/cache";
+import { after } from "next/server";
 import { getManagedRoleFromAuthUser } from "@/lib/auth/roles";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getOrCreateDoubleTeam } from "@/lib/elo/double-teams";
-import { refreshSessionBestWorstPlayer } from "@/lib/elo/best-worst-player";
 import {
 	claimRoundSubmission,
 	failRoundSubmission,
@@ -16,24 +15,23 @@ import {
 import { loadAtomicRatingInputs } from "@/lib/elo/round-transaction-loader";
 import { normalizePlayerIDs } from "@/lib/sessions/player-id";
 import {
+	buildSixPlayerFutureRoundPlan,
+	type FutureRoundMatchUpdate,
+} from "@/lib/sessions/six-player-future-rounds";
+import {
 	combineTwoHalfSinglesScore,
 	detectTwoHalfSinglesSession,
 } from "@/lib/sessions/two-half-singles";
-import { notifySessionCompleted } from "@/lib/notifications/events";
-import { refreshMissionSnapshotsAfterDataChange } from "@/lib/rivalries/service";
-import {
-	endSessionLiveActivitySafely,
-	updateSessionLiveActivitySafely,
-} from "@/lib/live-activities/service";
 import { getAuthToken } from "../../../../../_utils/auth";
+import { processPendingRoundEffects } from "@/lib/elo/round-effects";
+
+export const maxDuration = 60;
 
 type MatchScore = {
 	matchId: string;
 	team1Score: number;
 	team2Score: number;
 };
-
-type AdminClient = ReturnType<typeof createAdminClient>;
 
 type SessionMatchRecord = {
 	id: string;
@@ -65,49 +63,6 @@ const isValidScore = (score: unknown): score is number => {
 const normalizeMatchId = (matchId: unknown) =>
 	typeof matchId === "string" ? matchId.toLowerCase() : "";
 
-async function getMaxRoundNumber(
-	adminClient: AdminClient,
-	sessionId: string,
-): Promise<number | null> {
-	const { data, error } = await adminClient
-		.from("session_matches")
-		.select("round_number")
-		.eq("session_id", sessionId)
-		.order("round_number", { ascending: false })
-		.limit(1)
-		.single();
-
-	if (error || !data) {
-		console.error("Error fetching max round number:", error);
-		return null;
-	}
-
-	return data.round_number;
-}
-
-async function finalizeSessionMetadata(adminClient: AdminClient, sessionId: string) {
-	try {
-		await refreshSessionBestWorstPlayer(sessionId, adminClient);
-	} catch (error) {
-		// Core completion and snapshots are already committed atomically. These
-		// display-only fields must not turn a successful settlement into a 500.
-		console.error("Error calculating completed-session metadata:", error);
-	} finally {
-		revalidateTag("statistics");
-	}
-
-	try {
-		await refreshMissionSnapshotsAfterDataChange({
-			adminClient,
-			reason: "session_completed",
-		});
-	} catch (error) {
-		// Invalidation happens first, so a later homepage request retries instead
-		// of displaying missions from the previous session.
-		console.error("Error refreshing missions after session completion:", error);
-	}
-}
-
 /**
  * POST /api/sessions/[sessionId]/rounds/[roundNumber]/submit
  *
@@ -133,16 +88,22 @@ async function finalizeSessionMetadata(adminClient: AdminClient, sessionId: stri
  * }
  */
 export async function POST(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string; roundNumber: string } },
+    request: NextRequest,
+    props: { params: Promise<{ sessionId: string; roundNumber: string }> }
 ) {
-	const adminClient = createAdminClient();
-	let submissionId: string | undefined;
-	let submissionClaimToken: string | undefined;
-	let submissionCompleted = false;
-	let submissionFailure: unknown = "Round submission did not complete";
+    const params = await props.params;
+    const adminClient = createAdminClient();
+    let submissionId: string | undefined;
+    let submissionClaimToken: string | undefined;
+    let submissionCompleted = false;
+    let submissionFailure: unknown = "Round submission did not complete";
+    const scheduleRoundEffects = (targetSubmissionId: string) => after(() =>
+        processPendingRoundEffects(1, targetSubmissionId).catch((effectError) => {
+            console.error("Post-response round effects failed:", effectError);
+        })
+    );
 
-	try {
+    try {
 		const token = getAuthToken(request);
 		if (!token) {
 			return NextResponse.json(
@@ -216,7 +177,7 @@ export async function POST(
 		const { data: existingSubmission, error: existingSubmissionError } =
 			await adminClient
 				.from("elo_round_submissions")
-				.select("status, response")
+				.select("id, status, response, effects_status")
 				.eq("session_id", sessionId)
 				.eq("round_number", roundNum)
 				.maybeSingle();
@@ -226,6 +187,7 @@ export async function POST(
 			);
 		}
 		if (existingSubmission?.status === "completed") {
+			if (existingSubmission.effects_status === "pending") scheduleRoundEffects(existingSubmission.id);
 			return NextResponse.json(
 				existingSubmission.response ?? {
 					success: true,
@@ -322,30 +284,10 @@ export async function POST(
 			);
 		}
 
-		const maxRoundNumber = await getMaxRoundNumber(adminClient, sessionId);
-		if (maxRoundNumber === null) {
-			return NextResponse.json(
-				{ error: "Failed to determine final round" },
-				{ status: 500 },
-			);
-		}
-
-		const isLastRound = roundNum >= maxRoundNumber;
 		const excludeSubmittingUserIds =
 			request.headers.get("x-gweilo-client")?.toLowerCase() === "ios"
 				? [user.id]
 				: [];
-		const publishSuccessfulRound = () =>
-			isLastRound
-				? Promise.all([
-						notifySessionCompleted({
-							sessionId,
-							createdBy: user.id,
-							excludeUserIds: excludeSubmittingUserIds,
-						}),
-						endSessionLiveActivitySafely(sessionId),
-					])
-				: updateSessionLiveActivitySafely(sessionId);
 		const { data: sessionMatchesForPairing, error: pairingMatchesError } =
 			await adminClient
 				.from("session_matches")
@@ -363,13 +305,49 @@ export async function POST(
 				{ status: 500 },
 			);
 		}
+		const maxRoundNumber = Math.max(
+			...sessionMatchesForPairing.map((match) => match.round_number),
+		);
+		const isLastRound = roundNum >= maxRoundNumber;
+		const nextRound = sessionMatchesForPairing
+			.map((match) => match.round_number)
+			.filter((number) => number > roundNum)
+			.sort((left, right) => left - right)[0] ?? null;
 		const twoHalfSinglesConfig = detectTwoHalfSinglesSession(
 			session.player_count,
 			sessionMatchesForPairing as SessionMatchRecord[],
 		);
+		let futureMatches: FutureRoundMatchUpdate[] = [];
+		if (!twoHalfSinglesConfig && roundNum === 5 && session.player_count === 6) {
+			const { data: placeholders, error: placeholdersError } = await adminClient
+				.from("session_placeholders")
+				.select("id")
+				.eq("session_id", sessionId);
+			if (placeholdersError) throw placeholdersError;
+			const roundFiveDoubles = matches.find((match) => match.match_type === "doubles");
+			if (!roundFiveDoubles) throw new Error("Round 5 doubles match is missing");
+			const doublesScore = matchScoresMap.get(roundFiveDoubles.id)!;
+			futureMatches = await buildSixPlayerFutureRoundPlan({
+				matches: sessionMatchesForPairing.map((match) => ({
+					...match,
+					player_ids: normalizePlayerIDs(match.player_ids),
+				})),
+				doublesTeamOneScore: doublesScore.team1Score,
+				doublesTeamTwoScore: doublesScore.team2Score,
+				placeholderIds: new Set((placeholders ?? []).map((placeholder) => placeholder.id)),
+				resolveDoublesTeam: getOrCreateDoubleTeam,
+			});
+		}
+		const receipt = {
+			completedRound: roundNum,
+			nextRound,
+			sessionStatus: isLastRound ? "completed" : "active",
+			futureMatches,
+		};
 		const submissionClaim = await claimRoundSubmission(sessionId, roundNum);
 
 		if (submissionClaim.state === "completed") {
+			scheduleRoundEffects(submissionClaim.submissionId);
 			return NextResponse.json(
 				submissionClaim.response ?? {
 					success: true,
@@ -407,18 +385,25 @@ export async function POST(
 				applyRatings,
 				ratingInputs,
 			});
-			const { data, error } = await adminClient.rpc("commit_atomic_elo_round", {
+			const { data, error } = await adminClient.rpc("commit_atomic_elo_round_with_effects", {
 				p_session_id: sessionId,
 				p_round_number: roundNum,
 				p_submission_id: submissionId!,
 				p_claim_token: submissionClaimToken!,
-				p_plan: plan,
-				p_response: response,
+				p_plan: { ...plan, future_matches: futureMatches },
+				p_response: { ...response, ...receipt },
 				p_complete_session: isLastRound,
+				p_effects_payload: {
+					sessionId,
+					createdBy: user.id,
+					isLastRound,
+					excludeUserIds: excludeSubmittingUserIds,
+				},
 			});
 			if (error) throw new Error(`Atomic ELO commit failed: ${error.message}`);
 			submissionCompleted = true;
-			return (data ?? response) as Record<string, unknown>;
+			scheduleRoundEffects(submissionId!);
+			return (data ?? { ...response, ...receipt }) as Record<string, unknown>;
 		};
 
 		if (twoHalfSinglesConfig) {
@@ -426,12 +411,11 @@ export async function POST(
 				const response = await commitAtomicSubmission({
 					applyRatings: false,
 					response: {
-					success: true,
-					message: "Round scores saved successfully",
+						success: true,
+						message: "Round scores saved successfully",
 						ratingsDeferred: true,
 					},
 				});
-				await publishSuccessfulRound();
 				return NextResponse.json(response);
 			}
 
@@ -549,11 +533,6 @@ export async function POST(
 				},
 			});
 
-			if (isLastRound) {
-				await finalizeSessionMetadata(adminClient, sessionId);
-			}
-
-			await publishSuccessfulRound();
 			return NextResponse.json(atomicResponse);
 		}
 
@@ -561,195 +540,8 @@ export async function POST(
 			response: { success: true, message: "Round submitted successfully" },
 		});
 
-		// Check if this is Round 5 for a 6-player session - if so, update Round 6 dynamically
-		if (roundNum === 5) {
-			// Check if this is a 6-player session
-			const { data: sessionData } = await adminClient
-				.from("sessions")
-				.select("player_count")
-				.eq("id", sessionId)
-				.single();
-
-			if (sessionData && sessionData.player_count === 6) {
-				const { data: placeholders } = await adminClient
-					.from("session_placeholders")
-					.select("id")
-					.eq("session_id", sessionId);
-				const placeholderIds = new Set(
-					(placeholders || []).map((placeholder) => placeholder.id),
-				);
-				const isRatedPlayers = (playerIds: string[]) =>
-					playerIds.every((playerId) => !placeholderIds.has(playerId));
-				// Find Round 5 matches to determine Round 6
-				const round5DoublesMatch = matches.find(
-					(m) => m.match_type === "doubles",
-				);
-				const round5SinglesMatch = matches.find(
-					(m) => m.match_type === "singles",
-				);
-
-				if (round5DoublesMatch && round5SinglesMatch) {
-					const doublesScore = matchScoresMap.get(
-						round5DoublesMatch.id,
-					)!;
-
-					// Determine winners of Round 5 doubles
-					const doublesPlayerIds =
-						round5DoublesMatch.player_ids as string[];
-					// Team 1: [0, 1], Team 2: [2, 3]
-					const doublesWinners =
-						doublesScore.team1Score > doublesScore.team2Score
-							? [doublesPlayerIds[0], doublesPlayerIds[1]]
-							: [doublesPlayerIds[2], doublesPlayerIds[3]];
-
-					// Get players from Round 5 singles
-					const singlesPlayerIds =
-						round5SinglesMatch.player_ids as string[];
-
-					// Round 6 doubles: winners from Round 5 doubles vs players from Round 5 singles
-					// Round 6 singles: the remaining players (losers from Round 5 doubles)
-					const doublesLosers =
-						doublesScore.team1Score > doublesScore.team2Score
-							? [doublesPlayerIds[2], doublesPlayerIds[3]]
-							: [doublesPlayerIds[0], doublesPlayerIds[1]];
-
-					// Fetch Round 6 matches to update
-					const { data: round6Matches, error: round6Error } =
-						await adminClient
-							.from("session_matches")
-							.select("*")
-							.eq("session_id", sessionId)
-							.eq("round_number", 6)
-							.order("match_order", { ascending: true });
-
-					if (
-						!round6Error &&
-						round6Matches &&
-						round6Matches.length > 0
-					) {
-						// Update Round 6 doubles match
-						const round6DoublesMatch = round6Matches.find(
-							(m) => m.match_type === "doubles",
-						);
-						const round6SinglesMatch = round6Matches.find(
-							(m) => m.match_type === "singles",
-						);
-
-						if (round6DoublesMatch) {
-							// Update doubles match: winners from Round 5 doubles + players from Round 5 singles
-							const newDoublesPlayerIds = [
-								...doublesWinners,
-								...singlesPlayerIds,
-							];
-
-							// Get/create team IDs for the new doubles match
-							// Team 1: winners from Round 5 doubles
-							// Team 2: players from Round 5 singles
-							const isRated = isRatedPlayers(newDoublesPlayerIds);
-							const team1Id = isRated
-								? await getOrCreateDoubleTeam(doublesWinners[0], doublesWinners[1])
-								: null;
-							const team2Id = isRated
-								? await getOrCreateDoubleTeam(singlesPlayerIds[0], singlesPlayerIds[1])
-								: null;
-
-							await adminClient
-								.from("session_matches")
-								.update({
-									player_ids: newDoublesPlayerIds,
-									team_1_id: team1Id,
-									team_2_id: team2Id,
-									is_rated: isRated,
-								})
-								.eq("id", round6DoublesMatch.id);
-						}
-
-						if (round6SinglesMatch) {
-							// Update singles match: losers from Round 5 doubles
-							await adminClient
-								.from("session_matches")
-								.update({
-									player_ids: doublesLosers,
-									team_1_id: null,
-									team_2_id: null,
-									is_rated: isRatedPlayers(doublesLosers),
-								})
-								.eq("id", round6SinglesMatch.id);
-						}
-					}
-
-					// Fetch Round 7 matches to update
-					const { data: round7Matches, error: round7Error } =
-						await adminClient
-							.from("session_matches")
-							.select("*")
-							.eq("session_id", sessionId)
-							.eq("round_number", 7)
-							.order("match_order", { ascending: true });
-
-					if (
-						!round7Error &&
-						round7Matches &&
-						round7Matches.length > 0
-					) {
-						const round7DoublesMatch = round7Matches.find(
-							(m) => m.match_type === "doubles",
-						);
-						const round7SinglesMatch = round7Matches.find(
-							(m) => m.match_type === "singles",
-						);
-
-						if (round7DoublesMatch) {
-							// Update doubles match: losers from Round 5 doubles + players from Round 5 singles
-							const newDoublesPlayerIds = [
-								...doublesLosers,
-								...singlesPlayerIds,
-							];
-
-							// Team 1: losers from Round 5 doubles
-							// Team 2: players from Round 5 singles
-							const isRated = isRatedPlayers(newDoublesPlayerIds);
-							const team1Id = isRated
-								? await getOrCreateDoubleTeam(doublesLosers[0], doublesLosers[1])
-								: null;
-							const team2Id = isRated
-								? await getOrCreateDoubleTeam(singlesPlayerIds[0], singlesPlayerIds[1])
-								: null;
-
-							await adminClient
-								.from("session_matches")
-								.update({
-									player_ids: newDoublesPlayerIds,
-									team_1_id: team1Id,
-									team_2_id: team2Id,
-									is_rated: isRated,
-								})
-								.eq("id", round7DoublesMatch.id);
-						}
-
-						if (round7SinglesMatch) {
-							// Update singles match: winners from Round 5 doubles
-							await adminClient
-								.from("session_matches")
-								.update({
-									player_ids: doublesWinners,
-									team_1_id: null,
-									team_2_id: null,
-									is_rated: isRatedPlayers(doublesWinners),
-								})
-								.eq("id", round7SinglesMatch.id);
-						}
-					}
-				}
-			}
-		}
-
-		if (isLastRound) {
-			await finalizeSessionMetadata(adminClient, sessionId);
-		}
-
-		await publishSuccessfulRound();
-		// Success
+		// The transaction already committed scores, future matchups, and a durable
+		// outbox entry. Never hold the receipt for ancillary work.
 		return NextResponse.json(atomicResponse);
 	} catch (error) {
 		submissionFailure = error;

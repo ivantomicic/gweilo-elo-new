@@ -26,11 +26,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
  *   endDate?: string (ISO timestamp, optional)
  * }
  */
-export async function PUT(
-	request: NextRequest,
-	{ params }: { params: { pollId: string } }
-) {
-	try {
+export async function PUT(request: NextRequest, props: { params: Promise<{ pollId: string }> }) {
+    const params = await props.params;
+    try {
 		const { pollId } = params;
 
 		// Verify admin access
@@ -313,11 +311,9 @@ export async function PUT(
  * - RLS policies on polls table also enforce admin-only DELETE
  * - Cascade deletes will remove options and answers
  */
-export async function DELETE(
-	request: NextRequest,
-	{ params }: { params: { pollId: string } }
-) {
-	try {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ pollId: string }> }) {
+    const params = await props.params;
+    try {
 		const { pollId } = params;
 
 		// Verify admin access

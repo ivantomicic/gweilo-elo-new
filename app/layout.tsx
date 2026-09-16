@@ -1,23 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import dynamic from "next/dynamic";
 import { Space_Grotesk, Manrope } from "next/font/google";
 import "./globals.css";
 import { sr } from "@/lib/i18n/sr";
-import { AuthProvider } from "@/lib/auth/useAuth";
-import { ActiveSessionProvider } from "@/lib/client/use-active-session";
-
-const AppTracker = dynamic(
-	() =>
-		import("@/components/analytics/app-tracker").then(
-			(mod) => mod.AppTracker
-		),
-	{ ssr: false }
-);
-
-const MobileNav = dynamic(
-	() => import("@/components/mobile-nav").then((mod) => mod.MobileNav),
-	{ ssr: false }
-);
+import { ClientShell } from "./client-shell";
 
 const spaceGrotesk = Space_Grotesk({
 	subsets: ["latin"],
@@ -114,13 +99,7 @@ export default function RootLayout({
 			className={`dark ${spaceGrotesk.variable} ${manrope.variable}`}
 		>
 			<body>
-				<AuthProvider>
-					<AppTracker />
-					<ActiveSessionProvider>
-						{children}
-						<MobileNav />
-					</ActiveSessionProvider>
-				</AuthProvider>
+				<ClientShell>{children}</ClientShell>
 			</body>
 		</html>
 	);

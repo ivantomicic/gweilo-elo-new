@@ -15,13 +15,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * match_elo_history. The response contract is shared with the cached fields on
  * sessions.
  */
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } },
-) {
-	const adminClient = createAdminClient();
+export async function GET(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    const adminClient = createAdminClient();
 
-	try {
+    try {
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(

@@ -18,11 +18,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Requires authentication
  * - Returns player's display name and avatar from user_metadata
  */
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { playerId: string } }
-) {
-	try {
+export async function GET(request: NextRequest, props: { params: Promise<{ playerId: string }> }) {
+    const params = await props.params;
+    try {
 		// Get JWT token from Authorization header
 		const token = getAuthToken(request);
 		if (!token) {

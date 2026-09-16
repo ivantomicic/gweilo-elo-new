@@ -43,12 +43,13 @@ const SUPABASE_ANON_KEY = supabaseAnonKey;
  * }
  */
 export async function POST(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string; matchId: string } },
+    request: NextRequest,
+    props: { params: Promise<{ sessionId: string; matchId: string }> }
 ) {
-	const adminClient = createAdminClient();
+    const params = await props.params;
+    const adminClient = createAdminClient();
 
-	try {
+    try {
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(

@@ -32,13 +32,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Otherwise → set status = 'completed' and completed_at = now()
  * - Does NOT touch rounds, matches, or Elo ratings
  */
-export async function POST(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } },
-) {
-	const adminClient = createAdminClient();
+export async function POST(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    const adminClient = createAdminClient();
 
-	try {
+    try {
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(

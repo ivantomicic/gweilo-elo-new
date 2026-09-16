@@ -120,6 +120,20 @@ type Match = {
 	is_rated: boolean;
 };
 
+type RoundSubmissionReceipt = {
+	success: boolean;
+	completedRound?: number;
+	nextRound?: number | null;
+	sessionStatus?: "active" | "completed";
+	futureMatches?: Array<{
+		match_id: string;
+		player_ids: string[];
+		team_1_id: string | null;
+		team_2_id: string | null;
+		is_rated: boolean;
+	}>;
+};
+
 type SessionData = {
 	session: {
 		id: string;
@@ -1445,8 +1459,7 @@ function SessionPageContent() {
 	// Refs to store API call results for terminal completion handler
 	const submitResultRef = useRef<{
 		success: boolean;
-		updatedPlayers?: Player[];
-		allMatches?: Match[];
+		receipt?: RoundSubmissionReceipt;
 		error?: string;
 	} | null>(null);
 	const submitRoundRef = useRef(currentRound);
@@ -1457,124 +1470,63 @@ function SessionPageContent() {
 		const result = submitResultRef.current;
 		if (!result) return;
 
-		if (result.success && result.updatedPlayers) {
+		if (result.success) {
 			const roundToUpdate = submitRoundRef.current;
+			const receipt = result.receipt;
 			clearSessionSummaryCache(sessionId);
-
-			// If this is Round 5 for a 6-player session and we have refreshed matches
-			if (
-				roundToUpdate === 5 &&
-				sessionData?.session.player_count === 6 &&
-				result.allMatches
-			) {
-				// Group matches by round_number
-				const matchesByRound = result.allMatches.reduce(
-					(acc, match) => {
-						const roundNumber = match.round_number;
-						if (!acc[roundNumber]) {
-							acc[roundNumber] = [];
-						}
-						acc[roundNumber].push(match);
-						return acc;
-					},
-					{} as Record<number, Match[]>,
+			setSessionData((prev) => {
+				if (!prev) return prev;
+				const futureMatches = new Map(
+					(receipt?.futureMatches ?? []).map((match) => [match.match_id, match]),
 				);
-
-				// Update local state with refreshed matches
-				setSessionData((prev) => {
-					if (!prev) return prev;
-					const updatedMatchesByRound = { ...prev.matchesByRound };
-					const currentMatches =
-						updatedMatchesByRound[roundToUpdate] || [];
-					updatedMatchesByRound[roundToUpdate] = currentMatches.map(
-						(match) => ({
-							...match,
-							status: "completed" as const,
-							team1_score: scores[match.id].team1!,
-							team2_score: scores[match.id].team2!,
+				const updatedMatchesByRound = Object.fromEntries(
+					Object.entries(prev.matchesByRound).map(([number, matches]) => [
+						Number(number),
+						matches.map((match) => {
+							const future = futureMatches.get(match.id);
+							if (future) {
+								return {
+									...match,
+									player_ids: normalizePlayerIDs(future.player_ids),
+									team_1_id: future.team_1_id,
+									team_2_id: future.team_2_id,
+									is_rated: future.is_rated,
+								};
+							}
+							return Number(number) === roundToUpdate
+								? {
+									...match,
+									status: "completed" as const,
+									team1_score: scores[match.id].team1!,
+									team2_score: scores[match.id].team2!,
+								}
+								: match;
 						}),
-					);
-
-					// Merge refreshed matches (this will update Round 6 with new player assignments)
-					Object.keys(matchesByRound).forEach((roundNum) => {
-						const roundNumber = parseInt(roundNum, 10);
-						if (roundNumber !== roundToUpdate) {
-							updatedMatchesByRound[roundNumber] =
-								matchesByRound[roundNumber];
-						}
-					});
-
-					const roundNumbersList = Object.keys(updatedMatchesByRound)
-						.map(Number)
-						.sort((a, b) => a - b);
-					const maxRoundNumber = Math.max(...roundNumbersList);
-					const isLastRound = roundToUpdate >= maxRoundNumber;
-
-					return {
-						...prev,
-						players: result.updatedPlayers!,
-						matchesByRound: updatedMatchesByRound,
-						session: {
-							...prev.session,
-							status: isLastRound
-								? ("completed" as const)
-								: prev.session.status,
-							completed_at: isLastRound
-								? new Date().toISOString()
-								: prev.session.completed_at,
-						},
-					};
-				});
-			} else {
-				// Standard update for non-Round 5 or non-6-player sessions
-				setSessionData((prev) => {
-					if (!prev) return prev;
-					const updatedMatchesByRound = { ...prev.matchesByRound };
-					const currentMatches =
-						updatedMatchesByRound[roundToUpdate] || [];
-					updatedMatchesByRound[roundToUpdate] = currentMatches.map(
-						(match) => ({
-							...match,
-							status: "completed" as const,
-							team1_score: scores[match.id].team1!,
-							team2_score: scores[match.id].team2!,
-						}),
-					);
-
-					const roundNumbersList = Object.keys(prev.matchesByRound)
-						.map(Number)
-						.sort((a, b) => a - b);
-					const maxRoundNumber = Math.max(...roundNumbersList);
-					const isLastRound = roundToUpdate >= maxRoundNumber;
-
-					return {
-						...prev,
-						players: result.updatedPlayers!,
-						matchesByRound: updatedMatchesByRound,
-						session: {
-							...prev.session,
-							status: isLastRound
-								? ("completed" as const)
-								: prev.session.status,
-							completed_at: isLastRound
-								? new Date().toISOString()
-								: prev.session.completed_at,
-						},
-					};
-				});
-			}
-
-			// Advance to next round (if not last round)
+					]),
+			) as Record<number, Match[]>;
+			const roundNumbersList = Object.keys(updatedMatchesByRound).map(Number).sort((a, b) => a - b);
+			const isLastRound = receipt?.sessionStatus === "completed"
+				|| (receipt?.sessionStatus == null && roundToUpdate >= Math.max(...roundNumbersList));
+			return {
+				...prev,
+				matchesByRound: updatedMatchesByRound,
+				session: {
+					...prev.session,
+					status: isLastRound ? ("completed" as const) : prev.session.status,
+					completed_at: isLastRound ? new Date().toISOString() : prev.session.completed_at,
+				},
+			};
+			});
 			if (sessionData) {
-				const roundNumbersList = Object.keys(sessionData.matchesByRound)
-					.map(Number)
-					.sort((a, b) => a - b);
+				const roundNumbersList = Object.keys(sessionData.matchesByRound).map(Number).sort((a, b) => a - b);
 				const currentIndex = roundNumbersList.indexOf(roundToUpdate);
-				if (currentIndex < roundNumbersList.length - 1) {
+				const nextRound = receipt?.nextRound === undefined
+					? roundNumbersList[currentIndex + 1]
+					: receipt.nextRound;
+				if (nextRound != null) {
 					setRoundDirection(1);
-					setCurrentRound(roundNumbersList[currentIndex + 1]);
+					setCurrentRound(nextRound);
 				}
-				// Last round completed - session is now done
 			}
 		} else if (result.error) {
 			setError(result.error);
@@ -1651,45 +1603,13 @@ function SessionPageContent() {
 				return;
 			}
 
-				// Refetch players to get updated Elo ratings
-				const updatedPlayers = await fetchPlayers(session.access_token);
-
-				// For Round 5 of 6-player sessions, also refetch matches
-				let allMatches: Match[] | undefined;
-				if (currentRound === 5 && sessionData.session.player_count === 6) {
-					const supabaseClient = createTokenClient(
-						session.access_token,
-					);
-
-					const { data: matchesData, error: matchesError } =
-						await supabaseClient
-							.from("session_matches")
-							.select(
-								"id, round_number, match_type, match_order, player_ids, status, team1_score, team2_score, video_url, team_1_id, team_2_id, is_rated",
-							)
-							.eq("session_id", sessionId)
-							.order("round_number", { ascending: true })
-							.order("match_order", { ascending: true });
-
-					if (matchesError) {
-						console.error(
-							"Error refetching matches after round submit:",
-							matchesError,
-						);
-					} else if (matchesData) {
-						allMatches = (matchesData as Match[]).map((match) => ({
-							...match,
-							player_ids: normalizePlayerIDs(match.player_ids),
-						}));
-					}
-				}
-
-			// Store successful result
-			submitResultRef.current = {
-				success: true,
-				updatedPlayers,
-				allMatches,
-			};
+			const receipt = await response.json() as RoundSubmissionReceipt;
+			submitResultRef.current = { success: true, receipt };
+			// Ratings are a secondary read. A failure here must never convert a saved
+			// round into a submission error or hold the next-round transition.
+			void fetchPlayers(session.access_token)
+				.then((players) => setSessionData((prev) => prev ? { ...prev, players } : prev))
+				.catch((error) => console.error("Could not refresh player ratings:", error));
 
 			// Mark terminal as complete - this will trigger onComplete callback
 			setIsTerminalComplete(true);

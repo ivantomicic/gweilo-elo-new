@@ -20,13 +20,11 @@ import {
  * The same transactional database function used by DELETE performs a dry run,
  * so the button and the final mutation share identical safety checks.
  */
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } }
-) {
-	const adminClient = createAdminClient();
+export async function GET(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    const adminClient = createAdminClient();
 
-	try {
+    try {
 		const authHeader = request.headers.get("authorization");
 		const adminUserId = await verifyAdmin(authHeader);
 

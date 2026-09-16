@@ -12,7 +12,7 @@ type SubmissionRecord = {
 
 export type RoundSubmissionClaim =
 	| { state: "claimed"; submissionId: string; claimToken: string }
-	| { state: "completed"; response: unknown | null }
+	| { state: "completed"; submissionId: string; response: unknown | null }
 	| { state: "processing" };
 
 const STALE_PROCESSING_MS = 5 * 60 * 1000;
@@ -59,7 +59,7 @@ export async function claimRoundSubmission(
 	}
 
 	if (existing.status === "completed") {
-		return { state: "completed", response: existing.response };
+		return { state: "completed", submissionId: existing.id, response: existing.response };
 	}
 
 	const isStale =

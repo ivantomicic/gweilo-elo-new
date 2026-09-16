@@ -19,32 +19,30 @@ type CancellationResult = {
  * Removes an accidental active session only while it has no submitted results.
  * Once play has started, callers must force-close instead.
  */
-export async function POST(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } },
-) {
-	const auth = await verifyUser(request.headers.get("authorization"));
-	if (!auth) {
+export async function POST(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    const auth = await verifyUser(request.headers.get("authorization"));
+    if (!auth) {
 		return NextResponse.json(
 			{ error: "Unauthorized. Authentication required." },
 			{ status: 401 },
 		);
 	}
-	if (auth.role !== "admin" && auth.role !== "mod") {
+    if (auth.role !== "admin" && auth.role !== "mod") {
 		return NextResponse.json(
 			{ error: "Only admins and mods can cancel sessions." },
 			{ status: 403 },
 		);
 	}
 
-	const admin = createAdminClient();
-	const finishLiveActivity = await prepareSessionLiveActivityCancellation(
+    const admin = createAdminClient();
+    const finishLiveActivity = await prepareSessionLiveActivityCancellation(
 		params.sessionId,
 	).catch((error) => {
 		console.error("[LIVE_ACTIVITY] Could not prepare cancellation:", error);
 		return null;
 	});
-	const { data, error } = await admin.rpc(
+    const { data, error } = await admin.rpc(
 		"cancel_active_session_atomic",
 		{
 			p_session_id: params.sessionId,
@@ -52,7 +50,7 @@ export async function POST(
 			p_is_admin: auth.role === "admin",
 		},
 	);
-	if (error) {
+    if (error) {
 		console.error("Atomic session cancellation failed:", error);
 		return NextResponse.json(
 			{ error: "Failed to cancel session." },
@@ -60,8 +58,8 @@ export async function POST(
 		);
 	}
 
-	const result = data as CancellationResult;
-	switch (result.state) {
+    const result = data as CancellationResult;
+    switch (result.state) {
 		case "cancelled":
 			await finishLiveActivity?.().catch((error) => {
 				console.error("[LIVE_ACTIVITY] Cancellation end failed:", error);

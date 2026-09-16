@@ -22,11 +22,9 @@ export function OPTIONS(request: NextRequest) {
 	return scorekeeperOptions(request);
 }
 
-export async function POST(
-	request: NextRequest,
-	{ params }: { params: { matchId: string } },
-) {
-	try {
+export async function POST(request: NextRequest, props: { params: Promise<{ matchId: string }> }) {
+    const params = await props.params;
+    try {
 		const authorization = request.headers.get("authorization");
 		const adminUserID = await verifyAdmin(authorization);
 		if (!adminUserID) {

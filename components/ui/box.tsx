@@ -4,7 +4,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 export interface BoxProps extends React.HTMLAttributes<HTMLDivElement> {
-	component?: keyof JSX.IntrinsicElements
+	component?: keyof React.JSX.IntrinsicElements
 }
 
 const Box = React.forwardRef<HTMLDivElement, BoxProps>(
@@ -17,4 +17,3 @@ const Box = React.forwardRef<HTMLDivElement, BoxProps>(
 Box.displayName = 'Box'
 
 export { Box }
-

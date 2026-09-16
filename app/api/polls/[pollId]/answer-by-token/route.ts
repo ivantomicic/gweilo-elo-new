@@ -27,13 +27,12 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * }
  */
 export async function POST(
-	request: NextRequest,
-	{ params }: { params: Promise<{ pollId: string }> | { pollId: string } }
+    request: NextRequest,
+    props: { params: Promise<{ pollId: string }> }
 ) {
-	try {
-		// Handle both sync and async params (Next.js 14 vs 15)
-		const resolvedParams = await Promise.resolve(params);
-		const { pollId } = resolvedParams;
+    const params = await props.params;
+    try {
+		const { pollId } = params;
 
 		// Parse request body
 		const body = await request.json();

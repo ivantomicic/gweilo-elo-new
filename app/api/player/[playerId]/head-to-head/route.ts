@@ -27,11 +27,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Requires authentication
  * - Returns head-to-head stats for singles matches only
  */
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { playerId: string } }
-) {
-	try {
+export async function GET(request: NextRequest, props: { params: Promise<{ playerId: string }> }) {
+    const params = await props.params;
+    try {
 		// Get JWT token from Authorization header
 		const token = getAuthToken(request);
 		if (!token) {

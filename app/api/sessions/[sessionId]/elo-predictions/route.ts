@@ -40,11 +40,9 @@ function makeSidePrediction(
 	};
 }
 
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } },
-) {
-	try {
+export async function GET(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    try {
 		if (!supabaseUrl || !supabaseAnonKey) {
 			return NextResponse.json(
 				{ error: "Server configuration is incomplete" },

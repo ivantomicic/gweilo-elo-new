@@ -11,6 +11,11 @@ CREATE TABLE session_matches (
 	id uuid PRIMARY KEY,
 	session_id uuid NOT NULL REFERENCES sessions(id),
 	round_number integer NOT NULL,
+	match_type text NOT NULL DEFAULT 'singles',
+	player_ids jsonb NOT NULL DEFAULT '[]'::jsonb,
+	team_1_id uuid,
+	team_2_id uuid,
+	is_rated boolean NOT NULL DEFAULT true,
 	status text NOT NULL DEFAULT 'pending',
 	team1_score integer,
 	team2_score integer
@@ -46,7 +51,7 @@ CREATE TABLE elo_snapshots (
 );
 CREATE TABLE elo_round_submissions (
 	id uuid PRIMARY KEY DEFAULT gen_random_uuid(), claim_token uuid NOT NULL DEFAULT gen_random_uuid(), session_id uuid NOT NULL REFERENCES sessions(id), round_number integer NOT NULL,
-	status text NOT NULL DEFAULT 'processing', response jsonb, error_message text, completed_at timestamptz, updated_at timestamptz DEFAULT now(),
+	status text NOT NULL DEFAULT 'processing', response jsonb, error_message text, created_at timestamptz DEFAULT now(), completed_at timestamptz, updated_at timestamptz DEFAULT now(),
 	UNIQUE(session_id, round_number)
 );
 CREATE TABLE session_rating_snapshots (
@@ -59,6 +64,7 @@ CREATE TABLE session_rating_snapshots (
 CREATE ROLE service_role;
 
 \ir ../../supabase/migrations/20260720_atomic_elo_round_submission.sql
+\ir ../../supabase/migrations/20260916095239_atomic_round_schedule_and_effects.sql
 
 INSERT INTO sessions VALUES ('10000000-0000-0000-0000-000000000000', 'active');
 INSERT INTO session_matches(id, session_id, round_number) VALUES
@@ -149,6 +155,74 @@ BEGIN
 	IF (SELECT elo FROM player_ratings WHERE player_id='40000000-0000-0000-0000-000000000001') <> 1520 THEN RAISE EXCEPTION 'rating was not rolled back'; END IF;
 	IF (SELECT status FROM session_matches WHERE id='20000000-0000-0000-0000-000000000002') <> 'pending' THEN RAISE EXCEPTION 'match was not rolled back'; END IF;
 	IF (SELECT status FROM elo_round_submissions WHERE id='30000000-0000-0000-0000-000000000002') <> 'processing' THEN RAISE EXCEPTION 'ledger was not rolled back'; END IF;
+END $$;
+
+-- A failure in a future matchup must roll back the just-saved Round 5 scores.
+INSERT INTO sessions VALUES ('10000000-0000-0000-0000-000000000005', 'active');
+INSERT INTO session_matches (id, session_id, round_number, match_type, player_ids) VALUES
+	('20000000-0000-0000-0000-000000000051', '10000000-0000-0000-0000-000000000005', 5, 'doubles', '["40000000-0000-0000-0000-000000000001","40000000-0000-0000-0000-000000000002","40000000-0000-0000-0000-000000000003","40000000-0000-0000-0000-000000000004"]'),
+	('20000000-0000-0000-0000-000000000052', '10000000-0000-0000-0000-000000000005', 5, 'singles', '["40000000-0000-0000-0000-000000000005","40000000-0000-0000-0000-000000000006"]'),
+	('20000000-0000-0000-0000-000000000061', '10000000-0000-0000-0000-000000000005', 6, 'doubles', '[]'),
+	('20000000-0000-0000-0000-000000000062', '10000000-0000-0000-0000-000000000005', 6, 'singles', '[]'),
+	('20000000-0000-0000-0000-000000000071', '10000000-0000-0000-0000-000000000005', 7, 'doubles', '[]'),
+	('20000000-0000-0000-0000-000000000072', '10000000-0000-0000-0000-000000000005', 7, 'singles', '[]');
+INSERT INTO elo_round_submissions (id, session_id, round_number) VALUES
+	('30000000-0000-0000-0000-000000000005', '10000000-0000-0000-0000-000000000005', 5);
+
+DO $$
+DECLARE
+	v_plan jsonb := '{"matches":[{"match_id":"20000000-0000-0000-0000-000000000051","team1_score":3,"team2_score":1},{"match_id":"20000000-0000-0000-0000-000000000052","team1_score":2,"team2_score":3}],"ratings":[],"history":[],"snapshots":[],"future_matches":[{"match_id":"20000000-0000-0000-0000-000000000061","round_number":6,"player_ids":["40000000-0000-0000-0000-000000000001","40000000-0000-0000-0000-000000000002","40000000-0000-0000-0000-000000000005","40000000-0000-0000-0000-000000000006"],"is_rated":true},{"match_id":"20000000-0000-0000-0000-000000000062","round_number":6,"player_ids":["40000000-0000-0000-0000-000000000003","40000000-0000-0000-0000-000000000004"],"is_rated":true},{"match_id":"20000000-0000-0000-0000-000000000071","round_number":7,"player_ids":["40000000-0000-0000-0000-000000000003","40000000-0000-0000-0000-000000000004","40000000-0000-0000-0000-000000000005","40000000-0000-0000-0000-000000000006"],"is_rated":true},{"match_id":"20000000-0000-0000-0000-000000000072","round_number":7,"player_ids":["40000000-0000-0000-0000-000000000001","40000000-0000-0000-0000-000000000002"],"is_rated":true}]}'::jsonb;
+BEGIN
+	BEGIN
+		PERFORM commit_atomic_elo_round_with_effects(
+			'10000000-0000-0000-0000-000000000005', 5,
+			'30000000-0000-0000-0000-000000000005',
+			(SELECT claim_token FROM elo_round_submissions WHERE id='30000000-0000-0000-0000-000000000005'),
+			jsonb_set(v_plan, '{future_matches,3,match_id}', '"20000000-0000-0000-0000-000000000099"'),
+			'{"success":true}'::jsonb, false, '{"sessionId":"10000000-0000-0000-0000-000000000005"}'::jsonb
+		);
+		RAISE EXCEPTION 'expected future matchup conflict';
+	EXCEPTION WHEN raise_exception THEN
+		IF SQLERRM NOT LIKE 'FUTURE_MATCH_STATE_CONFLICT%' THEN RAISE; END IF;
+	END;
+	IF (SELECT count(*) FROM session_matches WHERE session_id='10000000-0000-0000-0000-000000000005' AND status='completed') <> 0 THEN
+		RAISE EXCEPTION 'Round 5 committed despite future matchup failure';
+	END IF;
+	IF (SELECT status FROM elo_round_submissions WHERE id='30000000-0000-0000-0000-000000000005') <> 'processing' THEN
+		RAISE EXCEPTION 'submission ledger did not roll back';
+	END IF;
+
+	PERFORM commit_atomic_elo_round_with_effects(
+		'10000000-0000-0000-0000-000000000005', 5,
+		'30000000-0000-0000-0000-000000000005',
+		(SELECT claim_token FROM elo_round_submissions WHERE id='30000000-0000-0000-0000-000000000005'),
+		v_plan, '{"success":true,"nextRound":6}'::jsonb, false,
+		'{"sessionId":"10000000-0000-0000-0000-000000000005"}'::jsonb
+	);
+	IF (SELECT count(*) FROM session_matches WHERE session_id='10000000-0000-0000-0000-000000000005' AND round_number=5 AND status='completed') <> 2 THEN
+		RAISE EXCEPTION 'Round 5 was not committed';
+	END IF;
+	IF (SELECT count(*) FROM session_matches WHERE session_id='10000000-0000-0000-0000-000000000005' AND round_number IN (6,7) AND jsonb_array_length(player_ids)>0) <> 4 THEN
+		RAISE EXCEPTION 'future rounds were not rewritten';
+	END IF;
+	IF (SELECT effects_status FROM elo_round_submissions WHERE id='30000000-0000-0000-0000-000000000005') <> 'pending' THEN
+		RAISE EXCEPTION 'effects outbox entry missing';
+	END IF;
+END $$;
+
+DO $$
+DECLARE v_claim record;
+BEGIN
+	SELECT * INTO v_claim FROM claim_next_round_effects();
+	IF v_claim.submission_id <> '30000000-0000-0000-0000-000000000005' THEN
+		RAISE EXCEPTION 'effects claim picked the wrong submission';
+	END IF;
+	IF (SELECT effects_status FROM elo_round_submissions WHERE id=v_claim.submission_id) <> 'processing' THEN
+		RAISE EXCEPTION 'effects claim did not mark processing';
+	END IF;
+	IF EXISTS (SELECT 1 FROM claim_next_round_effects()) THEN
+		RAISE EXCEPTION 'effects claim was not exclusive';
+	END IF;
 END $$;
 
 SELECT 'atomic ELO SQL integration tests passed' AS result;

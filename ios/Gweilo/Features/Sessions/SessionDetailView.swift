@@ -42,7 +42,15 @@ struct SessionDetailView: View {
                             scores: scores
                         )
                     },
-                    reload: {
+                    onSubmitted: { result, scores, roundNumber in
+                        guard result.success else { return }
+                        self.detail = detail.applying(result, scores: scores, roundNumber: roundNumber)
+                        self.selectedRoundNumber = result.nextRound
+                            ?? self.detail?.session.currentRound
+                            ?? roundNumber
+                        Task { await load(forceRefresh: true) }
+                    },
+                    refresh: {
                         await load(forceRefresh: true)
                     }
                 )
@@ -439,7 +447,8 @@ private struct ActiveSessionRoundPager: View {
         SessionRound,
         [RoundMatchScoreSubmission]
     ) async throws -> RoundSubmissionResult
-    let reload: () async -> Void
+    let onSubmitted: (RoundSubmissionResult, [RoundMatchScoreSubmission], Int) -> Void
+    let refresh: () async -> Void
 
     private var rounds: [SessionRound] {
         detail.rounds.sorted { $0.number < $1.number }
@@ -463,7 +472,10 @@ private struct ActiveSessionRoundPager: View {
                     submit: { scores in
                         try await submit(round, scores)
                     },
-                    reload: reload
+                    onSubmitted: { result, scores in
+                        onSubmitted(result, scores, round.number)
+                    },
+                    refresh: refresh
                 )
                 .tag(round.number)
             }
@@ -503,7 +515,8 @@ private struct ActiveSessionRoundPage: View {
     let submit: (
         [RoundMatchScoreSubmission]
     ) async throws -> RoundSubmissionResult
-    let reload: () async -> Void
+    let onSubmitted: (RoundSubmissionResult, [RoundMatchScoreSubmission]) -> Void
+    let refresh: () async -> Void
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -518,7 +531,7 @@ private struct ActiveSessionRoundPage: View {
                             roundNumbers: roundNumbers,
                             onRoundSelected: selectRound,
                             submit: submit,
-                            onSubmitted: reload,
+                            onSubmitted: onSubmitted,
                             onFocusedMatchChanged: { matchID in
                                 withAnimation(.smooth(duration: 0.24)) {
                                     scrollProxy.scrollTo(
@@ -543,7 +556,7 @@ private struct ActiveSessionRoundPage: View {
                 .padding(.bottom, 110)
             }
             .refreshable {
-                await reload()
+                await refresh()
             }
             .scrollDismissesKeyboard(.interactively)
             .scrollIndicators(.hidden)
@@ -2361,3 +2374,68 @@ extension SessionDetail {
     }()
 }
 #endif
+
+extension SessionDetail {
+    func applying(
+        _ result: RoundSubmissionResult,
+        scores: [RoundMatchScoreSubmission],
+        roundNumber: Int
+    ) -> SessionDetail {
+        let scoresByMatch = Dictionary(uniqueKeysWithValues: scores.map { ($0.matchId, $0) })
+        let futureByMatch = Dictionary(
+            uniqueKeysWithValues: (result.futureMatches ?? []).map { ($0.matchID, $0) }
+        )
+        let updatedRounds = rounds.map { round in
+            let updatedMatches = round.matches.map { match in
+                let score = round.number == roundNumber ? scoresByMatch[match.id] : nil
+                let future = futureByMatch[match.id]
+                return SessionMatch(
+                    id: match.id,
+                    roundNumber: match.roundNumber,
+                    type: match.type,
+                    order: match.order,
+                    playerIDs: future?.playerIDs ?? match.playerIDs,
+                    isCompleted: score != nil || match.isCompleted,
+                    teamOneScore: score?.team1Score ?? match.teamOneScore,
+                    teamTwoScore: score?.team2Score ?? match.teamTwoScore,
+                    eloPrediction: future == nil ? match.eloPrediction : nil,
+                    isRated: future?.isRated ?? match.isRated
+                )
+            }
+            let activePlayers = Set(updatedMatches.flatMap(\.playerIDs))
+            return SessionRound(
+                number: round.number,
+                matches: updatedMatches,
+                restingPlayers: participants.filter { !activePlayers.contains($0.id) }
+            )
+        }
+        let nextRound = result.nextRound ?? updatedRounds
+            .filter { $0.number > roundNumber && $0.matches.contains(where: { !$0.isCompleted }) }
+            .map(\.number)
+            .min()
+        let status = result.sessionStatus ?? (nextRound == nil ? .completed : .active)
+        let updatedSession = SessionSummary(
+            id: session.id,
+            createdAt: session.createdAt,
+            playerCount: session.playerCount,
+            status: status,
+            currentRound: status == .active ? nextRound : nil,
+            totalRounds: session.totalRounds,
+            singlesMatches: session.singlesMatches,
+            doublesMatches: session.doublesMatches,
+            bestPlayer: session.bestPlayer,
+            bestDelta: session.bestDelta,
+            worstPlayer: session.worstPlayer,
+            worstDelta: session.worstDelta
+        )
+        return SessionDetail(
+            session: updatedSession,
+            participants: participants,
+            singlesPerformance: singlesPerformance,
+            doublesPlayerPerformance: doublesPlayerPerformance,
+            doublesTeamPerformance: doublesTeamPerformance,
+            rounds: updatedRounds,
+            playerEloSnapshots: playerEloSnapshots
+        )
+    }
+}

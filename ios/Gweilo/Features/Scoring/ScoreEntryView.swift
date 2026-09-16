@@ -13,7 +13,7 @@ struct ScoreEntryView: View {
     let roundNumbers: [Int]
     let onRoundSelected: ((Int) -> Void)?
     let submit: ([RoundMatchScoreSubmission]) async throws -> RoundSubmissionResult
-    let onSubmitted: () async -> Void
+    let onSubmitted: (RoundSubmissionResult, [RoundMatchScoreSubmission]) -> Void
     let onFocusedMatchChanged: (UUID) -> Void
 
     private let suppliedDraft: Binding<RoundScoreDraft>?
@@ -32,7 +32,7 @@ struct ScoreEntryView: View {
         roundNumbers: [Int]? = nil,
         onRoundSelected: ((Int) -> Void)? = nil,
         submit: @escaping ([RoundMatchScoreSubmission]) async throws -> RoundSubmissionResult,
-        onSubmitted: @escaping () async -> Void = {},
+        onSubmitted: @escaping (RoundSubmissionResult, [RoundMatchScoreSubmission]) -> Void = { _, _ in },
         onFocusedMatchChanged: @escaping (UUID) -> Void = { _ in }
     ) {
         self.round = round
@@ -238,13 +238,12 @@ struct ScoreEntryView: View {
         }
 
         do {
-            _ = try await submit(scores)
+            let result = try await submit(scores)
             submissionSucceeded = true
             if hapticsEnabled {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
-            try? await Task.sleep(for: .milliseconds(450))
-            await onSubmitted()
+            onSubmitted(result, scores)
         } catch {
             if hapticsEnabled {
                 UINotificationFeedbackGenerator().notificationOccurred(.error)
@@ -789,7 +788,7 @@ struct ScoreEntryPreviewScreen: View {
                         combinedWithRound: nil
                     )
                 },
-                onSubmitted: {}
+                onSubmitted: { _, _ in }
             )
         }
     }

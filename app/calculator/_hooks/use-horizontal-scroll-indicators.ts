@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
 type UseHorizontalScrollIndicatorsResult = {
-	scrollRef: RefObject<HTMLDivElement>;
+	scrollRef: RefObject<HTMLDivElement | null>;
 	canScrollLeft: boolean;
 	canScrollRight: boolean;
 	updateScrollIndicators: () => void;

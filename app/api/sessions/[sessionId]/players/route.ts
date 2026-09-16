@@ -19,11 +19,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
  * - Requires authentication
  * - RLS policies enforce read access
  */
-export async function GET(
-	request: NextRequest,
-	{ params }: { params: { sessionId: string } }
-) {
-	try {
+export async function GET(request: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+    const params = await props.params;
+    try {
 		const authHeader = request.headers.get("authorization");
 		if (!authHeader || !authHeader.startsWith("Bearer ")) {
 			return NextResponse.json(
